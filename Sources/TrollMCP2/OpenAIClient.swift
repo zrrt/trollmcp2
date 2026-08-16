@@ -158,13 +158,19 @@ final class OpenAIClient {
     }
 
     private func applyAuth(to request: inout URLRequest) {
-        switch config.authMethod {
+        let key = config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let method = config.authMethod.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch method {
         case "Bearer":
-            request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         case "API Key":
-            request.setValue(config.apiKey, forHTTPHeaderField: "x-api-key")
-        default:
+            request.setValue(key, forHTTPHeaderField: "x-api-key")
+        case "None":
             break
+        default:
+            if !key.isEmpty {
+                request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            }
         }
     }
 }

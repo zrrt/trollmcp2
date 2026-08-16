@@ -41,7 +41,8 @@ struct ModelConfig: Codable, Identifiable, Hashable {
         baseURL = try c.decode(String.self, forKey: .baseURL)
         apiKey = try c.decode(String.self, forKey: .apiKey)
         model = try c.decode(String.self, forKey: .model)
-        authMethod = (try? c.decode(String.self, forKey: .authMethod)) ?? "Bearer"
+        let decodedAuthMethod = (try? c.decode(String.self, forKey: .authMethod)) ?? "Bearer"
+        authMethod = decodedAuthMethod.trimmingCharacters(in: .whitespaces).isEmpty ? "Bearer" : decodedAuthMethod
         isDefault = (try? c.decode(Bool.self, forKey: .isDefault)) ?? false
         temperature = (try? c.decode(Double.self, forKey: .temperature)) ?? 0.7
         maxTokens = (try? c.decode(Int.self, forKey: .maxTokens)) ?? 4096
@@ -208,13 +209,20 @@ final class ModelAPIClient {
     }
 
     private func applyAuth(config: ModelConfig, to request: inout URLRequest) {
-        switch config.authMethod {
+        let key = config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let method = config.authMethod.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch method {
         case "Bearer":
-            request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         case "API Key":
-            request.setValue(config.apiKey, forHTTPHeaderField: "x-api-key")
-        default:
+            request.setValue(key, forHTTPHeaderField: "x-api-key")
+        case "None":
             break
+        default:
+            // 空/未知鉴权方式但填了 key 时，默认按 Bearer 发送（兼容旧配置或 UI 异常）
+            if !key.isEmpty {
+                request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            }
         }
     }
 }
