@@ -354,7 +354,7 @@ final class ConversationStore: ObservableObject {
                             let content = Self.jsonString(r)
                             toolMessages.append(ChatMessage(role: "tool", content: content, toolCallId: call.id, toolName: call.name))
                         } catch {
-                            toolMessages.append(ChatMessage(role: "tool", content: "error: \(error)", toolCallId: call.id, toolName: call.name, isError: true))
+                            toolMessages.append(ChatMessage(role: "tool", content: "error: \(error)", isError: true, toolCallId: call.id, toolName: call.name))
                         }
                     }
                     for tm in toolMessages { self.appendToCurrent(tm) }

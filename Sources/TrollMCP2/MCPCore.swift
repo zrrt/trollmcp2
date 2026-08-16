@@ -176,7 +176,7 @@ extension Array where Element == ToolDefinition {
                     "parameters": [
                         "type": "object",
                         "properties": props,
-                        "required": Array(def.parameters.keys)
+                        "required": [String](def.parameters.keys)
                     ]
                 ]
             ]

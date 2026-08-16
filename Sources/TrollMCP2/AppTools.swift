@@ -174,7 +174,7 @@ final class AppOpenAndInputTool: MCPTool {
               let text = params["text"] as? String else {
             throw MCPError.invalidParams("bundle_id and text required")
         }
-        guard let app = AppCatalog.find(bid) else {
+        guard AppCatalog.find(bid) != nil else {
             throw MCPError.failed("app not found: \(bid)")
         }
 
