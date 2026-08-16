@@ -4,20 +4,32 @@ import Foundation
 
 final class AutomationStore: ObservableObject {
     static let shared = AutomationStore()
+    let center = UNUserNotificationCenter.current()
 
     struct Task: Identifiable, Codable, Hashable {
         var id: UUID = UUID()
         var name: String
-        var schedule: String          // cron 表达式或描述
-        var action: String            // 工具调用描述
+        var schedule: String = ""       // cron 表达式或描述
+        var action: String = ""         // 动作描述
+        var kind: String = "reminder"   // reminder | call | cron
+        var title: String = ""
+        var body: String = ""
+        var number: String = ""
+        var delay: Int = 0
+        var interval: Int = 0
         var enabled: Bool = true
         var lastRun: Date?
+        var createdAt: Date = Date()
     }
 
     @Published var tasks: [Task] = []
     private let key = "trollmcp2.automation_tasks"
 
-    init() { load() }
+    init() { load(); requestAuth() }
+
+    func requestAuth() {
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+    }
 
     func load() {
         guard let data = UserDefaults.standard.data(forKey: key),
@@ -34,18 +46,21 @@ final class AutomationStore: ObservableObject {
     func add(_ task: Task) {
         tasks.append(task)
         save()
+        schedule(task)
     }
 
     func update(_ task: Task) {
         if let idx = tasks.firstIndex(where: { $0.id == task.id }) {
             tasks[idx] = task
-            save()
         }
+        save()
+        schedule(task)
     }
 
     func remove(_ task: Task) {
         tasks.removeAll { $0.id == task.id }
         save()
+        cancel(task)
     }
 
     func setEnabled(_ task: Task, enabled: Bool) {
@@ -55,6 +70,42 @@ final class AutomationStore: ObservableObject {
         AuditLog.shared.log("automation.set_enabled", detail: "\(task.name) \(enabled ? "启用" : "停用")")
     }
 
+    // MARK: - 真实调度
+
+    private func trigger(for task: Task) -> UNNotificationTrigger? {
+        if task.kind == "cron", task.interval > 0 {
+            return UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(task.interval), repeats: true)
+        }
+        let secs = max(TimeInterval(task.delay), 1)
+        return UNTimeIntervalNotificationTrigger(timeInterval: secs, repeats: false)
+    }
+
+    private func schedule(_ task: Task) {
+        guard task.enabled else { cancel(task); return }
+        let content = UNMutableNotificationContent()
+        switch task.kind {
+        case "call":
+            content.title = "来电提醒"
+            content.body = task.number.isEmpty ? (task.body.isEmpty ? task.name : task.body) : "呼叫 \(task.number)"
+        default:
+            content.title = task.title.isEmpty ? (task.action.isEmpty ? task.name : task.action) : task.title
+            content.body = task.body.isEmpty ? task.action : task.body
+        }
+        content.sound = .default
+        content.userInfo = ["automationId": task.id.uuidString, "kind": task.kind]
+        let req = UNNotificationRequest(identifier: task.id.uuidString, content: content, trigger: trigger(for: task))
+        center.add(req) { err in
+            if let err = err {
+                AuditLog.shared.log("automation", detail: "调度失败: \(err.localizedDescription)", level: .warning)
+            }
+        }
+        AuditLog.shared.log("automation.schedule", detail: "\(task.name) kind=\(task.kind)")
+    }
+
+    private func cancel(_ task: Task) {
+        center.removePendingNotificationRequests(withIdentifiers: [task.id.uuidString])
+    }
+
     @discardableResult
     func run(name: String) -> Bool {
         guard var t = tasks.first(where: { $0.name == name }) else { return false }
@@ -62,15 +113,45 @@ final class AutomationStore: ObservableObject {
             AuditLog.shared.log("automation", detail: "\(name) 已停用，跳过", level: .warning)
             return false
         }
+        let content = UNMutableNotificationContent()
+        switch t.kind {
+        case "call":
+            content.title = "来电提醒"
+            content.body = t.number.isEmpty ? t.name : "呼叫 \(t.number)"
+        default:
+            content.title = t.title.isEmpty ? (t.action.isEmpty ? t.name : t.action) : t.title
+            content.body = t.body.isEmpty ? t.action : t.body
+        }
+        content.sound = .default
+        content.userInfo = ["automationId": t.id.uuidString, "kind": t.kind, "manual": true]
+        let req = UNNotificationRequest(identifier: t.id.uuidString + "-run-" + UUID().uuidString,
+                                        content: content, trigger: nil)
+        center.add(req, withCompletionHandler: nil)
         t.lastRun = Date()
         update(t)
-        AuditLog.shared.log("automation.run_now", detail: "\(name): \(t.action)")
+        AuditLog.shared.log("automation.run_now", detail: name)
         return true
+    }
+
+    /// 取消指定通知请求（automation.cancel）
+    func cancel(identifier: String) {
+        center.removePendingNotificationRequests(withIdentifiers: [identifier])
     }
 
     var history: [AuditLog.Entry] {
         AuditLog.shared.entries.filter { $0.category.hasPrefix("automation") || $0.category.hasPrefix("gateway.cron") }
     }
+}
+
+/// 从 cron 表达式 "*/N * * * *" 解析秒间隔（其余返回 nil）
+func cronSeconds(_ expr: String) -> Int? {
+    let parts = expr.trimmingCharacters(in: .whitespaces).split(separator: " ").map(String.init)
+    guard parts.count == 5 else { return nil }
+    if parts[0].hasPrefix("*/") {
+        return Int(parts[0].dropFirst(2)).map { $0 * 60 }
+    }
+    if let m = Int(parts[0]) { return m * 60 }
+    return nil
 }
 
 // MARK: - 原版缺失工具：injection.remove
@@ -138,18 +219,21 @@ final class GatewayChannelSendTool: MCPTool {
 }
 
 final class GatewayCronCreateTool: MCPTool {
-    let definition = ToolDefinition(name: "gateway.cron_create", summary: "创建 Gateway 定时任务",
+    let definition = ToolDefinition(name: "gateway.cron_create", summary: "创建 Gateway 定时任务（真实本地通知调度）",
         parameters: ["name": "任务名", "schedule": "cron 表达式", "action": "执行的动作描述"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
+        let schedule = params["schedule"] as? String ?? "*/5 * * * *"
         let task = AutomationStore.Task(
             name: name,
-            schedule: params["schedule"] as? String ?? "*/5 * * * *",
-            action: params["action"] as? String ?? "ping"
+            schedule: schedule,
+            action: params["action"] as? String ?? "ping",
+            kind: "cron",
+            interval: cronSeconds(schedule) ?? 300
         )
         AutomationStore.shared.add(task)
         AuditLog.shared.log("gateway.cron_create", detail: "\(task.name) \(task.schedule)")
-        return ["created": true, "name": name]
+        return ["created": true, "name": name, "interval": task.interval]
     }
 }
 
@@ -199,10 +283,15 @@ final class GatewayNodeInvokeTool: MCPTool {
 // MARK: - 原版缺失工具：automation.*
 
 final class AutomationCancelTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.cancel", summary: "取消正在运行的自动化任务",
-        parameters: ["name": "任务名"])
+    let definition = ToolDefinition(name: "automation.cancel", summary: "取消正在运行的自动化任务（真实移除通知）",
+        parameters: ["name": "任务名或 id"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
+        let store = AutomationStore.shared
+        guard let task = store.tasks.first(where: { $0.name == name || $0.id.uuidString == name }) else {
+            throw MCPError.failed("task not found: \(name)")
+        }
+        store.remove(task)
         AuditLog.shared.log("automation.cancel", detail: name)
         return ["cancelled": true, "name": name]
     }

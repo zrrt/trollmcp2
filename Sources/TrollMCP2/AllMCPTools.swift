@@ -124,37 +124,89 @@ final class CronFireTool: MCPTool {
     }
 }
 
-// MARK: - M4 自动化工具
+// MARK: - M4 自动化工具（真实 UNUserNotificationCenter 调度）
 
-final class AutomationRunTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.run", summary: "运行自动化脚本",
-        parameters: ["script": "脚本内容"])
+final class AutomationRunNowTool: MCPTool {
+    let definition = ToolDefinition(name: "automation.run_now", summary: "立即执行一个自动化任务（真实投递通知）",
+        parameters: ["name": "任务名或 id"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let script = params["script"] as? String ?? ""
-        AuditLog.shared.log("automation.run", detail: script.prefix(100).description)
-        return ["queued": true, "length": script.count]
+        guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
+        let store = AutomationStore.shared
+        let matched = store.tasks.first { $0.name == name || $0.id.uuidString == name }
+        guard let task = matched else { throw MCPError.failed("task not found: \(name)") }
+        guard store.run(name: task.name) else { throw MCPError.failed("task disabled or not found: \(name)") }
+        return ["ran": true, "name": task.name, "kind": task.kind]
     }
 }
 
 final class AutomationListTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.list", summary: "列出自动化任务")
+    let definition = ToolDefinition(name: "automation.list", summary: "列出自动化任务（含调度信息）")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        ["tasks": []]
+        let tasks = AutomationStore.shared.tasks.map { t in
+            [
+                "id": t.id.uuidString,
+                "name": t.name,
+                "kind": t.kind,
+                "enabled": t.enabled,
+                "schedule": t.schedule,
+                "delay": t.delay,
+                "interval": t.interval,
+                "lastRun": t.lastRun.map { ISO8601DateFormatter().string(from: $0) } ?? ""
+            ] as [String: Any]
+        }
+        return ["count": tasks.count, "tasks": tasks]
+    }
+}
+
+final class AutomationJobsTool: MCPTool {
+    let definition = ToolDefinition(name: "automation.jobs", summary: "查看待触发的自动化任务与通知授权状态")
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        let store = AutomationStore.shared
+        let status = AutomationSchedulerStatus()
+        return [
+            "authStatus": status,
+            "pending": store.tasks.filter { $0.enabled }.count,
+            "total": store.tasks.count,
+            "jobs": store.tasks.map { ["id": $0.id.uuidString, "name": $0.name, "kind": $0.kind, "enabled": $0.enabled] }
+        ]
     }
 }
 
 final class AutomationStopTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.stop", summary: "停止自动化任务",
-        parameters: ["task": "任务 ID"])
+    let definition = ToolDefinition(name: "automation.stop", summary: "停止/取消自动化任务",
+        parameters: ["name": "任务名或 id"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        ["stopped": true]
+        guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
+        let store = AutomationStore.shared
+        guard let task = store.tasks.first(where: { $0.name == name || $0.id.uuidString == name }) else {
+            throw MCPError.failed("task not found: \(name)")
+        }
+        store.remove(task)
+        AuditLog.shared.log("automation.stop", detail: name)
+        return ["stopped": true, "name": name]
     }
 }
 
 final class AutomationStatusTool: MCPTool {
     let definition = ToolDefinition(name: "automation.status", summary: "自动化引擎状态")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        ["running": false, "queue": 0]
+        [
+            "engine": "UNUserNotificationCenter",
+            "authStatus": AutomationSchedulerStatus(),
+            "tasks": AutomationStore.shared.tasks.count,
+            "enabled": AutomationStore.shared.tasks.filter { $0.enabled }.count
+        ]
+    }
+}
+
+/// 读取通知授权状态（同步属性）
+func AutomationSchedulerStatus() -> String {
+    switch UNUserNotificationCenter.current().authorizationStatus {
+    case .authorized: return "authorized"
+    case .denied: return "denied"
+    case .notDetermined: return "notDetermined"
+    case .provisional: return "provisional"
+    @unknown default: return "unknown"
     }
 }
 

@@ -130,8 +130,9 @@ public final class ToolRegistry: ObservableObject {
         register(GatewayCronRunTool())
         register(GatewayCronCancelTool())
         register(CronFireTool())
-        register(AutomationRunTool())
+        register(AutomationRunNowTool())
         register(AutomationListTool())
+        register(AutomationJobsTool())
         register(AutomationStopTool())
         register(AutomationCancelTool())
         register(AutomationHistoryTool())
@@ -155,6 +156,20 @@ public final class ToolRegistry: ObservableObject {
         register(ModelSelectedProfileIDTool())
         register(WorkspaceOutputBookmarkTool())
         register(WorkspaceOutputNameTool())
+
+        // M7 补齐缺失设备端工具
+        register(CalendarCreateEventTool())
+        register(ReminderScheduleTool())
+        register(ReminderScheduleRecurringTool())
+        register(DeviceSnapshotTool())
+        register(WebSearchTool())
+        register(KnowledgeImportTextTool())
+        register(KnowledgeImportFileTool())
+        register(KnowledgeSearchTool())
+        register(KnowledgeDeleteTool())
+        register(PhoneCallTool())
+        register(PhoneScheduleCallTool())
+        register(SkillsSetEnabledTool())
 
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
     }
