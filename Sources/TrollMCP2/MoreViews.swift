@@ -214,7 +214,7 @@ struct ToolPermissionPoliciesView: View {
                 }
 
                 Section(header: SettingSectionHeader(title: "工具列表")) {
-                    ForEach(filtered) { def in
+                    ForEach(filtered, id: \.name) { def in
                         HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(def.name)
