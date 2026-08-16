@@ -68,11 +68,11 @@ struct SettingsView: View {
                         destination: Text("智能搜索占位")
                     )
                     SettingRow(
-                        title: "Gateway",
-                        subtitle: "配对 · 离线发件箱",
+                        title: "Gateway 设置",
+                        subtitle: "服务端管理 · \(GatewayServerStore.shared.servers.count) 个",
                         icon: "network",
                         color: .tmTeal,
-                        destination: GatewayView()
+                        destination: GatewaySettingsView()
                     )
                     SettingRow(
                         title: "Agents 与 Skills",
@@ -80,6 +80,13 @@ struct SettingsView: View {
                         icon: "person.3.fill",
                         color: .pink,
                         destination: AgentsAndSkillsView()
+                    )
+                    SettingRow(
+                        title: "上游模型",
+                        subtitle: "获取并选择上游模型",
+                        icon: "arrow.triangle.2.circlepath.circle.fill",
+                        color: .blue,
+                        destination: UpstreamModelPickerView()
                     )
                     SettingRow(
                         title: "本机知识库",
@@ -94,6 +101,23 @@ struct SettingsView: View {
                         icon: "link.circle.fill",
                         color: .gray,
                         destination: WebhooksView()
+                    )
+                }
+
+                Section(header: SettingSectionHeader(title: "安全")) {
+                    SettingRow(
+                        title: "活动记录",
+                        subtitle: "设置变更 · 全部事件",
+                        icon: "clock.arrow.circlepath",
+                        color: .tmIndigo,
+                        destination: SettingsActivityView()
+                    )
+                    SettingRow(
+                        title: "API Key 管理",
+                        subtitle: "查看 · 显隐 · 恢复",
+                        icon: "key.fill",
+                        color: .red,
+                        destination: APIKeyRecoverySheet()
                     )
                 }
 

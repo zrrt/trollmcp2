@@ -103,16 +103,26 @@ public final class ToolRegistry: ObservableObject {
         register(InjectionStatusTool())
         register(InjectionInspectTool())
         register(InjectionListTool())
+        register(InjectionRemoveTool())
         register(ContainerWriteTextTool())
+        register(ContainerDeleteTool())
 
-        // M4 Gateway + 自动化
+        // M4 Gateway + 自动化（含原版命名）
         register(GatewayStatusTool())
         register(GatewayConnectTool())
         register(NodeInvokeTool())
+        register(GatewayNodeInvokeTool())
+        register(GatewayChannelSendTool())
+        register(GatewayCronCreateTool())
+        register(GatewayCronRunTool())
+        register(GatewayCronCancelTool())
         register(CronFireTool())
         register(AutomationRunTool())
         register(AutomationListTool())
         register(AutomationStopTool())
+        register(AutomationCancelTool())
+        register(AutomationHistoryTool())
+        register(AutomationSetEnabledTool())
         register(AutomationStatusTool())
 
         // M5 系统能力
@@ -124,10 +134,14 @@ public final class ToolRegistry: ObservableObject {
         register(ScanQRTool())
         register(ProcessListTool())
 
-        // M6 编译模式 + 模型配置
+        // M6 编译模式 + 模型配置 + 工作区输出（原版命名）
         register(BuildRunnerTokenTool())
         register(ProjectGenerateTweakTool())
         register(ModelConfigTool())
+        register(ModelAuthenticationTool())
+        register(ModelSelectedProfileIDTool())
+        register(WorkspaceOutputBookmarkTool())
+        register(WorkspaceOutputNameTool())
 
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
     }

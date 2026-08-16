@@ -618,6 +618,8 @@ struct WebhooksView: View {
 struct AgentsAndSkillsView: View {
     @State private var skills: [SkillItem] = []
     @State private var agents: [AgentItem] = []
+    @State private var showSkillEditor = false
+    @State private var showAgentEditor = false
 
     var body: some View {
         NavigationView {
@@ -673,6 +675,12 @@ struct AgentsAndSkillsView: View {
             .listStyle(.insetGrouped)
             .navigationTitle("Agents 与 Skills")
             .onAppear(perform: load)
+            .toolbar {
+                Button(action: { showSkillEditor = true }) { Image(systemName: "plus.square.on.square") }
+                Button(action: { showAgentEditor = true }) { Image(systemName: "person.badge.plus") }
+            }
+            .sheet(isPresented: $showSkillEditor) { SkillEditorView() }
+            .sheet(isPresented: $showAgentEditor) { AgentEditorView() }
         }
         .navigationViewStyle(.stack)
     }

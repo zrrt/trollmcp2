@@ -238,6 +238,7 @@ final class ConversationStore: ObservableObject {
     func send(_ text: String, using config: ModelConfig) {
         let userMsg = ChatMessage(role: "user", content: text)
         messages.append(userMsg)
+        ConversationArchive.shared.append(userMsg)
         isLoading = true
 
         let client = OpenAIClient(config)
@@ -248,9 +249,12 @@ final class ConversationStore: ObservableObject {
                 self.isLoading = false
                 switch result {
                 case .success(let response):
-                    self.messages.append(ChatMessage(role: "assistant", content: response))
+                    let reply = ChatMessage(role: "assistant", content: response)
+                    self.messages.append(reply)
+                    ConversationArchive.shared.append(reply)
                 case .failure(let error):
-                    self.messages.append(ChatMessage(role: "assistant", content: "⚠️ \(error.localizedDescription)", isError: true))
+                    let err = ChatMessage(role: "assistant", content: "⚠️ \(error.localizedDescription)", isError: true)
+                    self.messages.append(err)
                 }
             }
         }

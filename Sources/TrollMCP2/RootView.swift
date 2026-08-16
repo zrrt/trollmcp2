@@ -28,6 +28,20 @@ struct RootView: View {
                         destination: ChatView()
                     )
                     SettingRow(
+                        title: "操作",
+                        subtitle: "待批准 · 运行中 · 最近活动",
+                        icon: "circle.grid.cross.fill",
+                        color: .orange,
+                        destination: OperationView()
+                    )
+                    SettingRow(
+                        title: "助手角色",
+                        subtitle: "系统提示词 · 关联模型 · \(AssistantProfileStore.shared.profiles.count) 个",
+                        icon: "person.crop.rectangle.stack.fill",
+                        color: .pink,
+                        destination: AssistantProfilesView()
+                    )
+                    SettingRow(
                         title: "模型",
                         subtitle: "API 配置 · \(ModelStore.shared.configs.count) 个",
                         icon: "cpu.fill",
@@ -69,11 +83,18 @@ struct RootView: View {
                         destination: GatewayView()
                     )
                     SettingRow(
-                        title: "自动化",
+                        title: "自动化中心",
                         subtitle: "任务 · 历史 · 重试",
                         icon: "bolt.fill",
                         color: .yellow,
-                        destination: AutomationView()
+                        destination: AutomationCenterView()
+                    )
+                    SettingRow(
+                        title: "会话记录",
+                        subtitle: "完整对话存档",
+                        icon: "text.book.closed.fill",
+                        color: .tmCyan,
+                        destination: ConversationTranscriptView()
                     )
                     SettingRow(
                         title: "审计日志",
