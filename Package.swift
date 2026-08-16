@@ -8,16 +8,7 @@ let package = Package(
         .executableTarget(
             name: "TrollMCP2",
             path: "Sources/TrollMCP2",
-            exclude: ["Resources"],
-            linkedFrameworks: [
-                .Contacts,
-                .ContactsUI,
-                .EventKit,
-                .CoreLocation,
-                .UserNotifications,
-                .Vision,
-                .VisionKit
-            ]
+            exclude: ["Resources"]
         )
     ]
 )
