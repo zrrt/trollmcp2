@@ -34,6 +34,15 @@ if [ -d "Resources/bin" ]; then
     echo ">>> bundled bin: $(ls "$APP/bin" | wc -l | tr -d ' ') files"
 fi
 
+# 其他资源文件（开发者指令、配置模板等）
+if [ -d "Resources" ]; then
+    for f in Resources/*; do
+        [ -d "$f" ] && continue
+        cp "$f" "$APP/"
+    done
+    echo ">>> bundled resources: $(find Resources -maxdepth 1 -type f | wc -l | tr -d ' ') files"
+fi
+
 mkdir -p Payload
 cp -R "$APP" Payload/
 

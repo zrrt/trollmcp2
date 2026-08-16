@@ -42,6 +42,7 @@ public final class ToolRegistry {
 
     private var tools: [String: MCPTool] = [:]
     private let lock = NSLock()
+    private let disabledKey = "trollmcp2.disabled_tools"
 
     public func register(_ tool: MCPTool) {
         lock.lock()
@@ -55,12 +56,33 @@ public final class ToolRegistry {
         return tools.values.map { $0.definition }.sorted { $0.name < $1.name }
     }
 
+    public func isEnabled(name: String) -> Bool {
+        let disabled = UserDefaults.standard.object(forKey: disabledKey) as? [String: Bool] ?? [:]
+        return disabled[name] != false
+    }
+
+    public func setEnabled(name: String, enabled: Bool) {
+        var disabled = UserDefaults.standard.object(forKey: disabledKey) as? [String: Bool] ?? [:]
+        if enabled {
+            disabled.removeValue(forKey: name)
+        } else {
+            disabled[name] = false
+        }
+        UserDefaults.standard.set(disabled, forKey: disabledKey)
+        AuditLog.shared.log("policy", detail: "\(name) \(enabled ? "启用" : "禁用")")
+    }
+
+    public var enabledDefinitions: [ToolDefinition] {
+        definitions.filter { isEnabled(name: $0.name) }
+    }
+
     @discardableResult
     public func dispatch(name: String, params: [String: Any]) throws -> [String: Any] {
         lock.lock()
         let tool = tools[name]
         lock.unlock()
         guard let tool = tool else { throw MCPError.unknownTool(name) }
+        guard isEnabled(name: name) else { throw MCPError.failed("工具 \(name) 已被策略禁用") }
         return try tool.invoke(params)
     }
 

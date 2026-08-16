@@ -17,14 +17,14 @@ struct SettingsView: View {
                         subtitle: "App 文稿目录",
                         icon: "externaldrive.fill",
                         color: .purple,
-                        destination: Text("数据管理占位")
+                        destination: DataManagementView()
                     )
                     SettingRow(
                         title: "开发者指令",
                         subtitle: "已内置 · 215 行",
                         icon: "doc.text.fill",
                         color: .orange,
-                        destination: Text("开发者指令占位")
+                        destination: DeveloperInstructionsView()
                     )
                 }
 
@@ -48,7 +48,7 @@ struct SettingsView: View {
                         subtitle: "按工具控制",
                         icon: "lock.shield.fill",
                         color: .green,
-                        destination: Text("工具权限策略占位")
+                        destination: ToolPermissionPoliciesView()
                     )
                     SettingRow(
                         title: "注入与自动化",
@@ -76,24 +76,24 @@ struct SettingsView: View {
                     )
                     SettingRow(
                         title: "Agents 与 Skills",
-                        subtitle: "隔离指令 · 工...",
+                        subtitle: "隔离指令 · 工作流",
                         icon: "person.3.fill",
                         color: .pink,
-                        destination: Text("Agents 占位")
+                        destination: AgentsAndSkillsView()
                     )
                     SettingRow(
                         title: "本机知识库",
                         subtitle: "文件导入 · 来源检索",
                         icon: "books.vertical.fill",
                         color: .tmBrown,
-                        destination: Text("知识库占位")
+                        destination: KnowledgeBaseView()
                     )
                     SettingRow(
                         title: "Webhooks",
                         subtitle: "HTTPS 事件出口",
                         icon: "link.circle.fill",
                         color: .gray,
-                        destination: Text("Webhooks 占位")
+                        destination: WebhooksView()
                     )
                 }
 
