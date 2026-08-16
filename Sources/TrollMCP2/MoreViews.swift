@@ -130,7 +130,7 @@ struct SystemCapabilitiesView: View {
                     capRow("通讯录搜索", "contacts.search", "person.crop.circle", .blue)
                     capRow("日历事件", "calendar.list", "calendar", .red)
                     capRow("提醒事项", "reminder.create", "checkmark.square", .green)
-                    capRow("定位", "location.get", "location", .indigo)
+                    capRow("定位", "location.get", "location", .tmIndigo)
                     capRow("本地通知", "notification.send", "bell", .orange)
                     capRow("扫码识别", "scan.qr", "qrcode.viewfinder", .purple)
                     capRow("进程枚举", "process.list", "list.bullet", .gray)

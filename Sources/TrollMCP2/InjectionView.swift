@@ -80,7 +80,7 @@ struct InjectionView: View {
     }
 
     private func appIconColor(_ app: AppCatalog.AppEntry) -> Color {
-        let colors: [Color] = [.blue, .green, .orange, .red, .purple, .pink, .indigo, .teal]
+        let colors: [Color] = [.blue, .green, .orange, .red, .purple, .pink, .tmIndigo, .tmTeal]
         var h = app.bundleId.hash
         if h < 0 { h = -h }
         return colors[h % colors.count]

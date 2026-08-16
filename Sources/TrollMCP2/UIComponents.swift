@@ -121,3 +121,12 @@ struct SettingSectionHeader: View {
             .padding(.top, 8)
     }
 }
+
+// MARK: - iOS 14 安全色（SwiftUI 2.0 颜色在 iOS 14 不可用）
+
+extension Color {
+    static let tmIndigo = Color(red: 0.345, green: 0.337, blue: 0.839)
+    static let tmTeal = Color(red: 0.0, green: 0.482, blue: 0.482)
+    static let tmCyan = Color(red: 0.0, green: 0.741, blue: 0.949)
+    static let tmBrown = Color(red: 0.588, green: 0.416, blue: 0.235)
+}

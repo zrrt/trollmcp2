@@ -65,7 +65,7 @@ struct RootView: View {
                         title: "网关",
                         subtitle: "WebSocket 配对 · 远程调用",
                         icon: "network",
-                        color: .indigo,
+                        color: .tmIndigo,
                         destination: GatewayView()
                     )
                     SettingRow(
@@ -89,7 +89,7 @@ struct RootView: View {
                         title: "MCP 工具清单",
                         subtitle: "\(ToolRegistry.shared.definitions.count) 个已注册工具",
                         icon: "wrench.and.screwdriver.fill",
-                        color: .teal,
+                        color: .tmTeal,
                         destination: ToolsView()
                     )
                     SettingRow(

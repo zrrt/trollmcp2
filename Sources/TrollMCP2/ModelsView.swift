@@ -9,18 +9,33 @@ struct ModelsView: View {
         NavigationView {
             List {
                 if store.configs.isEmpty {
-                    Text("尚未添加模型配置")
-                        .foregroundColor(.secondary)
-                }
-                ForEach(store.configs) { cfg in
-                    Button(action: { editing = cfg }) {
-                        ModelRow(config: cfg)
+                    Section {
+                        HStack {
+                            Spacer()
+                            VStack(spacing: 8) {
+                                Image(systemName: "cpu")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(.secondary)
+                                Text("尚未添加模型配置")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.vertical, 40)
+                            Spacer()
+                        }
                     }
-                    .buttonStyle(.plain)
+                } else {
+                    ForEach(store.configs) { cfg in
+                        Button(action: { editing = cfg; showingEditor = true }) {
+                            ModelRow(config: cfg)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .onDelete { store.delete(at: $0) }
                 }
-                .onDelete { store.delete(at: $0) }
             }
-            .navigationTitle("模型配置")
+            .listStyle(.insetGrouped)
+            .navigationTitle("模型 API")
             .toolbar {
                 Button(action: { editing = nil; showingEditor = true }) {
                     Image(systemName: "plus")
@@ -28,7 +43,7 @@ struct ModelsView: View {
             }
             .sheet(isPresented: $showingEditor) {
                 ModelEditorView(config: editing) { newCfg in
-                    if let existing = editing {
+                    if editing != nil {
                         store.update(newCfg)
                     } else {
                         store.add(newCfg)
@@ -44,10 +59,20 @@ struct ModelRow: View {
     let config: ModelConfig
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(config.name).font(.headline)
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.blue)
+                    .frame(width: 34, height: 34)
+                Image(systemName: "cpu")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(config.name)
+                        .font(.body)
+                        .foregroundColor(.primary)
                     if config.isDefault {
                         Text("默认")
                             .font(.caption2)
@@ -57,14 +82,21 @@ struct ModelRow: View {
                             .cornerRadius(4)
                     }
                 }
-                Text("\(config.provider) · \(config.model)")
+                Text("\(config.provider.capitalized) · \(config.model)")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .lineLimit(1)
             }
             Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
+        .padding(.vertical, 2)
     }
 }
+
+// MARK: - 模型 API 编辑器（原版风格）
 
 struct ModelEditorView: View {
     @Environment(\.presentationMode) var presentationMode
@@ -72,35 +104,43 @@ struct ModelEditorView: View {
     let onSave: (ModelConfig) -> Void
 
     @State private var name = ""
-    @State private var provider = "openai"
-    @State private var baseURL = "https://api.openai.com/v1"
+    @State private var provider = "custom"
+    @State private var apiProtocol = "OpenAI Chat Completions"
+    @State private var baseURL = ""
     @State private var apiKey = ""
-    @State private var model = "gpt-4o-mini"
-    @State private var isDefault = true
+    @State private var model = ""
+    @State private var authMethod = "Bearer"
+    @State private var isDefault = false
     @State private var temperature: Double = 0.7
     @State private var maxTokens: Int = 4096
+
+    @State private var showKey = false
+    @State private var showingQuickPicker = false
+    @State private var testStatus = ""
+    @State private var testColor: Color = .secondary
+    @State private var isTesting = false
+    @State private var fetchedModels: [String] = []
+    @State private var showingModelPicker = false
 
     private let providers = ["openai", "deepseek", "anthropic", "custom"]
 
     var body: some View {
         NavigationView {
-            Form {
-                Section(header: Text("基本信息")) {
-                    TextField("名称", text: $name)
-                    Picker("服务商", selection: $provider) {
-                        ForEach(providers, id: \.self) { Text($0) }
-                    }
-                    Toggle("设为默认", isOn: $isDefault)
+            List {
+                Section(header: sectionHeader(apiProtocol.uppercased())) {
+                    quickConfigRow
+                    editorRow("名称", text: $name, placeholder: "Botcf")
+                    pickerRow("API 协议", selection: $apiProtocol, options: ModelConfig.apiProtocols)
                 }
-                Section(header: Text("API 配置")) {
-                    TextField("Base URL", text: $baseURL)
-                        .keyboardType(.URL)
-                        .autocapitalization(.none)
-                    SecureField("API Key", text: $apiKey)
-                    TextField("模型名", text: $model)
-                        .autocapitalization(.none)
+
+                Section(header: sectionHeader("API 配置")) {
+                    editorRow("Base URL", text: $baseURL, placeholder: "https://botcf.com/v1")
+                    editorRow("模型名", text: $model, placeholder: "gpt-5.6-terra")
+                    pickerRow("鉴权方式", selection: $authMethod, options: ModelConfig.authMethods)
+                    tokenRow
                 }
-                Section(header: Text("参数")) {
+
+                Section(header: sectionHeader("参数")) {
                     HStack {
                         Text("Temperature")
                         Spacer()
@@ -110,38 +150,329 @@ struct ModelEditorView: View {
                     Slider(value: $temperature, in: 0...2, step: 0.1)
                     Stepper("Max Tokens: \(maxTokens)", value: $maxTokens, in: 256...32768, step: 256)
                 }
+
+                Section(header: sectionHeader("操作")) {
+                    Button(action: fetchUpstreamModels) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "arrow.down.circle")
+                                .font(.system(size: 20))
+                                .foregroundColor(.blue)
+                            Text("获取上游模型列表")
+                                .foregroundColor(.blue)
+                            Spacer()
+                            if isTesting && fetchedModels.isEmpty {
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .disabled(isTesting)
+
+                    Button(action: saveOnly) {
+                        Text("保存修改")
+                            .foregroundColor(.blue)
+                    }
+
+                    Button(action: saveAndTest) {
+                        HStack {
+                            Text("保存并测试连接")
+                                .foregroundColor(.blue)
+                            Spacer()
+                            if isTesting {
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .disabled(isTesting)
+                }
+
+                if !testStatus.isEmpty {
+                    Section(header: sectionHeader("状态")) {
+                        Text(testStatus)
+                            .font(.caption)
+                            .foregroundColor(testColor)
+                    }
+                }
+
+                Section(header: sectionHeader("说明")) {
+                    Text("适用于 OpenAI、DeepSeek OpenAI 格式和多数兼容网关。Base URL 通常以 /v1 结尾。")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
-            .navigationTitle(config == nil ? "添加模型" : "编辑模型")
+            .listStyle(.insetGrouped)
+            .navigationTitle(config == nil ? "添加模型" : name)
             .toolbar {
-                Button("取消") { presentationMode.wrappedValue.dismiss() }
-                Button("保存") {
-                    let cfg = ModelConfig(
-                        id: config?.id ?? UUID(),
-                        name: name.isEmpty ? model : name,
-                        provider: provider,
-                        baseURL: baseURL,
-                        apiKey: apiKey,
-                        model: model,
-                        isDefault: isDefault,
-                        temperature: temperature,
-                        maxTokens: maxTokens
-                    )
-                    onSave(cfg)
-                    presentationMode.wrappedValue.dismiss()
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("取消") { presentationMode.wrappedValue.dismiss() }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") { saveOnly() }
                 }
             }
             .onAppear {
                 if let cfg = config {
                     name = cfg.name
                     provider = cfg.provider
+                    apiProtocol = cfg.apiProtocol
                     baseURL = cfg.baseURL
                     apiKey = cfg.apiKey
                     model = cfg.model
+                    authMethod = cfg.authMethod
                     isDefault = cfg.isDefault
                     temperature = cfg.temperature
                     maxTokens = cfg.maxTokens
+                } else {
+                    applyPreset(at: 0)
                 }
             }
+            .sheet(isPresented: $showingQuickPicker) {
+                QuickConfigPicker { applyPreset(name: $0) }
+            }
+            .sheet(isPresented: $showingModelPicker) {
+                ModelPickerSheet(models: fetchedModels, selected: $model)
+            }
         }
+    }
+
+    // MARK: - 子视图
+
+    private var quickConfigRow: some View {
+        Button(action: { showingQuickPicker = true }) {
+            HStack(spacing: 12) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 20))
+                    .foregroundColor(.blue)
+                Text("供应商快速配置")
+                    .foregroundColor(.blue)
+                Spacer()
+            }
+        }
+    }
+
+    private func editorRow(_ label: String, text: Binding<String>, placeholder: String) -> some View {
+        HStack {
+            Text(label)
+                .foregroundColor(.primary)
+            Spacer()
+            TextField(placeholder, text: text)
+                .multilineTextAlignment(.trailing)
+                .autocapitalization(.none)
+                .disableAutocorrection(true)
+        }
+    }
+
+    private func pickerRow(_ label: String, selection: Binding<String>, options: [String]) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Picker("", selection: selection) {
+                ForEach(options, id: \.self) { option in
+                    Text(option).tag(option)
+                }
+            }
+            .pickerStyle(MenuPickerStyle())
+            .frame(maxWidth: 220)
+            .labelsHidden()
+        }
+    }
+
+    private var tokenRow: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(authMethod == "None" ? "无需鉴权" : "\(authMethod) Token")
+                    .font(.body)
+                if showKey {
+                    TextField("sk-...", text: $apiKey)
+                        .font(.system(.body, design: .monospaced))
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                } else {
+                    SecureField("sk-...", text: $apiKey)
+                        .font(.system(.body, design: .monospaced))
+                }
+            }
+            Spacer()
+            Button(action: { showKey.toggle() }) {
+                Image(systemName: showKey ? "eye.slash" : "eye")
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.caption)
+            .fontWeight(.semibold)
+            .foregroundColor(.secondary)
+    }
+
+    // MARK: - 操作
+
+    private func applyPreset(at index: Int) {
+        let p = ModelConfig.providerPresets[min(index, ModelConfig.providerPresets.count - 1)]
+        name = p.name
+        provider = p.provider
+        apiProtocol = p.protocol
+        baseURL = p.baseURL
+        model = p.model
+        authMethod = p.auth
+    }
+
+    private func applyPreset(name presetName: String) {
+        if let p = ModelConfig.providerPresets.first(where: { $0.name == presetName }) {
+            name = p.name
+            provider = p.provider
+            apiProtocol = p.protocol
+            baseURL = p.baseURL
+            model = p.model
+            authMethod = p.auth
+        }
+    }
+
+    private func makeConfig() -> ModelConfig {
+        ModelConfig(
+            id: config?.id ?? UUID(),
+            name: name.isEmpty ? model : name,
+            provider: provider,
+            apiProtocol: apiProtocol,
+            baseURL: baseURL,
+            apiKey: apiKey,
+            model: model,
+            authMethod: authMethod,
+            isDefault: isDefault,
+            temperature: temperature,
+            maxTokens: maxTokens
+        )
+    }
+
+    private func saveOnly() {
+        let cfg = makeConfig()
+        onSave(cfg)
+        presentationMode.wrappedValue.dismiss()
+    }
+
+    private func saveAndTest() {
+        let cfg = makeConfig()
+        onSave(cfg)
+        isTesting = true
+        testStatus = "正在测试..."
+        testColor = .secondary
+        ModelAPIClient.shared.testConnection(config: cfg) { result in
+            isTesting = false
+            switch result {
+            case .success(let msg):
+                testStatus = msg
+                testColor = .green
+            case .failure(let error):
+                testStatus = error.localizedDescription
+                testColor = .red
+            }
+        }
+    }
+
+    private func fetchUpstreamModels() {
+        let cfg = makeConfig()
+        onSave(cfg)
+        isTesting = true
+        testStatus = "正在获取模型列表..."
+        testColor = .secondary
+        ModelAPIClient.shared.fetchModelList(config: cfg) { result in
+            isTesting = false
+            switch result {
+            case .success(let models):
+                fetchedModels = models
+                if models.isEmpty {
+                    testStatus = "未返回任何模型"
+                    testColor = .orange
+                } else {
+                    testStatus = "获取到 \(models.count) 个模型"
+                    testColor = .green
+                    showingModelPicker = true
+                }
+            case .failure(let error):
+                testStatus = error
+                testColor = .red
+            }
+        }
+    }
+}
+
+// MARK: - 快速配置选择器
+
+struct QuickConfigPicker: View {
+    @Environment(\.presentationMode) var presentationMode
+    let onSelect: (String) -> Void
+
+    var body: some View {
+        NavigationView {
+            List(ModelConfig.providerPresets, id: \.name) { preset in
+                Button(action: {
+                    onSelect(preset.name)
+                    presentationMode.wrappedValue.dismiss()
+                }) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color.blue)
+                                .frame(width: 34, height: 34)
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(preset.name)
+                                .font(.body)
+                            Text("\(preset.protocol) · \(preset.baseURL)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .navigationTitle("供应商快速配置")
+            .toolbar {
+                Button("关闭") { presentationMode.wrappedValue.dismiss() }
+            }
+        }
+        .navigationViewStyle(.stack)
+    }
+}
+
+// MARK: - 模型选择 Sheet
+
+struct ModelPickerSheet: View {
+    let models: [String]
+    @Binding var selected: String
+    @Environment(\.presentationMode) var presentationMode
+
+    var body: some View {
+        NavigationView {
+            List(models, id: \.self) { m in
+                Button(action: {
+                    selected = m
+                    presentationMode.wrappedValue.dismiss()
+                }) {
+                    HStack {
+                        Text(m)
+                            .font(.system(.body, design: .monospaced))
+                        Spacer()
+                        if selected == m {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(.blue)
+                        }
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .navigationTitle("选择模型")
+            .toolbar {
+                Button("关闭") { presentationMode.wrappedValue.dismiss() }
+            }
+        }
+        .navigationViewStyle(.stack)
     }
 }

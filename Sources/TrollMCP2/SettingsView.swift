@@ -54,7 +54,7 @@ struct SettingsView: View {
                         title: "注入与自动化",
                         subtitle: "全应用 · 策略 · 自动化",
                         icon: "syringe.fill",
-                        color: .indigo,
+                        color: .tmIndigo,
                         destination: InjectionView()
                     )
                 }
@@ -64,14 +64,14 @@ struct SettingsView: View {
                         title: "内置智能搜索",
                         subtitle: "Bing Web · RSS 回...",
                         icon: "magnifyingglass.circle.fill",
-                        color: .cyan,
+                        color: .tmCyan,
                         destination: Text("智能搜索占位")
                     )
                     SettingRow(
                         title: "Gateway",
                         subtitle: "配对 · 离线发件箱",
                         icon: "network",
-                        color: .teal,
+                        color: .tmTeal,
                         destination: GatewayView()
                     )
                     SettingRow(
@@ -85,7 +85,7 @@ struct SettingsView: View {
                         title: "本机知识库",
                         subtitle: "文件导入 · 来源检索",
                         icon: "books.vertical.fill",
-                        color: .brown,
+                        color: .tmBrown,
                         destination: Text("知识库占位")
                     )
                     SettingRow(

@@ -7,12 +7,65 @@ struct ModelConfig: Codable, Identifiable, Hashable {
     var id: UUID = UUID()
     var name: String
     var provider: String          // openai / deepseek / anthropic / custom
+    var apiProtocol: String       // OpenAI Chat Completions / OpenAI Completions / Anthropic / Custom
     var baseURL: String           // https://api.openai.com/v1
     var apiKey: String
     var model: String             // gpt-4o-mini
+    var authMethod: String        // Bearer / API Key / None
     var isDefault: Bool = false
     var temperature: Double = 0.7
     var maxTokens: Int = 4096
+
+    init(id: UUID = UUID(), name: String, provider: String, apiProtocol: String = "OpenAI Chat Completions",
+         baseURL: String, apiKey: String, model: String, authMethod: String = "Bearer",
+         isDefault: Bool = false, temperature: Double = 0.7, maxTokens: Int = 4096) {
+        self.id = id
+        self.name = name
+        self.provider = provider
+        self.apiProtocol = apiProtocol
+        self.baseURL = baseURL
+        self.apiKey = apiKey
+        self.model = model
+        self.authMethod = authMethod
+        self.isDefault = isDefault
+        self.temperature = temperature
+        self.maxTokens = maxTokens
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? c.decode(UUID.self, forKey: .id)) ?? UUID()
+        name = try c.decode(String.self, forKey: .name)
+        provider = try c.decode(String.self, forKey: .provider)
+        apiProtocol = (try? c.decode(String.self, forKey: .apiProtocol)) ?? "OpenAI Chat Completions"
+        baseURL = try c.decode(String.self, forKey: .baseURL)
+        apiKey = try c.decode(String.self, forKey: .apiKey)
+        model = try c.decode(String.self, forKey: .model)
+        authMethod = (try? c.decode(String.self, forKey: .authMethod)) ?? "Bearer"
+        isDefault = (try? c.decode(Bool.self, forKey: .isDefault)) ?? false
+        temperature = (try? c.decode(Double.self, forKey: .temperature)) ?? 0.7
+        maxTokens = (try? c.decode(Int.self, forKey: .maxTokens)) ?? 4096
+    }
+}
+
+// MARK: - 模型协议与鉴权方式
+
+extension ModelConfig {
+    static let apiProtocols = [
+        "OpenAI Chat Completions",
+        "OpenAI Completions",
+        "Anthropic Messages",
+        "Custom Endpoint"
+    ]
+
+    static let authMethods = ["Bearer", "API Key", "None"]
+
+    static let providerPresets: [(name: String, provider: String, protocol: String, baseURL: String, model: String, auth: String)] = [
+        ("OpenAI", "openai", "OpenAI Chat Completions", "https://api.openai.com/v1", "gpt-4o-mini", "Bearer"),
+        ("DeepSeek", "deepseek", "OpenAI Chat Completions", "https://api.deepseek.com/v1", "deepseek-chat", "Bearer"),
+        ("Anthropic", "anthropic", "Anthropic Messages", "https://api.anthropic.com/v1", "claude-3-5-sonnet-20240620", "API Key"),
+        ("Botcf", "custom", "OpenAI Chat Completions", "https://botcf.com/v1", "gpt-5.6-terra", "Bearer")
+    ]
 }
 
 final class ModelStore: ObservableObject {
@@ -65,6 +118,104 @@ final class ModelStore: ObservableObject {
             configs[0].isDefault = true
         }
         save()
+    }
+}
+
+// MARK: - 模型列表获取与连接测试
+
+enum ModelListResult {
+    case success([String])
+    case failure(String)
+}
+
+final class ModelAPIClient {
+    static let shared = ModelAPIClient()
+
+    func fetchModelList(config: ModelConfig, completion: @escaping (ModelListResult) -> Void) {
+        let base = config.baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard let url = URL(string: base + "/models") else {
+            completion(.failure("无效的 Base URL"))
+            return
+        }
+        var request = URLRequest(url: url, timeoutInterval: 30)
+        applyAuth(config: config, to: &request)
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    completion(.failure(error.localizedDescription))
+                    return
+                }
+                guard let data = data,
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let models = json["data"] as? [[String: Any]] else {
+                    let raw = String(data: data ?? Data(), encoding: .utf8) ?? "(no data)"
+                    completion(.failure("解析失败: \(raw.prefix(200))"))
+                    return
+                }
+                let ids = models.compactMap { $0["id"] as? String }.sorted()
+                completion(.success(ids))
+            }
+        }.resume()
+    }
+
+    func testConnection(config: ModelConfig, completion: @escaping (Result<String, Error>) -> Void) {
+        let base = config.baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let endpoint = config.apiProtocol == "Anthropic Messages" ? "/messages" : "/chat/completions"
+        guard let url = URL(string: base + endpoint) else {
+            completion(.failure(NSError(domain: "ModelAPIClient", code: 0, userInfo: [NSLocalizedDescriptionKey: "无效的 Base URL"])))
+            return
+        }
+        var request = URLRequest(url: url, timeoutInterval: 30)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        applyAuth(config: config, to: &request)
+
+        let body: [String: Any]
+        if config.apiProtocol == "Anthropic Messages" {
+            body = [
+                "model": config.model,
+                "max_tokens": min(config.maxTokens, 8),
+                "messages": [["role": "user", "content": "hi"]]
+            ]
+        } else {
+            body = [
+                "model": config.model,
+                "messages": [["role": "user", "content": "hi"]],
+                "max_tokens": min(config.maxTokens, 8)
+            ]
+        }
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    completion(.failure(error))
+                    return
+                }
+                if let http = response as? HTTPURLResponse {
+                    if (200...299).contains(http.statusCode) {
+                        completion(.success("连接成功 (HTTP \(http.statusCode))"))
+                    } else {
+                        let raw = String(data: data ?? Data(), encoding: .utf8) ?? ""
+                        completion(.failure(NSError(domain: "ModelAPIClient", code: http.statusCode,
+                            userInfo: [NSLocalizedDescriptionKey: "HTTP \(http.statusCode): \(raw.prefix(200))"])))
+                    }
+                } else {
+                    completion(.success("已收到响应"))
+                }
+            }
+        }.resume()
+    }
+
+    private func applyAuth(config: ModelConfig, to request: inout URLRequest) {
+        switch config.authMethod {
+        case "Bearer":
+            request.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
+        case "API Key":
+            request.setValue(config.apiKey, forHTTPHeaderField: "x-api-key")
+        default:
+            break
+        }
     }
 }
 
