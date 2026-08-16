@@ -43,27 +43,31 @@ if [ -d "Resources" ]; then
     echo ">>> bundled resources: $(find Resources -maxdepth 1 -type f | wc -l | tr -d ' ') files"
 fi
 
-# 用 ldid -S 把特权 entitlements 签入主二进制，TrollStore 安装时才能继承 no-sandbox/no-container/task_for_pid 等权限
+# 把特权 entitlements 签入主二进制，TrollStore 安装时才能继承 no-sandbox/no-container/task_for_pid 等权限
 if [ -f "Support/TrollMCP2.entitlements" ]; then
-    echo ">>> codesign main binary with ldid + entitlements"
+    echo ">>> codesign main binary with entitlements"
 
-    # 优先使用 macOS 原生 ldid（runner 稳定）；没有则通过 Homebrew安装
-    if ! command -v ldid >/dev/null 2>&1 && command -v brew >/dev/null 2>&1; then
-        echo ">>> installing ldid via Homebrew"
-        brew install ldid 2>/dev/null || true
-    fi
-
-    LDID="$(command -v ldid || true)"
-    if [ -z "$LDID" ] && [ -x "$APP/bin/ldid" ]; then
-        LDID="$APP/bin/ldid"
-    fi
-
-    if [ -n "$LDID" ]; then
-        "$LDID" -S "Support/TrollMCP2.entitlements" "$APP/TrollMCP2"
-        echo ">>> signed main binary with $LDID"
+    # 优先用 macOS 原生 codesign（ad-hoc 签名 + --entitlements 更稳）
+    if command -v codesign >/dev/null 2>&1; then
+        codesign -s - -f --entitlements "Support/TrollMCP2.entitlements" "$APP/TrollMCP2"
+        echo ">>> signed main binary with codesign"
     else
-        echo "!!! ldid not available; cannot inject entitlements" >&2
-        exit 1
+        # fallback：ldid（Homebrew 优先，再试 bundled iOS 二进制）
+        if ! command -v ldid >/dev/null 2>&1 && command -v brew >/dev/null 2>&1; then
+            echo ">>> installing ldid via Homebrew"
+            brew install ldid 2>/dev/null || true
+        fi
+        LDID="$(command -v ldid || true)"
+        if [ -z "$LDID" ] && [ -x "$APP/bin/ldid" ]; then
+            LDID="$APP/bin/ldid"
+        fi
+        if [ -n "$LDID" ]; then
+            "$LDID" -S "Support/TrollMCP2.entitlements" "$APP/TrollMCP2"
+            echo ">>> signed main binary with ldid"
+        else
+            echo "!!! codesign/ldid not available; cannot inject entitlements" >&2
+            exit 1
+        fi
     fi
 else
     echo "!!! Support/TrollMCP2.entitlements missing" >&2
