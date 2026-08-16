@@ -1,4 +1,5 @@
 import Foundation
+import UserNotifications
 
 // MARK: - 自动化任务存储（automation.* / gateway.cron_* 共用）
 
