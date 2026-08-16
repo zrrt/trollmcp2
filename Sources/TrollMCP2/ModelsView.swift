@@ -40,12 +40,12 @@ struct ModelsView: View {
                 Image(systemName: "plus")
             }
         }
-        .sheet(isPresented: $showingEditor) {
+        .sheet(isPresented: $showingEditor, onDismiss: { editing = nil }) {
             ModelEditorView(config: editing) { newCfg in
-                if editing != nil {
-                    store.update(newCfg)
+                if ModelStore.shared.configs.contains(where: { $0.id == newCfg.id }) {
+                    ModelStore.shared.update(newCfg)
                 } else {
-                    store.add(newCfg)
+                    ModelStore.shared.add(newCfg)
                 }
             }
         }
@@ -100,16 +100,16 @@ struct ModelEditorView: View {
     let config: ModelConfig?
     let onSave: (ModelConfig) -> Void
 
-    @State private var name = ""
-    @State private var provider = "custom"
-    @State private var apiProtocol = "OpenAI Chat Completions"
-    @State private var baseURL = ""
-    @State private var apiKey = ""
-    @State private var model = ""
-    @State private var authMethod = "Bearer"
-    @State private var isDefault = false
-    @State private var temperature: Double = 0.7
-    @State private var maxTokens: Int = 4096
+    @State private var name: String
+    @State private var provider: String
+    @State private var apiProtocol: String
+    @State private var baseURL: String
+    @State private var apiKey: String
+    @State private var model: String
+    @State private var authMethod: String
+    @State private var isDefault: Bool
+    @State private var temperature: Double
+    @State private var maxTokens: Int
 
     @State private var showKey = false
     @State private var showingQuickPicker = false
@@ -118,8 +118,26 @@ struct ModelEditorView: View {
     @State private var isTesting = false
     @State private var fetchedModels: [String] = []
     @State private var showingModelPicker = false
+    @State private var savedFlag = false
 
     private let providers = ["openai", "deepseek", "anthropic", "custom"]
+
+    // 在 init 中一次性初始化，避免 iOS 14 上 .onAppear 重复触发把用户输入冲回默认值
+    init(config: ModelConfig?, onSave: @escaping (ModelConfig) -> Void) {
+        self.config = config
+        self.onSave = onSave
+        let p = ModelConfig.providerPresets.first
+        _name = State(initialValue: config?.name ?? (p?.name ?? ""))
+        _provider = State(initialValue: config?.provider ?? (p?.provider ?? "custom"))
+        _apiProtocol = State(initialValue: config?.apiProtocol ?? (p?.protocol ?? "OpenAI Chat Completions"))
+        _baseURL = State(initialValue: config?.baseURL ?? (p?.baseURL ?? ""))
+        _apiKey = State(initialValue: config?.apiKey ?? "")
+        _model = State(initialValue: config?.model ?? (p?.model ?? ""))
+        _authMethod = State(initialValue: config?.authMethod ?? (p?.auth ?? "Bearer"))
+        _isDefault = State(initialValue: config?.isDefault ?? false)
+        _temperature = State(initialValue: config?.temperature ?? 0.7)
+        _maxTokens = State(initialValue: config?.maxTokens ?? 4096)
+    }
 
     var body: some View {
         NavigationView {
@@ -182,8 +200,20 @@ struct ModelEditorView: View {
                     .disabled(isTesting)
                 }
 
-                if !testStatus.isEmpty {
+                if savedFlag {
                     Section(header: sectionHeader("状态")) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("已保存到本机")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                        }
+                    }
+                }
+
+                if !testStatus.isEmpty {
+                    Section(header: sectionHeader("连接测试")) {
                         Text(testStatus)
                             .font(.caption)
                             .foregroundColor(testColor)
@@ -204,22 +234,6 @@ struct ModelEditorView: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("完成") { saveOnly() }
-                }
-            }
-            .onAppear {
-                if let cfg = config {
-                    name = cfg.name
-                    provider = cfg.provider
-                    apiProtocol = cfg.apiProtocol
-                    baseURL = cfg.baseURL
-                    apiKey = cfg.apiKey
-                    model = cfg.model
-                    authMethod = cfg.authMethod
-                    isDefault = cfg.isDefault
-                    temperature = cfg.temperature
-                    maxTokens = cfg.maxTokens
-                } else {
-                    applyPreset(at: 0)
                 }
             }
             .sheet(isPresented: $showingQuickPicker) {
@@ -346,12 +360,14 @@ struct ModelEditorView: View {
     private func saveOnly() {
         let cfg = makeConfig()
         onSave(cfg)
+        savedFlag = true
         presentationMode.wrappedValue.dismiss()
     }
 
     private func saveAndTest() {
         let cfg = makeConfig()
         onSave(cfg)
+        savedFlag = true
         isTesting = true
         testStatus = "正在测试..."
         testColor = .secondary
@@ -371,6 +387,7 @@ struct ModelEditorView: View {
     private func fetchUpstreamModels() {
         let cfg = makeConfig()
         onSave(cfg)
+        savedFlag = true
         isTesting = true
         testStatus = "正在获取模型列表..."
         testColor = .secondary
