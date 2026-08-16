@@ -43,7 +43,7 @@ final class InjectionInspectTool: MCPTool {
         parameters: ["bundle_id": "目标 App Bundle ID"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
-        InjectionManager.shared.inspect(bid)
+        return InjectionManager.shared.inspect(bid)
     }
 }
 
