@@ -1,0 +1,195 @@
+import SwiftUI
+import UIKit
+import PhotosUI
+
+enum AttachmentSheet: Identifiable {
+    case panel
+    case appPicker
+    case photoPicker
+    case documentPicker
+
+    var id: Int {
+        switch self {
+        case .panel: return 0
+        case .appPicker: return 1
+        case .photoPicker: return 2
+        case .documentPicker: return 3
+        }
+    }
+}
+
+struct AttachmentPanelView: View {
+    var onPick: (AttachmentSheet) -> Void
+    @Environment(\.presentationMode) var presentationMode
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("添加内容")
+                        .font(.headline)
+                    Text("仅用于本轮请求，本机准备")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Button(action: { presentationMode.wrappedValue.dismiss() }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 28, height: 28)
+                        .background(Color.blue)
+                        .clipShape(Circle())
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 16)
+
+            HStack(spacing: 24) {
+                AttachmentOption(
+                    icon: "square.grid.2x2",
+                    title: "应用",
+                    subtitle: "选择分析"
+                ) {
+                    presentationMode.wrappedValue.dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        onPick(.appPicker)
+                    }
+                }
+                AttachmentOption(
+                    icon: "photo.on.rectangle",
+                    title: "相册",
+                    subtitle: "最多 8 张"
+                ) {
+                    presentationMode.wrappedValue.dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        onPick(.photoPicker)
+                    }
+                }
+                AttachmentOption(
+                    icon: "paperclip",
+                    title: "文件",
+                    subtitle: "最多 8 个"
+                ) {
+                    presentationMode.wrappedValue.dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        onPick(.documentPicker)
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+
+            Spacer(minLength: 30)
+        }
+    }
+}
+
+struct AttachmentOption: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 26))
+                    .foregroundColor(.blue)
+                    .frame(width: 60, height: 60)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(16)
+                VStack(spacing: 2) {
+                    Text(title)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                    Text(subtitle)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+}
+
+// MARK: - 相册选择器（iOS 14+ PHPicker）
+
+struct PhotoPickerView: UIViewControllerRepresentable {
+    var onSelect: ([URL]) -> Void
+    @Environment(\.presentationMode) var presentationMode
+
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var config = PHPickerConfiguration(photoLibrary: .shared())
+        config.selectionLimit = 8
+        config.filter = .images
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    class Coordinator: NSObject, PHPickerViewControllerDelegate {
+        let parent: PhotoPickerView
+        init(_ parent: PhotoPickerView) { self.parent = parent }
+
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            parent.presentationMode.wrappedValue.dismiss()
+            var urls: [URL] = []
+            let group = DispatchGroup()
+            for result in results {
+                group.enter()
+                result.itemProvider.loadFileRepresentation(forTypeIdentifier: "public.image") { url, error in
+                    if let url = url {
+                        urls.append(url)
+                    }
+                    group.leave()
+                }
+            }
+            group.notify(queue: .main) {
+                self.parent.onSelect(urls)
+            }
+        }
+    }
+}
+
+// MARK: - 文件选择器
+
+struct DocumentPickerView: UIViewControllerRepresentable {
+    var onSelect: ([URL]) -> Void
+    @Environment(\.presentationMode) var presentationMode
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(documentTypes: ["public.item"], in: .open)
+        picker.allowsMultipleSelection = true
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let parent: DocumentPickerView
+        init(_ parent: DocumentPickerView) { self.parent = parent }
+
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            parent.presentationMode.wrappedValue.dismiss()
+            parent.onSelect(urls)
+        }
+
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            parent.presentationMode.wrappedValue.dismiss()
+        }
+    }
+}

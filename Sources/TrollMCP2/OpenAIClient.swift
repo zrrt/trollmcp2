@@ -1,5 +1,10 @@
 import Foundation
 
+enum ChatResult {
+    case text(String)
+    case toolCalls([ToolCall])
+}
+
 /// 兼容 API 客户端（OpenAI / DeepSeek / Anthropic / 任意兼容端点）
 final class OpenAIClient {
     let config: ModelConfig
@@ -8,7 +13,7 @@ final class OpenAIClient {
         self.config = config
     }
 
-    func send(messages: [ChatMessage], completion: @escaping (Result<String, Error>) -> Void) {
+    func send(messages: [ChatMessage], tools: [[String: Any]]? = nil, completion: @escaping (Result<ChatResult, Error>) -> Void) {
         let base = config.baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
 
         if config.apiProtocol == "Anthropic Messages" {
@@ -24,7 +29,7 @@ final class OpenAIClient {
             let body: [String: Any] = [
                 "model": config.model,
                 "max_tokens": config.maxTokens,
-                "messages": messages.map { ["role": $0.role, "content": $0.content] },
+                "messages": messages.map { messageDict($0) },
                 "temperature": config.temperature
             ]
             request.httpBody = try? JSONSerialization.data(withJSONObject: body)
@@ -44,7 +49,7 @@ final class OpenAIClient {
                         userInfo: [NSLocalizedDescriptionKey: "解析失败: \(raw.prefix(300))"])))
                     return
                 }
-                completion(.success(text))
+                completion(.success(.text(text)))
             }.resume()
             return
         }
@@ -61,7 +66,7 @@ final class OpenAIClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         applyAuth(to: &request)
 
-        let body: [String: Any]
+        var body: [String: Any]
         if config.apiProtocol == "OpenAI Completions" {
             let prompt = messages.map { "\($0.role): \($0.content)" }.joined(separator: "\n")
             body = [
@@ -73,10 +78,14 @@ final class OpenAIClient {
         } else {
             body = [
                 "model": config.model,
-                "messages": messages.map { ["role": $0.role, "content": $0.content] },
+                "messages": messages.map { messageDict($0) },
                 "temperature": config.temperature,
                 "max_tokens": config.maxTokens
             ]
+            if let tools = tools, !tools.isEmpty {
+                body["tools"] = tools
+                body["tool_choice"] = "auto"
+            }
         }
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
@@ -94,17 +103,58 @@ final class OpenAIClient {
                     userInfo: [NSLocalizedDescriptionKey: "解析失败: \(raw.prefix(300))"])))
                 return
             }
-            if let message = firstChoice["message"] as? [String: Any],
-               let content = message["content"] as? String {
-                completion(.success(content))
+            guard let message = firstChoice["message"] as? [String: Any] else {
+                if let text = firstChoice["text"] as? String {
+                    completion(.success(.text(text)))
+                    return
+                }
+                completion(.failure(NSError(domain: "OpenAIClient", code: 2, userInfo: [NSLocalizedDescriptionKey: "无法提取回复内容"])))
                 return
             }
-            if let text = firstChoice["text"] as? String {
-                completion(.success(text))
+
+            if let toolCalls = message["tool_calls"] as? [[String: Any]], !toolCalls.isEmpty {
+                let calls: [ToolCall] = toolCalls.compactMap { tc in
+                    guard let id = tc["id"] as? String,
+                          let type = tc["type"] as? String, type == "function",
+                          let fn = tc["function"] as? [String: Any],
+                          let name = fn["name"] as? String,
+                          let args = fn["arguments"] as? String else { return nil }
+                    return ToolCall(id: id, name: name, arguments: args)
+                }
+                if !calls.isEmpty {
+                    completion(.success(.toolCalls(calls)))
+                    return
+                }
+            }
+
+            if let content = message["content"] as? String {
+                completion(.success(.text(content)))
                 return
             }
-            completion(.failure(NSError(domain: "OpenAIClient", code: 2, userInfo: [NSLocalizedDescriptionKey: "无法提取回复内容"])))
+            completion(.success(.text("")))
         }.resume()
+    }
+
+    private func messageDict(_ msg: ChatMessage) -> [String: Any] {
+        if msg.role == "tool" {
+            return [
+                "role": "tool",
+                "tool_call_id": msg.toolCallId ?? "",
+                "content": msg.content
+            ]
+        }
+        if let calls = msg.toolCalls, !calls.isEmpty {
+            return [
+                "role": "assistant",
+                "content": msg.content,
+                "tool_calls": calls.map { [
+                    "id": $0.id,
+                    "type": "function",
+                    "function": ["name": $0.name, "arguments": $0.arguments]
+                ] }
+            ]
+        }
+        return ["role": msg.role, "content": msg.content]
     }
 
     private func applyAuth(to request: inout URLRequest) {

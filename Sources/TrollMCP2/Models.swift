@@ -221,12 +221,23 @@ final class ModelAPIClient {
 
 // MARK: - 聊天消息
 
+struct ToolCall: Codable, Hashable, Identifiable {
+    var id: String
+    var name: String
+    var arguments: String
+}
+
 struct ChatMessage: Codable, Identifiable, Hashable {
     var id: UUID = UUID()
-    var role: String         // user / assistant / system
+    var role: String         // user / assistant / system / tool
     var content: String
     var timestamp: Date = Date()
     var isError: Bool = false
+    var toolCalls: [ToolCall]?
+    var toolCallId: String?
+    var toolName: String?
+
+    var isTool: Bool { role == "tool" }
 }
 
 // MARK: - 单个会话
@@ -312,20 +323,64 @@ final class ConversationStore: ObservableObject {
         appendToCurrent(ChatMessage(role: "user", content: text))
         isLoading = true
 
-        let client = OpenAIClient(config)
-        let history = currentMessages.filter { !$0.isError }
+        let tools = config.apiProtocol == "Anthropic Messages" ? nil : ToolRegistry.shared.enabledDefinitions.openAIToolSchema()
+        runLoop(config: config, tools: tools, depth: 0)
+    }
 
-        client.send(messages: history) { result in
+    private func runLoop(config: ModelConfig, tools: [[String: Any]]?, depth: Int) {
+        guard depth < 6 else {
+            isLoading = false
+            appendToCurrent(ChatMessage(role: "assistant", content: "工具调用次数过多，已停止。", isError: true))
+            return
+        }
+
+        let client = OpenAIClient(config)
+        let history = messagesForAPI()
+
+        client.send(messages: history, tools: tools) { result in
             DispatchQueue.main.async {
-                self.isLoading = false
                 switch result {
-                case .success(let response):
-                    self.appendToCurrent(ChatMessage(role: "assistant", content: response))
+                case .success(.text(let text)):
+                    self.isLoading = false
+                    self.appendToCurrent(ChatMessage(role: "assistant", content: text))
+                case .success(.toolCalls(let calls)):
+                    let summary = calls.map { "调用工具 \($0.name)" }.joined(separator: "\n")
+                    self.appendToCurrent(ChatMessage(role: "assistant", content: summary, toolCalls: calls))
+                    var toolMessages: [ChatMessage] = []
+                    for call in calls {
+                        let params = Self.parseArgs(call.arguments)
+                        do {
+                            let r = try ToolRegistry.shared.dispatch(name: call.name, params: params)
+                            let content = Self.jsonString(r)
+                            toolMessages.append(ChatMessage(role: "tool", content: content, toolCallId: call.id, toolName: call.name))
+                        } catch {
+                            toolMessages.append(ChatMessage(role: "tool", content: "error: \(error)", toolCallId: call.id, toolName: call.name, isError: true))
+                        }
+                    }
+                    for tm in toolMessages { self.appendToCurrent(tm) }
+                    self.runLoop(config: config, tools: tools, depth: depth + 1)
                 case .failure(let error):
+                    self.isLoading = false
                     self.appendToCurrent(ChatMessage(role: "assistant", content: "⚠️ \(error.localizedDescription)", isError: true))
                 }
             }
         }
+    }
+
+    private func messagesForAPI() -> [ChatMessage] {
+        currentMessages.filter { !$0.isError }
+    }
+
+    private static func parseArgs(_ json: String) -> [String: Any] {
+        guard let data = json.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
+        return obj
+    }
+
+    private static func jsonString(_ dict: [String: Any]) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: dict, options: .prettyPrinted),
+              let s = String(data: data, encoding: .utf8) else { return "{}" }
+        return s
     }
 
     private func sortAndSave() {

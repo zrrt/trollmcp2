@@ -87,7 +87,7 @@ public final class ToolRegistry: ObservableObject {
         return try tool.invoke(params)
     }
 
-    /// 全量内置工具集：24 个工具，对齐 v0.14.15
+    /// 全量内置工具集
     public func registerBuiltinTools() {
         // M1 文件桥 + 基础
         register(ArtifactReadTextTool())
@@ -97,6 +97,18 @@ public final class ToolRegistry: ObservableObject {
         register(DeviceInfoTool())
         register(DeviceProbeTool())
         register(WorkspaceInfoTool())
+
+        // M2 助理记忆（原版命名）
+        register(AssistantMemorySetTool())
+        register(AssistantMemoryListTool())
+        register(AssistantMemoryDeleteTool())
+
+        // M2 应用与设备
+        register(AppCacheInspectTool())
+        register(AppCacheClearTool())
+        register(AppOpenTool())
+        register(AppOpenAndInputTool())
+        register(WeChatPrepareMessageTool())
 
         // M3 注入管理 + 容器
         register(InjectionEnableTool())
@@ -145,6 +157,30 @@ public final class ToolRegistry: ObservableObject {
         register(WorkspaceOutputNameTool())
 
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
+    }
+}
+
+extension Array where Element == ToolDefinition {
+    /// 转换为 OpenAI Chat Completions 的 tools 参数
+    func openAIToolSchema() -> [[String: Any]] {
+        map { def in
+            var props: [String: [String: String]] = [:]
+            for (k, v) in def.parameters {
+                props[k] = ["type": "string", "description": v]
+            }
+            return [
+                "type": "function",
+                "function": [
+                    "name": def.name,
+                    "description": def.summary,
+                    "parameters": [
+                        "type": "object",
+                        "properties": props,
+                        "required": Array(def.parameters.keys)
+                    ]
+                ]
+            ]
+        }
     }
 }
 

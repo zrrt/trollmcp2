@@ -145,7 +145,14 @@ struct SettingsView: View {
                         color: .green,
                         destination: DeviceDetectionView()
                     )
-                    LabeledRow(label: "版本", value: "2.6.0")
+                    SettingRow(
+                        title: "本机工具审计",
+                        subtitle: "\(ToolRegistry.shared.definitions.count) 个工具 · 真实/占位",
+                        icon: "list.bullet.rectangle.fill",
+                        color: .tmTeal,
+                        destination: ToolAuditView()
+                    )
+                    LabeledRow(label: "版本", value: "2.7.0")
                     LabeledRow(label: "Bundle ID", value: Bundle.main.bundleIdentifier ?? "-")
                     LabeledRow(label: "工作区", value: Workspace.root.lastPathComponent)
                     LabeledRow(label: "工具数", value: "\(ToolRegistry.shared.definitions.count)")
