@@ -37,7 +37,7 @@ public enum MCPError: Error, CustomStringConvertible {
 
 // MARK: - 注册表
 
-public final class ToolRegistry {
+public final class ToolRegistry: ObservableObject {
     public static let shared = ToolRegistry()
 
     private var tools: [String: MCPTool] = [:]
@@ -69,6 +69,7 @@ public final class ToolRegistry {
             disabled[name] = false
         }
         UserDefaults.standard.set(disabled, forKey: disabledKey)
+        objectWillChange.send()
         AuditLog.shared.log("policy", detail: "\(name) \(enabled ? "启用" : "禁用")")
     }
 
