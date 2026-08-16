@@ -12,6 +12,7 @@ struct ChatView: View {
                     emptyState
                 } else {
                     messageList
+                    currentModelBar
                     inputBar
                 }
             }
@@ -64,6 +65,36 @@ struct ChatView: View {
                 }
             }
         }
+    }
+
+    private var currentModelBar: some View {
+        HStack(spacing: 6) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.blue)
+                    .frame(width: 22, height: 22)
+                Image(systemName: "cpu")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            Text("当前模型")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text(modelStore.defaultConfig?.name ?? "未配置")
+                .font(.caption)
+                .fontWeight(.medium)
+            Text(modelStore.defaultConfig?.model ?? "")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(.secondarySystemBackground))
     }
 
     private var inputBar: some View {

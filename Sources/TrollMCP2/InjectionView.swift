@@ -3,7 +3,6 @@ import SwiftUI
 struct InjectionView: View {
     @State private var apps: [AppCatalog.AppEntry] = []
     @State private var searchText = ""
-    @State private var useGrid = true
     @State private var selectedApp: AppCatalog.AppEntry?
     @State private var inspectResult: [String: Any]?
 
@@ -23,8 +22,6 @@ struct InjectionView: View {
                         Text("点击右上角刷新")
                             .foregroundColor(.secondary)
                     }
-                } else if useGrid {
-                    appGrid
                 } else {
                     appList
                 }
@@ -32,7 +29,6 @@ struct InjectionView: View {
             .navigationTitle("注入管理 (\(apps.count))")
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
-                    Button(useGrid ? "列表" : "网格") { useGrid.toggle() }
                     Button(action: refresh) { Image(systemName: "arrow.clockwise") }
                 }
             }
@@ -43,41 +39,51 @@ struct InjectionView: View {
         .navigationViewStyle(.stack)
     }
 
-    private var appGrid: some View {
-        ScrollView {
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                ForEach(filtered) { app in
-                    Button(action: { selectedApp = app; inspectApp(app) }) {
-                        VStack(spacing: 8) {
-                            Image(systemName: "app.fill")
-                                .font(.system(size: 32))
-                                .foregroundColor(.blue)
-                            Text(app.name)
-                                .font(.caption)
-                                .lineLimit(2)
-                                .multilineTextAlignment(.center)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 90)
-                        .padding(8)
-                        .background(Color(.secondarySystemBackground))
-                        .cornerRadius(12)
-                    }
-                    .buttonStyle(.plain)
+    private var appList: some View {
+        List {
+            if !searchText.isEmpty {
+                Section {
+                    EmptyView()
                 }
             }
-            .padding()
+            ForEach(filtered) { app in
+                Button(action: { selectedApp = app; inspectApp(app) }) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(appIconColor(app))
+                                .frame(width: 34, height: 34)
+                            Image(systemName: "app.fill")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(app.name)
+                                .font(.body)
+                                .foregroundColor(.primary)
+                            Text(app.bundleId)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .font(.system(.caption, design: .monospaced))
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 2)
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
         }
+        .listStyle(.insetGrouped)
     }
 
-    private var appList: some View {
-        List(filtered) { app in
-            Button(action: { selectedApp = app; inspectApp(app) }) {
-                VStack(alignment: .leading) {
-                    Text(app.name).font(.body)
-                    Text(app.bundleId).font(.caption).foregroundColor(.secondary)
-                }
-            }
-        }
+    private func appIconColor(_ app: AppCatalog.AppEntry) -> Color {
+        let colors: [Color] = [.blue, .green, .orange, .red, .purple, .pink, .indigo, .teal]
+        var h = app.bundleId.hash
+        if h < 0 { h = -h }
+        return colors[h % colors.count]
     }
 
     private func refresh() {
@@ -109,7 +115,7 @@ struct AppDetailView: View {
     var body: some View {
         NavigationView {
             List {
-                Section(header: Text("应用信息")) {
+                Section(header: SettingSectionHeader(title: "应用信息")) {
                     LabeledRow(label: "名称", value: app.name)
                     LabeledRow(label: "Bundle ID", value: app.bundleId)
                     LabeledRow(label: "路径", value: app.path)
@@ -117,20 +123,33 @@ struct AppDetailView: View {
                         LabeledRow(label: "容器", value: container)
                     }
                 }
-                Section(header: Text("注入工具链")) {
+                Section(header: SettingSectionHeader(title: "注入工具链")) {
                     ForEach(InjectionManager.shared.availableBinaries(), id: \.self) { bin in
-                        Label(bin, systemImage: "checkmark.circle.fill")
-                            .foregroundColor(.green)
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(Color.green)
+                                    .frame(width: 34, height: 34)
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
+                            Text(bin)
+                                .font(.body)
+                            Spacer()
+                        }
+                        .padding(.vertical, 2)
                     }
                 }
                 if !entries.isEmpty {
-                    Section(header: Text("检查结果")) {
+                    Section(header: SettingSectionHeader(title: "检查结果")) {
                         ForEach(entries) { e in
                             LabeledRow(label: e.key, value: e.value)
                         }
                     }
                 }
             }
+            .listStyle(.insetGrouped)
             .navigationTitle(app.name)
             .toolbar { Button("关闭") { presentationMode.wrappedValue.dismiss() } }
         }
