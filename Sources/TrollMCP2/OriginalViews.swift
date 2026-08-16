@@ -737,7 +737,6 @@ struct InjectionDetailView: View {
             }
             .onAppear(perform: reload)
         }
-    }
 
     private func reload() {
         info = InjectionManager.shared.inspect(bundleId)
