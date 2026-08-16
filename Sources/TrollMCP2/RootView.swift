@@ -3,7 +3,7 @@ import SwiftUI
 struct ToolCard: Identifiable, Hashable {
     let name: String
     let icon: String
-    let id: String = name
+    var id: String { name }
 }
 
 struct RootView: View {
@@ -97,7 +97,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             List {
-                Section("关于") {
+                Section(header: Text("关于")) {
                     LabeledRow(label: "版本", value: "2.0.0-M1")
                     LabeledRow(label: "Bundle ID", value: Bundle.main.bundleIdentifier ?? "-")
                     LabeledRow(label: "工作区", value: Workspace.root.lastPathComponent)
