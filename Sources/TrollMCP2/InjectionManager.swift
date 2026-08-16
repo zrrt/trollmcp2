@@ -83,8 +83,8 @@ final class InjectionManager {
             var st: Int32 = 0
             waitpid(pid, &st, 0)
             close(outPipe[0]); close(errPipe[0])
-            let code = WEXITSTATUS(st)
-            return (Int32(code), String(data: out, encoding: .utf8) ?? "")
+            let code = Int32((UInt32(st) >> 8) & 0xff)  // WEXITSTATUS
+            return (code, String(data: out, encoding: .utf8) ?? "")
         }
         close(outPipe[0]); close(errPipe[0])
         return (status, "posix_spawn failed (\(status))")
@@ -115,8 +115,8 @@ final class InjectionManager {
         guard let app = AppCatalog.find(bundleId) else {
             throw MCPError.failed("app not found: \(bundleId)")
         }
-        guard let insertDylib = binaryPath("insert_dylib"),
-              let ldid = binaryPath("ldid") else {
+        guard binaryPath("insert_dylib") != nil,
+              binaryPath("ldid") != nil else {
             throw MCPError.failed("insert_dylib / ldid 未内置")
         }
         let mainBinary = executablePath(app)
@@ -196,7 +196,7 @@ final class InjectionManager {
 
     /// 完全移除：还原 + 删除 dylib 文件
     func remove(bundleId: String) throws -> [String: Any] {
-        var r = (try? disable(bundleId)) ?? ["action": "remove"]
+        var r = (try? disable(bundleId: bundleId)) ?? ["action": "remove"]
         if let app = AppCatalog.find(bundleId) {
             let agentDst = (app.path as NSString).appendingPathComponent("TrollMCPAgent.dylib")
             if FileManager.default.fileExists(atPath: agentDst) {

@@ -14,7 +14,7 @@ final class InjectionEnableTool: MCPTool {
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
         let dylib = params["dylib_path"] as? String ?? "@executable_path/TrollMCPAgent.dylib"
-        let result = try InjectionManager.shared.enable(bundleId: bid, dylibPath: dylib)
+        let result = try InjectionManager.shared.enable(bundleId: bid, dylibName: dylib)
         AuditLog.shared.log("injection.enable", detail: "\(bid) → \(dylib)")
         return result
     }
@@ -199,15 +199,24 @@ final class AutomationStatusTool: MCPTool {
     }
 }
 
-/// 读取通知授权状态（同步属性）
+/// 读取通知授权状态（iOS 14 用 getNotificationSettings）
 func AutomationSchedulerStatus() -> String {
-    switch UNUserNotificationCenter.current().authorizationStatus {
-    case .authorized: return "authorized"
-    case .denied: return "denied"
-    case .notDetermined: return "notDetermined"
-    case .provisional: return "provisional"
-    @unknown default: return "unknown"
+    var status = "unknown"
+    let sem = DispatchSemaphore(value: 0)
+    DispatchQueue.global().async {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .authorized: status = "authorized"
+            case .denied: status = "denied"
+            case .notDetermined: status = "notDetermined"
+            case .provisional: status = "provisional"
+            @unknown default: status = "unknown"
+            }
+            sem.signal()
+        }
     }
+    sem.wait(timeout: .now() + 2)
+    return status
 }
 
 // MARK: - M5 系统能力工具
