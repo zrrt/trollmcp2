@@ -6,52 +6,49 @@ struct ModelsView: View {
     @State private var editing: ModelConfig?
 
     var body: some View {
-        NavigationView {
-            List {
-                if store.configs.isEmpty {
-                    Section {
-                        HStack {
-                            Spacer()
-                            VStack(spacing: 8) {
-                                Image(systemName: "cpu")
-                                    .font(.system(size: 40))
-                                    .foregroundColor(.secondary)
-                                Text("尚未添加模型配置")
-                                    .font(.footnote)
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.vertical, 40)
-                            Spacer()
+        List {
+            if store.configs.isEmpty {
+                Section {
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 8) {
+                            Image(systemName: "cpu")
+                                .font(.system(size: 40))
+                                .foregroundColor(.secondary)
+                            Text("尚未添加模型配置")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
                         }
+                        .padding(.vertical, 40)
+                        Spacer()
                     }
+                }
+            } else {
+                ForEach(store.configs) { cfg in
+                    Button(action: { editing = cfg; showingEditor = true }) {
+                        ModelRow(config: cfg)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .onDelete { store.delete(at: $0) }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("模型 API")
+        .toolbar {
+            Button(action: { editing = nil; showingEditor = true }) {
+                Image(systemName: "plus")
+            }
+        }
+        .sheet(isPresented: $showingEditor) {
+            ModelEditorView(config: editing) { newCfg in
+                if editing != nil {
+                    store.update(newCfg)
                 } else {
-                    ForEach(store.configs) { cfg in
-                        Button(action: { editing = cfg; showingEditor = true }) {
-                            ModelRow(config: cfg)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .onDelete { store.delete(at: $0) }
-                }
-            }
-            .listStyle(.insetGrouped)
-            .navigationTitle("模型 API")
-            .toolbar {
-                Button(action: { editing = nil; showingEditor = true }) {
-                    Image(systemName: "plus")
-                }
-            }
-            .sheet(isPresented: $showingEditor) {
-                ModelEditorView(config: editing) { newCfg in
-                    if editing != nil {
-                        store.update(newCfg)
-                    } else {
-                        store.add(newCfg)
-                    }
+                    store.add(newCfg)
                 }
             }
         }
-        .navigationViewStyle(.stack)
     }
 }
 
