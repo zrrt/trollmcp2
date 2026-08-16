@@ -138,7 +138,14 @@ struct SettingsView: View {
                 }
 
                 Section(header: SettingSectionHeader(title: "关于")) {
-                    LabeledRow(label: "版本", value: "2.0.0")
+                    SettingRow(
+                        title: "本机环境检测",
+                        subtitle: "TrollStore · 权限 · 注入二进制",
+                        icon: "waveform.path.badge.checkmark",
+                        color: .green,
+                        destination: DeviceDetectionView()
+                    )
+                    LabeledRow(label: "版本", value: "2.6.0")
                     LabeledRow(label: "Bundle ID", value: Bundle.main.bundleIdentifier ?? "-")
                     LabeledRow(label: "工作区", value: Workspace.root.lastPathComponent)
                     LabeledRow(label: "工具数", value: "\(ToolRegistry.shared.definitions.count)")

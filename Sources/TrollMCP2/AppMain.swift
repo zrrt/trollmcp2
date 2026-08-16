@@ -22,6 +22,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     ) -> Bool {
         Workspace.ensure()
         ToolRegistry.shared.registerBuiltinTools()
+        DeviceProbe.shared.run()
         LocationProvider.shared.start()
 
         window = UIWindow(frame: UIScreen.main.bounds)

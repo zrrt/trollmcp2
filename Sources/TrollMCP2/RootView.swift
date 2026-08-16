@@ -50,6 +50,8 @@ struct ConversationDrawerView: View {
     @ObservedObject private var store = ConversationStore.shared
     @ObservedObject private var ui = AppUIState.shared
     @State private var searchText = ""
+    @State private var showDevice = false
+    @State private var deviceReady: Bool?
 
     private var filtered: [ChatConversation] {
         if searchText.isEmpty { return store.conversations }
@@ -65,9 +67,14 @@ struct ConversationDrawerView: View {
             searchBar
             countLabel
             conversationList
+            deviceReadinessBar
             bottomWorkbench
         }
         .background(Color(.systemBackground))
+        .onAppear(perform: refreshReadiness)
+        .sheet(isPresented: $showDevice) {
+            NavigationView { DeviceDetectionView() }
+        }
     }
 
     private var header: some View {
@@ -164,6 +171,44 @@ struct ConversationDrawerView: View {
         let ids = offsets.map { filtered[$0].id }
         let idxSet = IndexSet(store.conversations.enumerated().compactMap { ids.contains($0.element.id) ? $0.offset : nil })
         store.delete(at: idxSet)
+    }
+
+    private var deviceReadinessBar: some View {
+        Button(action: { showDevice = true }) {
+            HStack(spacing: 10) {
+                Image(systemName: "waveform.path.badge.checkmark")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 32, height: 32)
+                    .background(Color.green)
+                    .cornerRadius(8)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("本机环境")
+                        .font(.body)
+                        .foregroundColor(.primary)
+                    Text(readinessText)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
+    private var readinessText: String {
+        if let ready = deviceReady { return ready ? "就绪 · 可注入" : "环境受限 · 点按查看" }
+        return "点按检测本机"
+    }
+
+    private func refreshReadiness() {
+        // 轻量读取缓存报告，避免每次打开抽屉都全量扫描
+        deviceReady = DeviceProbe.shared.lastReport?.ready
     }
 
     private var bottomWorkbench: some View {

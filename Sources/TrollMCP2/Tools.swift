@@ -80,3 +80,29 @@ final class DeviceInfoTool: MCPTool {
         ]
     }
 }
+
+final class DeviceProbeTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "device.probe",
+        summary: "检测本机环境：TrollStore/TrollFools、task_for_pid、App 容器读写、注入二进制、amfid 绕过推断")
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        let r = DeviceProbe.shared.run()
+        return [
+            "device": [
+                "name": r.deviceName,
+                "model": r.model,
+                "systemVersion": r.systemVersion,
+                "vendorID": r.vendorID,
+            ],
+            "trollStore": r.trollStore,
+            "trollFools": r.trollFools,
+            "task_for_pid": r.taskForPid,
+            "appContainerWrite": r.containerWrite,
+            "injectionBinaries": r.injectionBinaries,
+            "amfidBypassInferred": r.amfidBypassInferred,
+            "ready": r.ready,
+            "checks": r.checks.map { ["label": $0.label, "passed": $0.passed, "detail": $0.detail] },
+        ]
+    }
+}

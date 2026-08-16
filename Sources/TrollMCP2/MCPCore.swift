@@ -95,6 +95,7 @@ public final class ToolRegistry: ObservableObject {
         register(ArtifactListTool())
         register(PingTool())
         register(DeviceInfoTool())
+        register(DeviceProbeTool())
         register(WorkspaceInfoTool())
 
         // M3 注入管理 + 容器
