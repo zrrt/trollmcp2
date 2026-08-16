@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @Environment(\.presentationMode) var presentationMode
+
     var body: some View {
         NavigationView {
             List {
@@ -30,6 +32,13 @@ struct SettingsView: View {
 
                 Section(header: SettingSectionHeader(title: "调试服务")) {
                     SettingRow(
+                        title: "操作",
+                        subtitle: "待批准 · 运行中 · 最近活动",
+                        icon: "circle.grid.cross.fill",
+                        color: .orange,
+                        destination: OperationView()
+                    )
+                    SettingRow(
                         title: "权限与自动化",
                         subtitle: "\(permissionCount()) 项系统权限",
                         icon: "hand.raised.fill",
@@ -41,7 +50,7 @@ struct SettingsView: View {
                         subtitle: "任务 · 历史 · 重试",
                         icon: "bolt.fill",
                         color: .yellow,
-                        destination: AutomationView()
+                        destination: AutomationCenterView()
                     )
                     SettingRow(
                         title: "工具权限策略",
@@ -56,6 +65,13 @@ struct SettingsView: View {
                         icon: "syringe.fill",
                         color: .tmIndigo,
                         destination: InjectionView()
+                    )
+                    SettingRow(
+                        title: "会话记录",
+                        subtitle: "完整对话存档",
+                        icon: "text.book.closed.fill",
+                        color: .tmCyan,
+                        destination: ConversationTranscriptView()
                     )
                 }
 
@@ -130,6 +146,11 @@ struct SettingsView: View {
             }
             .listStyle(.insetGrouped)
             .navigationTitle("设置")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") { presentationMode.wrappedValue.dismiss() }
+                }
+            }
         }
         .navigationViewStyle(.stack)
     }

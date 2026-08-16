@@ -1,9 +1,14 @@
 import SwiftUI
 
 struct ChatView: View {
-    @StateObject private var conversation = ConversationStore()
-    @State private var inputText = ""
+    @ObservedObject private var store = ConversationStore.shared
     @ObservedObject private var modelStore = ModelStore.shared
+
+    @State private var inputText = ""
+    @State private var reasoning = 1          // 0=低 1=中 2=高
+    @State private var smartSearch = true
+    @State private var showAttachmentSheet = false
+    @State private var showVoiceAlert = false
 
     var body: some View {
         NavigationView {
@@ -16,10 +21,20 @@ struct ChatView: View {
                     inputBar
                 }
             }
-            .navigationTitle("会话")
+            .navigationTitle(store.currentTitle)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if !conversation.messages.isEmpty {
-                    Button("清空") { conversation.clear() }
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: { withAnimation { AppUIState.shared.drawerOpen.toggle() } }) {
+                        Image(systemName: "line.horizontal.3")
+                            .font(.system(size: 20, weight: .semibold))
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: { store.newConversation() }) {
+                        Image(systemName: "square.and.pencil")
+                            .font(.system(size: 18, weight: .semibold))
+                    }
                 }
             }
         }
@@ -33,7 +48,7 @@ struct ChatView: View {
                 .foregroundColor(.secondary)
             Text("尚未配置模型")
                 .font(.headline)
-            Text("请先在「设置 → 模型」中添加 API 配置")
+            Text("请先在设置中添加 API 配置")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -45,11 +60,11 @@ struct ChatView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 12) {
-                    ForEach(conversation.messages) { msg in
+                    ForEach(store.currentMessages) { msg in
                         MessageBubble(message: msg)
                             .id(msg.id)
                     }
-                    if conversation.isLoading {
+                    if store.isLoading {
                         HStack {
                             Spacer()
                             ProgressView()
@@ -59,8 +74,8 @@ struct ChatView: View {
                 }
                 .padding()
             }
-            .onChange(of: conversation.messages.count) { _ in
-                if let last = conversation.messages.last {
+            .onChange(of: store.currentMessages.count) { _ in
+                if let last = store.currentMessages.last {
                     withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                 }
             }
@@ -68,60 +83,120 @@ struct ChatView: View {
     }
 
     private var currentModelBar: some View {
-        HStack(spacing: 6) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.blue)
-                    .frame(width: 22, height: 22)
-                Image(systemName: "cpu")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(.white)
+        Button(action: { AppUIState.shared.settingsPresented = true }) {
+            HStack(spacing: 6) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.blue)
+                        .frame(width: 22, height: 22)
+                    Image(systemName: "cpu")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(.white)
+                }
+                Text("当前模型")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text(modelStore.defaultConfig?.name ?? "未配置")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                Text(modelStore.defaultConfig?.model ?? "")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
-            Text("当前模型")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            Text(modelStore.defaultConfig?.name ?? "未配置")
-                .font(.caption)
-                .fontWeight(.medium)
-            Text(modelStore.defaultConfig?.model ?? "")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(.secondarySystemBackground))
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color(.secondarySystemBackground))
     }
 
     private var inputBar: some View {
-        HStack(spacing: 8) {
-            TextField("输入消息…", text: $inputText)
-                .textFieldStyle(.roundedBorder)
+        VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                ChatChip(label: "推理强度·\(reasoningLabel())", action: {
+                    reasoning = (reasoning + 1) % 3
+                })
+                ChatChip(label: "智能搜索·\(smartSearch ? "开" : "关")", action: {
+                    smartSearch.toggle()
+                })
 
-            Button(action: send) {
-                Image(systemName: "paperplane.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(.white)
-                    .frame(width: 36, height: 36)
-                    .background(inputText.isEmpty ? Color.gray : Color.blue)
-                    .clipShape(Circle())
+                Spacer()
+
+                Button(action: { showAttachmentSheet = true }) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 36, height: 36)
+                        .background(Color.blue)
+                        .clipShape(Circle())
+                }
+
+                Button(action: { showVoiceAlert = true }) {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(.white)
+                        .frame(width: 36, height: 36)
+                        .background(Color.blue)
+                        .clipShape(Circle())
+                }
+
+                Button(action: send) {
+                    Image(systemName: "paperplane.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 32, height: 32)
+                        .background(inputText.isEmpty || store.isLoading ? Color.gray : Color.blue)
+                        .clipShape(Circle())
+                }
+                .disabled(inputText.isEmpty || store.isLoading)
             }
-            .disabled(inputText.isEmpty || conversation.isLoading)
+
+            HStack(spacing: 8) {
+                TextField("发消息或点麦克风说话", text: $inputText)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.body)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Color(.systemBackground))
     }
 
+    private func reasoningLabel() -> String {
+        ["低", "中", "高"][reasoning]
+    }
+
     private func send() {
         guard let cfg = modelStore.defaultConfig, !inputText.isEmpty else { return }
+        if store.selectedId == nil { store.newConversation() }
         let text = inputText
         inputText = ""
-        conversation.send(text, using: cfg)
+        store.send(text, using: cfg)
+        AuditLog.shared.log("chat", detail: "发送消息")
+    }
+}
+
+struct ChatChip: View {
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(.caption)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(.secondarySystemBackground))
+                .foregroundColor(.secondary)
+                .cornerRadius(12)
+        }
     }
 }
 

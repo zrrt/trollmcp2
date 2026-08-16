@@ -229,36 +229,149 @@ struct ChatMessage: Codable, Identifiable, Hashable {
     var isError: Bool = false
 }
 
+// MARK: - 单个会话
+
+struct ChatConversation: Codable, Identifiable, Hashable {
+    var id: UUID = UUID()
+    var title: String
+    var createdAt: Date
+    var updatedAt: Date
+    var messages: [ChatMessage]
+}
+
 // MARK: - 会话管理
 
 final class ConversationStore: ObservableObject {
-    @Published var messages: [ChatMessage] = []
+    static let shared = ConversationStore()
+
+    @Published var conversations: [ChatConversation] = []
+    @Published var selectedId: UUID?
     @Published var isLoading = false
 
+    private let key = "trollmcp2.conversations"
+
+    init() { load() }
+
+    var selectedIndex: Int? {
+        conversations.firstIndex { $0.id == selectedId }
+    }
+
+    var currentMessages: [ChatMessage] {
+        guard let idx = selectedIndex else { return [] }
+        return conversations[idx].messages
+    }
+
+    var currentTitle: String {
+        guard let idx = selectedIndex else { return "会话" }
+        return conversations[idx].title
+    }
+
+    func newConversation(title: String = "新会话") {
+        let conv = ChatConversation(title: title, createdAt: Date(), updatedAt: Date(), messages: [])
+        conversations.insert(conv, at: 0)
+        selectedId = conv.id
+        save()
+    }
+
+    func select(_ id: UUID) {
+        selectedId = id
+        save()
+    }
+
+    func appendToCurrent(_ message: ChatMessage) {
+        guard let idx = selectedIndex else { return }
+        var conv = conversations[idx]
+        if conv.messages.isEmpty {
+            conv.title = title(from: message.content)
+        }
+        conv.messages.append(message)
+        conv.updatedAt = Date()
+        conversations[idx] = conv
+        sortAndSave()
+    }
+
+    func clearCurrent() {
+        guard let idx = selectedIndex else { return }
+        var conv = conversations[idx]
+        conv.messages.removeAll()
+        conv.title = "新会话"
+        conv.updatedAt = Date()
+        conversations[idx] = conv
+        sortAndSave()
+    }
+
+    func delete(at offsets: IndexSet) {
+        conversations.remove(atOffsets: offsets)
+        if selectedId != nil && !conversations.contains(where: { $0.id == selectedId }) {
+            selectedId = conversations.first?.id
+        }
+        sortAndSave()
+    }
+
     func send(_ text: String, using config: ModelConfig) {
-        let userMsg = ChatMessage(role: "user", content: text)
-        messages.append(userMsg)
-        ConversationArchive.shared.append(userMsg)
+        appendToCurrent(ChatMessage(role: "user", content: text))
         isLoading = true
 
         let client = OpenAIClient(config)
-        let history = messages.filter { !$0.isError }
+        let history = currentMessages.filter { !$0.isError }
 
         client.send(messages: history) { result in
             DispatchQueue.main.async {
                 self.isLoading = false
                 switch result {
                 case .success(let response):
-                    let reply = ChatMessage(role: "assistant", content: response)
-                    self.messages.append(reply)
-                    ConversationArchive.shared.append(reply)
+                    self.appendToCurrent(ChatMessage(role: "assistant", content: response))
                 case .failure(let error):
-                    let err = ChatMessage(role: "assistant", content: "⚠️ \(error.localizedDescription)", isError: true)
-                    self.messages.append(err)
+                    self.appendToCurrent(ChatMessage(role: "assistant", content: "⚠️ \(error.localizedDescription)", isError: true))
                 }
             }
         }
     }
 
-    func clear() { messages.removeAll() }
+    private func sortAndSave() {
+        conversations.sort { $0.updatedAt > $1.updatedAt }
+        save()
+    }
+
+    private func title(from text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let line = trimmed.components(separatedBy: .newlines).first ?? trimmed
+        return String(line.prefix(30))
+    }
+
+    private func save() {
+        if let data = try? JSONEncoder().encode(conversations) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+
+    private func load() {
+        if let data = UserDefaults.standard.data(forKey: key),
+           let decoded = try? JSONDecoder().decode([ChatConversation].self, from: data),
+           !decoded.isEmpty {
+            conversations = decoded.sorted { $0.updatedAt > $1.updatedAt }
+            selectedId = conversations.first?.id
+            return
+        }
+
+        // 从旧版单一会话记录迁移
+        if let oldData = UserDefaults.standard.data(forKey: "trollmcp2.transcript"),
+           let messages = try? JSONDecoder().decode([ChatMessage].self, from: oldData),
+           !messages.isEmpty {
+            let first = messages.first!
+            let title = String(first.content.prefix(30))
+            let conv = ChatConversation(
+                title: title,
+                createdAt: first.timestamp,
+                updatedAt: messages.last?.timestamp ?? Date(),
+                messages: messages
+            )
+            conversations = [conv]
+            selectedId = conv.id
+            save()
+            UserDefaults.standard.removeObject(forKey: "trollmcp2.transcript")
+        } else {
+            newConversation()
+        }
+    }
 }

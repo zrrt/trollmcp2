@@ -122,6 +122,22 @@ struct SettingSectionHeader: View {
     }
 }
 
+struct IconBadge: View {
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(color)
+                .frame(width: 36, height: 36)
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.white)
+        }
+    }
+}
+
 // MARK: - iOS 14 安全色（SwiftUI 2.0 颜色在 iOS 14 不可用）
 
 extension Color {

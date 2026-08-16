@@ -149,42 +149,22 @@ struct ApprovalSheet: View {
 
 // MARK: - 会话完整记录（原版 ConversationTranscriptView）
 
-final class ConversationArchive: ObservableObject {
-    static let shared = ConversationArchive()
-    @Published var messages: [ChatMessage] = []
-
-    init() {
-        if let data = UserDefaults.standard.data(forKey: "trollmcp2.transcript"),
-           let decoded = try? JSONDecoder().decode([ChatMessage].self, from: data) {
-            messages = decoded
-        }
-    }
-
-    func append(_ msg: ChatMessage) {
-        messages.append(msg)
-        if messages.count > 500 { messages.removeFirst(messages.count - 500) }
-        if let data = try? JSONEncoder().encode(messages) {
-            UserDefaults.standard.set(data, forKey: "trollmcp2.transcript")
-        }
-    }
-
-    func clear() {
-        messages.removeAll()
-        UserDefaults.standard.removeObject(forKey: "trollmcp2.transcript")
-    }
-}
-
 struct ConversationTranscriptView: View {
-    @ObservedObject private var archive = ConversationArchive.shared
+    @ObservedObject private var store = ConversationStore.shared
+
+    private var messages: [ChatMessage] {
+        guard let idx = store.selectedIndex else { return [] }
+        return store.conversations[idx].messages
+    }
 
     var body: some View {
         NavigationView {
             List {
-                if archive.messages.isEmpty {
+                if messages.isEmpty {
                     Text("暂无历史会话记录")
                         .foregroundColor(.secondary)
                 } else {
-                    ForEach(archive.messages) { msg in
+                    ForEach(messages) { msg in
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
                                 Text(msg.role == "user" ? "我" : (msg.role == "assistant" ? "助手" : "系统"))
@@ -206,8 +186,8 @@ struct ConversationTranscriptView: View {
             .listStyle(.insetGrouped)
             .navigationTitle("会话记录")
             .toolbar {
-                if !archive.messages.isEmpty {
-                    Button("清空") { archive.clear() }
+                if !messages.isEmpty {
+                    Button("清空") { store.clearCurrent() }
                 }
             }
         }
