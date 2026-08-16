@@ -19,7 +19,6 @@ struct GatewayView: View {
                                 gateway.connect(url: urlInput)
                             }
                         }
-                        .buttonStyle(.bordered)
                         .disabled(urlInput.isEmpty && !gateway.isConnected)
                     }
                 }
