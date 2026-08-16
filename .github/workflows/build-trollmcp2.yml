@@ -1,0 +1,20 @@
+name: build-trollmcp2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build unsigned IPA
+        run: bash scripts/build-ipa.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TrollMCP2-ipa
+          path: TrollMCP2.ipa
+          if-no-files-found: error
