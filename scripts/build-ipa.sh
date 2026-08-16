@@ -27,6 +27,13 @@ mkdir -p "$APP"
 cp "$BIN" "$APP/TrollMCP2"
 cp Support/Info.plist "$APP/Info.plist"
 
+# 内置注入工具链（ldid/optool/insert_dylib/ct_bypass + coreutils + 依赖 dylib）
+if [ -d "Resources/bin" ]; then
+    cp -R "Resources/bin" "$APP/bin"
+    chmod +x "$APP/bin/"* 2>/dev/null || true
+    echo ">>> bundled bin: $(ls "$APP/bin" | wc -l | tr -d ' ') files"
+fi
+
 mkdir -p Payload
 cp -R "$APP" Payload/
 

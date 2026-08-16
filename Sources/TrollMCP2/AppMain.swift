@@ -22,6 +22,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     ) -> Bool {
         Workspace.ensure()
         ToolRegistry.shared.registerBuiltinTools()
+        LocationProvider.shared.start()
 
         window = UIWindow(frame: UIScreen.main.bounds)
         window?.rootViewController = UIHostingController(rootView: RootView())

@@ -34,5 +34,21 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSContactsUsageDescription</key>
+	<string>TrollMCP 需要访问通讯录以支持联系人搜索工具</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>TrollMCP 需要访问日历以支持日历事件工具</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>TrollMCP 需要访问提醒事项以创建提醒</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>TrollMCP 需要位置信息以支持定位工具</string>
+	<key>NSCameraUsageDescription</key>
+	<string>TrollMCP 需要相机以支持扫码功能</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>TrollMCP 需要相册以选择待识别的图片</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>TrollMCP 需要语音识别以支持转写功能</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>TrollMCP 需要麦克风以支持语音输入</string>
 </dict>
 </plist>

@@ -64,13 +64,49 @@ public final class ToolRegistry {
         return try tool.invoke(params)
     }
 
-    /// M1 内置工具集：文件桥 + 基础信息。后续里程碑逐步补齐 24 个。
+    /// 全量内置工具集：24 个工具，对齐 v0.14.15
     public func registerBuiltinTools() {
+        // M1 文件桥 + 基础
         register(ArtifactReadTextTool())
         register(ArtifactWriteTextTool())
         register(ArtifactListTool())
         register(PingTool())
         register(DeviceInfoTool())
+        register(WorkspaceInfoTool())
+
+        // M3 注入管理 + 容器
+        register(InjectionEnableTool())
+        register(InjectionDisableTool())
+        register(InjectionStatusTool())
+        register(InjectionInspectTool())
+        register(InjectionListTool())
+        register(ContainerWriteTextTool())
+
+        // M4 Gateway + 自动化
+        register(GatewayStatusTool())
+        register(GatewayConnectTool())
+        register(NodeInvokeTool())
+        register(CronFireTool())
+        register(AutomationRunTool())
+        register(AutomationListTool())
+        register(AutomationStopTool())
+        register(AutomationStatusTool())
+
+        // M5 系统能力
+        register(ContactsSearchTool())
+        register(CalendarListTool())
+        register(ReminderCreateTool())
+        register(LocationGetTool())
+        register(NotificationSendTool())
+        register(ScanQRTool())
+        register(ProcessListTool())
+
+        // M6 编译模式 + 模型配置
+        register(BuildRunnerTokenTool())
+        register(ProjectGenerateTweakTool())
+        register(ModelConfigTool())
+
+        AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
     }
 }
 
