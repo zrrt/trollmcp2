@@ -162,9 +162,8 @@ struct ConversationDrawerView: View {
 
     private func delete(at offsets: IndexSet) {
         let ids = offsets.map { filtered[$0].id }
-        if let idxSet = IndexSet(store.conversations.enumerated().compactMap { ids.contains($0.element.id) ? $0.offset : nil }) {
-            store.delete(at: idxSet)
-        }
+        let idxSet = IndexSet(store.conversations.enumerated().compactMap { ids.contains($0.element.id) ? $0.offset : nil })
+        store.delete(at: idxSet)
     }
 
     private var bottomWorkbench: some View {
