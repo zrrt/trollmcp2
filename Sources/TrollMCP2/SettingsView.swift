@@ -152,7 +152,7 @@ struct SettingsView: View {
                         color: .tmTeal,
                         destination: ToolAuditView()
                     )
-                    LabeledRow(label: "版本", value: "2.8.2")
+                    LabeledRow(label: "版本", value: "2.8.3")
                     LabeledRow(label: "Bundle ID", value: Bundle.main.bundleIdentifier ?? "-")
                     LabeledRow(label: "工作区", value: Workspace.root.lastPathComponent)
                     LabeledRow(label: "工具数", value: "\(ToolRegistry.shared.definitions.count)")

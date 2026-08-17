@@ -67,6 +67,24 @@ extension ModelConfig {
         ("Anthropic", "anthropic", "Anthropic Messages", "https://api.anthropic.com/v1", "claude-3-5-sonnet-20240620", "API Key"),
         ("Botcf", "custom", "OpenAI Chat Completions", "https://botcf.com/v1", "gpt-5.6-terra", "Bearer")
     ]
+
+    /// 推理系列模型（GPT-5.x / o1 / o3 / o4）不接受 temperature 参数，
+    /// 中转站会返回 "Invalid request parameter"。
+    var sendsTemperature: Bool {
+        let m = model.lowercased()
+        let noTempPrefixes = ["gpt-5.", "o1", "o3", "o4", "o1-", "o3-", "o4-"]
+        if noTempPrefixes.contains(where: { m.hasPrefix($0) }) { return false }
+        if m.contains("reasoning") { return false }
+        return true
+    }
+
+    /// 推理系列模型使用 max_completion_tokens 而非 max_tokens
+    var maxTokensKey: String {
+        let m = model.lowercased()
+        let reasoningPrefixes = ["gpt-5.", "o1", "o3", "o4", "o1-", "o3-", "o4-"]
+        if reasoningPrefixes.contains(where: { m.hasPrefix($0) }) { return "max_completion_tokens" }
+        return "max_tokens"
+    }
 }
 
 final class ModelStore: ObservableObject {
@@ -182,7 +200,7 @@ final class ModelAPIClient {
             body = [
                 "model": config.model,
                 "messages": [["role": "user", "content": "hi"]],
-                "max_tokens": min(config.maxTokens, 8)
+                config.maxTokensKey: min(config.maxTokens, 8)
             ]
         }
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)

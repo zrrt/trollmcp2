@@ -72,16 +72,20 @@ final class OpenAIClient {
             body = [
                 "model": config.model,
                 "prompt": prompt,
-                "temperature": config.temperature,
-                "max_tokens": config.maxTokens
+                config.maxTokensKey: config.maxTokens
             ]
+            if config.sendsTemperature {
+                body["temperature"] = config.temperature
+            }
         } else {
             body = [
                 "model": config.model,
                 "messages": messages.map { messageDict($0) },
-                "temperature": config.temperature,
-                "max_tokens": config.maxTokens
+                config.maxTokensKey: config.maxTokens
             ]
+            if config.sendsTemperature {
+                body["temperature"] = config.temperature
+            }
             if let tools = tools, !tools.isEmpty {
                 body["tools"] = tools
                 body["tool_choice"] = "auto"
