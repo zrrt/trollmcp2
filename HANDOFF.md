@@ -1,6 +1,6 @@
 # TrollMCP2 项目交接文档
 
-> 版本：v2.8.6 | 最后更新：2026-09-02 | 仓库：github.com/origina47487lhe-droid/trollmcp2（私有）
+> 版本：v2.9.0 | 最后更新：2026-09-02 | 仓库：github.com/origina47487lhe-droid/trollmcp2（私有）
 
 ---
 
@@ -428,9 +428,16 @@ D:/Users/Administrator/Desktop/Payload/TrollMCP.app/            # 完整 .app �
 | **2.8.4** | 09-02 | 自适应兼容降级（5 级试探 + 持久化 + 网络调试日志页） |
 | **2.8.5** | 09-02 | 推理模型 reasoning_effort=none（提速+修 tools 兼容）、降级重试超时 30s、聊天实时状态文案 |
 | **2.8.6** | 09-02 | 请求超时（URLSession -1001）触发降级；500/502/503/504 也纳入可降级；首次超时缩至 45s |
+| **2.9.0** | 09-02 | **Responses API 支持**（/v1/responses，Codex 同款端点）：新级别 L5「Responses API+工具」、新协议「OpenAI Responses」、L3/L4 旧配置自动先试 L5 |
 
-最新 IPA：`artifacts/v2.8.6/TrollMCP2-v2.8.6-20260902.ipa`（5.23MB）
-GitHub Actions run：33541544785 ✅
+最新 IPA：`artifacts/v2.9.0/TrollMCP2-v2.9.0-20260902.ipa`（5.24MB）
+GitHub Actions run：33543016186 ✅
+
+### v2.9.0 关键认知（重要！）
+
+用户证实：**相同中转（Botcf）上 Codex/ccswitch 能正常带工具运行**。原因是 Codex 走 `/v1/responses` 端点而非 `/chat/completions`。GPT-5.6 家族（terra/luna/sol）的 function tools 在 chat/completions 上不可用/极慢（社区报告），但 Responses API 正常。
+
+降级链（v2.9.0）：L0 完整 → L1 互换 token key → L2 去 tool_choice → **L5 Responses API+工具**（保住工具调用）→ L3 纯对话 → L4 最小载荷 → 结束。nextLevel 的哨兵值 6 防止 L4→L5→L3 死循环。
 
 ---
 
