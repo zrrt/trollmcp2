@@ -79,9 +79,9 @@ final class OpenAIClient {
             return
         }
 
-        // v2.8.5：首次请求 60s；降级重试 30s——推理模型响应慢 + 多级重试串行时，
-        // 每 60s 超时会让用户等 3-5 分钟，必须缩短重试等待。
-        var request = URLRequest(url: url, timeoutInterval: isFirst ? 60 : 30)
+        // v2.8.6：首次请求 45s；降级重试 30s。
+        // 中转对完整载荷（tools + reasoning_effort）处理极慢/卡死，尽早超时并降级。
+        var request = URLRequest(url: url, timeoutInterval: isFirst ? 45 : 30)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         applyAuth(to: &request)
@@ -99,7 +99,20 @@ final class OpenAIClient {
 
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
-                // 网络层错误（超时/断网），换载荷无意义
+                let err = error as NSError
+                // v2.8.6：网络超时（不是 408 HTTP 状态，而是 URLSession 的 -1001）
+                // 也可能是中转对完整载荷处理太慢/卡死，降级到轻量载荷很可能成功。
+                let isTimeout = (err.code == NSURLErrorTimedOut
+                    || err.domain == NSURLErrorDomain && err.code == -1001
+                    || error.localizedDescription.contains("超时")
+                    || error.localizedDescription.localizedLowercase.contains("timed out"))
+                if isTimeout, level < self.maxLevel {
+                    NetworkLog.shared.log("\(self.config.name) L\(level) 请求超时 → 自动降级到 L\(level + 1)（\(self.levelName(level + 1))）")
+                    onStatus?("请求超时，正在尝试简化参数（级别 \(level + 1)/\(self.maxLevel)）…")
+                    self.attempt(level: level + 1, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, completion: completion)
+                    return
+                }
+                // 其它网络错误（断网等）降级无意义
                 NetworkLog.shared.log("\(self.config.name) L\(level) 网络错误: \(error.localizedDescription)")
                 completion(.failure(error))
                 return
@@ -230,11 +243,15 @@ final class OpenAIClient {
         }
     }
 
-    /// 4xx 参数类错误可通过降级挽救；鉴权(401/403)、配额(429)、5xx 服务器错误换载荷无意义（ terra 的 tools 超限 500 除外，但 5xx 多为瞬时故障，不盲目重试）
+    /// 4xx 参数类错误可通过降级挽救；
+    /// 5xx 网关/上游超时（尤其 tools 过多导致 relay/gpt-5.6 超时或 500）降级到轻量载荷可能成功；
+    /// 鉴权(401/402/403)、配额(429) 不降级。
     private func isRetryable(status: Int, errorPayload: String?) -> Bool {
-        if status == 401 || status == 402 || status == 403 || status == 408 || status == 429 { return false }
+        if status == 401 || status == 402 || status == 403 || status == 429 { return false }
         if status >= 400 && status < 500 { return true }
-        // HTTP 200 + error body（部分 new-api 中转的返回方式）：只有参数类错误才降级
+        // 502/503/504：网关错误 / 上游处理超时；500：terra 处理 tools 超限时报 server_error
+        if status == 500 || status == 502 || status == 503 || status == 504 { return true }
+        // HTTP 200 + error body（new-api 中转常见）：只有参数类错误才降级
         if let msg = errorPayload?.lowercased() {
             let keywords = ["invalid request parameter", "invalid_request", "unsupported parameter", "not supported",
                             "unknown parameter", "extra inputs", "参数", "invalid request"]
