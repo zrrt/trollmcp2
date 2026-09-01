@@ -75,12 +75,15 @@ extension ModelConfig {
 
     /// 推理系列模型（GPT-5.x / o1 / o3 / o4）不接受 temperature 参数，
     /// 中转站会返回 "Invalid request parameter"。
-    var sendsTemperature: Bool {
+    var sendsTemperature: Bool { !isReasoningModel && !model.lowercased().contains("reasoning") }
+
+    /// v2.8.5：是否推理系列模型（GPT-5.x / o1 / o3 / o4）。
+    /// 这类模型默认 reasoning_effort=medium，回复前会长时间思考（聊天转圈半天的主因），
+    /// 请求时显式携带 reasoning_effort=none 提速。
+    var isReasoningModel: Bool {
         let m = model.lowercased()
-        let noTempPrefixes = ["gpt-5.", "o1", "o3", "o4", "o1-", "o3-", "o4-"]
-        if noTempPrefixes.contains(where: { m.hasPrefix($0) }) { return false }
-        if m.contains("reasoning") { return false }
-        return true
+        let prefixes = ["gpt-5.", "o1", "o3", "o4", "o1-", "o3-", "o4-"]
+        return prefixes.contains(where: { m.hasPrefix($0) }) || m.contains("reasoning")
     }
 
     /// 推理系列模型使用 max_completion_tokens 而非 max_tokens
@@ -292,6 +295,8 @@ final class ConversationStore: ObservableObject {
     @Published var conversations: [ChatConversation] = []
     @Published var selectedId: UUID?
     @Published var isLoading = false
+    /// v2.8.5：当前请求的实时状态文案（等待响应/降级重试中），展示在输入指示器旁
+    @Published var statusText: String?
 
     private let key = "trollmcp2.conversations"
 
@@ -364,6 +369,7 @@ final class ConversationStore: ObservableObject {
     private func runLoop(config: ModelConfig, tools: [[String: Any]]?, depth: Int) {
         guard depth < 6 else {
             isLoading = false
+            statusText = nil
             appendToCurrent(ChatMessage(role: "assistant", content: "工具调用次数过多，已停止。", isError: true))
             return
         }
@@ -371,8 +377,11 @@ final class ConversationStore: ObservableObject {
         let client = OpenAIClient(config)
         let history = messagesForAPI()
 
-        client.send(messages: history, tools: tools) { result in
+        client.send(messages: history, tools: tools, onStatus: { status in
+            DispatchQueue.main.async { self.statusText = status }
+        }) { result in
             DispatchQueue.main.async {
+                self.statusText = nil
                 switch result {
                 case .success(.text(let text)):
                     self.isLoading = false

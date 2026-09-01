@@ -142,10 +142,18 @@ struct ChatView: View {
                             .id(msg.id)
                     }
                     if store.isLoading {
-                        HStack {
-                            Spacer()
-                            TypingIndicator()
-                                .padding(.trailing, 16)
+                        VStack(alignment: .trailing, spacing: 6) {
+                            HStack {
+                                Spacer()
+                                TypingIndicator()
+                                    .padding(.trailing, 16)
+                            }
+                            if let status = store.statusText {
+                                Text(status)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .padding(.trailing, 16)
+                            }
                         }
                     }
                 }

@@ -54,19 +54,19 @@ final class OpenAIClient {
 
     // MARK: - 对外入口
 
-    func send(messages: [ChatMessage], tools: [[String: Any]]? = nil, completion: @escaping (Result<ChatResult, Error>) -> Void) {
+    func send(messages: [ChatMessage], tools: [[String: Any]]? = nil, onStatus: ((String) -> Void)? = nil, completion: @escaping (Result<ChatResult, Error>) -> Void) {
         let start = min(max(config.compatLevel, 0), maxLevel)
         if start > 0 {
             NetworkLog.shared.log("\(config.name): 使用已记忆的兼容级别 \(start)（\(levelName(start))）")
         } else {
             NetworkLog.shared.log("\(config.name): 发起请求（级别 0 完整载荷）")
         }
-        attempt(level: start, messages: messages, tools: tools, completion: completion)
+        attempt(level: start, isFirst: true, messages: messages, tools: tools, onStatus: onStatus, completion: completion)
     }
 
     // MARK: - 逐级试探
 
-    private func attempt(level: Int, messages: [ChatMessage], tools: [[String: Any]]?, completion: @escaping (Result<ChatResult, Error>) -> Void) {
+    private func attempt(level: Int, isFirst: Bool, messages: [ChatMessage], tools: [[String: Any]]?, onStatus: ((String) -> Void)?, completion: @escaping (Result<ChatResult, Error>) -> Void) {
         if config.apiProtocol == "Anthropic Messages" {
             performAnthropic(messages: messages, completion: completion)
             return
@@ -79,7 +79,9 @@ final class OpenAIClient {
             return
         }
 
-        var request = URLRequest(url: url, timeoutInterval: 60)
+        // v2.8.5：首次请求 60s；降级重试 30s——推理模型响应慢 + 多级重试串行时，
+        // 每 60s 超时会让用户等 3-5 分钟，必须缩短重试等待。
+        var request = URLRequest(url: url, timeoutInterval: isFirst ? 60 : 30)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         applyAuth(to: &request)
@@ -89,6 +91,11 @@ final class OpenAIClient {
 
         // 记录发送的载荷摘要（不含 apiKey），便于排查
         NetworkLog.shared.log("\(config.name) L\(level) \(levelName(level)) → POST \(endpoint)，字段: \(body.keys.sorted().joined(separator: ","))")
+        if isFirst {
+            onStatus?("正在等待模型响应…")
+        } else {
+            onStatus?("请求被拒绝，正在尝试简化参数（级别 \(level)/\(maxLevel)）…")
+        }
 
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
@@ -133,7 +140,7 @@ final class OpenAIClient {
 
             if retryable && level < self.maxLevel {
                 NetworkLog.shared.log("\(self.config.name) 自动降级 → 级别 \(level + 1)（\(self.levelName(level + 1))）")
-                self.attempt(level: level + 1, messages: messages, tools: tools, completion: completion)
+                self.attempt(level: level + 1, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, completion: completion)
             } else {
                 let hint = errorPayload != nil ? "" : "\n提示: 响应非标准 OpenAI 格式，请检查 baseURL 是否指向 /v1 兼容端点。"
                 completion(.failure(NSError(domain: "OpenAIClient", code: status,
@@ -185,6 +192,14 @@ final class OpenAIClient {
         ]
         if level < 3, config.sendsTemperature {
             body["temperature"] = config.temperature
+        }
+        // v2.8.5：推理模型（gpt-5.x/o 系）显式关闭 reasoning。
+        // 1) 默认 medium 档会先长时间"思考"，是聊天转圈半天的主因；
+        // 2) GPT-5.6 家族在 chat/completions 上 tools+默认 reasoning 组合会被拒，
+        //    社区报告设为 none 后 tools 可用。
+        // 级别 4（最小载荷）不带该字段——若中转连这个字段都不认，还有最后一级兜底。
+        if config.isReasoningModel {
+            body["reasoning_effort"] = "none"
         }
         if let tools = tools, !tools.isEmpty {
             if level < 3 {
