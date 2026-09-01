@@ -376,7 +376,7 @@ final class ConversationStore: ObservableObject {
         appendToCurrent(ChatMessage(role: "user", content: text))
         isLoading = true
 
-        let tools = config.apiProtocol == "Anthropic Messages" ? nil : ToolRegistry.shared.enabledDefinitions.openAIToolSchema()
+        let tools = config.apiProtocol == "Anthropic Messages" ? nil : ToolRegistry.shared.enabledOpenAIToolSchema()
         runLoop(config: config, tools: tools, depth: 0)
     }
 

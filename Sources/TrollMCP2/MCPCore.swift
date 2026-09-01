@@ -12,6 +12,16 @@ public struct ToolDefinition {
         self.summary = summary
         self.parameters = parameters
     }
+
+    /// v2.9.1：OpenAI / Responses API 要求工具名只能包含 a-zA-Z0-9_-，
+    /// 而原版图中的工具名可能含中文、点、空格。转换为合法的 API 名。
+    public var apiName: String {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
+        var sanitized = name.components(separatedBy: allowed.inverted).joined(separator: "_")
+        if sanitized.isEmpty { sanitized = "tool" }
+        if sanitized.first?.isNumber ?? false { sanitized = "t_\(sanitized)" }
+        return sanitized
+    }
 }
 
 // MARK: - 工具协议
@@ -41,6 +51,7 @@ public final class ToolRegistry: ObservableObject {
     public static let shared = ToolRegistry()
 
     private var tools: [String: MCPTool] = [:]
+    private var apiNameToOriginal: [String: String] = [:]
     private let lock = NSLock()
     private let disabledKey = "trollmcp2.disabled_tools"
 
@@ -77,14 +88,57 @@ public final class ToolRegistry: ObservableObject {
         definitions.filter { isEnabled(name: $0.name) }
     }
 
+    /// v2.9.1：生成给 OpenAI API 用的工具 schema，同时建立 apiName → 原名映射，
+    /// 供 dispatch 把模型返回的安全名转回真实工具名。
+    public func enabledOpenAIToolSchema() -> [[String: Any]] {
+        lock.lock()
+        defer { lock.unlock() }
+        let defs = tools.values.map { $0.definition }.filter { isEnabled(name: $0.name) }
+        var used = Set<String>()
+        var map = [String: String]()
+        var result: [[String: Any]] = []
+        for def in defs {
+            var safe = def.apiName
+            var suffix = 1
+            while used.contains(safe) {
+                safe = "\(def.apiName)_\(suffix)"
+                suffix += 1
+            }
+            used.insert(safe)
+            map[safe] = def.name
+
+            var props: [String: [String: String]] = [:]
+            for (k, v) in def.parameters {
+                props[k] = ["type": "string", "description": v]
+            }
+            result.append([
+                "type": "function",
+                "function": [
+                    "name": safe,
+                    "description": def.summary,
+                    "parameters": [
+                        "type": "object",
+                        "properties": props,
+                        "required": [String](def.parameters.keys)
+                    ]
+                ]
+            ])
+        }
+        apiNameToOriginal = map
+        return result
+    }
+
     @discardableResult
     public func dispatch(name: String, params: [String: Any]) throws -> [String: Any] {
         lock.lock()
-        let tool = tools[name]
+        var tool = tools[name]
+        if tool == nil, let original = apiNameToOriginal[name] {
+            tool = tools[original]
+        }
         lock.unlock()
-        guard let tool = tool else { throw MCPError.unknownTool(name) }
-        guard isEnabled(name: name) else { throw MCPError.failed("工具 \(name) 已被策略禁用") }
-        return try tool.invoke(params)
+        guard let t = tool else { throw MCPError.unknownTool(name) }
+        guard isEnabled(name: t.definition.name) else { throw MCPError.failed("工具 \(name) 已被策略禁用") }
+        return try t.invoke(params)
     }
 
     /// 全量内置工具集
@@ -172,30 +226,6 @@ public final class ToolRegistry: ObservableObject {
         register(SkillsSetEnabledTool())
 
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
-    }
-}
-
-extension Array where Element == ToolDefinition {
-    /// 转换为 OpenAI Chat Completions 的 tools 参数
-    func openAIToolSchema() -> [[String: Any]] {
-        map { def in
-            var props: [String: [String: String]] = [:]
-            for (k, v) in def.parameters {
-                props[k] = ["type": "string", "description": v]
-            }
-            return [
-                "type": "function",
-                "function": [
-                    "name": def.name,
-                    "description": def.summary,
-                    "parameters": [
-                        "type": "object",
-                        "properties": props,
-                        "required": [String](def.parameters.keys)
-                    ]
-                ]
-            ]
-        }
     }
 }
 
