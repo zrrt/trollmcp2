@@ -1,6 +1,6 @@
 # TrollMCP2 项目交接文档
 
-> 版本：v2.9.0 | 最后更新：2026-09-02 | 仓库：github.com/origina47487lhe-droid/trollmcp2（私有）
+> 版本：v2.9.1 | 最后更新：2026-09-02 | 仓库：github.com/origina47487lhe-droid/trollmcp2（私有）
 
 ---
 
@@ -429,15 +429,25 @@ D:/Users/Administrator/Desktop/Payload/TrollMCP.app/            # 完整 .app �
 | **2.8.5** | 09-02 | 推理模型 reasoning_effort=none（提速+修 tools 兼容）、降级重试超时 30s、聊天实时状态文案 |
 | **2.8.6** | 09-02 | 请求超时（URLSession -1001）触发降级；500/502/503/504 也纳入可降级；首次超时缩至 45s |
 | **2.9.0** | 09-02 | **Responses API 支持**（/v1/responses，Codex 同款端点）：新级别 L5「Responses API+工具」、新协议「OpenAI Responses」、L3/L4 旧配置自动先试 L5 |
+| **2.9.1** | 09-02 | **工具名净化**：OpenAI/Responses API 要求工具名匹配 `^[a-zA-Z0-9_-]+$`；ToolDefinition.apiName 净化（中文/标点→下划线、数字开头加 t_ 前缀、重名加 _N 后缀），dispatch 用 apiNameToOriginal 反查原始工具 |
 
-最新 IPA：`artifacts/v2.9.0/TrollMCP2-v2.9.0-20260902.ipa`（5.24MB）
-GitHub Actions run：33543016186 ✅
+最新 IPA：`artifacts/v2.9.1/TrollMCP2-v2.9.1-20260902.ipa`（5.25MB，包内版本已验证 2.9.1）
+GitHub Actions run：33543724495 ✅
 
 ### v2.9.0 关键认知（重要！）
 
 用户证实：**相同中转（Botcf）上 Codex/ccswitch 能正常带工具运行**。原因是 Codex 走 `/v1/responses` 端点而非 `/chat/completions`。GPT-5.6 家族（terra/luna/sol）的 function tools 在 chat/completions 上不可用/极慢（社区报告），但 Responses API 正常。
 
 降级链（v2.9.0）：L0 完整 → L1 互换 token key → L2 去 tool_choice → **L5 Responses API+工具**（保住工具调用）→ L3 纯对话 → L4 最小载荷 → 结束。nextLevel 的哨兵值 6 防止 L4→L5→L3 死循环。
+
+### v2.9.1 关键认知（重要！）
+
+用户截图证实：Responses API 已打通，但报 **`Invalid tools[0].name: name must contain a-z A-Z 0-9 _ -`** —— OpenAI 端点对 function tool 名有严格校验（`^[a-zA-Z0-9_-]+$`），而我们 57 个工具里部分原名含中文/点号/冒号。修复：
+
+- `ToolDefinition.apiName` 计算属性：非法字符→`_`、空名兜底 `tool`、数字开头加 `t_` 前缀
+- `ToolRegistry.enabledOpenAIToolSchema()`：用净化名构建 schema，重名自动加 `_2/_3` 后缀去重
+- `ToolRegistry.dispatch(name:)`：先查原名，再查 `apiNameToOriginal` 反查表，模型回传的净化名能正确路由到原始工具
+- 旧的 `Array.openAIToolSchema()` 扩展已删除，统一走 ToolRegistry（chat/completions 与 Responses 共用同一套净化名）
 
 ---
 
@@ -465,7 +475,7 @@ GitHub Actions run：33543016186 ✅
 3. **错误提示不够详细**：只显示 `raw.prefix(300)`，用户看不到完整请求/响应
 4. **reasoning 字段未解析**：推理模型返回的 `reasoning` / `reasoning_content` 字段被忽略
 5. **无 stream 支持**：所有请求非流式，长回复体验差
-6. **无重试/降级**：请求失败直接报错，不会尝试去掉 tools 重试
+6. ~~无重试/降级~~ v2.8.4 起已有 5 级自适应降级 + compatLevel 持久化（见第 7/8 节）
 
 ### 代码风格
 
