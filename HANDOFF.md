@@ -1,6 +1,6 @@
 # TrollMCP2 项目交接文档
 
-> 版本：v2.8.5 | 最后更新：2026-09-02 | 仓库：github.com/origina47487lhe-droid/trollmcp2（私有）
+> 版本：v2.8.6 | 最后更新：2026-09-02 | 仓库：github.com/origina47487lhe-droid/trollmcp2（私有）
 
 ---
 
@@ -427,9 +427,10 @@ D:/Users/Administrator/Desktop/Payload/TrollMCP.app/            # 完整 .app �
 | 2.8.3 | 08-17 | 推理模型省略 temperature + max_completion_tokens |
 | **2.8.4** | 09-02 | 自适应兼容降级（5 级试探 + 持久化 + 网络调试日志页） |
 | **2.8.5** | 09-02 | 推理模型 reasoning_effort=none（提速+修 tools 兼容）、降级重试超时 30s、聊天实时状态文案 |
+| **2.8.6** | 09-02 | 请求超时（URLSession -1001）触发降级；500/502/503/504 也纳入可降级；首次超时缩至 45s |
 
-最新 IPA：`artifacts/v2.8.5/TrollMCP2-v2.8.5-20260902.ipa`（5.23MB）
-GitHub Actions run：33540621685 ✅
+最新 IPA：`artifacts/v2.8.6/TrollMCP2-v2.8.6-20260902.ipa`（5.23MB）
+GitHub Actions run：33541544785 ✅
 
 ---
 
