@@ -15,10 +15,13 @@ struct ModelConfig: Codable, Identifiable, Hashable {
     var isDefault: Bool = false
     var temperature: Double = 0.7
     var maxTokens: Int = 4096
+    /// v2.8.4：中转站兼容级别（由 OpenAIClient 自适应降级时写入并持久化）
+    /// 0=完整载荷 1=互换token参数名 2=去掉tool_choice 3=去掉tools纯对话 4=最小载荷
+    var compatLevel: Int = 0
 
     init(id: UUID = UUID(), name: String, provider: String, apiProtocol: String = "OpenAI Chat Completions",
          baseURL: String, apiKey: String, model: String, authMethod: String = "Bearer",
-         isDefault: Bool = false, temperature: Double = 0.7, maxTokens: Int = 4096) {
+         isDefault: Bool = false, temperature: Double = 0.7, maxTokens: Int = 4096, compatLevel: Int = 0) {
         self.id = id
         self.name = name
         self.provider = provider
@@ -30,6 +33,7 @@ struct ModelConfig: Codable, Identifiable, Hashable {
         self.isDefault = isDefault
         self.temperature = temperature
         self.maxTokens = maxTokens
+        self.compatLevel = compatLevel
     }
 
     init(from decoder: Decoder) throws {
@@ -46,6 +50,7 @@ struct ModelConfig: Codable, Identifiable, Hashable {
         isDefault = (try? c.decode(Bool.self, forKey: .isDefault)) ?? false
         temperature = (try? c.decode(Double.self, forKey: .temperature)) ?? 0.7
         maxTokens = (try? c.decode(Int.self, forKey: .maxTokens)) ?? 4096
+        compatLevel = (try? c.decode(Int.self, forKey: .compatLevel)) ?? 0
     }
 }
 
@@ -189,18 +194,21 @@ final class ModelAPIClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         applyAuth(config: config, to: &request)
 
+        // v2.8.4：测试连接使用最小载荷（仅 model + messages）。
+        // 旧版发送 max_completion_tokens=8，推理模型（gpt-5.x 默认 medium 推理）
+        // 的推理 token 预算远超 8，会直接报参数错误，导致误判为连接失败。
         let body: [String: Any]
         if config.apiProtocol == "Anthropic Messages" {
+            // Anthropic 协议要求必须传 max_tokens
             body = [
                 "model": config.model,
-                "max_tokens": min(config.maxTokens, 8),
+                "max_tokens": 64,
                 "messages": [["role": "user", "content": "hi"]]
             ]
         } else {
             body = [
                 "model": config.model,
-                "messages": [["role": "user", "content": "hi"]],
-                config.maxTokensKey: min(config.maxTokens, 8)
+                "messages": [["role": "user", "content": "hi"]]
             ]
         }
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)

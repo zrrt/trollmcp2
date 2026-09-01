@@ -152,7 +152,14 @@ struct SettingsView: View {
                         color: .tmTeal,
                         destination: ToolAuditView()
                     )
-                    LabeledRow(label: "版本", value: "2.8.3")
+                    SettingRow(
+                        title: "网络兼容日志",
+                        subtitle: NetworkLog.lastCompatNote ?? "中转站自适应降级记录",
+                        icon: "network",
+                        color: .orange,
+                        destination: NetworkDebugView()
+                    )
+                    LabeledRow(label: "版本", value: "2.8.4")
                     LabeledRow(label: "Bundle ID", value: Bundle.main.bundleIdentifier ?? "-")
                     LabeledRow(label: "工作区", value: Workspace.root.lastPathComponent)
                     LabeledRow(label: "工具数", value: "\(ToolRegistry.shared.definitions.count)")
