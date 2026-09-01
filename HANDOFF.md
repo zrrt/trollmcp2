@@ -1,6 +1,6 @@
 # TrollMCP2 项目交接文档
 
-> 版本：v2.8.3 | 最后更新：2026-08-22 | 仓库：github.com/origina47487lhe-droid/trollmcp2（私有）
+> 版本：v2.8.4 | 最后更新：2026-09-02 | 仓库：github.com/origina47487lhe-droid/trollmcp2（私有）
 
 ---
 
@@ -307,7 +307,7 @@ param: ""
 code: unknown_error
 ```
 
-### 已做的修复（v2.8.0 → v2.8.3）
+### 已做的修复（v2.8.0 → v2.8.4）
 
 | 版本 | 修复 | 效果 |
 |------|------|------|
@@ -315,32 +315,52 @@ code: unknown_error
 | v2.8.1 | 注入 TrollStore 特权 entitlements | TrollStore 权限检测通过 |
 | v2.8.2 | authMethod 空串 → 回退 Bearer | "Missing bearer authentication" 消失 |
 | v2.8.3 | 推理模型省略 temperature + 改用 max_completion_tokens | 参数兼容（但用户报仍无法使用） |
+| **v2.8.4** | **自适应兼容降级**（详见下节） | 客户端自动逐级试探中转站可接受的参数组合 |
 
-### 仍可能的原因
+### v2.8.4：自适应兼容降级（当前最新方案）
 
-1. **中转站对 tools 参数有数量限制**：原版 gpt-5.6-terra 实测并行工具定义超过 ~64 个会崩。TrollMCP2 注册了 57 个工具，每次聊天都会全部发出去。中转站可能更严格。
+**不再猜测中转站支持哪些参数，让 App 自己试探并记住结果。**
 
-2. **中转站不支持 tool_choice 字符串**：有些中转只接受 `tool_choice: {"type":"function","function":{"name":"..."}}` 或不接受该字段。
+`OpenAIClient` 在收到 4xx 参数类错误时自动逐级简化请求体：
 
-3. **中转站对请求体字段有额外限制**：比如不接受 `max_completion_tokens`，只认 `max_tokens`；或不接受 `tools` 里的某些字段格式。
+| 级别 | 载荷 |
+|------|------|
+| 0 | 完整载荷（tools + tool_choice + 推理模型参数适配） |
+| 1 | 互换 token key（max_completion_tokens ↔ max_tokens） |
+| 2 | 去掉 tool_choice |
+| 3 | 去掉 tools（纯对话；历史中的 tool 消息自动降级为普通文本） |
+| 4 | 最小载荷（仅 model + messages） |
 
-4. **模型名不匹配**：中转站可能要求 `openai/gpt-5.6-terra` 而非 `gpt-5.6-terra`。
+- 成功后把可用级别写入 `ModelConfig.compatLevel` 持久化，下次直接从该级别发起
+- 兼容 new-api 中转「HTTP 200 + error body」的非标准返回
+- 鉴权(401/403)、配额(429)、超时(408) 不降级（换载荷无意义）
+- `testConnection` 改为最小载荷（旧版 `max_completion_tokens=8` 低于推理模型最低推理 token 预算，必然 400——这很可能就是"测试连接"一直失败的原因）
+- 新增 `NetworkDebugView`（设置 → 关于 → 网络兼容日志）：查看各模型当前级别 + 每次请求的字段与结果，可手动重置级别
 
-5. **API key 本身无效**：中转站可能对 key 格式有要求。
+### 网上调研结论（2026-08 检索）
 
-### 排查建议（给 opencode）
+1. **GPT-5.6 家族（sol/terra/luna）在 chat/completions 上对 function tools + reasoning_effort 组合有限制**（CrewAI 社区 bug 报告）：报错 "Function tools with reasoning_effort are not supported... use /v1/responses or set reasoning_effort to 'none'"。模型默认 reasoning_effort=medium，即带 tools 的请求可能直接被拒。
+2. **gpt-5.6-terra 实测超过 ~64 个并行工具定义会触发 500**（treerouter 社区压测）。TrollMCP2 发 57 个，接近阈值，中转站可能更严格。
+3. **reapi.ai 实测**：gpt-5.6-terra 在 chat/completions 接受 `max_tokens` 或 `max_completion_tokens`（≤128k）、接受 tools；但**拒绝** frequency_penalty / presence_penalty / stop（400）。
+4. 错误 `type: new_api_error` 证实 Botcf 是 new-api 系中转；new-api 会把上游 400 包装成自己的错误格式。
 
-1. **加请求日志**：在 `OpenAIClient.send` 的 `request.httpBody` 发送前，把完整请求体和 URL 打到 `AuditLog` 或 UI 上，让用户看到到底发了什么。
+→ 若 v2.8.4 仍失败，看「网络兼容日志」里停在哪个级别；若级别 4（最小载荷）仍 400，则问题在鉴权或模型名，不在参数。
 
-2. **先禁用工具测试**：加一个开关，让聊天时不发 `tools` 参数，只发 `model + messages + max_tokens`，看是否能通。如果能通，说明是 tools 数量/格式问题。
+### 仍可能的原因（v2.8.4 之后）
 
-3. **对比 curl**：让用户用 curl 发同样的请求体到中转站，对比报错。
+1. **模型名不匹配**：中转站可能要求 `openai/gpt-5.6-terra` 而非 `gpt-5.6-terra`。
 
-4. **检查中转站文档**：botcf.com 的 API 文档，确认它支持的参数列表。
+2. **API key 本身无效**：中转站可能对 key 格式有要求。
 
-5. **逐步裁剪请求体**：依次去掉 `temperature`、`max_tokens`、`tools`、`tool_choice`，看哪个参数导致 400。
+### 排查建议（v2.8.4 后剩余问题）
 
-6. **响应解析也要改**：推理模型可能返回 `choices[0].message.content` 为 null + 有 `reasoning` 字段，当前解析逻辑不处理 reasoning。
+1. **先看 App 内「网络兼容日志」**：它会显示每次请求降级到哪个级别、每个级别的失败原因——这是首要排查入口，不再需要 curl 对比。
+
+2. **对比 curl**：让用户用 curl 发同样的请求体到中转站，对比报错（仅当需要二次确认时）。
+
+3. **检查中转站文档**：botcf.com 的 API 文档，确认它支持的参数列表。
+
+4. **响应解析也要改**：推理模型可能返回 `choices[0].message.content` 为 null + 有 `reasoning` 字段，当前解析逻辑不处理 reasoning（v2.8.4 已把 content 为 null 时返回空字符串而非报错）。
 
 ### 代码位置
 
@@ -404,10 +424,11 @@ D:/Users/Administrator/Desktop/Payload/TrollMCP.app/            # 完整 .app �
 | 2.8.0 | 08-16 | 真实化注入/Gateway/automation + 补齐 12 个设备工具 |
 | 2.8.1 | 08-16 | 注入 TrollStore 特权 entitlements |
 | 2.8.2 | 08-16 | 修复 authMethod 空串 → Bearer |
-| **2.8.3** | 08-17 | 推理模型省略 temperature + max_completion_tokens |
+| 2.8.3 | 08-17 | 推理模型省略 temperature + max_completion_tokens |
+| **2.8.4** | 09-02 | 自适应兼容降级（5 级试探 + 持久化 + 网络调试日志页） |
 
-最新 IPA：`artifacts/v2.8.3/TrollMCP2-v2.8.3-20260817.ipa`（5.21MB）
-GitHub Actions run：32025026570 ✅
+最新 IPA：`artifacts/v2.8.4/TrollMCP2-v2.8.4-20260902.ipa`（5.23MB）
+GitHub Actions run：33539732057 ✅
 
 ---
 
