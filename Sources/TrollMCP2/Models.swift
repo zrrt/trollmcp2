@@ -59,6 +59,7 @@ struct ModelConfig: Codable, Identifiable, Hashable {
 extension ModelConfig {
     static let apiProtocols = [
         "OpenAI Chat Completions",
+        "OpenAI Responses",
         "OpenAI Completions",
         "Anthropic Messages",
         "Custom Endpoint"
@@ -70,7 +71,7 @@ extension ModelConfig {
         ("OpenAI", "openai", "OpenAI Chat Completions", "https://api.openai.com/v1", "gpt-4o-mini", "Bearer"),
         ("DeepSeek", "deepseek", "OpenAI Chat Completions", "https://api.deepseek.com/v1", "deepseek-chat", "Bearer"),
         ("Anthropic", "anthropic", "Anthropic Messages", "https://api.anthropic.com/v1", "claude-3-5-sonnet-20240620", "API Key"),
-        ("Botcf", "custom", "OpenAI Chat Completions", "https://botcf.com/v1", "gpt-5.6-terra", "Bearer")
+        ("Botcf", "custom", "OpenAI Responses", "https://botcf.com/v1", "gpt-5.6-terra", "Bearer")
     ]
 
     /// 推理系列模型（GPT-5.x / o1 / o3 / o4）不接受 temperature 参数，
@@ -187,7 +188,15 @@ final class ModelAPIClient {
 
     func testConnection(config: ModelConfig, completion: @escaping (Result<String, Error>) -> Void) {
         let base = config.baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        let endpoint = config.apiProtocol == "Anthropic Messages" ? "/messages" : "/chat/completions"
+        // v2.9.0：支持 Responses API 协议
+        let endpoint: String
+        if config.apiProtocol == "Anthropic Messages" {
+            endpoint = "/messages"
+        } else if config.apiProtocol == "OpenAI Responses" {
+            endpoint = "/responses"
+        } else {
+            endpoint = "/chat/completions"
+        }
         guard let url = URL(string: base + endpoint) else {
             completion(.failure(NSError(domain: "ModelAPIClient", code: 0, userInfo: [NSLocalizedDescriptionKey: "无效的 Base URL"])))
             return
@@ -207,6 +216,11 @@ final class ModelAPIClient {
                 "model": config.model,
                 "max_tokens": 64,
                 "messages": [["role": "user", "content": "hi"]]
+            ]
+        } else if config.apiProtocol == "OpenAI Responses" {
+            body = [
+                "model": config.model,
+                "input": [["role": "user", "content": "hi"]]
             ]
         } else {
             body = [

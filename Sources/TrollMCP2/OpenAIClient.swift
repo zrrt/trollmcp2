@@ -46,7 +46,8 @@ final class NetworkLog: ObservableObject {
 /// 成功后把可用级别持久化到 ModelConfig.compatLevel，下次直接从该级别发起。
 final class OpenAIClient {
     let config: ModelConfig
-    private let maxLevel = 4
+    /// v2.9.0：级别 5 = Responses API + 工具
+    private let maxLevel = 5
 
     init(_ config: ModelConfig) {
         self.config = config
@@ -55,7 +56,15 @@ final class OpenAIClient {
     // MARK: - 对外入口
 
     func send(messages: [ChatMessage], tools: [[String: Any]]? = nil, onStatus: ((String) -> Void)? = nil, completion: @escaping (Result<ChatResult, Error>) -> Void) {
-        let start = min(max(config.compatLevel, 0), maxLevel)
+        // v2.9.0：级别 5 = Responses API + 工具调用（Codex 走的端点，GPT-5.6 家族
+        // 在 chat/completions 上无法用 function tools，但 /v1/responses 可以）
+        var start = min(max(config.compatLevel, 0), maxLevel)
+        // 历史被记忆为"纯对话"(L3/L4) 的旧配置，给一次恢复工具调用的机会：
+        // 先试 L5（Responses API + 工具），失败自动回落 L3。
+        if start == 3 || start == 4 {
+            NetworkLog.shared.log("\(config.name): 当前记忆级别为纯对话，先尝试 Responses API 恢复工具调用…")
+            start = 5
+        }
         if start > 0 {
             NetworkLog.shared.log("\(config.name): 使用已记忆的兼容级别 \(start)（\(levelName(start))）")
         } else {
@@ -64,11 +73,35 @@ final class OpenAIClient {
         attempt(level: start, isFirst: true, messages: messages, tools: tools, onStatus: onStatus, completion: completion)
     }
 
+    /// 降级顺序：L0→L1→L2→（带 tools 时优先 L5 Responses API，保住工具调用）→L3→L4→结束
+    /// 返回 > maxLevel 的哨兵值表示降级链走完，无下一级可试。
+    private func nextLevel(after level: Int, hasTools: Bool) -> Int {
+        if level == 2, hasTools { return 5 }
+        if level == 5 { return 3 }
+        if level >= 4 { return 6 }   // 哨兵：链尾，避免 L4→L5→L3 循环
+        return level + 1
+    }
+
     // MARK: - 逐级试探
 
     private func attempt(level: Int, isFirst: Bool, messages: [ChatMessage], tools: [[String: Any]]?, onStatus: ((String) -> Void)?, completion: @escaping (Result<ChatResult, Error>) -> Void) {
         if config.apiProtocol == "Anthropic Messages" {
             performAnthropic(messages: messages, completion: completion)
+            return
+        }
+        // v2.9.0：手动选择 Responses 协议，或降级链走到 L5
+        if level == 5 || config.apiProtocol == "OpenAI Responses" {
+            // 手动选择协议时不回落；经降级链进入（L5）失败后回落 L3 纯对话
+            let viaLadder = level == 5 && config.apiProtocol != "OpenAI Responses"
+            performResponses(messages: messages, tools: tools, onStatus: onStatus) { [weak self] result in
+                guard let self = self else { return }
+                if case .failure = result, viaLadder {
+                    // 回落到已验证可用的纯对话模式
+                    self.attempt(level: 3, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, completion: completion)
+                    return
+                }
+                completion(result)
+            }
             return
         }
 
@@ -106,11 +139,14 @@ final class OpenAIClient {
                     || err.domain == NSURLErrorDomain && err.code == -1001
                     || error.localizedDescription.contains("超时")
                     || error.localizedDescription.localizedLowercase.contains("timed out"))
-                if isTimeout, level < self.maxLevel {
-                    NetworkLog.shared.log("\(self.config.name) L\(level) 请求超时 → 自动降级到 L\(level + 1)（\(self.levelName(level + 1))）")
-                    onStatus?("请求超时，正在尝试简化参数（级别 \(level + 1)/\(self.maxLevel)）…")
-                    self.attempt(level: level + 1, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, completion: completion)
-                    return
+                if isTimeout {
+                    let next = self.nextLevel(after: level, hasTools: tools != nil && !(tools?.isEmpty ?? true))
+                    if next <= self.maxLevel {
+                        NetworkLog.shared.log("\(self.config.name) L\(level) 请求超时 → 自动降级到 L\(next)（\(self.levelName(next))）")
+                        onStatus?("请求超时，正在尝试简化参数（级别 \(next)/\(self.maxLevel)）…")
+                        self.attempt(level: next, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, completion: completion)
+                        return
+                    }
                 }
                 // 其它网络错误（断网等）降级无意义
                 NetworkLog.shared.log("\(self.config.name) L\(level) 网络错误: \(error.localizedDescription)")
@@ -151,14 +187,17 @@ final class OpenAIClient {
             let failMsg = errorPayload ?? raw
             NetworkLog.shared.log("\(self.config.name) L\(level) 失败 (HTTP \(status)): \(String(failMsg.prefix(200)))")
 
-            if retryable && level < self.maxLevel {
-                NetworkLog.shared.log("\(self.config.name) 自动降级 → 级别 \(level + 1)（\(self.levelName(level + 1))）")
-                self.attempt(level: level + 1, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, completion: completion)
-            } else {
-                let hint = errorPayload != nil ? "" : "\n提示: 响应非标准 OpenAI 格式，请检查 baseURL 是否指向 /v1 兼容端点。"
-                completion(.failure(NSError(domain: "OpenAIClient", code: status,
-                    userInfo: [NSLocalizedDescriptionKey: "请求被拒绝 (HTTP \(status)，已尝试到级别 \(level)·\(self.levelName(level)))\n\(String(failMsg.prefix(300)))\(hint)"])))
+            if retryable {
+                let next = self.nextLevel(after: level, hasTools: tools != nil && !(tools?.isEmpty ?? true))
+                if next <= self.maxLevel {
+                    NetworkLog.shared.log("\(self.config.name) 自动降级 → 级别 \(next)（\(self.levelName(next))）")
+                    self.attempt(level: next, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, completion: completion)
+                    return
+                }
             }
+            let hint = errorPayload != nil ? "" : "\n提示: 响应非标准 OpenAI 格式，请检查 baseURL 是否指向 /v1 兼容端点。"
+            completion(.failure(NSError(domain: "OpenAIClient", code: status,
+                userInfo: [NSLocalizedDescriptionKey: "请求被拒绝 (HTTP \(status)，已尝试到级别 \(level)·\(self.levelName(level)))\n\(String(failMsg.prefix(300)))\(hint)"])))
         }.resume()
     }
 
@@ -239,6 +278,7 @@ final class OpenAIClient {
         case 2: return "去掉tool_choice"
         case 3: return "去掉tools纯对话"
         case 4: return "最小载荷"
+        case 5: return "Responses API+工具"
         default: return "未知"
         }
     }
@@ -292,6 +332,138 @@ final class OpenAIClient {
             ModelStore.shared.configs[idx].compatLevel = level
             ModelStore.shared.save()
         }
+    }
+
+    // MARK: - Responses API（v2.9.0）
+
+    /// OpenAI /v1/responses 端点（Codex 同款）。
+    /// GPT-5.6 家族的 function tools 在 chat/completions 上不可用/极慢，
+    /// 但 Responses API 正常——用户在相同中转上 Codex 可运行即为证据。
+    private func performResponses(messages: [ChatMessage], tools: [[String: Any]]?, onStatus: ((String) -> Void)?, completion: @escaping (Result<ChatResult, Error>) -> Void) {
+        let base = config.baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard let url = URL(string: base + "/responses") else {
+            completion(.failure(NSError(domain: "OpenAIClient", code: 0, userInfo: [NSLocalizedDescriptionKey: "无效的 baseURL"])))
+            return
+        }
+
+        var request = URLRequest(url: url, timeoutInterval: 60)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        applyAuth(to: &request)
+
+        var body: [String: Any] = [
+            "model": config.model,
+            "input": responsesInput(from: messages),
+            "max_output_tokens": config.maxTokens
+        ]
+        if config.isReasoningModel {
+            body["reasoning"] = ["effort": "none"]
+        }
+        if let tools = tools, !tools.isEmpty {
+            body["tools"] = tools.map { responsesToolSchema($0) }
+            body["tool_choice"] = "auto"
+        }
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        NetworkLog.shared.log("\(config.name) L5 Responses API+工具 → POST /responses，字段: \(body.keys.sorted().joined(separator: ","))")
+        onStatus?("正在通过 Responses API 请求（保留工具调用）…")
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                NetworkLog.shared.log("\(self.config.name) L5 网络错误: \(error.localizedDescription)")
+                completion(.failure(error))
+                return
+            }
+            let raw = String(data: data ?? Data(), encoding: .utf8) ?? "(no data)"
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+
+            if let json = try? JSONSerialization.jsonObject(with: data ?? Data()) as? [String: Any] {
+                if let err = json["error"] as? [String: Any],
+                   let msg = err["message"] as? String {
+                    NetworkLog.shared.log("\(self.config.name) L5 失败 (HTTP \(status)): \(msg)")
+                    completion(.failure(NSError(domain: "OpenAIClient", code: status,
+                        userInfo: [NSLocalizedDescriptionKey: "Responses API 错误: \(msg)"])))
+                    return
+                }
+                if let output = json["output"] as? [[String: Any]] {
+                    var calls: [ToolCall] = []
+                    var text = ""
+                    for item in output {
+                        let type = item["type"] as? String ?? ""
+                        if type == "function_call",
+                           let callId = item["call_id"] as? String,
+                           let name = item["name"] as? String,
+                           let args = item["arguments"] as? String {
+                            calls.append(ToolCall(id: callId, name: name, arguments: args))
+                        }
+                        if type == "message",
+                           let content = item["content"] as? [[String: Any]] {
+                            for c in content where (c["type"] as? String) == "output_text" {
+                                if let t = c["text"] as? String { text += t }
+                            }
+                        }
+                    }
+                    NetworkLog.shared.log("\(self.config.name) L5（Responses API+工具）请求成功，已记忆该级别")
+                    NetworkLog.lastCompatNote = "模型「\(self.config.name)」当前兼容级别: 5（Responses API+工具）"
+                    self.persist(level: 5)
+                    if !calls.isEmpty {
+                        completion(.success(.toolCalls(calls)))
+                    } else {
+                        completion(.success(.text(text)))
+                    }
+                    return
+                }
+            }
+            completion(.failure(NSError(domain: "OpenAIClient", code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Responses 解析失败: \(raw.prefix(300))"])))
+        }.resume()
+    }
+
+    /// 把内部消息历史转换为 Responses API 的 input 数组。
+    /// - 普通消息 → {"role": ..., "content": ...}
+    /// - assistant 带 toolCalls → message + 逐个 {"type":"function_call", ...}
+    /// - tool 结果 → {"type":"function_call_output", ...}
+    private func responsesInput(from messages: [ChatMessage]) -> [[String: Any]] {
+        var items: [[String: Any]] = []
+        for m in messages {
+            if m.role == "tool" {
+                items.append([
+                    "type": "function_call_output",
+                    "call_id": m.toolCallId ?? "",
+                    "output": m.content
+                ])
+                continue
+            }
+            if let calls = m.toolCalls, !calls.isEmpty {
+                if !m.content.isEmpty {
+                    items.append(["role": "assistant", "content": m.content])
+                }
+                for c in calls {
+                    items.append([
+                        "type": "function_call",
+                        "call_id": c.id,
+                        "name": c.name,
+                        "arguments": c.arguments
+                    ])
+                }
+                continue
+            }
+            items.append(["role": m.role, "content": m.content])
+        }
+        return items
+    }
+
+    /// chat/completions 的嵌套工具 schema → Responses 的扁平格式
+    /// {"type":"function","function":{"name":...}} → {"type":"function","name":...}
+    private func responsesToolSchema(_ chatTool: [String: Any]) -> [String: Any] {
+        if let fn = chatTool["function"] as? [String: Any] {
+            var flat: [String: Any] = ["type": "function"]
+            if let n = fn["name"] as? String { flat["name"] = n }
+            if let d = fn["description"] as? String { flat["description"] = d }
+            if let p = fn["parameters"] { flat["parameters"] = p }
+            return flat
+        }
+        return chatTool
     }
 
     // MARK: - Anthropic
