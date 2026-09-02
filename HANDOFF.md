@@ -1,6 +1,6 @@
 # TrollMCP2 项目交接文档
 
-> 版本：v2.9.8 | 最后更新：2026-09-02 | 仓库：github.com/origina47487lhe-droid/trollmcp2（私有）
+> 版本：v2.9.9 | 最后更新：2026-09-02 | 仓库：github.com/origina47487lhe-droid/trollmcp2（私有）
 
 ---
 
@@ -46,7 +46,7 @@ TrollMCP2/
 ├── Support/
 │   ├── Info.plist                 # CFBundleShortVersionString=2.8.3, min iOS 14.0, 8 项隐私权限描述
 │   └── TrollMCP2.entitlements     # TrollStore 特权（no-sandbox/no-container/task_for_pid 等 16 项）
-├── Sources/TrollMCP2/             # 全部 Swift 源码（31 个文件，~7240 行）
+├── Sources/TrollMCP2/             # 全部 Swift 源码（34 个文件，~7700 行）
 │   ├── AppMain.swift              # @main 入口，UIApplicationMain + AppDelegate
 │   ├── RootView.swift             # ZStack: ChatView + 左侧抽屉 + Settings sheet
 │   ├── ChatView.swift             # 聊天主界面（消息列表 + 模型条 + 输入栏）
@@ -57,6 +57,8 @@ TrollMCP2/
 │   ├── AllMCPTools.swift          # 全部工具的 invoke 实现（apps/injection/gateway/automation/系统）
 │   ├── OriginalTools.swift        # AutomationStore + GatewayServerStore + 原版命名工具
 │   ├── MissingTools.swift         # 12 个补齐设备端工具（calendar/reminder/device/web/knowledge/phone/skills）
+│   ├── GitHubTools.swift          # ★ v2.9.9：GitHub 线上编译 AI 工具（账号状态/触发编译/查进度/下载产物）
+│   ├── ZipExtractor.swift         # ★ v2.9.9：自研轻量 ZIP 解压器（STORE/DEFLATE，替代 iOS 不存在的 FileManager.unzipItem）
 │   ├── InjectionManager.swift     # posix_spawn 调 insert_dylib + ldid 真注入
 │   ├── GatewayClient.swift        # WebSocket 握手（hello+token → ready/paired）
 │   ├── DeviceProbe.swift          # 本机环境自检（TrollStore/task_for_pid/容器读写/注入二进制）
@@ -441,9 +443,10 @@ D:/Users/Administrator/Desktop/Payload/TrollMCP.app/            # 完整 .app �
 | **2.9.6** | 09-02 | **网页登录（Device Flow，gh CLI 同款）**：不再依赖 PAT 手动复制——App 内置 Safari（SFSafariViewController）打开 GitHub 授权页，显示 user_code + 自动轮询换取 token，登录自动完成。需在「仓库设置」填 OAuth App Client ID（免费注册，无需 secret）。PAT 保留为备选 |
 | **2.9.7** | 09-02 | **新手零配置登录**：在 origina47487lhe-droid 账号下注册共享 OAuth App「TrollMCP2 线上编译」（id 3832419，Client ID `Ov23li890n3hM15edlcw`，Device Flow 已启用，token 过期已关）并**内置为默认值**——任意 GitHub 用户打开 App 直接点「网页登录」即可授权（各拿各的 token），无需注册/配置任何东西。高级用户仍可在仓库设置覆盖 Client ID |
 | **2.9.8** | 09-02 | **零折腾网页登录**：拿到验证码后**自动复制到剪贴板**（GitHub 授权页可自动识别/粘贴，gh CLI 同款）+ 手动复制按钮；授权成功后**自动关闭内置 Safari 并自动返回**登录成功（无需手动点「完成」）；失败也自动关浏览器。修复用户实测"验证码不能复制/要手动切来切去"的体验 |
+| **2.9.9** | 09-02 | **8 项反馈一次性落地**：①**图片真传**（选相册图→base64 data URL→多模态 content 数组发给模型，单张 ≤3MB，ChatMessage 新增 imageDataURLs，Chat Completions 用 image_url、Responses 用 input_image）；②**侧边栏精简**（对话列表 List→ScrollView 去分隔线，删除改长按 contextMenu（iOS14 兼容），底部工作台改为紧凑环境入口+设置齿轮）；③**GitHub AI 工具**（新增 `github.account_status`/`github.trigger_build`/`github.fetch_runs`/`github.download_artifact`，AI 可感知登录状态、触发线上编译、查进度、下载 artifact 并解压到工作区 downloads——与 UI 层 GitHubAccountStore 同源 UserDefaults key）；④**键盘收起**（点击聊天空白区收键盘 resignFirstResponder）；⑤**TrollFools 检测修复**（补官方 bundle id `wiki.qaq.TrollFools` + 名称/路径模糊匹配兜底）；⑥**自研 ZipExtractor**（STORE/DEFLATE 解压，compression 框架，替代 iOS 不存在的 FileManager.unzipItem） |
 
-最新 IPA：`artifacts/v2.9.8/TrollMCP2-v2.9.8-20260902.ipa`（包内版本已验证 2.9.8）
-GitHub Actions run：33617736761 ✅（v2.9.4 IPA）；33620936109 ✅（CompileProbe tweak）；33625432211 ✅（v2.9.5 IPA）；33628210737 ✅（v2.9.6 IPA）；33630385070 ✅（v2.9.7 IPA）；33632520940 ✅（v2.9.8 IPA）
+最新 IPA：`artifacts/v2.9.9/TrollMCP2-v2.9.9-20260902.ipa`（包内版本已验证 2.9.9）
+GitHub Actions run：33617736761 ✅（v2.9.4 IPA）；33620936109 ✅（CompileProbe tweak）；33625432211 ✅（v2.9.5 IPA）；33628210737 ✅（v2.9.6 IPA）；33630385070 ✅（v2.9.7 IPA）；33632520940 ✅（v2.9.8 IPA）；33638205824 ✅（v2.9.9 IPA）
 
 ### v2.9.0 关键认知（重要！）
 
