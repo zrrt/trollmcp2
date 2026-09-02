@@ -1,6 +1,6 @@
 # TrollMCP2 项目交接文档
 
-> 版本：v2.9.11 | 最后更新：2026-09-02 | 仓库：github.com/origina47487lhe-droid/trollmcp2（私有）
+> 版本：v2.9.12 | 最后更新：2026-09-02 | 仓库：github.com/origina47487lhe-droid/trollmcp2（私有）
 
 ---
 
@@ -444,6 +444,7 @@ D:/Users/Administrator/Desktop/Payload/TrollMCP.app/            # 完整 .app �
 | **2.9.7** | 09-02 | **新手零配置登录**：在 origina47487lhe-droid 账号下注册共享 OAuth App「TrollMCP2 线上编译」（id 3832419，Client ID `Ov23li890n3hM15edlcw`，Device Flow 已启用，token 过期已关）并**内置为默认值**——任意 GitHub 用户打开 App 直接点「网页登录」即可授权（各拿各的 token），无需注册/配置任何东西。高级用户仍可在仓库设置覆盖 Client ID |
 | **2.9.8** | 09-02 | **零折腾网页登录**：拿到验证码后**自动复制到剪贴板**（GitHub 授权页可自动识别/粘贴，gh CLI 同款）+ 手动复制按钮；授权成功后**自动关闭内置 Safari 并自动返回**登录成功（无需手动点「完成」）；失败也自动关浏览器。修复用户实测"验证码不能复制/要手动切来切去"的体验 |
 | **2.9.9** | 09-02 | **8 项反馈一次性落地**：①**图片真传**（选相册图→base64 data URL→多模态 content 数组发给模型，单张 ≤3MB，ChatMessage 新增 imageDataURLs，Chat Completions 用 image_url、Responses 用 input_image）；②**侧边栏精简**（对话列表 List→ScrollView 去分隔线，删除改长按 contextMenu（iOS14 兼容），底部工作台改为紧凑环境入口+设置齿轮）；③**GitHub AI 工具**（新增 `github.account_status`/`github.trigger_build`/`github.fetch_runs`/`github.download_artifact`，AI 可感知登录状态、触发线上编译、查进度、下载 artifact 并解压到工作区 downloads——与 UI 层 GitHubAccountStore 同源 UserDefaults key）；④**键盘收起**（点击聊天空白区收键盘 resignFirstResponder）；⑤**TrollFools 检测修复**（补官方 bundle id `wiki.qaq.TrollFools` + 名称/路径模糊匹配兜底）；⑥**自研 ZipExtractor**（STORE/DEFLATE 解压，compression 框架，替代 iOS 不存在的 FileManager.unzipItem） |
+| **2.9.12** | 09-02 | **体验与超时修复**：①老会话打开/切换自动滚到底（ScrollViewReader onAppear + selectedId 监听）；②select() 打开会话即刷新 updatedAt 重排置顶，列表按最近使用倒序；③侧边栏 header 顶部自适应状态栏安全区，标题不再压系统时间；④URLRequest 超时放宽（chat 首次 45→90s/重试 30→60s、Responses/Anthropic 60→90s）；⑤默认上下文预算 24000→16000；⑥版本 2.9.12 |
 | **2.9.11** | 09-02 | **上下文预算裁剪**：①核心修复长会话卡死——messagesForAPI 按 token 估算（中文 1.5/字、ASCII/4、图片 600）裁剪最早历史，保留最近 6 条+系统提示，请求体不再无限增长；②sanitizeToolSequence 清理裁剪后孤立 tool 消息防 API 报错；③ModelConfig 新增 contextTokens（默认 24000，解码兼容旧配置），模型编辑页新增上下文预算 Stepper + 参数说明（明确 Max Tokens=输出上限≠上下文）；④Info.plist 加 UIRequiresFullScreen（iPhone 全屏明确）；⑤版本 2.9.11 |
 | **2.9.10** | 09-02 | **6 项体验打磨**：①**图片/应用缩略图**（选图后输入栏显示缩略图可删、消息气泡内直接显示图片（dataURL→UIImage）；选应用显示图标+名称预览，复用 AppIconView 加载逻辑）；②**下载管理页**（设置「连接与扩展」新增入口，浏览/勾选/删除 Workspace/downloads 线上编译产物，防垃圾堆积）；③**后台网络中断修复**（新增 AppLifecycleMonitor：NWPathMonitor 网络恢复 + 前后台通知；GatewayClient 网络恢复/回前台自动重连；AppDelegate 后台保活 3 分钟；OpenAIClient 自定义 URLSession `waitsForConnectivity` + 90s/300s 超时放宽；回前台弹提示）；④**侧边栏美化**（渐变 logo、选中渐变圆角卡片、美化搜索栏/底部圆角工具栏）；⑤**请求超时优化**（OpenAIClient request 90s / resource 300s）；⑥**加号改半屏 actionSheet**（替代整屏「添加内容」面板）+ 内置智能搜索占位替换为真实说明页（web.search 默认启用） |
 
