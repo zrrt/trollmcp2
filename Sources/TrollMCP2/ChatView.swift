@@ -94,6 +94,19 @@ struct ChatView: View {
             }, alignment: .top)
         }
         .navigationViewStyle(.stack)
+        // v2.9.30：授权弹窗挂最外层（与 inputBar 的 +号 actionSheet 分离，避免同 view 覆盖）
+        .actionSheet(item: $store.pendingApproval) { p in
+            ActionSheet(
+                title: Text("工具授权请求"),
+                message: Text("AI 想调用「\(p.toolName)」\n\(p.summary)\n\n选择授权范围："),
+                buttons: [
+                    .default(Text("本轮授权（仅此一次）")) { store.resolveApproval(.once) },
+                    .default(Text("本轮会话授权")) { store.resolveApproval(.session) },
+                    .destructive(Text("拒绝")) { store.resolveApproval(.deny) },
+                    .cancel()
+                ]
+            )
+        }
         .sheet(item: $attachmentSheet) { sheet in
             switch sheet {
             case .panel:
@@ -439,19 +452,8 @@ struct ChatView: View {
         .sheet(isPresented: $showShare) {
             ShareSheet(items: [shareText])
         }
-        // v2.9.25：AI 调用未授权工具时，运行时授权弹窗（本轮/会话/拒绝）
-        .actionSheet(item: $store.pendingApproval) { p in
-            ActionSheet(
-                title: Text("工具授权请求"),
-                message: Text("AI 想调用「\(p.toolName)」\n\(p.summary)\n\n选择授权范围："),
-                buttons: [
-                    .default(Text("本轮授权（仅此一次）")) { store.resolveApproval(.once) },
-                    .default(Text("本轮会话授权")) { store.resolveApproval(.session) },
-                    .destructive(Text("拒绝")) { store.resolveApproval(.deny) },
-                    .cancel()
-                ]
-            )
-        }
+        // v2.9.30：授权弹窗已移出到 NavigationView 外层（见 body 链），
+        // 此处不再挂 actionSheet，避免与上方 +号 的 actionSheet 同 view 覆盖。
     }
 
     private func reasoningLabel() -> String {
