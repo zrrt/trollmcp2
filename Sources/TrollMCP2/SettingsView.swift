@@ -77,6 +77,13 @@ struct SettingsView: View {
 
                 Section(header: SettingSectionHeader(title: "连接与扩展")) {
                     SettingRow(
+                        title: "GitHub 账号",
+                        subtitle: "线上编译 · \(githubAccountSubtitle())",
+                        icon: "person.crop.circle.fill.badge.checkmark",
+                        color: .black,
+                        destination: GitHubAccountView()
+                    )
+                    SettingRow(
                         title: "内置智能搜索",
                         subtitle: "Bing Web · RSS 回...",
                         icon: "magnifyingglass.circle.fill",
@@ -159,7 +166,7 @@ struct SettingsView: View {
                         color: .orange,
                         destination: NetworkDebugView()
                     )
-                    LabeledRow(label: "版本", value: "2.9.4")
+                    LabeledRow(label: "版本", value: "2.9.5")
                     LabeledRow(label: "Bundle ID", value: Bundle.main.bundleIdentifier ?? "-")
                     LabeledRow(label: "工作区", value: Workspace.root.lastPathComponent)
                     LabeledRow(label: "工具数", value: "\(ToolRegistry.shared.definitions.count)")
@@ -182,6 +189,13 @@ struct SettingsView: View {
 
     private func permissionCount() -> Int {
         7
+    }
+
+    private func githubAccountSubtitle() -> String {
+        if let login = GitHubAccountStore.shared.activeLogin {
+            return "@\(login)"
+        }
+        return "未登录 · 多账号"
     }
 }
 
