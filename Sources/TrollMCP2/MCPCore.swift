@@ -54,6 +54,9 @@ public final class ToolRegistry: ObservableObject {
     private var apiNameToOriginal: [String: String] = [:]
     private let lock = NSLock()
     private let disabledKey = "trollmcp2.disabled_tools"
+    /// v2.9.22：会话内已授权工具（AI 通过 tool_search 搜索到并决定调用即自动放行，
+    /// 无需用户手动开 Toggle）。新会话时清空。
+    private var sessionApproved: Set<String> = []
 
     public func register(_ tool: MCPTool) {
         lock.lock()
@@ -87,6 +90,26 @@ public final class ToolRegistry: ObservableObject {
         let disabled = UserDefaults.standard.object(forKey: disabledKey) as? [String: Bool] ?? [:]
         if let v = disabled[name] { return v }   // 用户显式设置过，以用户为准
         return Self.defaultEnabledTools.contains(name)
+    }
+
+    /// v2.9.22：授权某工具在本会话内可调用（绕过策略禁用）。
+    public func approveForSession(_ name: String) {
+        lock.lock()
+        sessionApproved.insert(name)
+        lock.unlock()
+    }
+
+    /// v2.9.22：清空会话授权（新会话时调用）。
+    public func clearSessionApproval() {
+        lock.lock()
+        sessionApproved.removeAll()
+        lock.unlock()
+    }
+
+    public func isSessionApproved(_ name: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return sessionApproved.contains(name)
     }
 
     public func setEnabled(name: String, enabled: Bool) {
@@ -206,7 +229,11 @@ public final class ToolRegistry: ObservableObject {
         }
         lock.unlock()
         guard let t = tool else { throw MCPError.unknownTool(name) }
-        guard isEnabled(name: t.definition.name) else { throw MCPError.failed("工具 \(name) 已被策略禁用") }
+        // v2.9.22：AI 主动搜索并决定调用的工具（会话授权）无需手动开 Toggle
+        let originalName = t.definition.name
+        guard isEnabled(name: originalName) || isSessionApproved(originalName) else {
+            throw MCPError.failed("工具 \(name) 已被策略禁用")
+        }
         return try t.invoke(params)
     }
 
@@ -326,11 +353,16 @@ final class ToolSearchTool: MCPTool {
         let query = (params["query"] as? String) ?? ""
         let limit = (params["limit"] as? NSNumber)?.intValue ?? 8
         let hits = ToolRegistry.shared.searchTools(query: query, limit: max(1, min(limit, 20)))
+        // v2.9.22：AI 搜索到工具即视为"决定使用"，自动授权本会话可调用（无需手动开）
+        for h in hits {
+            if let n = h["name"] { ToolRegistry.shared.approveForSession(n) }
+        }
         return [
             "query": query,
             "total": hits.count,
             "tools": hits,
-            "hint": "如需要调用以上某个工具，直接使用它的名字；App 会自动在下一轮加载其定义。"
+            "authorized": hits.map { $0["name"] ?? "" },
+            "hint": "以上工具已自动授权本会话调用。如需要，直接使用它的名字；App 会在下一轮加载其定义并放行执行。"
         ]
     }
 }

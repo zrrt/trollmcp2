@@ -348,6 +348,8 @@ final class ConversationStore: ObservableObject {
         let conv = ChatConversation(title: title, createdAt: Date(), updatedAt: Date(), messages: [])
         conversations.insert(conv, at: 0)
         selectedId = conv.id
+        // v2.9.22：新会话清空工具会话授权（AI 需重新搜索/决定）
+        ToolRegistry.shared.clearSessionApproval()
         save()
     }
 

@@ -35,7 +35,19 @@ struct ToolAuditView: View {
         "model.authentication",
         "model.selectedProfileID",
         "workspace.outputBookmark",
-        "workspace.outputName"
+        "workspace.outputName",
+        // v2.9.21：注入执行工具真实可用
+        "injection.enable",
+        "injection.disable",
+        "injection.status",
+        "injection.inspect",
+        "injection.list",
+        "injection.remove",
+        // v2.9.17：技能真实可用
+        "skills.list",
+        "skills.read",
+        "skills.set_enabled",
+        "tool_search"
     ]
 
     private var definitions: [ToolDefinition] {
@@ -50,6 +62,12 @@ struct ToolAuditView: View {
         List {
             Section(header: SettingSectionHeader(title: "审计过滤")) {
                 Toggle("仅显示真实实现", isOn: $showOnlyReal)
+            }
+            // v2.9.22：说明 AI 自动授权机制
+            Section {
+                Text("AI 在对话中用「工具搜索」找到某个工具并决定调用时，会自动放行本会话执行，无需手动打开开关。此处的开关用于固定禁用/恢复工具。")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
 
             Section(header: SettingSectionHeader(title: "已注册工具（\(definitions.count)）")) {

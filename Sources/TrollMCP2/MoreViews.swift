@@ -195,6 +195,10 @@ struct ToolPermissionPoliciesView: View {
                         Text("\(registry.enabledDefinitions.count)/\(registry.definitions.count)")
                             .foregroundColor(.secondary)
                     }
+                    // v2.9.22：说明 AI 自动授权机制，避免误以为必须手动开
+                    Text("AI 用「工具搜索」找到工具并决定调用时，会自动放行本会话，无需手动开。此处用于固定禁用（如不信任某工具）。")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                     SettingRowButton(
                         title: "全部启用",
                         subtitle: "恢复所有工具调用权限",
@@ -519,24 +523,41 @@ struct DevInstructionEditorView: View {
 
     @State private var title = ""
     @State private var content = ""
+    @State private var keyboardHeight: CGFloat = 0
     @Environment(\.presentationMode) private var presentationMode
 
     var body: some View {
         NavigationView {
-            Form {
-                Section(header: SettingSectionHeader(title: "指令名称")) {
-                    TextField("如：我的工程规范", text: $title)
+            // v2.9.22：Form 里 TextEditor 滚动冲突/键盘遮挡导致"难往下滑"，
+            // 改为 ScrollView + 大高度 TextEditor + 键盘高度避让
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        SettingSectionHeader(title: "指令名称")
+                        TextField("如：我的工程规范", text: $title)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        SettingSectionHeader(title: "指令内容（Markdown）")
+                        TextEditor(text: $content)
+                            .frame(minHeight: 520)
+                            .font(.system(.body, design: .monospaced))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .strokeBorder(Color(.separator), lineWidth: 0.5)
+                            )
+                            .cornerRadius(10)
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        SettingSectionHeader(title: "说明")
+                        Text("默认指令会注入 AI 请求。可写：工程约定、代码风格、工具使用偏好、回复格式要求等。")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
-                Section(header: SettingSectionHeader(title: "指令内容（Markdown）")) {
-                    TextEditor(text: $content)
-                        .frame(minHeight: 260)
-                        .font(.system(.body, design: .monospaced))
-                }
-                Section(header: SettingSectionHeader(title: "说明")) {
-                    Text("默认指令会注入 AI 请求。可写：工程约定、代码风格、工具使用偏好、回复格式要求等。")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
+                .padding()
+                // 键盘弹出时底部留白，确保能滚到末尾
+                .padding(.bottom, keyboardHeight > 0 ? keyboardHeight + 16 : 24)
             }
             .navigationTitle(mode == .create ? "新建指令" : "编辑指令")
             .navigationBarTitleDisplayMode(.inline)
@@ -547,15 +568,37 @@ struct DevInstructionEditorView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("保存") { save() }
                 }
+                // 键盘工具栏：收起键盘
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") { hideKeyboard() }
+                }
             }
             .onAppear {
                 if mode == .edit && title.isEmpty {
                     title = name
                     content = initialContent
                 }
+                observeKeyboard()
             }
         }
         .navigationViewStyle(.stack)
+    }
+
+    /// v2.9.22：监听键盘高度（iOS14 兼容，不用 scrollDismissesKeyboard）
+    private func observeKeyboard() {
+        NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillShowNotification, object: nil, queue: .main) { note in
+            if let h = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue.height {
+                keyboardHeight = h
+            }
+        }
+        NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillHideNotification, object: nil, queue: .main) { _ in
+            keyboardHeight = 0
+        }
+    }
+
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
     private func save() {
