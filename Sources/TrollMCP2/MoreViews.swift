@@ -452,7 +452,7 @@ struct DeveloperInstructionsView: View {
                         ))
                         .disabled(true)
                     } footer: {
-                        Text("默认指令（标"默认"）会在每次 AI 请求时作为 system 消息注入，AI 将遵循其中的约定。长按指令可设默认/编辑/删除。")
+                        Text("默认指令（标「默认」）会在每次 AI 请求时作为 system 消息注入，AI 将遵循其中的约定。长按指令可设默认/编辑/删除。")
                     }
                 }
             }
