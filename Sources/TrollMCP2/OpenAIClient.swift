@@ -223,6 +223,7 @@ final class OpenAIClient {
             let hint = errorPayload != nil ? "" : "\n提示: 响应非标准 OpenAI 格式，请检查 baseURL 是否指向 /v1 兼容端点。"
             completion(.failure(NSError(domain: "OpenAIClient", code: status,
                 userInfo: [NSLocalizedDescriptionKey: "请求被拒绝 (HTTP \(status)，已尝试到级别 \(level)·\(self.levelName(level)))\n\(String(failMsg.prefix(300)))\(hint)"])))
+        }
         activeTask = task
         task.resume()
     }
@@ -431,6 +432,7 @@ final class OpenAIClient {
             }
             completion(.failure(NSError(domain: "OpenAIClient", code: 1,
                 userInfo: [NSLocalizedDescriptionKey: "Responses 解析失败: \(raw.prefix(300))"])))
+        }
         activeTask = task
         task.resume()
     }
@@ -541,6 +543,7 @@ final class OpenAIClient {
                 return
             }
             completion(.success(.text(text)))
+        }
         activeTask = task
         task.resume()
     }
