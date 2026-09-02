@@ -41,6 +41,8 @@ struct ModelsView: View {
             }
         }
         .sheet(isPresented: $showingEditor, onDismiss: { editing = nil }) {
+            // v2.9.13：.id(editing?.id) 强制每次打开按传入配置重建 @State，
+            // 修复 iOS14 首次渲染用默认 OpenAI 预设锁死、编辑页显示 gpt-4o 而非真实配置的问题
             ModelEditorView(config: editing) { newCfg in
                 if ModelStore.shared.configs.contains(where: { $0.id == newCfg.id }) {
                     ModelStore.shared.update(newCfg)
@@ -48,6 +50,7 @@ struct ModelsView: View {
                     ModelStore.shared.add(newCfg)
                 }
             }
+            .id(editing?.id)
         }
     }
 }

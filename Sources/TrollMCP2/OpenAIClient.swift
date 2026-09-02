@@ -57,6 +57,9 @@ final class OpenAIClient {
         cfg.timeoutIntervalForRequest = 90
         return URLSession(configuration: cfg)
     }()
+    /// v2.9.13：取消支持——置位标志 + 取消当前 in-flight 任务
+    private var cancelled = false
+    private weak var activeTask: URLSessionDataTask?
 
     init(_ config: ModelConfig) {
         self.config = config
@@ -64,7 +67,14 @@ final class OpenAIClient {
 
     // MARK: - 对外入口
 
+    /// v2.9.13：取消当前请求（ChatView 停止按钮调用）
+    func cancel() {
+        cancelled = true
+        activeTask?.cancel()
+    }
+
     func send(messages: [ChatMessage], tools: [[String: Any]]? = nil, onStatus: ((String) -> Void)? = nil, completion: @escaping (Result<ChatResult, Error>) -> Void) {
+        cancelled = false
         // v2.9.0：级别 5 = Responses API + 工具调用（Codex 走的端点，GPT-5.6 家族
         // 在 chat/completions 上无法用 function tools，但 /v1/responses 可以）
         var start = min(max(config.compatLevel, 0), maxLevel)
@@ -140,7 +150,12 @@ final class OpenAIClient {
             onStatus?("请求被拒绝，正在尝试简化参数（级别 \(level)/\(maxLevel)）…")
         }
 
-        session.dataTask(with: request) { data, response, error in
+        let task = session.dataTask(with: request) { data, response, error in
+            if self.cancelled {
+                completion(.failure(NSError(domain: "OpenAIClient", code: -999,
+                    userInfo: [NSLocalizedDescriptionKey: "请求已取消"])))
+                return
+            }
             if let error = error {
                 let err = error as NSError
                 // v2.8.6：网络超时（不是 408 HTTP 状态，而是 URLSession 的 -1001）
@@ -208,7 +223,8 @@ final class OpenAIClient {
             let hint = errorPayload != nil ? "" : "\n提示: 响应非标准 OpenAI 格式，请检查 baseURL 是否指向 /v1 兼容端点。"
             completion(.failure(NSError(domain: "OpenAIClient", code: status,
                 userInfo: [NSLocalizedDescriptionKey: "请求被拒绝 (HTTP \(status)，已尝试到级别 \(level)·\(self.levelName(level)))\n\(String(failMsg.prefix(300)))\(hint)"])))
-        }.resume()
+        activeTask = task
+        task.resume()
     }
 
     // MARK: - 载荷构建
@@ -362,7 +378,12 @@ final class OpenAIClient {
         NetworkLog.shared.log("\(config.name) L5 Responses API+工具 → POST /responses，字段: \(body.keys.sorted().joined(separator: ","))")
         onStatus?("正在通过 Responses API 请求（保留工具调用）…")
 
-        session.dataTask(with: request) { data, response, error in
+        let task = session.dataTask(with: request) { data, response, error in
+            if self.cancelled {
+                completion(.failure(NSError(domain: "OpenAIClient", code: -999,
+                    userInfo: [NSLocalizedDescriptionKey: "请求已取消"])))
+                return
+            }
             if let error = error {
                 NetworkLog.shared.log("\(self.config.name) L5 网络错误: \(error.localizedDescription)")
                 completion(.failure(error))
@@ -410,7 +431,8 @@ final class OpenAIClient {
             }
             completion(.failure(NSError(domain: "OpenAIClient", code: 1,
                 userInfo: [NSLocalizedDescriptionKey: "Responses 解析失败: \(raw.prefix(300))"])))
-        }.resume()
+        activeTask = task
+        task.resume()
     }
 
     /// 把内部消息历史转换为 Responses API 的 input 数组。
@@ -489,7 +511,12 @@ final class OpenAIClient {
         ]
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
-        session.dataTask(with: request) { data, response, error in
+        let task = session.dataTask(with: request) { data, response, error in
+            if self.cancelled {
+                completion(.failure(NSError(domain: "OpenAIClient", code: -999,
+                    userInfo: [NSLocalizedDescriptionKey: "请求已取消"])))
+                return
+            }
             if let error = error {
                 completion(.failure(error))
                 return
@@ -514,7 +541,8 @@ final class OpenAIClient {
                 return
             }
             completion(.success(.text(text)))
-        }.resume()
+        activeTask = task
+        task.resume()
     }
 
     // MARK: - 消息序列化

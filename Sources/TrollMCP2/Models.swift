@@ -321,6 +321,8 @@ final class ConversationStore: ObservableObject {
     @Published var isLoading = false
     /// v2.8.5：当前请求的实时状态文案（等待响应/降级重试中），展示在输入指示器旁
     @Published var statusText: String?
+    /// v2.9.13：当前正在进行的 OpenAIClient（支持取消）
+    private var currentClient: OpenAIClient?
 
     private let key = "trollmcp2.conversations"
 
@@ -368,6 +370,14 @@ final class ConversationStore: ObservableObject {
         sortAndSave()
     }
 
+    /// v2.9.13：取消当前进行中的请求（ChatView 停止按钮）
+    func cancelCurrent() {
+        currentClient?.cancel()
+        currentClient = nil
+        isLoading = false
+        statusText = nil
+    }
+
     func clearCurrent() {
         guard let idx = selectedIndex else { return }
         var conv = conversations[idx]
@@ -407,6 +417,7 @@ final class ConversationStore: ObservableObject {
         }
 
         let client = OpenAIClient(config)
+        currentClient = client
         let history = messagesForAPI(budget: config.contextTokens)
 
         client.send(messages: history, tools: tools, onStatus: { status in
@@ -417,6 +428,7 @@ final class ConversationStore: ObservableObject {
                 switch result {
                 case .success(.text(let text)):
                     self.isLoading = false
+                    self.currentClient = nil
                     self.appendToCurrent(ChatMessage(role: "assistant", content: text))
                 case .success(.toolCalls(let calls)):
                     let summary = calls.map { "调用工具 \($0.name)" }.joined(separator: "\n")
@@ -436,6 +448,13 @@ final class ConversationStore: ObservableObject {
                     self.runLoop(config: config, tools: tools, depth: depth + 1)
                 case .failure(let error):
                     self.isLoading = false
+                    self.currentClient = nil
+                    // v2.9.13：用户主动取消（-999）不追加错误气泡
+                    let nsErr = error as NSError
+                    if nsErr.code == -999 {
+                        self.statusText = nil
+                        return
+                    }
                     self.appendToCurrent(ChatMessage(role: "assistant", content: "⚠️ \(error.localizedDescription)", isError: true))
                 }
             }

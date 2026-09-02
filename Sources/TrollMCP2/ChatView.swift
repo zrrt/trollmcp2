@@ -392,15 +392,29 @@ struct ChatView: View {
                         .clipShape(Circle())
                 }
 
-                Button(action: send) {
-                    Image(systemName: "paperplane.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(width: 36, height: 36)
-                        .background(inputText.isEmpty || store.isLoading ? Color.gray : Color.blue)
-                        .clipShape(Circle())
+                // v2.9.13：请求中时按钮变为"停止"，点击取消当前请求
+                if store.isLoading {
+                    Button(action: { store.cancelCurrent() }) {
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 36, height: 36)
+                            .background(Color.red)
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Button(action: send) {
+                        Image(systemName: "paperplane.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 36, height: 36)
+                            .background(inputText.isEmpty ? Color.gray : Color.blue)
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(inputText.isEmpty)
                 }
-                .disabled(inputText.isEmpty || store.isLoading)
             }
             .padding(.horizontal, 12)
         }
