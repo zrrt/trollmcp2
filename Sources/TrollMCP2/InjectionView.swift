@@ -37,6 +37,7 @@ struct InjectionView: View {
             }
         }
         .navigationViewStyle(.stack)
+        .onAppear(perform: refresh)   // v2.9.18：进入自动加载应用列表
     }
 
     private var appList: some View {
@@ -49,14 +50,10 @@ struct InjectionView: View {
             ForEach(filtered) { app in
                 Button(action: { selectedApp = app; inspectApp(app) }) {
                     HStack(spacing: 12) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(appIconColor(app))
-                                .frame(width: 34, height: 34)
-                            Image(systemName: "app.fill")
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
+                        // v2.9.18：真实 app 图标（加载失败时显示首字母占位）
+                        AppIconView(bundleId: app.bundleId, path: app.path)
+                            .frame(width: 34, height: 34)
+                            .cornerRadius(8)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(app.name)
                                 .font(.body)
@@ -79,12 +76,6 @@ struct InjectionView: View {
         .listStyle(.insetGrouped)
     }
 
-    private func appIconColor(_ app: AppCatalog.AppEntry) -> Color {
-        let colors: [Color] = [.blue, .green, .orange, .red, .purple, .pink, .tmIndigo, .tmTeal]
-        var h = app.bundleId.hash
-        if h < 0 { h = -h }
-        return colors[h % colors.count]
-    }
 
     private func refresh() {
         apps = AppCatalog.list()

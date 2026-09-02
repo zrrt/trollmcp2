@@ -111,7 +111,8 @@ struct ChatView: View {
                         fileURL: nil
                     )
                     self.pendingAttachments.append(att)
-                    let text = "[应用: \(app.name) (\(app.bundleId))]"
+                    // v2.9.18：不再把长 bundleId 塞进输入框，用简短标记（详情见附件预览条）
+                    let text = "[📱应用]"
                     self.inputText = self.inputText.isEmpty ? text : self.inputText + " " + text
                 }
             case .photoPicker:
@@ -135,14 +136,14 @@ struct ChatView: View {
                             ))
                         }
                     }
+                    // v2.9.18：图片缩略图在预览条显示，输入框只放简短标记，不再塞文件名
                     if dataURLs.isEmpty {
-                        let paths = urls.map { $0.lastPathComponent }.joined(separator: " ")
-                        let text = "[图片: \(paths)]"
+                        self.pendingImages = []
+                        let text = "[🖼图片]"
                         self.inputText = self.inputText.isEmpty ? text : self.inputText + " " + text
                     } else {
                         self.pendingImages = dataURLs
-                        let tag = names.isEmpty ? "图片" : names.joined(separator: " ")
-                        let text = "[图片: \(tag)]"
+                        let text = "[🖼图片]"
                         self.inputText = self.inputText.isEmpty ? text : self.inputText + " " + text
                     }
                 }
@@ -159,8 +160,8 @@ struct ChatView: View {
                             fileURL: u
                         ))
                     }
-                    let paths = urls.map { $0.lastPathComponent }.joined(separator: " ")
-                    let text = "[文件: \(paths)]"
+                    // v2.9.18：文件预览在预览条显示，输入框只放简短标记
+                    let text = "[📎文件]"
                     self.inputText = self.inputText.isEmpty ? text : self.inputText + " " + text
                 }
             }

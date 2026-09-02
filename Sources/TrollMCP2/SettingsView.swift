@@ -23,7 +23,7 @@ struct SettingsView: View {
                     )
                     SettingRow(
                         title: "开发者指令",
-                        subtitle: "已内置 · 215 行",
+                        subtitle: devInstructionsSubtitle(),
                         icon: "doc.text.fill",
                         color: .orange,
                         destination: DeveloperInstructionsView()
@@ -154,9 +154,9 @@ struct SettingsView: View {
                 Section(header: SettingSectionHeader(title: "关于")) {
                     SettingRow(
                         title: "本机环境检测",
-                        subtitle: "TrollStore · 权限 · 注入二进制",
+                        subtitle: envSubtitle(),
                         icon: "waveform.path.badge.checkmark",
-                        color: .green,
+                        color: envColor(),
                         destination: DeviceDetectionView()
                     )
                     SettingRow(
@@ -173,7 +173,7 @@ struct SettingsView: View {
                         color: .orange,
                         destination: NetworkDebugView()
                     )
-                    LabeledRow(label: "版本", value: "2.9.17")
+                    LabeledRow(label: "版本", value: "2.9.18")
                     LabeledRow(label: "Bundle ID", value: Bundle.main.bundleIdentifier ?? "-")
                     LabeledRow(label: "工作区", value: Workspace.root.lastPathComponent)
                     LabeledRow(label: "工具数", value: "\(ToolRegistry.shared.definitions.count)")
@@ -188,6 +188,29 @@ struct SettingsView: View {
             }
         }
         .navigationViewStyle(.stack)
+        .onAppear { triggerProbe() }   // v2.9.18：进入设置页自动探测一次，更新环境状态色
+    }
+
+    @State private var lastProbe: DeviceProbe.Report?
+
+    private func envSubtitle() -> String {
+        guard let r = lastProbe else { return "TrollStore · 权限 · 注入二进制" }
+        if r.ready { return "就绪 · 全部通过" }
+        let failed = r.checks.filter { !$0.passed }.count
+        return "未就绪 · \(failed) 项异常"
+    }
+
+    private func envColor() -> Color {
+        guard let r = lastProbe else { return .green }
+        if r.ready { return .green }
+        return .orange
+    }
+
+    private func triggerProbe() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let r = DeviceProbe.shared.run()
+            DispatchQueue.main.async { self.lastProbe = r }
+        }
     }
 
     private func modelProviderName() -> String {
@@ -203,6 +226,20 @@ struct SettingsView: View {
             return "@\(login)"
         }
         return "未登录 · 多账号"
+    }
+
+    private func devInstructionsSubtitle() -> String {
+        let urls = [
+            Bundle.main.url(forResource: "TrollMCPDeveloperInstructions", withExtension: "md"),
+            Bundle.main.url(forResource: "TrollMCPDeveloperInstructions", withExtension: "md", subdirectory: "bin"),
+        ]
+        for url in urls {
+            if let url = url, let text = try? String(contentsOf: url, encoding: .utf8) {
+                let lines = text.split(separator: "\n").count
+                return "已内置 · \(lines) 行"
+            }
+        }
+        return "开发者约定 · 工程指南"
     }
 }
 
