@@ -457,6 +457,16 @@ GitHub Actions run：33617736761 ✅（v2.9.4 IPA）；33620936109 ✅（Compile
 
 降级链（v2.9.0）：L0 完整 → L1 互换 token key → L2 去 tool_choice → **L5 Responses API+工具**（保住工具调用）→ L3 纯对话 → L4 最小载荷 → 结束。nextLevel 的哨兵值 6 防止 L4→L5→L3 死循环。
 
+### v2.9.30 关键认知（2026-09-03）
+
+**修复 +号（添加内容）点击无反应**：用户反馈 +号 点击没反应，且**没发消息也这样**（排除主线程阻塞）。
+- 根因：v2.9.25 在 inputBar 挂了授权 actionSheet（`item: pendingApproval`），与 +号 的 actionSheet（`isPresented: showAttachSheet`）在**同一 view 链**上。SwiftUI 同一 view 多个 `.actionSheet` 修饰符，**后一个接管呈现通道** → +号 的 actionSheet 永远无法弹出。
+- 修复：授权 actionSheet 从 inputBar **移出**，挂到 NavigationView 外层（`.navigationViewStyle(.stack)` 之后、`.sheet(item:)` 之前），与 +号 actionSheet 分层，互不覆盖。
+- 校验：总 `.actionSheet` = 2（+号在 inputBar、授权在导航外层）；inputBar 段不再含 `pendingApproval` actionSheet。
+- 教训：SwiftUI 中同 view 链多个 actionSheet/sheet 必须分层挂载，否则后者覆盖前者。
+
+CI 33673863443 / 提交 965d344 / 版本 2.9.29→2.9.30 / IPA artifacts\v2.9.30
+
 ### v2.9.29 关键认知（2026-09-03）
 
 **修复授权后一直转圈 + 聊天框/+号点击无响应**：用户点授权后转圈，且聊天框旁 + 号（添加应用/相册）点击没反应。
