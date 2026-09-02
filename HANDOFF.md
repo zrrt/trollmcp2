@@ -457,6 +457,17 @@ GitHub Actions run：33617736761 ✅（v2.9.4 IPA）；33620936109 ✅（Compile
 
 降级链（v2.9.0）：L0 完整 → L1 互换 token key → L2 去 tool_choice → **L5 Responses API+工具**（保住工具调用）→ L3 纯对话 → L4 最小载荷 → 结束。nextLevel 的哨兵值 6 防止 L4→L5→L3 死循环。
 
+### v2.9.28 关键认知（2026-09-03）
+
+**修复 unknown tool: injection_enable**：用户调用注入工具报 `error: unknown tool: injection_enable`。
+- 根因：injection.enable 不在白名单（v2.9.25 移出），而 `enabledOpenAIToolSchema()` 只给**已启用**工具建立 apiName→原名映射。tool_search 披露的敏感工具（injection.enable 等）**不在该映射里**；模型按披露 schema 的 function name（apiName=`injection_enable`，下划线）返回调用，dispatch 查 `tools[name]` 无、查 `apiNameToOriginal[name]` 也无 → unknown tool。
+- 修复：dispatch 增加**第三层兜底解析**——遍历所有注册工具，按 `definition.apiName` 反向匹配（lock 内）。模型返回下划线 apiName 或点号原名都能解析到真实工具；敏感工具继续走 requiresApproval 弹授权窗。
+- Mach-O 校验经验：`injection.enable`/`apiName` 可 UTF-8 搜到（FOUND）；`unknown tool`/`injection_enable` 是运行时生成/错误字符串，编译后不保留属正常。
+
+**注入调用名机制总结**：schema 里 function name = apiName（下划线，如 injection_enable）；tool_search 返回原名（点号）；dispatch 解析顺序 = 原名直接命中 → apiNameToOriginal → 遍历 apiName 兜底。敏感工具任何路径都弹授权。
+
+CI 33670612695 / 提交 9395507 / 版本 2.9.27→2.9.28 / IPA artifacts\v2.9.28
+
 ### v2.9.27 关键认知（2026-09-03）
 
 **修复 tool_search 披露 bug（从 v2.9.16 就存在）**：AI 说"当前会话没有加载 injection.enable 的可执行接口"，无法执行注入。
