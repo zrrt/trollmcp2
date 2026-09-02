@@ -457,6 +457,18 @@ GitHub Actions run：33617736761 ✅（v2.9.4 IPA）；33620936109 ✅（Compile
 
 降级链（v2.9.0）：L0 完整 → L1 互换 token key → L2 去 tool_choice → **L5 Responses API+工具**（保住工具调用）→ L3 纯对话 → L4 最小载荷 → 结束。nextLevel 的哨兵值 6 防止 L4→L5→L3 死循环。
 
+### v2.9.27 关键认知（2026-09-03）
+
+**修复 tool_search 披露 bug（从 v2.9.16 就存在）**：AI 说"当前会话没有加载 injection.enable 的可执行接口"，无法执行注入。
+- 根因：`ToolSearchTool` 返回 `"tools": [[String: String]]`，但 runLoop 披露逻辑用 `r["tools"] as? [[String: Any]]` 转换——Swift 中 Dictionary 的 Value 泛型参数不同（String vs Any）时 `as?` **永远返回 nil** → `nextDisclosed` 一直为空 → AI 搜到工具名但**下一轮 schema 从不注入** → AI 拿不到可执行接口。
+- v2.9.25 把 injection.enable 移出白名单后完全依赖此（坏的）通道，问题暴露。
+- 修复：优先 `as? [[String: String]]`（ToolSearchTool 实际返回类型），`else if` 兼容 `[[String: Any]]`。
+- 校验提示：`nextDisclosed` 是局部变量编译后被优化，Mach-O 搜不到属正常；`disclosed`（runLoop 参数）可搜到。
+
+**修复后注入闭环**：AI 用 tool_search 搜"注入" → 下一轮自动注入 injection.enable/disable/remove 等 schema → 调用时弹授权（本轮/会话/拒绝）→ 放行执行。injection.enable 参数：bundle_id + dylib_path（默认 @executable_path/TrollMCPAgent.dylib）。
+
+CI 33669844943 / 提交 23aed06 / 版本 2.9.26→2.9.27 / IPA artifacts\v2.9.27
+
 ### v2.9.26 关键认知（2026-09-03）
 
 **修复工具权限策略页开关点不动**：用户反馈工具列表开关仍不能启动/关闭。
