@@ -29,6 +29,8 @@ final class BuildRunner {
     private let maxOutputBytes = 4 * 1024 * 1024   // 输出截断上限 4MB
 
     /// 执行一条命令
+    /// 实现：fork() + chdir() + execve()（iOS SDK 无 posix_spawnattr_setworkingdir_np，
+    /// 这是标准 Unix 做法；child 仅调用 async-signal-safe 函数，安全）。
     /// - Parameters:
     ///   - executable: 可执行文件绝对路径
     ///   - args: 参数（不含可执行文件本身）
@@ -41,6 +43,7 @@ final class BuildRunner {
             return BuildProcessResult(exitCode: -1, stdout: "", stderr: "executable not found: \(executable)", timedOut: false, spawnError: "not found")
         }
 
+        // 所有 C 字符串数组在 fork 前构建好（fork 后 child 只能调用 async-signal-safe 函数）
         let argvList = [executable] + args
         var argv: [UnsafeMutablePointer<CChar>?] = argvList.map { strdup($0) }
         argv.append(nil)
@@ -58,31 +61,41 @@ final class BuildRunner {
         // 输出落临时文件（避免管道缓冲死锁，适合大输出）
         let outPath = NSTemporaryDirectory() + "tmcp_build_out_\(UUID().uuidString).log"
         let errPath = NSTemporaryDirectory() + "tmcp_build_err_\(UUID().uuidString).log"
+        // 所有需要在 child 里用到的 C 字符串一律在 fork 前转换好（child 只能调用 async-signal-safe 函数），
+        // 并让 NSString 引用在本函数存活，保证 utf8String 指针在 child 使用期间不悬垂
+        let exeNS = executable as NSString
+        let outNS = outPath as NSString
+        let errNS = errPath as NSString
+        let wdNS = workingDir.map { $0 as NSString }
+        let exeC = exeNS.utf8String
+        let outC = outNS.utf8String
+        let errC = errNS.utf8String
+        let wdC = wdNS?.utf8String
 
-        var fileActions: posix_spawn_file_actions_t?
-        posix_spawn_file_actions_init(&fileActions)
-        posix_spawn_file_actions_addopen(&fileActions, STDOUT_FILENO, outPath, O_WRONLY | O_CREAT | O_TRUNC, 0o644)
-        posix_spawn_file_actions_addopen(&fileActions, STDERR_FILENO, errPath, O_WRONLY | O_CREAT | O_TRUNC, 0o644)
-
-        var attr: posix_spawnattr_t?
-        posix_spawnattr_init(&attr)
-        if let wd = workingDir {
-            posix_spawnattr_setworkingdir_np(&attr, wd)
-        }
-
-        var pid: pid_t = 0
-        let spawnStatus = posix_spawn(&pid, executable, &fileActions, &attr, &argv, &cenv)
-        posix_spawn_file_actions_destroy(&fileActions)
-        posix_spawnattr_destroy(&attr)
-
-        if spawnStatus != 0 {
-            let msg = "posix_spawn failed: \(String(cString: strerror(spawnStatus)))"
+        let pid = fork()
+        if pid < 0 {
+            let msg = "fork failed: \(String(cString: strerror(errno)))"
             try? FileManager.default.removeItem(atPath: outPath)
             try? FileManager.default.removeItem(atPath: errPath)
             return BuildProcessResult(exitCode: -1, stdout: "", stderr: msg, timedOut: false, spawnError: msg)
         }
 
-        // 等待 + 超时杀进程
+        if pid == 0 {
+            // ---- child：只调用 async-signal-safe 函数 ----
+            if let wd = wdC {
+                if chdir(wd) != 0 {
+                    _exit(126)   // 无法进入工作目录
+                }
+            }
+            let outFd = open(outC!, O_WRONLY | O_CREAT | O_TRUNC, 0o644)
+            let errFd = open(errC!, O_WRONLY | O_CREAT | O_TRUNC, 0o644)
+            if outFd >= 0 { dup2(outFd, STDOUT_FILENO); close(outFd) }
+            if errFd >= 0 { dup2(errFd, STDERR_FILENO); close(errFd) }
+            execve(exeC!, argv, cenv)
+            _exit(127)   // exec 失败
+        }
+
+        // ---- parent：等待 + 超时杀进程 ----
         var status: Int32 = 0
         var timedOut = false
         let deadline = Date().addingTimeInterval(timeout)
