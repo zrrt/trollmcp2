@@ -1,0 +1,52 @@
+# 云端编译 Tweak（免费 macOS runner + theos）
+# 用法：把工程放进 tweaks/<name>/（Makefile + Tweak.x + <name>.plist），
+#       Actions → 选本 workflow → Run workflow → 填 tweak 目录名 → 下载 .deb/.dylib
+# 产物：tweak-<name>.zip（含 .theos/obj/debug/*.dylib 与 packages/*.deb）
+# 注：无需越狱、无需手机工具链，编译发生在 GitHub 云端。
+
+name: build-tweak
+
+on:
+  workflow_dispatch:
+    inputs:
+      tweak:
+        description: 'Tweak 目录名（tweaks/<name>）'
+        required: true
+        default: 'CompileProbe'
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install theos + deps
+        run: |
+          sudo mkdir -p /opt/theos/sdks
+          sudo git clone --depth 1 https://github.com/theos/theos.git /opt/theos
+          # 复用 runner 自带 Xcode 的 iOS SDK（免下载几 GB）
+          sudo ln -s "$(xcrun --sdk iphoneos --show-sdk-path)" /opt/theos/sdks/iPhoneOS17.5.sdk
+          brew install ldid dpkg >/dev/null 2>&1 || true
+
+      - name: Build tweak (${{ inputs.tweak }})
+        working-directory: tweaks/${{ inputs.tweak }}
+        run: |
+          export THEOS=/opt/theos
+          export THEOS_PACKAGE_SCHEME=rootless
+          make package
+
+      - name: Verify artifacts
+        working-directory: tweaks/${{ inputs.tweak }}
+        run: |
+          ls -lh .theos/obj/debug/ 2>/dev/null || true
+          ls -lh packages/ 2>/dev/null || true
+          file .theos/obj/debug/*.dylib 2>/dev/null || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tweak-${{ inputs.tweak }}
+          path: |
+            tweaks/${{ inputs.tweak }}/.theos/obj/debug/*.dylib
+            tweaks/${{ inputs.tweak }}/packages/*.deb
+          if-no-files-found: error
