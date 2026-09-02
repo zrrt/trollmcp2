@@ -1,6 +1,6 @@
 # TrollMCP2 项目交接文档
 
-> 版本：v2.9.6 | 最后更新：2026-09-02 | 仓库：github.com/origina47487lhe-droid/trollmcp2（私有）
+> 版本：v2.9.7 | 最后更新：2026-09-02 | 仓库：github.com/origina47487lhe-droid/trollmcp2（私有）
 
 ---
 
@@ -439,9 +439,10 @@ D:/Users/Administrator/Desktop/Payload/TrollMCP.app/            # 完整 .app �
 | **2.9.4+tweak** | 09-02 | **线上编译 tweak（非越狱正解）**：新增 `build-tweak` workflow（GitHub Actions macOS runner + theos 递归 submodule + Xcode SDK 软链 + dm.pl），仓库 `tweaks/<name>/` 放工程，手动触发即产出 .dylib + .deb；CompileProbe 已编译验证成功 |
 | **2.9.5** | 09-02 | **App 内 GitHub 账号系统**：设置 → GitHub 账号——任何账号 PAT 登录/切换/删除（多账号并存，UserDefaults 存储），一键触发线上编译（workflow dispatch API）+ 实时查看 run 状态；仓库/workflow/分支可配置。实现于 GitHubAccountStore.swift + GitHubAccountView.swift |
 | **2.9.6** | 09-02 | **网页登录（Device Flow，gh CLI 同款）**：不再依赖 PAT 手动复制——App 内置 Safari（SFSafariViewController）打开 GitHub 授权页，显示 user_code + 自动轮询换取 token，登录自动完成。需在「仓库设置」填 OAuth App Client ID（免费注册，无需 secret）。PAT 保留为备选 |
+| **2.9.7** | 09-02 | **新手零配置登录**：在 origina47487lhe-droid 账号下注册共享 OAuth App「TrollMCP2 线上编译」（id 3832419，Client ID `Ov23li890n3hM15edlcw`，Device Flow 已启用，token 过期已关）并**内置为默认值**——任意 GitHub 用户打开 App 直接点「网页登录」即可授权（各拿各的 token），无需注册/配置任何东西。高级用户仍可在仓库设置覆盖 Client ID |
 
-最新 IPA：`artifacts/v2.9.6/TrollMCP2-v2.9.6-20260902.ipa`（包内版本已验证 2.9.6）
-GitHub Actions run：33617736761 ✅（v2.9.4 IPA）；33620936109 ✅（CompileProbe tweak）；33625432211 ✅（v2.9.5 IPA）；33628210737 ✅（v2.9.6 IPA）
+最新 IPA：`artifacts/v2.9.7/TrollMCP2-v2.9.7-20260902.ipa`（包内版本已验证 2.9.7）
+GitHub Actions run：33617736761 ✅（v2.9.4 IPA）；33620936109 ✅（CompileProbe tweak）；33625432211 ✅（v2.9.5 IPA）；33628210737 ✅（v2.9.6 IPA）；33630385070 ✅（v2.9.7 IPA）
 
 ### v2.9.0 关键认知（重要！）
 
