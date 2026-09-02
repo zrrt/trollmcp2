@@ -457,6 +457,18 @@ GitHub Actions run：33617736761 ✅（v2.9.4 IPA）；33620936109 ✅（Compile
 
 降级链（v2.9.0）：L0 完整 → L1 互换 token key → L2 去 tool_choice → **L5 Responses API+工具**（保住工具调用）→ L3 纯对话 → L4 最小载荷 → 结束。nextLevel 的哨兵值 6 防止 L4→L5→L3 死循环。
 
+### v2.9.25 关键认知（2026-09-03）
+
+**分层工具授权**：用户要求"工具调用次数不要限制（死循环手动暂停）+ 搜索即自动授权，除非敏感隐私权限弹窗选择（本轮授权/会话授权/拒绝）"。
+- **普通工具**：AI 用 tool_search 搜到即 approveForSession 自动授权本会话（保留 v2.9.22）。
+- **敏感工具**（sensitiveTools 集合：通讯录/定位/日历/提醒/通知/进程/记忆/写删/扫码/电话/打开App输入/微信消息/注入 enable-disable-remove/本机编译/知识删除）：搜索不自动授权，调用时弹窗。
+- **白名单移除** injection.enable/disable/remove、build.run（高危执行类走弹窗；查询类 injection.status/list/inspect、build.environment 保留）。
+- 实现：MCPError.requiresApproval + ToolRegistry.sensitiveTools/isSensitive/approveOnce/consumeOnce/summary；dispatch = isEnabled || isSessionApproved || consumeOnce 放行，否则 requiresApproval；Models.swift 加 processToolCalls 可暂停/恢复递归 + resolveApproval + PendingToolApproval（存恢复上下文 config/tools/disclosed/depth/remainingCalls）；ChatView 挂 ActionSheet（本轮=approveOnce 单次 / 会话=approveForSession / 拒绝=forceDeny 直接返回错误给 AI）；tool_search 返回 authorized/sensitive 区分。
+- **次数不限制**：depth 上限 8→60 极端保险（正常永不触发），提示告知可用"停止"按钮。
+- 注意：老用户升级后，此前 tool_search 自动授权过的工具仍留在 UserDefaults？不会——sessionApproved 在内存，新会话自动清空，无持久化残留。但白名单移除的 4 个工具若用户此前在权限策略里手动开过（setEnabled true 显式状态 v2.9.24 起），则 isEnabled=true 仍直接放行（用户明确授权，合理）。
+
+CI 33665879947 / 提交 3ac0bb7 / 版本 2.9.24→2.9.25 / IPA artifacts\v2.9.25
+
 ### v2.9.24 关键认知（2026-09-03）
 
 **① 修工具开关手动开启 bug**：根因 `setEnabled` 用"删除 disabled key"表示启用，但 `isEnabled` 对非白名单工具默认 false，删除 key 后回落白名单 → 开关弹回，非白名单工具（contacts.search / process.list 等）永远开不了。改为显式状态字典 `states[name]=enabled`，用户手动设置过以显式值为准。注意：旧数据兼容——旧版只有用户"禁用"留下的 false 值，新逻辑读 false 一致；旧版"启用"白名单工具是 removeValue 无残留，新逻辑回落白名单一致。
