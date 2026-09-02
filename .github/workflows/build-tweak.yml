@@ -20,13 +20,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 用 GitHub 官方 checkout 通道克隆完整 theos（比 git clone/curl 稳，且自带 bin/dm.pl）
+      # 用 GitHub 官方 checkout 通道克隆完整 theos（比 git clone/curl 稳）
+      # 必须递归拉 submodule：bin/dm.pl 是指向 vendor/dm.pl/dm.pl（submodule）的软链
       - name: Checkout theos
         uses: actions/checkout@v4
         with:
           repository: theos/theos
           path: theos
           fetch-depth: 1
+          submodules: recursive
 
       - name: Prepare theos SDK
         run: |
