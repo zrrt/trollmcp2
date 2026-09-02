@@ -1,5 +1,6 @@
 import SwiftUI
 import SafariServices
+import UIKit
 
 /// GitHub 账号 + 线上编译设置页（v2.9.5）
 /// 任何人的 GitHub 账号都可登录/切换，用该账号在云端 Actions 编译 tweak。
@@ -265,6 +266,7 @@ struct AddGitHubAccountView: View {
     @State private var deviceStep = 0        // 0 未开始 / 1 等待授权 / 2 完成
     @State private var safariURL: URL?
     @State private var showSafari = false
+    @State private var copied = false   // 验证码已自动复制
 
     var body: some View {
         NavigationView {
@@ -297,7 +299,9 @@ struct AddGitHubAccountView: View {
             .onChange(of: store.isDevicePolling) { polling in
                 if !polling, deviceStep == 1, store.activeAccount != nil {
                     deviceStep = 2
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    // 授权成功：自动关掉内置 Safari，自动返回（无需手动点"完成"）
+                    showSafari = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                         presentationMode.wrappedValue.dismiss()
                     }
                 }
@@ -320,15 +324,22 @@ struct AddGitHubAccountView: View {
                 }
             } else if deviceStep == 1, let dc = deviceCode {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("请在授权页输入代码").font(.footnote).foregroundColor(.secondary)
+                    Text("授权页已打开，验证码已自动复制到剪贴板").font(.footnote).foregroundColor(.secondary)
                     HStack {
                         Text(dc.user_code)
                             .font(.system(size: 24, weight: .bold, design: .monospaced))
                             .foregroundColor(.primary)
                         Spacer()
+                        Button(action: { copyCode(dc.user_code) }) {
+                            Image(systemName: copied ? "checkmark.circle.fill" : "doc.on.doc")
+                                .foregroundColor(copied ? .green : .blue)
+                        }
+                        .buttonStyle(BorderlessButtonStyle())
                     }
+                    Text("在授权页粘贴验证码并确认，成功后 App 会自动关闭浏览器并完成登录，无需手动操作。")
+                        .font(.caption).foregroundColor(.secondary)
                     SettingRowButton(
-                        title: "打开授权页",
+                        title: "再次打开授权页",
                         subtitle: dc.verification_uri,
                         icon: "safari",
                         color: .blue
@@ -338,7 +349,7 @@ struct AddGitHubAccountView: View {
                     if store.isDevicePolling {
                         HStack {
                             ProgressView().scaleEffect(0.8)
-                            Text("等待授权…（或直接输入代码）").font(.caption).foregroundColor(.secondary)
+                            Text("等待授权…").font(.caption).foregroundColor(.secondary)
                         }
                     }
                 }
@@ -369,18 +380,27 @@ struct AddGitHubAccountView: View {
             if let code = code {
                 self.deviceCode = code
                 self.deviceStep = 1
+                // 自动复制验证码到剪贴板（GitHub 授权页可自动识别/粘贴，gh CLI 同款）
+                UIPasteboard.general.string = code.user_code
+                self.copied = true
                 // 自动开始轮询 + 打开授权页
                 self.openVerification(code.verification_uri)
                 store.pollDeviceToken(deviceCode: code) { ok, msg in
                     if !ok {
                         errorMsg = msg ?? "授权失败"
                         deviceStep = 0
+                        showSafari = false   // 失败也自动关掉浏览器
                     }
                 }
             } else {
                 errorMsg = err ?? "设备码获取失败"
             }
         }
+    }
+
+    private func copyCode(_ code: String) {
+        UIPasteboard.general.string = code
+        copied = true
     }
 
     private func openVerification(_ uri: String) {
