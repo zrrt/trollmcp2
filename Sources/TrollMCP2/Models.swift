@@ -7,7 +7,7 @@ struct ModelConfig: Codable, Identifiable, Hashable {
     var id: UUID = UUID()
     var name: String
     var provider: String          // openai / deepseek / anthropic / custom
-    var apiProtocol: String       // OpenAI Chat Completions / OpenAI Completions / Anthropic / Custom
+    var apiProtocol: String       // OpenAI Chat Completions / OpenAI Responses / Anthropic / Custom
     var baseURL: String           // https://api.openai.com/v1
     var apiKey: String
     var model: String             // gpt-4o-mini
@@ -41,7 +41,9 @@ struct ModelConfig: Codable, Identifiable, Hashable {
         id = (try? c.decode(UUID.self, forKey: .id)) ?? UUID()
         name = try c.decode(String.self, forKey: .name)
         provider = try c.decode(String.self, forKey: .provider)
-        apiProtocol = (try? c.decode(String.self, forKey: .apiProtocol)) ?? "OpenAI Chat Completions"
+        let decodedProtocol = (try? c.decode(String.self, forKey: .apiProtocol)) ?? "OpenAI Chat Completions"
+        // v2.9.2：OpenAI Completions（旧版文本补全）已移除，旧配置迁移到 Chat Completions
+        apiProtocol = decodedProtocol == "OpenAI Completions" ? "OpenAI Chat Completions" : decodedProtocol
         baseURL = try c.decode(String.self, forKey: .baseURL)
         apiKey = try c.decode(String.self, forKey: .apiKey)
         model = try c.decode(String.self, forKey: .model)
@@ -60,7 +62,6 @@ extension ModelConfig {
     static let apiProtocols = [
         "OpenAI Chat Completions",
         "OpenAI Responses",
-        "OpenAI Completions",
         "Anthropic Messages",
         "Custom Endpoint"
     ]

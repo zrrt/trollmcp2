@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ChatView: View {
     @ObservedObject private var store = ConversationStore.shared
@@ -9,6 +10,14 @@ struct ChatView: View {
     @State private var smartSearch = true
     @State private var attachmentSheet: AttachmentSheet?
     @State private var showVoiceAlert = false
+
+    // v2.9.2：多选模式（勾选会话内容 → 复制 / 分享到其他 App）
+    @State private var selectionMode = false
+    @State private var selectedIds = Set<UUID>()
+    @State private var showShare = false
+    @State private var shareText = ""
+    @State private var showToast = false
+    @State private var toastText = "已复制"
 
     var body: some View {
         NavigationView {
@@ -23,22 +32,60 @@ struct ChatView: View {
                 currentModelBar
                 inputBar
             }
-            .navigationTitle(store.currentTitle)
+            .navigationTitle(selectionMode ? "已选 \(selectedIds.count) 条" : store.currentTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: { withAnimation { AppUIState.shared.drawerOpen.toggle() } }) {
-                        Image(systemName: "line.horizontal.3")
-                            .font(.system(size: 20, weight: .semibold))
+                    if selectionMode {
+                        Button("取消") { exitSelection() }
+                    } else {
+                        Button(action: { withAnimation { AppUIState.shared.drawerOpen.toggle() } }) {
+                            Image(systemName: "line.horizontal.3")
+                                .font(.system(size: 20, weight: .semibold))
+                        }
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { store.newConversation() }) {
-                        Image(systemName: "square.and.pencil")
-                            .font(.system(size: 18, weight: .semibold))
+                    if selectionMode {
+                        HStack(spacing: 14) {
+                            Button(action: copySelected) {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.system(size: 18, weight: .semibold))
+                            }
+                            .disabled(selectedIds.isEmpty)
+                            Button(action: shareSelected) {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 18, weight: .semibold))
+                            }
+                            .disabled(selectedIds.isEmpty)
+                        }
+                    } else {
+                        HStack(spacing: 14) {
+                            Button(action: enterSelection) {
+                                Image(systemName: "checkmark.circle")
+                                    .font(.system(size: 18, weight: .semibold))
+                            }
+                            .disabled(store.currentMessages.isEmpty)
+                            Button(action: { store.newConversation() }) {
+                                Image(systemName: "square.and.pencil")
+                                    .font(.system(size: 18, weight: .semibold))
+                            }
+                        }
                     }
                 }
             }
+            .overlay(Group {
+                if showToast {
+                    Text(toastText)
+                        .font(.footnote)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.black.opacity(0.75))
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                        .padding(.top, 8)
+                }
+            }, alignment: .top)
         }
         .navigationViewStyle(.stack)
         .sheet(item: $attachmentSheet) { sheet in
@@ -138,8 +185,15 @@ struct ChatView: View {
             ScrollView {
                 LazyVStack(spacing: 12) {
                     ForEach(store.currentMessages) { msg in
-                        MessageBubble(message: msg)
-                            .id(msg.id)
+                        MessageBubble(
+                            message: msg,
+                            selectionMode: selectionMode,
+                            isSelected: selectedIds.contains(msg.id),
+                            onToggleSelect: { toggleSelect(msg.id) },
+                            onCopy: { copyMessage(msg) },
+                            onShare: { shareMessage(msg) }
+                        )
+                        .id(msg.id)
                     }
                     if store.isLoading {
                         VStack(alignment: .trailing, spacing: 6) {
@@ -263,6 +317,11 @@ struct ChatView: View {
         }
         .padding(.bottom, 8)
         .background(Color(.systemBackground))
+        // 分享面板挂在常驻输入区上，与附件面板（挂在 NavigationView 上）分离，
+        // 避免 iOS 14 同一视图挂多个 sheet 互相覆盖。
+        .sheet(isPresented: $showShare) {
+            ShareSheet(items: [shareText])
+        }
     }
 
     private func reasoningLabel() -> String {
@@ -276,6 +335,83 @@ struct ChatView: View {
         inputText = ""
         store.send(text, using: cfg)
         AuditLog.shared.log("chat", detail: "发送消息")
+    }
+
+    // MARK: - 多选 / 复制 / 分享（v2.9.2）
+
+    private func enterSelection() {
+        selectionMode = true
+        selectedIds = []
+    }
+
+    private func exitSelection() {
+        selectionMode = false
+        selectedIds = []
+    }
+
+    private func toggleSelect(_ id: UUID) {
+        if selectedIds.contains(id) {
+            selectedIds.remove(id)
+        } else {
+            selectedIds.insert(id)
+        }
+    }
+
+    private func copyMessage(_ m: ChatMessage) {
+        UIPasteboard.general.string = m.content
+        showToast("已复制")
+    }
+
+    private func shareMessage(_ m: ChatMessage) {
+        shareText = m.content
+        showShare = true
+    }
+
+    private func copySelected() {
+        let count = selectedIds.count
+        UIPasteboard.general.string = exportText()
+        exitSelection()
+        showToast(count > 0 ? "已复制 \(count) 条内容" : "已复制")
+    }
+
+    private func shareSelected() {
+        shareText = exportText()
+        showShare = true
+    }
+
+    /// 把勾选的消息拼成可读文本（按会话内顺序），用于复制 / 分享。
+    private func exportText() -> String {
+        let msgs = store.currentMessages.filter { selectedIds.contains($0.id) }
+        guard !msgs.isEmpty else { return "" }
+        var parts: [String] = []
+        let title = store.currentTitle
+        if !title.isEmpty && title != "新会话" {
+            parts.append("【\(title)】")
+        }
+        for m in msgs {
+            parts.append(formatted(m))
+        }
+        return parts.joined(separator: "\n\n")
+    }
+
+    private func formatted(_ m: ChatMessage) -> String {
+        switch m.role {
+        case "user":
+            return "我：\(m.content)"
+        case "tool":
+            let name = m.toolName.map { "（\($0)）" } ?? ""
+            return "工具结果\(name)：\(m.content)"
+        default:
+            return m.content
+        }
+    }
+
+    private func showToast(_ text: String) {
+        toastText = text
+        withAnimation { showToast = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            withAnimation { showToast = false }
+        }
     }
 }
 
@@ -338,6 +474,12 @@ struct QuickActionCard: View {
 
 struct MessageBubble: View {
     let message: ChatMessage
+    var selectionMode: Bool = false
+    var isSelected: Bool = false
+    var onToggleSelect: (() -> Void)? = nil
+    var onCopy: (() -> Void)? = nil
+    var onShare: (() -> Void)? = nil
+
     @State private var expanded = false
 
     private var isUser: Bool { message.role == "user" }
@@ -345,7 +487,10 @@ struct MessageBubble: View {
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 8) {
-            if isUser { Spacer(minLength: 50) }
+            if isUser {
+                if selectionMode { selectionBadge }
+                Spacer(minLength: 50)
+            }
 
             if isTool {
                 toolBubble
@@ -353,8 +498,35 @@ struct MessageBubble: View {
                 textBubble
             }
 
-            if !isUser { Spacer(minLength: 50) }
+            if !isUser {
+                Spacer(minLength: 50)
+                if selectionMode { selectionBadge }
+            }
         }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if selectionMode {
+                onToggleSelect?()
+            } else if isTool {
+                withAnimation { expanded.toggle() }
+            }
+        }
+        // v2.9.2：长按消息 → 复制 / 分享到其他 App
+        .contextMenu {
+            Button(action: { onCopy?() }) {
+                Label("复制", systemImage: "doc.on.doc")
+            }
+            Button(action: { onShare?() }) {
+                Label("分享", systemImage: "square.and.arrow.up")
+            }
+        }
+    }
+
+    private var selectionBadge: some View {
+        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+            .font(.system(size: 20))
+            .foregroundColor(isSelected ? .blue : Color.secondary)
+            .padding(.bottom, 10)
     }
 
     private var textBubble: some View {
@@ -366,6 +538,10 @@ struct MessageBubble: View {
                 .background(isUser ? Color.blue : (message.isError ? Color.red.opacity(0.15) : Color(.secondarySystemBackground)))
                 .foregroundColor(isUser ? .white : .primary)
                 .cornerRadius(18)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18)
+                        .strokeBorder(isSelected ? (isUser ? Color.white : Color.blue) : Color.clear, lineWidth: 2)
+                )
         }
     }
 
@@ -400,8 +576,22 @@ struct MessageBubble: View {
         .padding(.vertical, 10)
         .background(Color(.secondarySystemBackground))
         .cornerRadius(14)
-        .onTapGesture { withAnimation { expanded.toggle() } }
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(isSelected ? Color.blue : Color.clear, lineWidth: 2)
+        )
     }
+}
+
+/// v2.9.2：系统分享面板（分享到微信/备忘录/邮件等其它 App）
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 struct TypingIndicator: View {

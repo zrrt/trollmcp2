@@ -106,7 +106,7 @@ final class OpenAIClient {
         }
 
         let base = config.baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        let endpoint = config.apiProtocol == "OpenAI Completions" ? "/completions" : "/chat/completions"
+        let endpoint = "/chat/completions"
         guard let url = URL(string: base + endpoint) else {
             completion(.failure(NSError(domain: "OpenAIClient", code: 0, userInfo: [NSLocalizedDescriptionKey: "无效的 baseURL"])))
             return
@@ -214,22 +214,6 @@ final class OpenAIClient {
             }
         } else {
             sanitized = messages
-        }
-
-        if config.apiProtocol == "OpenAI Completions" {
-            let prompt = sanitized.map { "\($0.role): \($0.content)" }.joined(separator: "\n")
-            if level >= 2 {
-                return ["model": config.model, "prompt": prompt]
-            }
-            var body: [String: Any] = [
-                "model": config.model,
-                "prompt": prompt,
-                tokenKey(level: level): config.maxTokens
-            ]
-            if level < 2, config.sendsTemperature {
-                body["temperature"] = config.temperature
-            }
-            return body
         }
 
         // OpenAI Chat Completions / Custom Endpoint
