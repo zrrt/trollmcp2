@@ -457,6 +457,16 @@ GitHub Actions run：33617736761 ✅（v2.9.4 IPA）；33620936109 ✅（Compile
 
 降级链（v2.9.0）：L0 完整 → L1 互换 token key → L2 去 tool_choice → **L5 Responses API+工具**（保住工具调用）→ L3 纯对话 → L4 最小载荷 → 结束。nextLevel 的哨兵值 6 防止 L4→L5→L3 死循环。
 
+### v2.9.29 关键认知（2026-09-03）
+
+**修复授权后一直转圈 + 聊天框/+号点击无响应**：用户点授权后转圈，且聊天框旁 + 号（添加应用/相册）点击没反应。
+- 根因：整条 `runLoop→processToolCalls→dispatch→invoke` 链在**主线程**执行。授权恢复后真的执行注入（InjectionManager.enable 同步：拷贝文件 + insert_dylib --inplace + ldid -S 子进程）时，主线程被完全占用 → 转圈 + 所有 UI 交互（输入框、+号、按钮）无响应。用户补充"+号点击没反应"进一步印证主线程卡死。
+- 修复：processToolCalls 的 dispatch 改为 `DispatchQueue.global().async` 后台执行，结果/授权/错误经新增 `handleDispatchResult` 回主线程继续递归。注入等耗时工具不再阻塞主线程；UI 正常 loading，完成后继续回复。
+- 结构：ConversationStore 是 `final class ObservableObject`（闭包捕获 self 安全）；多工具调用经主线程 handleDispatchResult 串行化，不并行。
+- Mach-O 校验：`handleDispatchResult`（新增方法符号）UTF-8 可搜到；`DispatchQueue` 是系统符号不在 App 二进制，搜不到属正常。
+
+CI 33673241546 / 提交 e2fc1f2 / 版本 2.9.28→2.9.29 / IPA artifacts\v2.9.29
+
 ### v2.9.28 关键认知（2026-09-03）
 
 **修复 unknown tool: injection_enable**：用户调用注入工具报 `error: unknown tool: injection_enable`。
