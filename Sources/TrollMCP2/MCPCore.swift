@@ -79,6 +79,7 @@ public final class ToolRegistry: ObservableObject {
         "model.config", "model.authentication", "model.selected_profile_id",
         "skills.list", "skills.read",   // v2.9.17：技能发现/读取
         "gateway.status", "injection.status", "injection.list",
+        "injection.enable", "injection.disable", "injection.remove", "injection.inspect",   // v2.9.21：AI 可真实执行注入/移除/检查
         "build.environment", "build.run"
     ]
 

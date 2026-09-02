@@ -92,6 +92,10 @@ struct AppDetailView: View {
     @Binding var inspectResult: [String: Any]?
     @Environment(\.presentationMode) var presentationMode
 
+    /// v2.9.21：手动注入操作反馈
+    @State private var actionMessage: String?
+    @State private var busy = false
+
     private struct DictEntry: Identifiable {
         let key: String
         let value: String
@@ -101,6 +105,10 @@ struct AppDetailView: View {
     private var entries: [DictEntry] {
         (inspectResult ?? [:]).sorted { $0.key < $1.key }
             .map { DictEntry(key: $0.key, value: "\($0.value)") }
+    }
+
+    private var injected: Bool {
+        (inspectResult?["injected"] as? Bool) ?? false
     }
 
     var body: some View {
@@ -113,6 +121,37 @@ struct AppDetailView: View {
                     if let container = app.containerPath {
                         LabeledRow(label: "容器", value: container)
                     }
+                }
+                // v2.9.21：手动注入 / 移除操作区
+                Section(header: SettingSectionHeader(title: "注入操作")) {
+                    HStack(spacing: 8) {
+                        Image(systemName: injected ? "checkmark.circle.fill" : "circle.dashed")
+                            .font(.system(size: 17))
+                            .foregroundColor(injected ? .green : .secondary)
+                        Text(injected ? "已注入" : "未注入")
+                            .font(.body)
+                        Spacer()
+                    }
+                    if let msg = actionMessage {
+                        Text(msg)
+                            .font(.caption)
+                            .foregroundColor(msg.hasPrefix("✅") ? .green : .orange)
+                    }
+                    Button(action: { doInject() }) {
+                        HStack(spacing: 8) {
+                            if busy { ProgressView() }
+                            Image(systemName: "syringe")
+                            Text("注入 TrollMCPAgent")
+                        }
+                    }
+                    .disabled(busy || injected)
+                    Button(action: { doRemove() }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "arrow.uturn.backward")
+                            Text("移除注入（还原）")
+                        }
+                    }
+                    .disabled(busy || !injected)
                 }
                 Section(header: SettingSectionHeader(title: "注入工具链")) {
                     ForEach(InjectionManager.shared.availableBinaries(), id: \.self) { bin in
@@ -143,6 +182,56 @@ struct AppDetailView: View {
             .listStyle(.insetGrouped)
             .navigationTitle(app.name)
             .toolbar { Button("关闭") { presentationMode.wrappedValue.dismiss() } }
+        }
+    }
+
+    /// v2.9.21：手动注入
+    private func doInject() {
+        busy = true
+        actionMessage = nil
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result: [String: Any]
+            do {
+                result = try InjectionManager.shared.enable(bundleId: app.bundleId)
+            } catch {
+                let msg = (error as? MCPError)?.description ?? error.localizedDescription
+                DispatchQueue.main.async {
+                    actionMessage = "❌ 注入失败：\(msg)"
+                    busy = false
+                }
+                return
+            }
+            DispatchQueue.main.async {
+                let ok = (result["injected"] as? Bool) ?? false
+                actionMessage = ok ? "✅ 注入成功" : "⚠️ 注入未确认（见检查结果）"
+                inspectResult = InjectionManager.shared.inspect(app.bundleId)
+                busy = false
+            }
+        }
+    }
+
+    /// v2.9.21：手动移除注入
+    private func doRemove() {
+        busy = true
+        actionMessage = nil
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result: [String: Any]
+            do {
+                result = try InjectionManager.shared.remove(bundleId: app.bundleId)
+            } catch {
+                let msg = (error as? MCPError)?.description ?? error.localizedDescription
+                DispatchQueue.main.async {
+                    actionMessage = "❌ 移除失败：\(msg)"
+                    busy = false
+                }
+                return
+            }
+            DispatchQueue.main.async {
+                let ok = ((result["injected"] as? Bool) ?? true) == false
+                actionMessage = ok ? "✅ 已还原" : "⚠️ 还原未确认"
+                inspectResult = InjectionManager.shared.inspect(app.bundleId)
+                busy = false
+            }
         }
     }
 }

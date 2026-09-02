@@ -123,9 +123,10 @@ final class InjectionManager {
         guard FileManager.default.fileExists(atPath: mainBinary) else {
             throw MCPError.failed("主二进制不存在: \(mainBinary)")
         }
-        let agentSrc = Bundle.main.bundleURL.appendingPathComponent("TrollMCPAgent.dylib").path
+        // v2.9.21：agent dylib 在 bin/ 子目录（build-ipa.sh 把 Resources/bin 拷成 app/bin）
+        let agentSrc = binDir.appendingPathComponent("TrollMCPAgent.dylib").path
         guard FileManager.default.fileExists(atPath: agentSrc) else {
-            throw MCPError.failed("TrollMCPAgent.dylib 未内置")
+            throw MCPError.failed("TrollMCPAgent.dylib 未内置（\(agentSrc)）")
         }
         let agentDst = (app.path as NSString).appendingPathComponent("TrollMCPAgent.dylib")
 
