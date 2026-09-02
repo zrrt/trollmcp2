@@ -20,31 +20,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install theos + deps
+      # 用 GitHub 官方 checkout 通道克隆完整 theos（比 git clone/curl 稳，且自带 bin/dm.pl）
+      - name: Checkout theos
+        uses: actions/checkout@v4
+        with:
+          repository: theos/theos
+          path: theos
+          fetch-depth: 1
+
+      - name: Prepare theos SDK
         run: |
-          # 优先用 runner 预装的 /opt/theos（避免 git clone 网络不稳）；缺 dm.pl 则补齐
-          if [ -d /opt/theos/makefiles ]; then
-            echo "使用预装 theos: /opt/theos"
-            THEOS=/opt/theos
-          else
-            echo "下载 theos"
-            mkdir -p "$HOME/theos"
-            curl -sL --retry 5 https://codeload.github.com/theos/theos/tar.gz/refs/heads/master -o /tmp/theos.tar.gz
-            tar -xzf /tmp/theos.tar.gz -C "$HOME/theos" --strip-components=1
-            THEOS="$HOME/theos"
-          fi
+          export THEOS="$GITHUB_WORKSPACE/theos"
+          mkdir -p "$THEOS/sdks"
           # 复用 runner 自带 Xcode 的 iOS SDK（免下载几 GB）
-          mkdir -p "$THEOS/sdks" "$THEOS/bin"
-          if [ ! -e "$THEOS/sdks/iPhoneOS17.5.sdk" ]; then
-            ln -s "$(xcrun --sdk iphoneos --show-sdk-path)" "$THEOS/sdks/iPhoneOS17.5.sdk"
-          fi
-          # theos 只把 $THEOS/bin 加入 PATH，dm.pl（deb 打包）必须在 bin/ 下
-          if [ ! -e "$THEOS/bin/dm.pl" ]; then
-            curl -sL --retry 5 https://raw.githubusercontent.com/theos/theos/master/vendor/dm.pl -o "$THEOS/vendor/dm.pl"
-            chmod +x "$THEOS/vendor/dm.pl"
-            cp "$THEOS/vendor/dm.pl" "$THEOS/bin/dm.pl"
-            chmod +x "$THEOS/bin/dm.pl"
-          fi
+          ln -s "$(xcrun --sdk iphoneos --show-sdk-path)" "$THEOS/sdks/iPhoneOS17.5.sdk"
+          ls -l "$THEOS/bin/dm.pl" "$THEOS/sdks/"
           brew install ldid dpkg >/dev/null 2>&1 || true
           echo "THEOS=$THEOS" >> "$GITHUB_ENV"
 
