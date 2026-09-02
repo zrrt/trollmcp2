@@ -364,7 +364,7 @@ final class BuildRunnerTokenTool: MCPTool {
 }
 
 final class ProjectGenerateTweakTool: MCPTool {
-    let definition = ToolDefinition(name: "project.generate_tweak", summary: "生成 Tweak 项目模板",
+    let definition = ToolDefinition(name: "project.generate_tweak", summary: "生成 Tweak 项目模板（Makefile + Tweak.x + plist）",
         parameters: ["name": "项目名", "bundle_id": "目标 App（可选）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let name = params["name"] as? String ?? "MyTweak"
@@ -389,8 +389,23 @@ final class ProjectGenerateTweakTool: MCPTool {
         { Filter = { Executables = ( "\(bid.isEmpty ? "com.example.app" : bid)" ); }; }
         """
         try plist.write(to: dir.appendingPathComponent("\(name).plist"), atomically: true, encoding: .utf8)
+        // v2.9.3：生成最小 Tweak.x 源文件，工程开箱即可编译（编译环境见 build.environment）
+        let tweakX = """
+        #import <UIKit/UIKit.h>
+
+        // 最小 Tweak 模板：把下面的钩子目标替换为你要 hook 的类/方法。
+        // 例如 hook SpringBoard 的 applicationDidFinishLaunching：
+        %hook SpringBoard
+        - (void)applicationDidFinishLaunching:(id)application {
+            %orig;
+            NSLog(@"[\(name)] loaded");
+        }
+        %end
+        """
+        try tweakX.write(to: dir.appendingPathComponent("Tweak.x"), atomically: true, encoding: .utf8)
         AuditLog.shared.log("project.generate_tweak", detail: name)
-        return ["created": true, "path": "projects/\(name)", "name": name]
+        return ["created": true, "path": "projects/\(name)", "name": name,
+                "files": ["Makefile", "Tweak.x", "\(name).plist"]]
     }
 }
 

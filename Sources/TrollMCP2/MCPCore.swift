@@ -211,6 +211,10 @@ public final class ToolRegistry: ObservableObject {
         register(WorkspaceOutputBookmarkTool())
         register(WorkspaceOutputNameTool())
 
+        // M8 本机编译/构建（v2.9.3，设备端编译桥）
+        register(BuildEnvironmentTool())
+        register(BuildRunTool())
+
         // M7 补齐缺失设备端工具
         register(CalendarCreateEventTool())
         register(ReminderScheduleTool())
