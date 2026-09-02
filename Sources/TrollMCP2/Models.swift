@@ -561,8 +561,17 @@ final class ConversationStore: ObservableObject {
             next.append(ChatMessage(role: "tool", content: content, toolCallId: call.id, toolName: call.name))
             var nextDisclosed = newlyDisclosed
             // v2.9.16：tool_search 命中后，把搜到的工具名加入待披露集合
+            // v2.9.27：修复披露 bug——ToolSearchTool 返回 [[String: String]]，
+            // 原 as? [[String: Any]] 因 Dictionary Value 泛型不同永远失败，
+            // 导致搜到的工具下一轮从不注入 schema（AI 永远拿不到接口）。
             if call.name == "tool_search" {
-                if let arr = r["tools"] as? [[String: Any]] {
+                if let arr = r["tools"] as? [[String: String]] {
+                    for item in arr {
+                        if let n = item["name"], !n.isEmpty {
+                            nextDisclosed.append(n)
+                        }
+                    }
+                } else if let arr = r["tools"] as? [[String: Any]] {
                     for item in arr {
                         if let n = item["name"] as? String, !n.isEmpty {
                             nextDisclosed.append(n)
