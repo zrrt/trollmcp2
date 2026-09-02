@@ -60,6 +60,8 @@ final class OpenAIClient {
     /// v2.9.13：取消支持——置位标志 + 取消当前 in-flight 任务
     private var cancelled = false
     private weak var activeTask: URLSessionDataTask?
+    /// v2.9.15：本轮请求起始时间（用于耗时统计，写入网络兼容日志）
+    private var requestStart = Date()
 
     init(_ config: ModelConfig) {
         self.config = config
@@ -75,6 +77,7 @@ final class OpenAIClient {
 
     func send(messages: [ChatMessage], tools: [[String: Any]]? = nil, onStatus: ((String) -> Void)? = nil, completion: @escaping (Result<ChatResult, Error>) -> Void) {
         cancelled = false
+        requestStart = Date()
         // v2.9.0：级别 5 = Responses API + 工具调用（Codex 走的端点，GPT-5.6 家族
         // 在 chat/completions 上无法用 function tools，但 /v1/responses 可以）
         var start = min(max(config.compatLevel, 0), maxLevel)
@@ -174,7 +177,8 @@ final class OpenAIClient {
                     }
                 }
                 // 其它网络错误（断网等）降级无意义
-                NetworkLog.shared.log("\(self.config.name) L\(level) 网络错误: \(error.localizedDescription)")
+                let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
+                NetworkLog.shared.log("\(self.config.name) L\(level) 网络错误（\(el)ms）: \(error.localizedDescription)")
                 completion(.failure(error))
                 return
             }
@@ -199,7 +203,8 @@ final class OpenAIClient {
                let choices = json["choices"] as? [[String: Any]],
                let firstChoice = choices.first {
                 if level != self.config.compatLevel {
-                    NetworkLog.shared.log("\(self.config.name) 级别 \(level)（\(self.levelName(level))）请求成功，已记忆该级别")
+                    let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
+                    NetworkLog.shared.log("\(self.config.name) 级别 \(level)（\(self.levelName(level))）请求成功（\(el)ms），已记忆该级别")
                     NetworkLog.lastCompatNote = "模型「\(self.config.name)」当前兼容级别: \(level)（\(self.levelName(level))）"
                     self.persist(level: level)
                 }
@@ -210,7 +215,8 @@ final class OpenAIClient {
             // 失败：判断是否可通过降级重试挽救
             let retryable = self.isRetryable(status: status, errorPayload: errorPayload)
             let failMsg = errorPayload ?? raw
-            NetworkLog.shared.log("\(self.config.name) L\(level) 失败 (HTTP \(status)): \(String(failMsg.prefix(200)))")
+            let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
+            NetworkLog.shared.log("\(self.config.name) L\(level) 失败 (HTTP \(status)，耗时 \(el)ms): \(String(failMsg.prefix(200)))")
 
             if retryable {
                 let next = self.nextLevel(after: level, hasTools: tools != nil && !(tools?.isEmpty ?? true))
@@ -396,7 +402,8 @@ final class OpenAIClient {
             if let json = try? JSONSerialization.jsonObject(with: data ?? Data()) as? [String: Any] {
                 if let err = json["error"] as? [String: Any],
                    let msg = err["message"] as? String {
-                    NetworkLog.shared.log("\(self.config.name) L5 失败 (HTTP \(status)): \(msg)")
+                    let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
+                    NetworkLog.shared.log("\(self.config.name) L5 失败 (HTTP \(status)，耗时 \(el)ms): \(msg)")
                     completion(.failure(NSError(domain: "OpenAIClient", code: status,
                         userInfo: [NSLocalizedDescriptionKey: "Responses API 错误: \(msg)"])))
                     return
@@ -419,7 +426,8 @@ final class OpenAIClient {
                             }
                         }
                     }
-                    NetworkLog.shared.log("\(self.config.name) L5（Responses API+工具）请求成功，已记忆该级别")
+                    let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
+                    NetworkLog.shared.log("\(self.config.name) L5（Responses API+工具）请求成功（\(el)ms），已记忆该级别")
                     NetworkLog.lastCompatNote = "模型「\(self.config.name)」当前兼容级别: 5（Responses API+工具）"
                     self.persist(level: 5)
                     if !calls.isEmpty {

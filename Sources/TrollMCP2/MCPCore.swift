@@ -67,9 +67,23 @@ public final class ToolRegistry: ObservableObject {
         return tools.values.map { $0.definition }.sorted { $0.name < $1.name }
     }
 
+    /// v2.9.15：聊天默认工具白名单。
+    /// 根因：80+ 工具全量进 schema 导致每次请求载荷巨大，中转/gpt-5.6 处理极慢甚至超时。
+    /// 未显式设置的工具按此白名单决定默认启用；用户显式开/关过的仍以用户为准。
+    private static let defaultEnabledTools: Set<String> = [
+        "ping", "device.info", "device.probe", "workspace.info",
+        "artifact.read_text", "artifact.write_text", "artifact.list",
+        "web.search", "knowledge.search",
+        "github.account_status", "github.trigger_build", "github.fetch_runs", "github.download_artifact",
+        "model.config", "model.authentication", "model.selected_profile_id",
+        "gateway.status", "injection.status", "injection.list",
+        "build.environment", "build.run"
+    ]
+
     public func isEnabled(name: String) -> Bool {
         let disabled = UserDefaults.standard.object(forKey: disabledKey) as? [String: Bool] ?? [:]
-        return disabled[name] != false
+        if let v = disabled[name] { return v }   // 用户显式设置过，以用户为准
+        return Self.defaultEnabledTools.contains(name)
     }
 
     public func setEnabled(name: String, enabled: Bool) {
