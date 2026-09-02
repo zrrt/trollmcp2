@@ -313,6 +313,33 @@ struct ChatConversation: Codable, Identifiable, Hashable {
     var messages: [ChatMessage]
 }
 
+// MARK: - 运行时工具授权（v2.9.25）
+
+/// 用户对未授权工具调用的三种选择
+enum ApprovalDecision {
+    case once        // 本轮授权：仅本次调用放行
+    case session     // 本轮会话授权：本会话内放行
+    case deny        // 拒绝：本次返回错误给 AI
+}
+
+/// 未授权工具调用暂停时的上下文，恢复后继续处理
+struct PendingToolApproval: Identifiable {
+    var id: String { toolName + ":" + callId }
+    let toolName: String
+    let summary: String
+    let callId: String
+    let arguments: String
+    // 恢复上下文
+    let config: ModelConfig
+    let tools: [[String: Any]]?
+    let disclosed: [String]
+    let depth: Int
+    let reasoningLevel: Int
+    let remainingCalls: [ToolCall]   // 从当前 call 开始（含它）
+    let toolMessages: [ChatMessage]  // 已处理完的 tool 结果
+    let newlyDisclosed: [String]
+}
+
 // MARK: - 会话管理
 
 final class ConversationStore: ObservableObject {
@@ -325,6 +352,8 @@ final class ConversationStore: ObservableObject {
     @Published var statusText: String?
     /// v2.9.13：当前正在进行的 OpenAIClient（支持取消）
     private var currentClient: OpenAIClient?
+    /// v2.9.25：待用户授权的工具调用（非空时 runLoop 已暂停，等用户选择后恢复）
+    @Published var pendingApproval: PendingToolApproval?
 
     private let key = "trollmcp2.conversations"
 
@@ -426,12 +455,12 @@ final class ConversationStore: ObservableObject {
     }
 
     private func runLoop(config: ModelConfig, tools: [[String: Any]]?, disclosed: [String], depth: Int, reasoningLevel: Int = 1) {
-        // v2.9.24：上限 6→8。这是防止 AI 陷入"无限调用工具"死循环的保护，
-        // 达到上限时提示更友好并告知用户可继续。
-        guard depth < 8 else {
+        // v2.9.25：不再限制工具调用轮次（用户可手动点「停止」）。
+        // 仅保留 60 轮极端安全保险，正常流程永不触发，防止 AI 完全失控无限发请求。
+        guard depth < 60 else {
             isLoading = false
             statusText = nil
-            appendToCurrent(ChatMessage(role: "assistant", content: "已达到本轮工具调用上限（8 轮），已停止，防止死循环。你可以直接回复「继续」，我会接着处理。", isError: true))
+            appendToCurrent(ChatMessage(role: "assistant", content: "已达到极端安全上限（60 轮），已停止。若 AI 仍在循环，请点输入框旁的「停止」按钮中断。", isError: true))
             return
         }
 
@@ -478,32 +507,10 @@ final class ConversationStore: ObservableObject {
                 case .success(.toolCalls(let calls)):
                     let summary = calls.map { "调用工具 \($0.name)" }.joined(separator: "\n")
                     self.appendToCurrent(ChatMessage(role: "assistant", content: summary, toolCalls: calls))
-                    var toolMessages: [ChatMessage] = []
-                    var newlyDisclosed: [String] = []
-                    for call in calls {
-                        let params = Self.parseArgs(call.arguments)
-                        do {
-                            let r = try ToolRegistry.shared.dispatch(name: call.name, params: params)
-                            let content = Self.jsonString(r)
-                            toolMessages.append(ChatMessage(role: "tool", content: content, toolCallId: call.id, toolName: call.name))
-                            // v2.9.16：tool_search 命中后，把搜到的工具名加入待披露集合，
-                            // 下一轮请求自动带上它们的完整 schema
-                            if call.name == "tool_search" {
-                                if let arr = r["tools"] as? [[String: Any]] {
-                                    for item in arr {
-                                        if let n = item["name"] as? String, !n.isEmpty {
-                                            newlyDisclosed.append(n)
-                                        }
-                                    }
-                                }
-                            }
-                        } catch {
-                            toolMessages.append(ChatMessage(role: "tool", content: "error: \(error)", isError: true, toolCallId: call.id, toolName: call.name))
-                        }
-                    }
-                    for tm in toolMessages { self.appendToCurrent(tm) }
-                    let merged = Array(Set(disclosed + newlyDisclosed))
-                    self.runLoop(config: config, tools: tools, disclosed: merged, depth: depth + 1, reasoningLevel: reasoningLevel)
+                    // v2.9.25：改为可暂停/恢复的递归处理（未授权工具弹窗，用户选择后继续）
+                    self.processToolCalls(calls, index: 0, toolMessages: [], newlyDisclosed: [], forceDeny: [],
+                                          config: config, tools: tools, disclosed: disclosed, depth: depth,
+                                          reasoningLevel: reasoningLevel)
                 case .failure(let error):
                     self.isLoading = false
                     self.currentClient = nil
@@ -517,6 +524,105 @@ final class ConversationStore: ObservableObject {
                 }
             }
         }
+    }
+
+    /// v2.9.25：递归处理一批工具调用。未授权工具时暂停并弹出授权（pendingApproval），
+    /// 用户选择后通过 resolveApproval 恢复；forceDeny 中已拒绝的工具直接返回错误给 AI。
+    private func processToolCalls(_ calls: [ToolCall],
+                                  index: Int,
+                                  toolMessages: [ChatMessage],
+                                  newlyDisclosed: [String],
+                                  forceDeny: Set<String>,
+                                  config: ModelConfig,
+                                  tools: [[String: Any]]?,
+                                  disclosed: [String],
+                                  depth: Int,
+                                  reasoningLevel: Int) {
+        if index >= calls.count {
+            for tm in toolMessages { self.appendToCurrent(tm) }
+            let merged = Array(Set(disclosed + newlyDisclosed))
+            self.runLoop(config: config, tools: tools, disclosed: merged, depth: depth + 1, reasoningLevel: reasoningLevel)
+            return
+        }
+        let call = calls[index]
+        let params = Self.parseArgs(call.arguments)
+        // 用户已拒绝的工具：不再 dispatch，直接返回错误给 AI
+        if forceDeny.contains(call.name) {
+            var next = toolMessages
+            next.append(ChatMessage(role: "tool", content: "error: 用户拒绝了工具 \(call.name) 的调用", isError: true, toolCallId: call.id, toolName: call.name))
+            self.processToolCalls(calls, index: index + 1, toolMessages: next, newlyDisclosed: newlyDisclosed, forceDeny: forceDeny,
+                                  config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
+            return
+        }
+        do {
+            let r = try ToolRegistry.shared.dispatch(name: call.name, params: params)
+            let content = Self.jsonString(r)
+            var next = toolMessages
+            next.append(ChatMessage(role: "tool", content: content, toolCallId: call.id, toolName: call.name))
+            var nextDisclosed = newlyDisclosed
+            // v2.9.16：tool_search 命中后，把搜到的工具名加入待披露集合
+            if call.name == "tool_search" {
+                if let arr = r["tools"] as? [[String: Any]] {
+                    for item in arr {
+                        if let n = item["name"] as? String, !n.isEmpty {
+                            nextDisclosed.append(n)
+                        }
+                    }
+                }
+            }
+            self.processToolCalls(calls, index: index + 1, toolMessages: next, newlyDisclosed: nextDisclosed, forceDeny: forceDeny,
+                                  config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
+        } catch let err as MCPError {
+            if case .requiresApproval = err {
+                // v2.9.25：暂停，弹授权选择（本轮/会话/拒绝），用户选择后恢复
+                pendingApproval = PendingToolApproval(
+                    toolName: call.name,
+                    summary: ToolRegistry.shared.summary(for: call.name) ?? "未知工具",
+                    callId: call.id,
+                    arguments: call.arguments,
+                    config: config,
+                    tools: tools,
+                    disclosed: disclosed,
+                    depth: depth,
+                    reasoningLevel: reasoningLevel,
+                    remainingCalls: Array(calls[index...]),
+                    toolMessages: toolMessages,
+                    newlyDisclosed: newlyDisclosed
+                )
+                statusText = "等待你授权工具 \(call.name)"
+                return
+            }
+            var next = toolMessages
+            next.append(ChatMessage(role: "tool", content: "error: \(err)", isError: true, toolCallId: call.id, toolName: call.name))
+            self.processToolCalls(calls, index: index + 1, toolMessages: next, newlyDisclosed: newlyDisclosed, forceDeny: forceDeny,
+                                  config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
+        } catch {
+            var next = toolMessages
+            next.append(ChatMessage(role: "tool", content: "error: \(error)", isError: true, toolCallId: call.id, toolName: call.name))
+            self.processToolCalls(calls, index: index + 1, toolMessages: next, newlyDisclosed: newlyDisclosed, forceDeny: forceDeny,
+                                  config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
+        }
+    }
+
+    /// v2.9.25：用户对授权弹窗的选择结果，恢复暂停的工具调用链
+    func resolveApproval(_ decision: ApprovalDecision) {
+        guard let p = pendingApproval else { return }
+        pendingApproval = nil
+        var forceDeny: Set<String> = []
+        switch decision {
+        case .once:
+            ToolRegistry.shared.approveOnce(p.toolName)
+            statusText = "已授权「\(p.toolName)」本次调用"
+        case .session:
+            ToolRegistry.shared.approveForSession(p.toolName)
+            statusText = "已授权「\(p.toolName)」本会话调用"
+        case .deny:
+            forceDeny = [p.toolName]
+            statusText = "已拒绝「\(p.toolName)」调用"
+        }
+        processToolCalls(p.remainingCalls, index: 0, toolMessages: p.toolMessages, newlyDisclosed: p.newlyDisclosed,
+                         forceDeny: forceDeny, config: p.config, tools: p.tools, disclosed: p.disclosed,
+                         depth: p.depth, reasoningLevel: p.reasoningLevel)
     }
 
     private func messagesForAPI(budget: Int) -> [ChatMessage] {

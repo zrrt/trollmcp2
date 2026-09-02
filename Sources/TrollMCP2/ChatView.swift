@@ -439,6 +439,19 @@ struct ChatView: View {
         .sheet(isPresented: $showShare) {
             ShareSheet(items: [shareText])
         }
+        // v2.9.25：AI 调用未授权工具时，运行时授权弹窗（本轮/会话/拒绝）
+        .actionSheet(item: $store.pendingApproval) { p in
+            ActionSheet(
+                title: Text("工具授权请求"),
+                message: Text("AI 想调用「\(p.toolName)」\n\(p.summary)\n\n选择授权范围："),
+                buttons: [
+                    .default(Text("本轮授权（仅此一次）")) { store.resolveApproval(.once) },
+                    .default(Text("本轮会话授权")) { store.resolveApproval(.session) },
+                    .destructive(Text("拒绝")) { store.resolveApproval(.deny) },
+                    .cancel()
+                ]
+            )
+        }
     }
 
     private func reasoningLabel() -> String {

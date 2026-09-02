@@ -246,8 +246,8 @@ struct ToolPermissionPoliciesView: View {
                         Text("\(registry.enabledDefinitions.count)/\(registry.definitions.count)")
                             .foregroundColor(.secondary)
                     }
-                    // v2.9.22：说明 AI 自动授权机制，避免误以为必须手动开
-                    Text("AI 用「工具搜索」找到工具并决定调用时，会自动放行本会话，无需手动开。此处用于固定禁用（如不信任某工具）。")
+                    // v2.9.25：分层授权说明——普通工具搜索即自动授权；敏感/高危工具调用时弹窗
+                    Text("AI 用「工具搜索」找到普通工具时会自动放行本会话；隐私/高危工具（通讯录、定位、注入、删除、打电话等）调用时会弹窗让你选「本轮授权 / 本轮会话授权 / 拒绝」。此处可手动固定禁用/启用。")
                         .font(.caption)
                         .foregroundColor(.secondary)
                     SettingRowButton(
