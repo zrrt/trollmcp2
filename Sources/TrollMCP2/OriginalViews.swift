@@ -770,6 +770,7 @@ struct SettingsActivityView: View {
 
 struct SkillEditorView: View {
     @State private var name = ""
+    @State private var summary = ""
     @State private var instruction = ""
     @Environment(\.presentationMode) private var presentationMode
 
@@ -778,21 +779,30 @@ struct SkillEditorView: View {
             Form {
                 Section(header: SettingSectionHeader(title: "Skill")) {
                     TextField("名称", text: $name)
+                    TextField("用途摘要（AI 判断何时使用的依据）", text: $summary)
                     TextEditor(text: $instruction)
                         .frame(minHeight: 120)
                 }
                 Section {
-                    Button("保存到 skills.json") {
-                        Self.upsert(file: "skills.json", entry: ["name": name, "instruction": instruction])
+                    Button("保存") {
+                        SkillStore.shared.upsert(SkillItem(name: name, summary: summary, instruction: instruction))
                         presentationMode.wrappedValue.dismiss()
                     }
+                }
+                Section(header: SettingSectionHeader(title: "说明")) {
+                    Text("技能是预置的工作流指令。保存后 AI 可用 skills.list 发现、skills.read 读取并按指令执行。")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
             }
             .navigationTitle("新建 Skill")
         }
         .navigationViewStyle(.stack)
     }
+}
 
+/// Agent 保存（独立实现）
+enum AgentJSONStore {
     static func upsert(file: String, entry: [String: String]) {
         let kb = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("KnowledgeBase")
         try? FileManager.default.createDirectory(at: kb, withIntermediateDirectories: true)
@@ -810,7 +820,7 @@ struct SkillEditorView: View {
         if let data = try? JSONSerialization.data(withJSONObject: list, options: .prettyPrinted) {
             try? data.write(to: url)
         }
-        AuditLog.shared.log("skills", detail: "保存 \(entry["name"] ?? "")")
+        AuditLog.shared.log("agents", detail: "保存 \(entry["name"] ?? "")")
     }
 }
 
@@ -829,7 +839,7 @@ struct AgentEditorView: View {
                 }
                 Section {
                     Button("保存到 agents.json") {
-                        SkillEditorView.upsert(file: "agents.json", entry: ["name": name, "systemPrompt": systemPrompt])
+                        AgentJSONStore.upsert(file: "agents.json", entry: ["name": name, "systemPrompt": systemPrompt])
                         presentationMode.wrappedValue.dismiss()
                     }
                 }

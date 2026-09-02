@@ -77,6 +77,7 @@ public final class ToolRegistry: ObservableObject {
         "web.search", "knowledge.search",
         "github.account_status", "github.trigger_build", "github.fetch_runs", "github.download_artifact",
         "model.config", "model.authentication", "model.selected_profile_id",
+        "skills.list", "skills.read",   // v2.9.17：技能发现/读取
         "gateway.status", "injection.status", "injection.list",
         "build.environment", "build.run"
     ]
@@ -301,6 +302,8 @@ public final class ToolRegistry: ObservableObject {
         register(PhoneCallTool())
         register(PhoneScheduleCallTool())
         register(SkillsSetEnabledTool())
+        register(SkillsListTool())    // v2.9.17：技能可被 AI 发现
+        register(SkillsReadTool())    // v2.9.17：技能可被 AI 读取
         register(ToolSearchTool())   // v2.9.16：渐进式披露元工具
 
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")

@@ -626,20 +626,35 @@ struct AgentsAndSkillsView: View {
             List {
                 Section(header: SettingSectionHeader(title: "Skills")) {
                     if skills.isEmpty {
-                        Text("暂无自定义 Skill")
+                        Text("暂无技能，点右上角 + 新建")
                             .foregroundColor(.secondary)
                     } else {
                         ForEach(skills) { s in
-                            HStack {
+                            HStack(alignment: .center, spacing: 10) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(s.name)
                                         .font(.body)
-                                    Text(s.instruction)
+                                        .foregroundColor(SkillStore.shared.isEnabled(s.name) ? .primary : .secondary)
+                                    Text(s.summary.isEmpty ? s.instruction : s.summary)
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                         .lineLimit(2)
                                 }
                                 Spacer()
+                                Toggle("", isOn: Binding(
+                                    get: { SkillStore.shared.isEnabled(s.name) },
+                                    set: { SkillStore.shared.setEnabled(s.name, $0); reload() }
+                                ))
+                                .labelsHidden()
+                                .frame(width: 46)
+                                Button(action: {
+                                    SkillStore.shared.delete(named: s.name)
+                                    reload()
+                                }) {
+                                    Image(systemName: "trash")
+                                        .foregroundColor(.red)
+                                }
+                                .buttonStyle(.borderless)
                             }
                         }
                     }
@@ -667,14 +682,20 @@ struct AgentsAndSkillsView: View {
                 }
 
                 Section(header: SettingSectionHeader(title: "说明")) {
-                    Text("Skills 与 Agents 通过本地 JSON 文件配置。将 skills.json / agents.json 放入 KnowledgeBase 目录即可加载。")
+                    Text("技能是预置的工作流指令：AI 可用 skills.list 发现、skills.read 读取并执行。可在本页启用/停用/删除，或点 + 新建。")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text("Agents 通过 agents.json 配置，放入 KnowledgeBase 目录即可加载。")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Agents 与 Skills")
-            .onAppear(perform: load)
+            .onAppear {
+                SkillStore.shared.seedIfEmpty()
+                reload()
+            }
             .toolbar {
                 Button(action: { showSkillEditor = true }) { Image(systemName: "plus.square.on.square") }
                 Button(action: { showAgentEditor = true }) { Image(systemName: "person.badge.plus") }
@@ -685,23 +706,14 @@ struct AgentsAndSkillsView: View {
         .navigationViewStyle(.stack)
     }
 
-    private func load() {
+    private func reload() {
+        skills = SkillStore.shared.all
         let kb = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("KnowledgeBase")
-        if let data = try? Data(contentsOf: kb.appendingPathComponent("skills.json")),
-           let json = try? JSONSerialization.jsonObject(with: data) as? [[String: String]] {
-            skills = json.map { SkillItem(name: $0["name"] ?? "", instruction: $0["instruction"] ?? "") }
-        }
         if let data = try? Data(contentsOf: kb.appendingPathComponent("agents.json")),
            let json = try? JSONSerialization.jsonObject(with: data) as? [[String: String]] {
             agents = json.map { AgentItem(name: $0["name"] ?? "", systemPrompt: $0["systemPrompt"] ?? "") }
         }
     }
-}
-
-struct SkillItem: Identifiable {
-    var id = UUID()
-    let name: String
-    let instruction: String
 }
 
 struct AgentItem: Identifiable {

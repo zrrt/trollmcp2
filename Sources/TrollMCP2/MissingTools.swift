@@ -313,10 +313,7 @@ final class SkillsSetEnabledTool: MCPTool {
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
         let enabled = params["enabled"] as? Bool ?? true
-        var dict = UserDefaults.standard.object(forKey: "trollmcp2.skills_enabled") as? [String: Bool] ?? [:]
-        dict[name] = enabled
-        UserDefaults.standard.set(dict, forKey: "trollmcp2.skills_enabled")
-        AuditLog.shared.log("skills.set_enabled", detail: "\(name) \(enabled)")
+        SkillStore.shared.setEnabled(name, enabled)
         return ["name": name, "enabled": enabled]
     }
 }
