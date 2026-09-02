@@ -123,7 +123,8 @@ final class OpenAIClient {
 
         // v2.8.6：首次请求 45s；降级重试 30s。
         // 中转对完整载荷（tools + reasoning_effort）处理极慢/卡死，尽早超时并降级。
-        var request = URLRequest(url: url, timeoutInterval: isFirst ? 45 : 30)
+        // v2.9.12：长会话请求体大，放宽超时——首次 90s / 降级重试 60s（配合 session 90s）
+        var request = URLRequest(url: url, timeoutInterval: isFirst ? 90 : 60)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         applyAuth(to: &request)
@@ -339,7 +340,7 @@ final class OpenAIClient {
             return
         }
 
-        var request = URLRequest(url: url, timeoutInterval: 60)
+        var request = URLRequest(url: url, timeoutInterval: 90)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         applyAuth(to: &request)

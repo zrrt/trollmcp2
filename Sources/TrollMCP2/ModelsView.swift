@@ -138,7 +138,7 @@ struct ModelEditorView: View {
         _isDefault = State(initialValue: config?.isDefault ?? false)
         _temperature = State(initialValue: config?.temperature ?? 0.7)
         _maxTokens = State(initialValue: config?.maxTokens ?? 4096)
-        _contextTokens = State(initialValue: config?.contextTokens ?? 24000)
+        _contextTokens = State(initialValue: config?.contextTokens ?? 16000)
     }
 
     var body: some View {

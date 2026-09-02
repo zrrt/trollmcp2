@@ -286,6 +286,20 @@ struct ChatView: View {
                     withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                 }
             }
+            // v2.9.12：打开/切换会话时自动滚到底（老会话不再停在顶部）
+            .onAppear { scrollToBottom(proxy) }
+            .onChange(of: store.selectedId) { _ in
+                scrollToBottom(proxy)
+            }
+        }
+    }
+
+    /// v2.9.12：滚到当前会话最新一条
+    private func scrollToBottom(_ proxy: ScrollViewProxy) {
+        DispatchQueue.main.async {
+            if let last = store.currentMessages.last {
+                proxy.scrollTo(last.id, anchor: .bottom)
+            }
         }
     }
 

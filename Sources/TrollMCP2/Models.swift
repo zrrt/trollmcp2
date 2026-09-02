@@ -17,7 +17,7 @@ struct ModelConfig: Codable, Identifiable, Hashable {
     var maxTokens: Int = 4096
     /// v2.9.11：输入上下文预算（token 估算）。发送前按预算自动裁剪最旧消息，
     /// 避免长会话请求体无限增长导致"一直请求中"。
-    var contextTokens: Int = 24000
+    var contextTokens: Int = 16000
     /// v2.8.4：中转站兼容级别（由 OpenAIClient 自适应降级时写入并持久化）
     /// 0=完整载荷 1=互换token参数名 2=去掉tool_choice 3=去掉tools纯对话 4=最小载荷
     var compatLevel: Int = 0
@@ -25,7 +25,7 @@ struct ModelConfig: Codable, Identifiable, Hashable {
     init(id: UUID = UUID(), name: String, provider: String, apiProtocol: String = "OpenAI Chat Completions",
          baseURL: String, apiKey: String, model: String, authMethod: String = "Bearer",
          isDefault: Bool = false, temperature: Double = 0.7, maxTokens: Int = 4096, compatLevel: Int = 0,
-         contextTokens: Int = 24000) {
+         contextTokens: Int = 16000) {
         self.id = id
         self.name = name
         self.provider = provider
@@ -57,7 +57,7 @@ struct ModelConfig: Codable, Identifiable, Hashable {
         isDefault = (try? c.decode(Bool.self, forKey: .isDefault)) ?? false
         temperature = (try? c.decode(Double.self, forKey: .temperature)) ?? 0.7
         maxTokens = (try? c.decode(Int.self, forKey: .maxTokens)) ?? 4096
-        contextTokens = (try? c.decode(Int.self, forKey: .contextTokens)) ?? 24000
+        contextTokens = (try? c.decode(Int.self, forKey: .contextTokens)) ?? 16000
         compatLevel = (try? c.decode(Int.self, forKey: .compatLevel)) ?? 0
     }
 }
@@ -348,8 +348,12 @@ final class ConversationStore: ObservableObject {
     }
 
     func select(_ id: UUID) {
+        // v2.9.12：打开会话即视为"最近使用"，刷新 updatedAt 并重排到最前
+        if selectedId != id, let idx = conversations.firstIndex(where: { $0.id == id }) {
+            conversations[idx].updatedAt = Date()
+        }
         selectedId = id
-        save()
+        sortAndSave()
     }
 
     func appendToCurrent(_ message: ChatMessage) {

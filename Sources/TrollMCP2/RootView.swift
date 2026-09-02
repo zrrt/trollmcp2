@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 final class AppUIState: ObservableObject {
     static let shared = AppUIState()
@@ -98,8 +99,13 @@ struct ConversationDrawerView: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 16)
+        .padding(.top, topSafeArea + 8)
         .padding(.bottom, 12)
+    }
+
+    /// v2.9.12：状态栏安全区高度（抽屉 ignoredSafeArea 后需手动避让系统时间）
+    private var topSafeArea: CGFloat {
+        UIApplication.shared.windows.first?.safeAreaInsets.top ?? 0
     }
 
     private var searchBar: some View {
