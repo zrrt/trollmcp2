@@ -457,6 +457,16 @@ GitHub Actions run：33617736761 ✅（v2.9.4 IPA）；33620936109 ✅（Compile
 
 降级链（v2.9.0）：L0 完整 → L1 互换 token key → L2 去 tool_choice → **L5 Responses API+工具**（保住工具调用）→ L3 纯对话 → L4 最小载荷 → 结束。nextLevel 的哨兵值 6 防止 L4→L5→L3 死循环。
 
+### v2.9.26 关键认知（2026-09-03）
+
+**修复工具权限策略页开关点不动**：用户反馈工具列表开关仍不能启动/关闭。
+- 根因：ToolRegistry **无任何 @Published 属性**，只靠 `objectWillChange.send()` 手动通知，在 iOS16 的 List 内 Toggle 刷新不可靠 → 开关点了没反应/弹回。
+- 修复①：ToolRegistry 加 `@Published private(set) var policyRevision`，`setEnabled` 递增（真正 @Published 触发 UI 必刷新）+ 保留 objectWillChange.send() 双保险。
+- 修复②：权限策略页工具列表 **Toggle → 自定义 iOS 风格开关**（Capsule 46x28 + Circle 24x24 + ZStack 对齐），整行 `contentShape(Rectangle())` + `onTapGesture` 切换，点整行任意位置即可开关，彻底绕开 List+Toggle 兼容问题。
+- 坑：`.animation(_:value:)` 是 iOS15 API（项目 iOS14 目标会编译失败），改用 iOS14 的 `.animation(.easeInOut(duration: 0.15))`。
+
+CI 33667158729 / 提交 761b6cd / 版本 2.9.25→2.9.26 / IPA artifacts\v2.9.26
+
 ### v2.9.25 关键认知（2026-09-03）
 
 **分层工具授权**：用户要求"工具调用次数不要限制（死循环手动暂停）+ 搜索即自动授权，除非敏感隐私权限弹窗选择（本轮授权/会话授权/拒绝）"。
