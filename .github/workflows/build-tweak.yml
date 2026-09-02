@@ -29,9 +29,13 @@ jobs:
             echo "theos 已预装，复用"
           fi
           # 复用 runner 自带 Xcode 的 iOS SDK（免下载几 GB）
-          sudo mkdir -p /opt/theos/sdks
+          sudo mkdir -p /opt/theos/sdks /opt/theos/vendor
           if [ ! -e /opt/theos/sdks/iPhoneOS17.5.sdk ]; then
             sudo ln -s "$(xcrun --sdk iphoneos --show-sdk-path)" /opt/theos/sdks/iPhoneOS17.5.sdk
+          fi
+          # 预装 theos 可能缺 dm.pl（deb 打包脚本），从官方仓库补齐
+          if [ ! -e /opt/theos/vendor/dm.pl ]; then
+            sudo curl -sL https://raw.githubusercontent.com/theos/theos/master/vendor/dm.pl -o /opt/theos/vendor/dm.pl
           fi
           brew install ldid dpkg >/dev/null 2>&1 || true
 
