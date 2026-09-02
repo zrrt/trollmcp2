@@ -2,8 +2,8 @@ import SwiftUI
 
 struct ModelsView: View {
     @ObservedObject private var store = ModelStore.shared
-    @State private var showingEditor = false
     @State private var editing: ModelConfig?
+    @State private var isNewModel = false
 
     var body: some View {
         List {
@@ -25,7 +25,7 @@ struct ModelsView: View {
                 }
             } else {
                 ForEach(store.configs) { cfg in
-                    Button(action: { editing = cfg; showingEditor = true }) {
+                    Button(action: { isNewModel = false; editing = cfg }) {
                         ModelRow(config: cfg)
                     }
                     .buttonStyle(.plain)
@@ -36,21 +36,26 @@ struct ModelsView: View {
         .listStyle(.insetGrouped)
         .navigationTitle("模型 API")
         .toolbar {
-            Button(action: { editing = nil; showingEditor = true }) {
+            Button(action: {
+                isNewModel = true
+                editing = ModelConfig(name: "", provider: "custom", apiProtocol: "OpenAI Chat Completions", baseURL: "", apiKey: "", model: "")
+            }) {
                 Image(systemName: "plus")
             }
         }
-        .sheet(isPresented: $showingEditor, onDismiss: { editing = nil }) {
-            // v2.9.13：.id(editing?.id) 强制每次打开按传入配置重建 @State，
-            // 修复 iOS14 首次渲染用默认 OpenAI 预设锁死、编辑页显示 gpt-4o 而非真实配置的问题
-            ModelEditorView(config: editing) { newCfg in
+        .sheet(item: $editing, onDismiss: { editing = nil }) { cfg in
+            // v2.9.14：改用 .sheet(item:) 绑定。iOS14 的 .sheet(isPresented:)+闭包捕获
+            // 存在时序竞争——sheet 内容首次构建可能读到旧 editing(nil)，先用默认预设渲染，
+            // 之后才切到真实配置（表现为"先显示 gpt-4o，很久才变成 5.6"）。
+            // .sheet(item:) 在 item 变化时以新值重建内容，机制上消除该问题。
+            ModelEditorView(config: isNewModel ? nil : cfg) { newCfg in
                 if ModelStore.shared.configs.contains(where: { $0.id == newCfg.id }) {
                     ModelStore.shared.update(newCfg)
                 } else {
                     ModelStore.shared.add(newCfg)
                 }
             }
-            .id(editing?.id)
+            .id(cfg.id)
         }
     }
 }
