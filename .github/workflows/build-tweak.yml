@@ -22,10 +22,17 @@ jobs:
 
       - name: Install theos + deps
         run: |
-          sudo mkdir -p /opt/theos/sdks
-          sudo git clone --depth 1 https://github.com/theos/theos.git /opt/theos
+          if [ ! -d /opt/theos/makefiles ]; then
+            sudo mkdir -p /opt/theos
+            sudo git clone --depth 1 https://github.com/theos/theos.git /opt/theos
+          else
+            echo "theos 已预装，复用"
+          fi
           # 复用 runner 自带 Xcode 的 iOS SDK（免下载几 GB）
-          sudo ln -s "$(xcrun --sdk iphoneos --show-sdk-path)" /opt/theos/sdks/iPhoneOS17.5.sdk
+          sudo mkdir -p /opt/theos/sdks
+          if [ ! -e /opt/theos/sdks/iPhoneOS17.5.sdk ]; then
+            sudo ln -s "$(xcrun --sdk iphoneos --show-sdk-path)" /opt/theos/sdks/iPhoneOS17.5.sdk
+          fi
           brew install ldid dpkg >/dev/null 2>&1 || true
 
       - name: Build tweak (${{ inputs.tweak }})
