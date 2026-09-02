@@ -308,7 +308,7 @@ struct AddGitHubAccountView: View {
 
     @ViewBuilder private var webLoginSection: some View {
         Section(header: SettingSectionHeader(title: "网页登录（推荐）"),
-                footer: Text("使用 GitHub 设备授权流程：App 内置浏览器打开授权页，登录授权后自动完成，无需复制 Token。需先在「仓库设置」填写你的 OAuth App Client ID。")) {
+                footer: Text("零配置：点下方按钮，App 内置浏览器打开 GitHub 授权页，登录授权后自动完成，无需复制 Token、无需注册任何东西。任意 GitHub 账号都能用。")) {
             if deviceStep == 0 {
                 SettingRowButton(
                     title: "在浏览器中登录",
@@ -425,7 +425,7 @@ struct GitHubRepoSettingsView: View {
     var body: some View {
         Form {
             Section(header: SettingSectionHeader(title: "OAuth App（网页登录用）"),
-                    footer: Text("在 github.com → Settings → Developer settings → OAuth Apps → New OAuth App 注册（免费），Application name 随意，Homepage URL 填 https://github.com，Authorization callback URL 填 https://github.com，创建后复制 Client ID（不需要 Client secret）。")) {
+                    footer: Text("已内置默认 Client ID，新手无需改动。高级用户可覆盖为自己注册的 OAuth App：github.com → Settings → Developer settings → OAuth Apps → New OAuth App（勾选 Enable Device Flow），复制 Client ID 填入。")) {
                 TextField("OAuth App Client ID", text: $store.clientID)
                     .autocapitalization(.none)
                     .disableAutocorrection(true)

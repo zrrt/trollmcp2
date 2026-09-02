@@ -50,7 +50,10 @@ final class GitHubAccountStore: ObservableObject {
     @Published var workflowId: String
     @Published var branch: String
 
-    // Device Flow 用 OAuth App client_id（用户在自己 GitHub 账号下注册，免费）
+    // Device Flow 用 OAuth App client_id。
+    // 默认值 = 内置共享 Client ID（origina47487lhe-droid 注册的 "TrollMCP2 线上编译" OAuth App，
+    // Device Flow 已启用）。任意 GitHub 用户都可借此授权，各自拿自己的 token——新手零配置。
+    // 高级用户可在「仓库设置」覆盖为自己的 OAuth App。
     @Published var clientID: String
 
     // Device Flow 轮询状态
@@ -75,7 +78,7 @@ final class GitHubAccountStore: ObservableObject {
         repoName = def.string(forKey: repoKey) ?? "trollmcp2"
         workflowId = def.string(forKey: workflowKey) ?? "build-tweak"
         branch = def.string(forKey: branchKey) ?? "main"
-        clientID = def.string(forKey: clientIDKey) ?? ""
+        clientID = def.string(forKey: clientIDKey) ?? "Ov23li890n3hM15edlcw"
         load()
     }
 
