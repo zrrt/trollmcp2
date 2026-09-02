@@ -54,7 +54,7 @@ struct SettingsView: View {
                     )
                     SettingRow(
                         title: "工具权限策略",
-                        subtitle: "按工具控制",
+                        subtitle: "按工具控制 · 真实/占位",
                         icon: "lock.shield.fill",
                         color: .green,
                         destination: ToolPermissionPoliciesView()
@@ -160,20 +160,13 @@ struct SettingsView: View {
                         destination: DeviceDetectionView()
                     )
                     SettingRow(
-                        title: "本机工具审计",
-                        subtitle: "\(ToolRegistry.shared.definitions.count) 个工具 · 真实/占位",
-                        icon: "list.bullet.rectangle.fill",
-                        color: .tmTeal,
-                        destination: ToolAuditView()
-                    )
-                    SettingRow(
                         title: "网络兼容日志",
                         subtitle: NetworkLog.lastCompatNote ?? "中转站自适应降级记录",
                         icon: "network",
                         color: .orange,
                         destination: NetworkDebugView()
                     )
-                    LabeledRow(label: "版本", value: "2.9.22")
+                    LabeledRow(label: "版本", value: "2.9.23")
                     LabeledRow(label: "Bundle ID", value: Bundle.main.bundleIdentifier ?? "-")
                     LabeledRow(label: "工作区", value: Workspace.root.lastPathComponent)
                     LabeledRow(label: "工具数", value: "\(ToolRegistry.shared.definitions.count)")

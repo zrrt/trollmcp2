@@ -178,9 +178,60 @@ struct SystemCapabilitiesView: View {
 struct ToolPermissionPoliciesView: View {
     @ObservedObject private var registry = ToolRegistry.shared
     @State private var searchText = ""
+    // v2.9.23：并入原"本机工具审计"的真实实现清单（标记哪些工具有真实实现 vs 占位）
+    @State private var showOnlyReal = false
+
+    private let realTools: Set<String> = [
+        "ping",
+        "device.info",
+        "device.probe",
+        "artifact.read_text",
+        "artifact.write_text",
+        "artifact.list",
+        "workspace.info",
+        "assistant.memory_set",
+        "assistant.memory_list",
+        "assistant.memory_delete",
+        "apps.cache_inspect",
+        "apps.cache_clear",
+        "apps.open",
+        "apps.open_and_input",
+        "wechat.prepare_message",
+        "container.write_text",
+        "container.delete",
+        "contacts.search",
+        "calendar.list",
+        "reminder.create",
+        "location.get",
+        "notification.send",
+        "scan.qr",
+        "process.list",
+        "build.runner.token",
+        "project.generate_tweak",
+        "model.config",
+        "model.authentication",
+        "model.selectedProfileID",
+        "workspace.outputBookmark",
+        "workspace.outputName",
+        // v2.9.21：注入执行工具真实可用
+        "injection.enable",
+        "injection.disable",
+        "injection.status",
+        "injection.inspect",
+        "injection.list",
+        "injection.remove",
+        // v2.9.17：技能真实可用
+        "skills.list",
+        "skills.read",
+        "skills.set_enabled",
+        "tool_search"
+    ]
 
     private var filtered: [ToolDefinition] {
-        let defs = registry.definitions
+        var defs = registry.definitions
+        if showOnlyReal {
+            defs = defs.filter { realTools.contains($0.name) }
+        }
         if searchText.isEmpty { return defs }
         return defs.filter { $0.name.localizedCaseInsensitiveContains(searchText) || $0.summary.localizedCaseInsensitiveContains(searchText) }
     }
@@ -217,12 +268,30 @@ struct ToolPermissionPoliciesView: View {
                     }
                 }
 
+                // v2.9.23：并入原"本机工具审计"的过滤
+                Section(header: SettingSectionHeader(title: "过滤")) {
+                    Toggle("仅显示真实实现", isOn: $showOnlyReal)
+                    Text("「真实」= 有实际执行逻辑；「占位」= 仅注册了接口、未接入真实功能。")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
                 Section(header: SettingSectionHeader(title: "工具列表")) {
                     ForEach(filtered, id: \.name) { def in
                         HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(def.name)
-                                    .font(.body)
+                                HStack(spacing: 6) {
+                                    Text(def.name)
+                                        .font(.system(.body, design: .monospaced))
+                                    Text(realTools.contains(def.name) ? "真实" : "占位")
+                                        .font(.caption2)
+                                        .fontWeight(.medium)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background((realTools.contains(def.name) ? Color.green : Color.orange).opacity(0.15))
+                                        .foregroundColor(realTools.contains(def.name) ? .green : .orange)
+                                        .cornerRadius(4)
+                                }
                                 Text(def.summary)
                                     .font(.caption)
                                     .foregroundColor(.secondary)
