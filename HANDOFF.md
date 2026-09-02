@@ -156,6 +156,7 @@ IPA 未签名，通过 TrollStore 安装。TrollStore 会自动签名并继承 e
 | **Knowledge** | MissingTools.swift | 本机文件知识库 |
 | **System** | AllMCPTools.swift | Contacts, Calendar, Reminder, Location, Notification, QR, Process |
 | **Build（v2.9.3+）** | BuildTools.swift | 设备端编译桥：`build.environment` 探测 toolchain/clang/make/theos/SDK；`build.run` 用 posix_spawn + `/bin/sh -c "cd ... && exec ..."` 编译；v2.9.4 支持 toolchain=system（越狱 Nyxian 系统布局）与绝对路径 |
+| **build-tweak workflow** | .github/workflows/build-tweak.yml | 线上编译 tweak：macOS runner + theos（递归 submodule，dm.pl 软链目标需 submodule）+ Xcode SDK 软链 iPhoneOS17.5.sdk + brew ldid/dpkg；触发方式 `gh workflow run build-tweak -f tweak=<name>` |
 
 ### 第二层：设备端 WS 客户端（真发消息，执行在服务端）
 
@@ -434,9 +435,10 @@ D:/Users/Administrator/Desktop/Payload/TrollMCP.app/            # 完整 .app �
 | **2.9.2** | 09-02 | **聊天复制/分享 + 移除 OpenAI Completions**：① 长按消息气泡 → 复制/分享（UIPasteboard / UIActivityViewController）；② 导航栏"勾选"进入多选模式 → 点选多条消息 → 复制或分享到其他 App（勾选文本带"我：/工具结果"前缀与会话标题）；③ 移除废弃的「OpenAI Completions」旧协议（旧配置自动迁移到 Chat Completions，请求固定走 /chat/completions） |
 | **2.9.3** | 09-02 | **设备端编译桥（本机构建）**：新增 `build.environment`（检查 toolchain/clang/make/perl/ldid/theos/iOS SDK，真实跑 --version 探测）与 `build.run`（编译 projects/ 下的 theos `make [package]` 或裸 clang 工程，返回退出码/输出/产物）；`project.generate_tweak` 补全 Tweak.x 生成；BuildRunner 用 posix_spawn + `/bin/sh -c "cd '<dir>' && exec ..."` 处理工作目录（iOS SDK 无 posix_spawnattr_setworkingdir_np、fork() 不可用），输出落临时文件 + 超时杀进程 + 类型容错参数（Bool/Double/数组兼容字符串） |
 | **2.9.4** | 09-02 | **工具链 system 模式 + 绝对路径**：`build.environment`/`build.run` 的 toolchain 参数支持 `system`（越狱机 Nyxian 系统布局：clang/make/perl/ldid 在 /var/jb/usr/bin、/usr/bin，theos 在 /usr/local/theos）与任意绝对路径；规范布局仍走 Workspace/<path>。新增 ToolchainProfile/resolveToolchainProfile 统一解析 |
+| **2.9.4+tweak** | 09-02 | **线上编译 tweak（非越狱正解）**：新增 `build-tweak` workflow（GitHub Actions macOS runner + theos 递归 submodule + Xcode SDK 软链 + dm.pl），仓库 `tweaks/<name>/` 放工程，手动触发即产出 .dylib + .deb；CompileProbe 已编译验证成功 |
 
 最新 IPA：`artifacts/v2.9.4/TrollMCP2-v2.9.4-20260902.ipa`（包内版本已验证 2.9.4）
-GitHub Actions run：33617736761 ✅
+GitHub Actions run：33617736761 ✅（IPA）；33620936109 ✅（CompileProbe tweak 产物）
 
 ### v2.9.0 关键认知（重要！）
 
