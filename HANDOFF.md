@@ -457,6 +457,20 @@ GitHub Actions run：33617736761 ✅（v2.9.4 IPA）；33620936109 ✅（Compile
 
 降级链（v2.9.0）：L0 完整 → L1 互换 token key → L2 去 tool_choice → **L5 Responses API+工具**（保住工具调用）→ L3 纯对话 → L4 最小载荷 → 结束。nextLevel 的哨兵值 6 防止 L4→L5→L3 死循环。
 
+### v2.9.22 关键认知（2026-09-03）
+
+**AI 工具搜索即自动授权（无需手动开 Toggle）**：用户质疑"本机工具审计要手动开启？为什么不能让 AI 查询决定用哪个"。此前 dispatch 拦 isEnabled，工具策略禁用时 AI 通过 tool_search 搜到也调不了。现在：
+- ToolRegistry 加 `sessionApproved` + `approveForSession` / `clearSessionApproval` / `isSessionApproved`
+- `ToolSearchTool.invoke` 命中即 approve（搜索到 = 决定使用 = 授权）
+- `dispatch` 改为 `isEnabled || isSessionApproved` 放行
+- 新会话 `clearSessionApproval()` 自动清空授权
+- 工具权限策略页 / 本机工具审计页加说明文案
+- ToolAuditView.realTools 补 injection.* / skills.* / tool_search 为"真实"
+
+**指令编辑器滚动修复**：Form+TextEditor 滚动冲突/键盘遮挡 → ScrollView + 520 高 TextEditor + 键盘高度监听底部留白 + iOS14 兼容"收起键盘"按钮（`.keyboard` toolbar 是 iOS15+，iOS14 会编译失败，已改按钮形式）。
+
+CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifacts\v2.9.22
+
 ### v2.9.1 关键认知（重要！）
 
 用户截图证实：Responses API 已打通，但报 **`Invalid tools[0].name: name must contain a-z A-Z 0-9 _ -`** —— OpenAI 端点对 function tool 名有严格校验（`^[a-zA-Z0-9_-]+$`），而我们 57 个工具里部分原名含中文/点号/冒号。修复：
