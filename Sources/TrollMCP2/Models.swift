@@ -555,7 +555,31 @@ final class ConversationStore: ObservableObject {
             return
         }
         do {
-            let r = try ToolRegistry.shared.dispatch(name: call.name, params: params)
+            // v2.9.29：工具执行放后台线程，避免注入/文件操作等耗时调用阻塞主线程
+            // （授权恢复后执行注入导致一直转圈 + 聊天框/输入框无响应）。
+            // dispatch 在后台执行，结果/授权/错误统一回主线程继续递归。
+            DispatchQueue.global().async {
+                let result: Result<[String: Any], Error>
+                do { result = .success(try ToolRegistry.shared.dispatch(name: call.name, params: params)) }
+                catch { result = .failure(error) }
+                DispatchQueue.main.async {
+                    self.handleDispatchResult(result, call: call, calls: calls, index: index,
+                                              toolMessages: toolMessages, newlyDisclosed: newlyDisclosed,
+                                              forceDeny: forceDeny, config: config, tools: tools,
+                                              disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
+                }
+            }
+        }
+    }
+
+    /// v2.9.29：在主线程处理一次工具执行结果，然后继续递归调用链
+    private func handleDispatchResult(_ result: Result<[String: Any], Error>,
+                                      call: ToolCall, calls: [ToolCall], index: Int,
+                                      toolMessages: [ChatMessage], newlyDisclosed: [String],
+                                      forceDeny: Set<String>, config: ModelConfig, tools: [[String: Any]]?,
+                                      disclosed: [String], depth: Int, reasoningLevel: Int) {
+        switch result {
+        case .success(let r):
             let content = Self.jsonString(r)
             var next = toolMessages
             next.append(ChatMessage(role: "tool", content: content, toolCallId: call.id, toolName: call.name))
@@ -581,10 +605,10 @@ final class ConversationStore: ObservableObject {
             }
             self.processToolCalls(calls, index: index + 1, toolMessages: next, newlyDisclosed: nextDisclosed, forceDeny: forceDeny,
                                   config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
-        } catch let err as MCPError {
+        case .failure(let err as MCPError):
             if case .requiresApproval = err {
                 // v2.9.25：暂停，弹授权选择（本轮/会话/拒绝），用户选择后恢复
-                pendingApproval = PendingToolApproval(
+                self.pendingApproval = PendingToolApproval(
                     toolName: call.name,
                     summary: ToolRegistry.shared.summary(for: call.name) ?? "未知工具",
                     callId: call.id,
@@ -598,16 +622,16 @@ final class ConversationStore: ObservableObject {
                     toolMessages: toolMessages,
                     newlyDisclosed: newlyDisclosed
                 )
-                statusText = "等待你授权工具 \(call.name)"
+                self.statusText = "等待你授权工具 \(call.name)"
                 return
             }
             var next = toolMessages
             next.append(ChatMessage(role: "tool", content: "error: \(err)", isError: true, toolCallId: call.id, toolName: call.name))
             self.processToolCalls(calls, index: index + 1, toolMessages: next, newlyDisclosed: newlyDisclosed, forceDeny: forceDeny,
                                   config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
-        } catch {
+        case .failure(let err):
             var next = toolMessages
-            next.append(ChatMessage(role: "tool", content: "error: \(error)", isError: true, toolCallId: call.id, toolName: call.name))
+            next.append(ChatMessage(role: "tool", content: "error: \(err)", isError: true, toolCallId: call.id, toolName: call.name))
             self.processToolCalls(calls, index: index + 1, toolMessages: next, newlyDisclosed: newlyDisclosed, forceDeny: forceDeny,
                                   config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
         }
