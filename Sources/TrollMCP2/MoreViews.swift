@@ -554,6 +554,17 @@ struct DevInstructionEditorView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
+                    // v2.9.22：iOS14 兼容的收起键盘按钮
+                    Button(action: hideKeyboard) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "keyboard.chevron.compact.down")
+                            Text("收起键盘")
+                        }
+                        .font(.subheadline)
+                        .foregroundColor(.blue)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                    }
                 }
                 .padding()
                 // 键盘弹出时底部留白，确保能滚到末尾
@@ -567,11 +578,6 @@ struct DevInstructionEditorView: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("保存") { save() }
-                }
-                // 键盘工具栏：收起键盘
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("完成") { hideKeyboard() }
                 }
             }
             .onAppear {
