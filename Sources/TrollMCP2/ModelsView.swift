@@ -145,7 +145,7 @@ struct ModelEditorView: View {
         _authMethod = State(initialValue: config?.authMethod ?? (p?.auth ?? "Bearer"))
         _isDefault = State(initialValue: config?.isDefault ?? false)
         _temperature = State(initialValue: config?.temperature ?? 0.7)
-        _maxTokens = State(initialValue: config?.maxTokens ?? 4096)
+        _maxTokens = State(initialValue: config?.maxTokens ?? 2048)
         _contextTokens = State(initialValue: config?.contextTokens ?? 16000)
     }
 
@@ -183,6 +183,9 @@ struct ModelEditorView: View {
                     Text("上下文预算：发送给模型的上下文 token 上限。会话超出时自动裁剪最早的历史消息（保留最近对话），避免长会话请求过大变慢或超时。")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                    Text("提速提示：Max Tokens 是输出上限，值越大模型单次生成越长、等待越久。日常对话 2048 已够用；若回复慢，可调低 Max Tokens 或上下文预算。")
+                        .font(.caption)
+                        .foregroundColor(.blue)
                 }
 
                 Section(header: sectionHeader("操作")) {

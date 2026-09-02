@@ -71,6 +71,7 @@ public final class ToolRegistry: ObservableObject {
     /// 根因：80+ 工具全量进 schema 导致每次请求载荷巨大，中转/gpt-5.6 处理极慢甚至超时。
     /// 未显式设置的工具按此白名单决定默认启用；用户显式开/关过的仍以用户为准。
     private static let defaultEnabledTools: Set<String> = [
+        "tool_search",   // v2.9.16：渐进式披露元工具，必须始终可用
         "ping", "device.info", "device.probe", "workspace.info",
         "artifact.read_text", "artifact.write_text", "artifact.list",
         "web.search", "knowledge.search",
@@ -140,6 +141,58 @@ public final class ToolRegistry: ObservableObject {
         }
         apiNameToOriginal = map
         return result
+    }
+
+    /// v2.9.16：tool_search 渐进式披露——按关键词搜索工具名/摘要，返回紧凑清单（不带完整 schema）
+    public func searchTools(query: String, limit: Int = 8) -> [[String: String]] {
+        lock.lock()
+        defer { lock.unlock() }
+        let q = query.lowercased()
+        var hits: [(name: String, summary: String, score: Int)] = []
+        for (_, tool) in tools {
+            let def = tool.definition
+            let nameL = def.name.lowercased()
+            let sumL = def.summary.lowercased()
+            var score = 0
+            if !q.isEmpty {
+                if nameL.contains(q) { score += 3 }
+                if sumL.contains(q) { score += 2 }
+                // 简单分词：每个词命中加分
+                for w in q.split(separator: " ").map({ String($0) }) where !w.isEmpty {
+                    if nameL.contains(w) { score += 1 }
+                    if sumL.contains(w) { score += 1 }
+                }
+            } else {
+                score = 1
+            }
+            if score > 0 { hits.append((def.name, def.summary, score)) }
+        }
+        hits.sort { $0.score > $1.score }
+        return hits.prefix(limit).map { ["name": $0.name, "summary": $0.summary] }
+    }
+
+    /// v2.9.16：返回单个工具的完整 OpenAI function schema（供 tool_search 命中后动态注入下一轮）
+    public func openAISchema(for name: String) -> [String: Any]? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let tool = tools[name] else { return nil }
+        let def = tool.definition
+        var props: [String: [String: String]] = [:]
+        for (k, v) in def.parameters {
+            props[k] = ["type": "string", "description": v]
+        }
+        return [
+            "type": "function",
+            "function": [
+                "name": def.apiName,
+                "description": def.summary,
+                "parameters": [
+                    "type": "object",
+                    "properties": props,
+                    "required": [String](def.parameters.keys)
+                ]
+            ]
+        ]
     }
 
     @discardableResult
@@ -248,8 +301,33 @@ public final class ToolRegistry: ObservableObject {
         register(PhoneCallTool())
         register(PhoneScheduleCallTool())
         register(SkillsSetEnabledTool())
+        register(ToolSearchTool())   // v2.9.16：渐进式披露元工具
 
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
+    }
+}
+
+// MARK: - tool_search 元工具（v2.9.16 渐进式披露）
+
+/// 模型用此工具按关键词搜索全部可用工具，返回名称+摘要清单。
+/// 命中后 App 会把对应工具的完整 schema 注入下一轮请求，从而
+/// 不必把 80+ 工具全量塞进每次请求（学 OpenClaw / OpenAI Tool Search）。
+final class ToolSearchTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "tool_search",
+        summary: "搜索可用工具目录：按关键词返回匹配的工具名与用途摘要。当需要某项能力但当前可用工具中没有时，先用它搜索，再调用搜到的工具。",
+        parameters: ["query": "搜索关键词，例如 github、注入、文件、定时", "limit": "最多返回数量（默认 8）"])
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        let query = (params["query"] as? String) ?? ""
+        let limit = (params["limit"] as? NSNumber)?.intValue ?? 8
+        let hits = ToolRegistry.shared.searchTools(query: query, limit: max(1, min(limit, 20)))
+        return [
+            "query": query,
+            "total": hits.count,
+            "tools": hits,
+            "hint": "如需要调用以上某个工具，直接使用它的名字；App 会自动在下一轮加载其定义。"
+        ]
     }
 }
 

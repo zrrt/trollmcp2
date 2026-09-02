@@ -14,7 +14,7 @@ struct ModelConfig: Codable, Identifiable, Hashable {
     var authMethod: String        // Bearer / API Key / None
     var isDefault: Bool = false
     var temperature: Double = 0.7
-    var maxTokens: Int = 4096
+    var maxTokens: Int = 2048
     /// v2.9.11：输入上下文预算（token 估算）。发送前按预算自动裁剪最旧消息，
     /// 避免长会话请求体无限增长导致"一直请求中"。
     var contextTokens: Int = 16000
@@ -24,7 +24,7 @@ struct ModelConfig: Codable, Identifiable, Hashable {
 
     init(id: UUID = UUID(), name: String, provider: String, apiProtocol: String = "OpenAI Chat Completions",
          baseURL: String, apiKey: String, model: String, authMethod: String = "Bearer",
-         isDefault: Bool = false, temperature: Double = 0.7, maxTokens: Int = 4096, compatLevel: Int = 0,
+         isDefault: Bool = false, temperature: Double = 0.7, maxTokens: Int = 2048, compatLevel: Int = 0,
          contextTokens: Int = 16000) {
         self.id = id
         self.name = name
@@ -56,7 +56,7 @@ struct ModelConfig: Codable, Identifiable, Hashable {
         authMethod = decodedAuthMethod.trimmingCharacters(in: .whitespaces).isEmpty ? "Bearer" : decodedAuthMethod
         isDefault = (try? c.decode(Bool.self, forKey: .isDefault)) ?? false
         temperature = (try? c.decode(Double.self, forKey: .temperature)) ?? 0.7
-        maxTokens = (try? c.decode(Int.self, forKey: .maxTokens)) ?? 4096
+        maxTokens = (try? c.decode(Int.self, forKey: .maxTokens)) ?? 2048
         contextTokens = (try? c.decode(Int.self, forKey: .contextTokens)) ?? 16000
         compatLevel = (try? c.decode(Int.self, forKey: .compatLevel)) ?? 0
     }
@@ -404,11 +404,13 @@ final class ConversationStore: ObservableObject {
         appendToCurrent(msg)
         isLoading = true
 
-        let tools = config.apiProtocol == "Anthropic Messages" ? nil : ToolRegistry.shared.enabledOpenAIToolSchema()
-        runLoop(config: config, tools: tools, depth: 0)
+        // v2.9.16：渐进式披露——初始只带白名单工具 + tool_search 元工具，
+        // 模型搜索命中后按需注入其余工具，避免 80+ 工具全量进请求导致慢/超时
+        let baseTools = config.apiProtocol == "Anthropic Messages" ? nil : ToolRegistry.shared.enabledOpenAIToolSchema()
+        runLoop(config: config, tools: baseTools, disclosed: [], depth: 0)
     }
 
-    private func runLoop(config: ModelConfig, tools: [[String: Any]]?, depth: Int) {
+    private func runLoop(config: ModelConfig, tools: [[String: Any]]?, disclosed: [String], depth: Int) {
         guard depth < 6 else {
             isLoading = false
             statusText = nil
@@ -416,11 +418,30 @@ final class ConversationStore: ObservableObject {
             return
         }
 
+        // 动态合并：白名单 schema + 已披露工具的 schema（去重）
+        var effectiveTools = tools
+        if effectiveTools != nil, !disclosed.isEmpty {
+            var existing = Set<String>()
+            for t in effectiveTools ?? [] {
+                if let fn = t["function"] as? [String: Any], let n = fn["name"] as? String {
+                    existing.insert(n)
+                }
+            }
+            for name in disclosed {
+                let apiName = name.components(separatedBy: CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-").inverted).joined(separator: "_")
+                if existing.contains(apiName) { continue }
+                if let schema = ToolRegistry.shared.openAISchema(for: name) {
+                    effectiveTools?.append(schema)
+                    existing.insert(apiName)
+                }
+            }
+        }
+
         let client = OpenAIClient(config)
         currentClient = client
         let history = messagesForAPI(budget: config.contextTokens)
 
-        client.send(messages: history, tools: tools, onStatus: { status in
+        client.send(messages: history, tools: effectiveTools, onStatus: { status in
             DispatchQueue.main.async { self.statusText = status }
         }) { result in
             DispatchQueue.main.async {
@@ -434,18 +455,31 @@ final class ConversationStore: ObservableObject {
                     let summary = calls.map { "调用工具 \($0.name)" }.joined(separator: "\n")
                     self.appendToCurrent(ChatMessage(role: "assistant", content: summary, toolCalls: calls))
                     var toolMessages: [ChatMessage] = []
+                    var newlyDisclosed: [String] = []
                     for call in calls {
                         let params = Self.parseArgs(call.arguments)
                         do {
                             let r = try ToolRegistry.shared.dispatch(name: call.name, params: params)
                             let content = Self.jsonString(r)
                             toolMessages.append(ChatMessage(role: "tool", content: content, toolCallId: call.id, toolName: call.name))
+                            // v2.9.16：tool_search 命中后，把搜到的工具名加入待披露集合，
+                            // 下一轮请求自动带上它们的完整 schema
+                            if call.name == "tool_search" {
+                                if let arr = r["tools"] as? [[String: Any]] {
+                                    for item in arr {
+                                        if let n = item["name"] as? String, !n.isEmpty {
+                                            newlyDisclosed.append(n)
+                                        }
+                                    }
+                                }
+                            }
                         } catch {
                             toolMessages.append(ChatMessage(role: "tool", content: "error: \(error)", isError: true, toolCallId: call.id, toolName: call.name))
                         }
                     }
                     for tm in toolMessages { self.appendToCurrent(tm) }
-                    self.runLoop(config: config, tools: tools, depth: depth + 1)
+                    let merged = Array(Set(disclosed + newlyDisclosed))
+                    self.runLoop(config: config, tools: tools, disclosed: merged, depth: depth + 1)
                 case .failure(let error):
                     self.isLoading = false
                     self.currentClient = nil
@@ -471,11 +505,11 @@ final class ConversationStore: ObservableObject {
         // 长会话：从旧到新裁剪，但始终保留最后 N 条核心消息
         let keepMin = 6
         var kept: [ChatMessage] = []
-        var used = 0
-        // 先保留最新 keepMin 条（含用户最新提问），再从旧到新补
+        // 先保留最新 keepMin 条（含用户最新提问），其 token 计入预算
         let suffix = Array(all.suffix(keepMin))
         let prefix = Array(all.prefix(all.count - keepMin))
-        // 从旧到新累计到预算内（不含已保留的 suffix）
+        var used = suffix.reduce(0) { $0 + Self.estimateTokens($1) }
+        // 从旧到新累计到「预算 - suffix」内（v2.9.16：suffix 计入预算，避免超发）
         for m in prefix {
             let t = Self.estimateTokens(m)
             if used + t > budget { break }
