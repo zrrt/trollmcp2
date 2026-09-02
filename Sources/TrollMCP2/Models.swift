@@ -426,10 +426,12 @@ final class ConversationStore: ObservableObject {
     }
 
     private func runLoop(config: ModelConfig, tools: [[String: Any]]?, disclosed: [String], depth: Int, reasoningLevel: Int = 1) {
-        guard depth < 6 else {
+        // v2.9.24：上限 6→8。这是防止 AI 陷入"无限调用工具"死循环的保护，
+        // 达到上限时提示更友好并告知用户可继续。
+        guard depth < 8 else {
             isLoading = false
             statusText = nil
-            appendToCurrent(ChatMessage(role: "assistant", content: "工具调用次数过多，已停止。", isError: true))
+            appendToCurrent(ChatMessage(role: "assistant", content: "已达到本轮工具调用上限（8 轮），已停止，防止死循环。你可以直接回复「继续」，我会接着处理。", isError: true))
             return
         }
 

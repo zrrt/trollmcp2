@@ -466,6 +466,8 @@ struct DeveloperInstructionsView: View {
     @State private var items: [DeveloperInstructionStore.Item] = []
     @State private var editing: DevInstrEditorPayload?
     @State private var creating = false
+    // v2.9.24：一键复制提示
+    @State private var copiedName: String?
 
     var body: some View {
         NavigationView {
@@ -492,6 +494,14 @@ struct DeveloperInstructionsView: View {
                                         .cornerRadius(6)
                                 }
                                 Spacer()
+                                // v2.9.24：一键复制按钮（无需长按）
+                                Button(action: { copyItem(item) }) {
+                                    Image(systemName: copiedName == item.name ? "checkmark" : "doc.on.doc")
+                                        .font(.subheadline)
+                                        .foregroundColor(copiedName == item.name ? .green : .blue)
+                                        .frame(width: 28, height: 28)
+                                }
+                                .buttonStyle(BorderlessButtonStyle())
                             }
                             Text(preview(item.content))
                                 .font(.caption)
@@ -570,6 +580,13 @@ struct DeveloperInstructionsView: View {
     /// v2.9.20：复制指令内容到剪贴板
     private func copyItem(_ item: DeveloperInstructionStore.Item) {
         UIPasteboard.general.string = item.content
+        // v2.9.24：复制成功反馈（图标变绿 checkmark，1.5s 后恢复）
+        withAnimation { copiedName = item.name }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            if copiedName == item.name {
+                withAnimation { copiedName = nil }
+            }
+        }
     }
 
     private func remove(_ item: DeveloperInstructionStore.Item) {
@@ -645,8 +662,14 @@ struct DevInstructionEditorView: View {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("取消") { presentationMode.wrappedValue.dismiss() }
                 }
+                // v2.9.24：编辑时一键复制当前内容
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("保存") { save() }
+                    HStack(spacing: 12) {
+                        Button(action: copyContent) {
+                            Image(systemName: "doc.on.doc")
+                        }
+                        Button("保存") { save() }
+                    }
                 }
             }
             .onAppear {
@@ -685,6 +708,11 @@ struct DevInstructionEditorView: View {
             DeveloperInstructionStore.shared.update(name: trimmed, content: content)
         }
         presentationMode.wrappedValue.dismiss()
+    }
+
+    /// v2.9.24：编辑器一键复制当前内容
+    private func copyContent() {
+        UIPasteboard.general.string = content
     }
 }
 

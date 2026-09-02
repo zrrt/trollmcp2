@@ -87,8 +87,10 @@ public final class ToolRegistry: ObservableObject {
     ]
 
     public func isEnabled(name: String) -> Bool {
-        let disabled = UserDefaults.standard.object(forKey: disabledKey) as? [String: Bool] ?? [:]
-        if let v = disabled[name] { return v }   // 用户显式设置过，以用户为准
+        // v2.9.24：改用显式状态字典。用户手动开/关过的工具以显式值为准；
+        // 未设置过的工具按白名单决定默认启用。修复"非白名单工具手动开启无效"bug。
+        let states = UserDefaults.standard.object(forKey: disabledKey) as? [String: Bool] ?? [:]
+        if let v = states[name] { return v }
         return Self.defaultEnabledTools.contains(name)
     }
 
@@ -113,13 +115,11 @@ public final class ToolRegistry: ObservableObject {
     }
 
     public func setEnabled(name: String, enabled: Bool) {
-        var disabled = UserDefaults.standard.object(forKey: disabledKey) as? [String: Bool] ?? [:]
-        if enabled {
-            disabled.removeValue(forKey: name)
-        } else {
-            disabled[name] = false
-        }
-        UserDefaults.standard.set(disabled, forKey: disabledKey)
+        // v2.9.24：直接写显式状态（true=启用，false=禁用），而非删除 key。
+        // 修复"非白名单工具手动开启后开关弹回"bug（旧实现 removeValue 后回落白名单）。
+        var states = UserDefaults.standard.object(forKey: disabledKey) as? [String: Bool] ?? [:]
+        states[name] = enabled
+        UserDefaults.standard.set(states, forKey: disabledKey)
         objectWillChange.send()
         AuditLog.shared.log("policy", detail: "\(name) \(enabled ? "启用" : "禁用")")
     }
