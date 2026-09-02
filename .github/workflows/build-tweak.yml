@@ -22,27 +22,27 @@ jobs:
 
       - name: Install theos + deps
         run: |
-          if [ ! -d /opt/theos/makefiles ]; then
-            sudo mkdir -p /opt/theos
-            sudo git clone --depth 1 https://github.com/theos/theos.git /opt/theos
-          else
-            echo "theos 已预装，复用"
+          # 用干净的 $HOME/theos，绕开 runner 预装 /opt/theos 的不完整副本
+          export THEOS="$HOME/theos"
+          if [ ! -d "$THEOS/makefiles" ]; then
+            git clone --depth 1 https://github.com/theos/theos.git "$THEOS"
           fi
           # 复用 runner 自带 Xcode 的 iOS SDK（免下载几 GB）
-          sudo mkdir -p /opt/theos/sdks /opt/theos/vendor
-          if [ ! -e /opt/theos/sdks/iPhoneOS17.5.sdk ]; then
-            sudo ln -s "$(xcrun --sdk iphoneos --show-sdk-path)" /opt/theos/sdks/iPhoneOS17.5.sdk
+          mkdir -p "$THEOS/sdks" "$THEOS/vendor"
+          if [ ! -e "$THEOS/sdks/iPhoneOS17.5.sdk" ]; then
+            ln -s "$(xcrun --sdk iphoneos --show-sdk-path)" "$THEOS/sdks/iPhoneOS17.5.sdk"
           fi
           # 预装 theos 可能缺 dm.pl（deb 打包脚本），从官方仓库补齐
-          if [ ! -e /opt/theos/vendor/dm.pl ]; then
-            sudo curl -sL https://raw.githubusercontent.com/theos/theos/master/vendor/dm.pl -o /opt/theos/vendor/dm.pl
+          if [ ! -e "$THEOS/vendor/dm.pl" ]; then
+            curl -sL https://raw.githubusercontent.com/theos/theos/master/vendor/dm.pl -o "$THEOS/vendor/dm.pl"
           fi
           brew install ldid dpkg >/dev/null 2>&1 || true
+          echo "THEOS=$THEOS" >> "$GITHUB_ENV"
 
       - name: Build tweak (${{ inputs.tweak }})
         working-directory: tweaks/${{ inputs.tweak }}
         run: |
-          export THEOS=/opt/theos
+          export THEOS="$HOME/theos"
           export THEOS_PACKAGE_SCHEME=rootless
           make package
 
