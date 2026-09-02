@@ -240,7 +240,7 @@ final class GitHubDownloadArtifactTool: MCPTool {
         let unzipDir = outDir.appendingPathComponent("run_\(rid)")
         try? FileManager.default.removeItem(at: unzipDir)
         try FileManager.default.createDirectory(at: unzipDir, withIntermediateDirectories: true)
-        try? FileManager.default.unzipItem(at: zipPath, to: unzipDir)
+        try? ZipExtractor.unzip(zipPath, to: unzipDir)
 
         var entries: [String] = []
         if let en = FileManager.default.enumerator(at: unzipDir, includingPropertiesForKeys: nil) {

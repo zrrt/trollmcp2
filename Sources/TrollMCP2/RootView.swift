@@ -144,9 +144,8 @@ struct ConversationDrawerView: View {
                     }
                     .buttonStyle(PlainButtonStyle())
                     .contextMenu {
-                        Button(role: .destructive) {
-                            deleteSingle(conv.id)
-                        } label: {
+                        // iOS14 兼容：不用 Button(role:)
+                        Button(action: { deleteSingle(conv.id) }) {
                             Label("删除对话", systemImage: "trash")
                         }
                     }
