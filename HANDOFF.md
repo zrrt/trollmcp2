@@ -1,6 +1,6 @@
 # TrollMCP2 项目交接文档
 
-> 版本：v2.9.1 | 最后更新：2026-09-02 | 仓库：github.com/origina47487lhe-droid/trollmcp2（私有）
+> 版本：v2.9.2 | 最后更新：2026-09-02 | 仓库：github.com/origina47487lhe-droid/trollmcp2（私有）
 
 ---
 
@@ -183,7 +183,7 @@ runLoop(config, tools, depth=0)
   ↓
 OpenAIClient.send(messages, tools)
   ├─ apiProtocol == "Anthropic Messages" → POST {base}/messages
-  ├─ apiProtocol == "OpenAI Completions" → POST {base}/completions
+  ├─ apiProtocol == "OpenAI Responses" → POST {base}/responses（v2.9.0，Codex 同款）
   └─ apiProtocol == "OpenAI Chat Completions" / "Custom" → POST {base}/chat/completions
   ↓
   请求体：
@@ -430,9 +430,10 @@ D:/Users/Administrator/Desktop/Payload/TrollMCP.app/            # 完整 .app �
 | **2.8.6** | 09-02 | 请求超时（URLSession -1001）触发降级；500/502/503/504 也纳入可降级；首次超时缩至 45s |
 | **2.9.0** | 09-02 | **Responses API 支持**（/v1/responses，Codex 同款端点）：新级别 L5「Responses API+工具」、新协议「OpenAI Responses」、L3/L4 旧配置自动先试 L5 |
 | **2.9.1** | 09-02 | **工具名净化**：OpenAI/Responses API 要求工具名匹配 `^[a-zA-Z0-9_-]+$`；ToolDefinition.apiName 净化（中文/标点→下划线、数字开头加 t_ 前缀、重名加 _N 后缀），dispatch 用 apiNameToOriginal 反查原始工具 |
+| **2.9.2** | 09-02 | **聊天复制/分享 + 移除 OpenAI Completions**：① 长按消息气泡 → 复制/分享（UIPasteboard / UIActivityViewController）；② 导航栏"勾选"进入多选模式 → 点选多条消息 → 复制或分享到其他 App（勾选文本带"我：/工具结果"前缀与会话标题）；③ 移除废弃的「OpenAI Completions」旧协议（旧配置自动迁移到 Chat Completions，请求固定走 /chat/completions） |
 
-最新 IPA：`artifacts/v2.9.1/TrollMCP2-v2.9.1-20260902.ipa`（5.25MB，包内版本已验证 2.9.1）
-GitHub Actions run：33543724495 ✅
+最新 IPA：`artifacts/v2.9.2/TrollMCP2-v2.9.2-20260902.ipa`（5.27MB，包内版本已验证 2.9.2）
+GitHub Actions run：33613292005 ✅
 
 ### v2.9.0 关键认知（重要！）
 
