@@ -241,7 +241,7 @@ struct ChatView: View {
         guard let cfg = modelStore.defaultConfig else { return }
         if store.selectedId == nil { store.newConversation() }
         inputText = ""
-        store.send(text, using: cfg)
+        store.send(text, using: cfg, reasoningLevel: reasoning, smartSearch: smartSearch)
     }
 
     private var messageList: some View {
@@ -456,7 +456,7 @@ struct ChatView: View {
         let attImgs = pendingAttachments.compactMap { $0.dataURL }
         pendingAttachments = []
         let finalImgs = attImgs.isEmpty ? imgs : attImgs
-        store.send(text, using: cfg, imageDataURLs: finalImgs)
+        store.send(text, using: cfg, imageDataURLs: finalImgs, reasoningLevel: reasoning, smartSearch: smartSearch)
         AuditLog.shared.log("chat", detail: "发送消息")
     }
 
@@ -623,6 +623,7 @@ struct MessageBubble: View {
     var onShare: (() -> Void)? = nil
 
     @State private var expanded = false
+    @State private var thinkingExpanded = false
 
     private var isUser: Bool { message.role == "user" }
     private var isTool: Bool { message.isTool }
@@ -677,6 +678,10 @@ struct MessageBubble: View {
             if let imgs = message.imageDataURLs, !imgs.isEmpty {
                 messageImageStrip(imgs)
             }
+            // v2.9.20：思考记录（reasoning）可展开显示
+            if !isUser, let th = message.thinking, !th.isEmpty {
+                thinkingView(th)
+            }
             Text(message.content)
                 .font(.body)
                 .padding(.horizontal, 14)
@@ -689,6 +694,42 @@ struct MessageBubble: View {
                         .strokeBorder(isSelected ? (isUser ? Color.white : Color.blue) : Color.clear, lineWidth: 2)
                 )
         }
+    }
+
+    /// v2.9.20：思考记录（reasoning）折叠视图
+    private func thinkingView(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button(action: { withAnimation { thinkingExpanded.toggle() } }) {
+                HStack(spacing: 6) {
+                    Image(systemName: thinkingExpanded ? "chevron.down.circle" : "chevron.right.circle")
+                        .font(.system(size: 13))
+                    Text("思考过程")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.orange)
+                    Spacer()
+                    if thinkingExpanded {
+                        Button(action: { UIPasteboard.general.string = text }) {
+                            Image(systemName: "doc.on.doc")
+                                .font(.system(size: 13))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            if thinkingExpanded {
+                Text(text)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.orange.opacity(0.08))
+                    .cornerRadius(8)
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.bottom, 4)
     }
 
     /// v2.9.10：data URL → UIImage

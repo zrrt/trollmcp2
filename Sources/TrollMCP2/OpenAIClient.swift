@@ -2,7 +2,7 @@ import Foundation
 import Combine
 
 enum ChatResult {
-    case text(String)
+    case text(String, thinking: String?)
     case toolCalls([ToolCall])
 }
 
@@ -62,6 +62,8 @@ final class OpenAIClient {
     private weak var activeTask: URLSessionDataTask?
     /// v2.9.15：本轮请求起始时间（用于耗时统计，写入网络兼容日志）
     private var requestStart = Date()
+    /// v2.9.20：本轮推理强度（0=低 1=中 2=高），由 ChatView 传入并真实作用于请求。
+    var currentReasoningLevel = 1
 
     init(_ config: ModelConfig) {
         self.config = config
@@ -262,13 +264,11 @@ final class OpenAIClient {
         if level < 3, config.sendsTemperature {
             body["temperature"] = config.temperature
         }
-        // v2.8.5：推理模型（gpt-5.x/o 系）显式关闭 reasoning。
-        // 1) 默认 medium 档会先长时间"思考"，是聊天转圈半天的主因；
-        // 2) GPT-5.6 家族在 chat/completions 上 tools+默认 reasoning 组合会被拒，
-        //    社区报告设为 none 后 tools 可用。
+        // v2.9.20：推理强度由 UI 真实控制（0低=low 1中=medium 2高=high）。
+        // 低档仍比 none 有思考但显著提速；中档为默认。
         // 级别 4（最小载荷）不带该字段——若中转连这个字段都不认，还有最后一级兜底。
         if config.isReasoningModel {
-            body["reasoning_effort"] = "none"
+            body["reasoning_effort"] = reasoningEffortName()
         }
         if let tools = tools, !tools.isEmpty {
             if level < 3 {
@@ -286,6 +286,15 @@ final class OpenAIClient {
         let preferred = config.maxTokensKey
         if level == 1 { return preferred == "max_completion_tokens" ? "max_tokens" : "max_completion_tokens" }
         return preferred
+    }
+
+    /// v2.9.20：推理强度名。0=low 1=medium 2=high
+    private func reasoningEffortName() -> String {
+        switch currentReasoningLevel {
+        case 0: return "low"
+        case 2: return "high"
+        default: return "medium"
+        }
     }
 
     private func levelName(_ level: Int) -> String {
@@ -333,14 +342,14 @@ final class OpenAIClient {
                 }
             }
             if let content = message["content"] as? String {
-                return .text(content)
+                return .text(content, thinking: nil)
             }
-            return .text("")
+            return .text("", thinking: nil)
         }
         if let text = firstChoice["text"] as? String {
-            return .text(text)
+            return .text(text, thinking: nil)
         }
-        return .text("")
+        return .text("", thinking: nil)
     }
 
     private func persist(level: Int) {
@@ -374,7 +383,7 @@ final class OpenAIClient {
             "max_output_tokens": config.maxTokens
         ]
         if config.isReasoningModel {
-            body["reasoning"] = ["effort": "none"]
+            body["reasoning"] = ["effort": reasoningEffortName()]
         }
         if let tools = tools, !tools.isEmpty {
             body["tools"] = tools.map { responsesToolSchema($0) }
@@ -411,6 +420,7 @@ final class OpenAIClient {
                 if let output = json["output"] as? [[String: Any]] {
                     var calls: [ToolCall] = []
                     var text = ""
+                    var thinking = ""
                     for item in output {
                         let type = item["type"] as? String ?? ""
                         if type == "function_call",
@@ -418,6 +428,18 @@ final class OpenAIClient {
                            let name = item["name"] as? String,
                            let args = item["arguments"] as? String {
                             calls.append(ToolCall(id: callId, name: name, arguments: args))
+                        }
+                        if type == "reasoning" {
+                            if let summary = item["summary"] as? [[String: Any]] {
+                                for sm in summary {
+                                    if let st = sm["text"] as? String { thinking += st }
+                                }
+                            }
+                            if let contentArr = item["content"] as? [[String: Any]] {
+                                for cc in contentArr {
+                                    if let st = cc["text"] as? String { thinking += st }
+                                }
+                            }
                         }
                         if type == "message",
                            let content = item["content"] as? [[String: Any]] {
@@ -433,7 +455,8 @@ final class OpenAIClient {
                     if !calls.isEmpty {
                         completion(.success(.toolCalls(calls)))
                     } else {
-                        completion(.success(.text(text)))
+                        let t = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
+                        completion(.success(.text(text, thinking: t.isEmpty ? nil : t)))
                     }
                     return
                 }
@@ -550,7 +573,7 @@ final class OpenAIClient {
                     userInfo: [NSLocalizedDescriptionKey: "解析失败: \(raw.prefix(300))"])))
                 return
             }
-            completion(.success(.text(text)))
+            completion(.success(.text(text, thinking: nil)))
         }
         activeTask = task
         task.resume()

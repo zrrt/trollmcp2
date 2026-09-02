@@ -297,6 +297,8 @@ struct ChatMessage: Codable, Identifiable, Hashable {
     /// v2.9.9：多模态附件。存 data URL（如 "data:image/jpeg;base64,..."）。
     /// 发送时若非空，OpenAIClient 把 content 序列化为多模态数组。
     var imageDataURLs: [String]? = nil
+    /// v2.9.20：思考记录（reasoning）。Responses API 返回的 reasoning 摘要，气泡内可展开。
+    var thinking: String? = nil
 
     var isTool: Bool { role == "tool" }
 }
@@ -396,7 +398,8 @@ final class ConversationStore: ObservableObject {
         sortAndSave()
     }
 
-    func send(_ text: String, using config: ModelConfig, imageDataURLs: [String]? = nil) {
+    func send(_ text: String, using config: ModelConfig, imageDataURLs: [String]? = nil,
+              reasoningLevel: Int = 1, smartSearch: Bool = true) {
         var msg = ChatMessage(role: "user", content: text)
         if let imgs = imageDataURLs, !imgs.isEmpty {
             msg.imageDataURLs = imgs
@@ -406,11 +409,21 @@ final class ConversationStore: ObservableObject {
 
         // v2.9.16：渐进式披露——初始只带白名单工具 + tool_search 元工具，
         // 模型搜索命中后按需注入其余工具，避免 80+ 工具全量进请求导致慢/超时
-        let baseTools = config.apiProtocol == "Anthropic Messages" ? nil : ToolRegistry.shared.enabledOpenAIToolSchema()
-        runLoop(config: config, tools: baseTools, disclosed: [], depth: 0)
+        var baseTools = config.apiProtocol == "Anthropic Messages" ? nil : ToolRegistry.shared.enabledOpenAIToolSchema()
+        // v2.9.20：智能搜索开关真实生效——关闭时从工具集移除 web.search / knowledge.search
+        if !smartSearch {
+            let exclude = Set(["web.search", "knowledge.search"])
+            baseTools = baseTools?.filter { t in
+                if let fn = t["function"] as? [String: Any], let n = fn["name"] as? String {
+                    return !exclude.contains(n)
+                }
+                return true
+            }
+        }
+        runLoop(config: config, tools: baseTools, disclosed: [], depth: 0, reasoningLevel: reasoningLevel)
     }
 
-    private func runLoop(config: ModelConfig, tools: [[String: Any]]?, disclosed: [String], depth: Int) {
+    private func runLoop(config: ModelConfig, tools: [[String: Any]]?, disclosed: [String], depth: Int, reasoningLevel: Int = 1) {
         guard depth < 6 else {
             isLoading = false
             statusText = nil
@@ -438,6 +451,7 @@ final class ConversationStore: ObservableObject {
         }
 
         let client = OpenAIClient(config)
+        client.currentReasoningLevel = reasoningLevel
         currentClient = client
         var history = messagesForAPI(budget: config.contextTokens)
         // v2.9.19：默认开发者指令注入为 system 前缀（用户可自建并设为默认）
@@ -451,10 +465,12 @@ final class ConversationStore: ObservableObject {
             DispatchQueue.main.async {
                 self.statusText = nil
                 switch result {
-                case .success(.text(let text)):
+                case .success(.text(let text, let thinking)):
                     self.isLoading = false
                     self.currentClient = nil
-                    self.appendToCurrent(ChatMessage(role: "assistant", content: text))
+                    var am = ChatMessage(role: "assistant", content: text)
+                    if let th = thinking, !th.isEmpty { am.thinking = th }
+                    self.appendToCurrent(am)
                 case .success(.toolCalls(let calls)):
                     let summary = calls.map { "调用工具 \($0.name)" }.joined(separator: "\n")
                     self.appendToCurrent(ChatMessage(role: "assistant", content: summary, toolCalls: calls))
@@ -483,7 +499,7 @@ final class ConversationStore: ObservableObject {
                     }
                     for tm in toolMessages { self.appendToCurrent(tm) }
                     let merged = Array(Set(disclosed + newlyDisclosed))
-                    self.runLoop(config: config, tools: tools, disclosed: merged, depth: depth + 1)
+                    self.runLoop(config: config, tools: tools, disclosed: merged, depth: depth + 1, reasoningLevel: reasoningLevel)
                 case .failure(let error):
                     self.isLoading = false
                     self.currentClient = nil

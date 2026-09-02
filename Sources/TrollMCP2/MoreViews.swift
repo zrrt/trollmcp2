@@ -435,6 +435,9 @@ struct DeveloperInstructionsView: View {
                                     Label("设为默认（注入 AI）", systemImage: "checkmark.seal.fill")
                                 }
                             }
+                            Button(action: { copyItem(item) }) {
+                                Label("复制内容", systemImage: "doc.on.doc")
+                            }
                             Button(action: {
                                 editing = DevInstrEditorPayload(name: item.name, content: item.content)
                             }) {
@@ -489,6 +492,11 @@ struct DeveloperInstructionsView: View {
     private func makeDefault(_ item: DeveloperInstructionStore.Item) {
         DeveloperInstructionStore.shared.setDefault(name: item.name)
         reload()
+    }
+
+    /// v2.9.20：复制指令内容到剪贴板
+    private func copyItem(_ item: DeveloperInstructionStore.Item) {
+        UIPasteboard.general.string = item.content
     }
 
     private func remove(_ item: DeveloperInstructionStore.Item) {
