@@ -1,6 +1,6 @@
 # TrollMCP2 项目交接文档
 
-> 版本：v2.9.2 | 最后更新：2026-09-02 | 仓库：github.com/origina47487lhe-droid/trollmcp2（私有）
+> 版本：v2.9.3 | 最后更新：2026-09-02 | 仓库：github.com/origina47487lhe-droid/trollmcp2（私有）
 
 ---
 
@@ -155,6 +155,7 @@ IPA 未签名，通过 TrollStore 安装。TrollStore 会自动签名并继承 e
 | **Automation** | OriginalTools.swift | UNUserNotificationCenter 本地通知调度 + Ledger |
 | **Knowledge** | MissingTools.swift | 本机文件知识库 |
 | **System** | AllMCPTools.swift | Contacts, Calendar, Reminder, Location, Notification, QR, Process |
+| **Build（v2.9.3）** | BuildTools.swift | 设备端编译桥：`build.environment` 探测 toolchain/clang/make/theos/SDK；`build.run` 用 posix_spawn + `/bin/sh -c "cd ... && exec ..."` 编译（工具链需用户放置到 Workspace/toolchain/） |
 
 ### 第二层：设备端 WS 客户端（真发消息，执行在服务端）
 
@@ -166,7 +167,7 @@ IPA 未签名，通过 TrollStore 安装。TrollStore 会自动签名并继承 e
 
 | 模块 | 实现文件 | 机制 |
 |------|---------|------|
-| **Model API** | OpenAIClient.swift, Models.swift | OpenAI Chat Completions / Completions / Anthropic Messages / Custom Endpoint |
+| **Model API** | OpenAIClient.swift, Models.swift | OpenAI Chat Completions / OpenAI Responses / Anthropic Messages / Custom Endpoint |
 
 ---
 
@@ -431,9 +432,10 @@ D:/Users/Administrator/Desktop/Payload/TrollMCP.app/            # 完整 .app �
 | **2.9.0** | 09-02 | **Responses API 支持**（/v1/responses，Codex 同款端点）：新级别 L5「Responses API+工具」、新协议「OpenAI Responses」、L3/L4 旧配置自动先试 L5 |
 | **2.9.1** | 09-02 | **工具名净化**：OpenAI/Responses API 要求工具名匹配 `^[a-zA-Z0-9_-]+$`；ToolDefinition.apiName 净化（中文/标点→下划线、数字开头加 t_ 前缀、重名加 _N 后缀），dispatch 用 apiNameToOriginal 反查原始工具 |
 | **2.9.2** | 09-02 | **聊天复制/分享 + 移除 OpenAI Completions**：① 长按消息气泡 → 复制/分享（UIPasteboard / UIActivityViewController）；② 导航栏"勾选"进入多选模式 → 点选多条消息 → 复制或分享到其他 App（勾选文本带"我：/工具结果"前缀与会话标题）；③ 移除废弃的「OpenAI Completions」旧协议（旧配置自动迁移到 Chat Completions，请求固定走 /chat/completions） |
+| **2.9.3** | 09-02 | **设备端编译桥（本机构建）**：新增 `build.environment`（检查 toolchain/clang/make/perl/ldid/theos/iOS SDK，真实跑 --version 探测）与 `build.run`（编译 projects/ 下的 theos `make [package]` 或裸 clang 工程，返回退出码/输出/产物）；`project.generate_tweak` 补全 Tweak.x 生成；BuildRunner 用 posix_spawn + `/bin/sh -c "cd '<dir>' && exec ..."` 处理工作目录（iOS SDK 无 posix_spawnattr_setworkingdir_np、fork() 不可用），输出落临时文件 + 超时杀进程 + 类型容错参数（Bool/Double/数组兼容字符串） |
 
-最新 IPA：`artifacts/v2.9.2/TrollMCP2-v2.9.2-20260902.ipa`（5.27MB，包内版本已验证 2.9.2）
-GitHub Actions run：33613292005 ✅
+最新 IPA：`artifacts/v2.9.3/TrollMCP2-v2.9.3-20260902.ipa`（5.05MB，包内版本已验证 2.9.3）
+GitHub Actions run：33616562717 ✅
 
 ### v2.9.0 关键认知（重要！）
 
