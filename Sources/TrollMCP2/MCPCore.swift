@@ -290,6 +290,13 @@ public final class ToolRegistry: ObservableObject {
         if tool == nil, let original = apiNameToOriginal[name] {
             tool = tools[original]
         }
+        // v2.9.28：兜底解析——按 apiName（下划线安全名）反向匹配所有注册工具。
+        // 修复：tool_search 披露的未启用/敏感工具（如 injection.enable）不在
+        // enabledOpenAIToolSchema 的 apiNameToOriginal 映射里（该映射只含已启用工具），
+        // 模型按披露 schema 返回 injection_enable 时 dispatch 找不到 → unknown tool。
+        if tool == nil {
+            tool = tools.values.first { $0.definition.apiName == name }
+        }
         lock.unlock()
         guard let t = tool else { throw MCPError.unknownTool(name) }
         // v2.9.22+25：授权判定——策略启用 / 会话授权 / 单次授权 任一放行；
