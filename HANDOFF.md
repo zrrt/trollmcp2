@@ -1,6 +1,6 @@
 # TrollMCP2 项目交接文档
 
-> 版本：v2.9.5 | 最后更新：2026-09-02 | 仓库：github.com/origina47487lhe-droid/trollmcp2（私有）
+> 版本：v2.9.6 | 最后更新：2026-09-02 | 仓库：github.com/origina47487lhe-droid/trollmcp2（私有）
 
 ---
 
@@ -156,7 +156,7 @@ IPA 未签名，通过 TrollStore 安装。TrollStore 会自动签名并继承 e
 | **Knowledge** | MissingTools.swift | 本机文件知识库 |
 | **System** | AllMCPTools.swift | Contacts, Calendar, Reminder, Location, Notification, QR, Process |
 | **Build（v2.9.3+）** | BuildTools.swift | 设备端编译桥：`build.environment` 探测 toolchain/clang/make/theos/SDK；`build.run` 用 posix_spawn + `/bin/sh -c "cd ... && exec ..."` 编译；v2.9.4 支持 toolchain=system（越狱 Nyxian 系统布局）与绝对路径 |
-| **GitHub 账号（v2.9.5）** | GitHubAccountStore.swift + GitHubAccountView.swift | App 内多 GitHub 账号 PAT 登录/切换/删除；触发仓库 Actions workflow 线上编译；查询 run 状态。仓库 owner/name/workflow/branch 可在设置页配置 |
+| **GitHub 账号（v2.9.5+）** | GitHubAccountStore.swift + GitHubAccountView.swift | App 内多 GitHub 账号登录/切换/删除（v2.9.5 PAT；v2.9.6 + Device Flow 网页登录，内置 Safari 授权）；触发仓库 Actions workflow 线上编译；查询 run 状态。仓库 owner/name/workflow/branch/Client ID 可在设置页配置 |
 | **build-tweak workflow** | .github/workflows/build-tweak.yml | 线上编译 tweak：macOS runner + theos（递归 submodule，dm.pl 软链目标需 submodule）+ Xcode SDK 软链 iPhoneOS17.5.sdk + brew ldid/dpkg；触发方式 `gh workflow run build-tweak -f tweak=<name>` |
 
 ### 第二层：设备端 WS 客户端（真发消息，执行在服务端）
@@ -438,9 +438,10 @@ D:/Users/Administrator/Desktop/Payload/TrollMCP.app/            # 完整 .app �
 | **2.9.4** | 09-02 | **工具链 system 模式 + 绝对路径**：`build.environment`/`build.run` 的 toolchain 参数支持 `system`（越狱机 Nyxian 系统布局：clang/make/perl/ldid 在 /var/jb/usr/bin、/usr/bin，theos 在 /usr/local/theos）与任意绝对路径；规范布局仍走 Workspace/<path>。新增 ToolchainProfile/resolveToolchainProfile 统一解析 |
 | **2.9.4+tweak** | 09-02 | **线上编译 tweak（非越狱正解）**：新增 `build-tweak` workflow（GitHub Actions macOS runner + theos 递归 submodule + Xcode SDK 软链 + dm.pl），仓库 `tweaks/<name>/` 放工程，手动触发即产出 .dylib + .deb；CompileProbe 已编译验证成功 |
 | **2.9.5** | 09-02 | **App 内 GitHub 账号系统**：设置 → GitHub 账号——任何账号 PAT 登录/切换/删除（多账号并存，UserDefaults 存储），一键触发线上编译（workflow dispatch API）+ 实时查看 run 状态；仓库/workflow/分支可配置。实现于 GitHubAccountStore.swift + GitHubAccountView.swift |
+| **2.9.6** | 09-02 | **网页登录（Device Flow，gh CLI 同款）**：不再依赖 PAT 手动复制——App 内置 Safari（SFSafariViewController）打开 GitHub 授权页，显示 user_code + 自动轮询换取 token，登录自动完成。需在「仓库设置」填 OAuth App Client ID（免费注册，无需 secret）。PAT 保留为备选 |
 
-最新 IPA：`artifacts/v2.9.5/TrollMCP2-v2.9.5-20260902.ipa`（包内版本已验证 2.9.5）
-GitHub Actions run：33617736761 ✅（v2.9.4 IPA）；33620936109 ✅（CompileProbe tweak）；33625432211 ✅（v2.9.5 IPA）
+最新 IPA：`artifacts/v2.9.6/TrollMCP2-v2.9.6-20260902.ipa`（包内版本已验证 2.9.6）
+GitHub Actions run：33617736761 ✅（v2.9.4 IPA）；33620936109 ✅（CompileProbe tweak）；33625432211 ✅（v2.9.5 IPA）；33628210737 ✅（v2.9.6 IPA）
 
 ### v2.9.0 关键认知（重要！）
 
