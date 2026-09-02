@@ -278,6 +278,7 @@ struct ToolPermissionPoliciesView: View {
 
                 Section(header: SettingSectionHeader(title: "工具列表")) {
                     ForEach(filtered, id: \.name) { def in
+                        let isOn = registry.isEnabled(name: def.name)
                         HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack(spacing: 6) {
@@ -298,11 +299,22 @@ struct ToolPermissionPoliciesView: View {
                                     .lineLimit(2)
                             }
                             Spacer()
-                            Toggle("", isOn: Binding(
-                                get: { registry.isEnabled(name: def.name) },
-                                set: { registry.setEnabled(name: def.name, enabled: $0) }
-                            ))
-                            .labelsHidden()
+                            // v2.9.26：自定义 iOS 风格开关（绕开 List+Toggle 兼容问题，整行可点切换）
+                            ZStack(alignment: isOn ? .trailing : .leading) {
+                                Capsule()
+                                    .fill(isOn ? Color.green : Color(.systemGray4))
+                                    .frame(width: 46, height: 28)
+                                Circle()
+                                    .fill(Color.white)
+                                    .shadow(radius: 1)
+                                    .frame(width: 24, height: 24)
+                                    .padding(2)
+                            }
+                            .animation(.easeInOut(duration: 0.15))
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            registry.setEnabled(name: def.name, enabled: !registry.isEnabled(name: def.name))
                         }
                         .padding(.vertical, 2)
                     }

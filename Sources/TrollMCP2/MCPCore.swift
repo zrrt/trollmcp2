@@ -62,6 +62,10 @@ public final class ToolRegistry: ObservableObject {
     private var sessionApproved: Set<String> = []
     /// v2.9.25：单次授权（本轮授权）——用一次即移除
     private var singleUseApproved: Set<String> = []
+    /// v2.9.26：策略版本号。setEnabled 时递增，通过 @Published 可靠触发
+    /// 工具权限策略页刷新（修复 iOS16 List 内 Toggle 只靠 objectWillChange.send()
+    /// 刷新不可靠、开关点了没反应/弹回的问题）。
+    @Published private(set) var policyRevision = 0
 
     public func register(_ tool: MCPTool) {
         lock.lock()
@@ -177,6 +181,8 @@ public final class ToolRegistry: ObservableObject {
         var states = UserDefaults.standard.object(forKey: disabledKey) as? [String: Bool] ?? [:]
         states[name] = enabled
         UserDefaults.standard.set(states, forKey: disabledKey)
+        // v2.9.26：@Published 递增 + objectWillChange 双保险，确保 UI 立即刷新
+        policyRevision += 1
         objectWillChange.send()
         AuditLog.shared.log("policy", detail: "\(name) \(enabled ? "启用" : "禁用")")
     }
