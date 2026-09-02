@@ -1,0 +1,9 @@
+Package: com.example.compileprobe
+Name: CompileProbe
+Depends: mobilesubstrate
+Version: 0.0.1
+Architecture: iphoneos-arm64
+Description: 编译探针 tweak（验证工具链）
+Maintainer: dev
+Author: dev
+Section: Tweaks
