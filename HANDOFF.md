@@ -457,6 +457,16 @@ GitHub Actions run：33617736761 ✅（v2.9.4 IPA）；33620936109 ✅（Compile
 
 降级链（v2.9.0）：L0 完整 → L1 互换 token key → L2 去 tool_choice → **L5 Responses API+工具**（保住工具调用）→ L3 纯对话 → L4 最小载荷 → 结束。nextLevel 的哨兵值 6 防止 L4→L5→L3 死循环。
 
+### v2.9.24 关键认知（2026-09-03）
+
+**① 修工具开关手动开启 bug**：根因 `setEnabled` 用"删除 disabled key"表示启用，但 `isEnabled` 对非白名单工具默认 false，删除 key 后回落白名单 → 开关弹回，非白名单工具（contacts.search / process.list 等）永远开不了。改为显式状态字典 `states[name]=enabled`，用户手动设置过以显式值为准。注意：旧数据兼容——旧版只有用户"禁用"留下的 false 值，新逻辑读 false 一致；旧版"启用"白名单工具是 removeValue 无残留，新逻辑回落白名单一致。
+
+**② 指令一键复制**：列表页每行尾部加复制按钮（点击即复制 + 图标变绿 checkmark 1.5s 反馈，BorderlessButtonStyle 防触发整行点击）；编辑页导航栏加复制按钮（copyContent 复制当前 TextEditor 内容）。
+
+**③ 工具调用上限友好化**：depth 上限 6→8（防止死循环的保护），提示改为"已达到本轮工具调用上限（8 轮），已停止，防止死循环。你可以直接回复「继续」"。
+
+CI 33664659207 / 提交 3c7f370 / 版本 2.9.23→2.9.24 / IPA artifacts\v2.9.24
+
 ### v2.9.23 关键认知（2026-09-03）
 
 **合并"工具权限策略"与"本机工具审计"（去重）**：用户指出两个页面功能重复（都是每个工具 Toggle 控制启停）。合并：保留功能更全的"工具权限策略"页（搜索 + 全部启用/禁用），把审计页的"真实/占位"标记 + "仅显示真实实现"过滤并入（realTools 集合 + 每行徽标 + 过滤开关）。删除 SettingsView"本机工具审计"入口（subtitle 改"按工具控制 · 真实/占位"），删除 ToolAuditView.swift（确认无其他引用）。
