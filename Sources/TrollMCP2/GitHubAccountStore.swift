@@ -50,14 +50,24 @@ final class GitHubAccountStore: ObservableObject {
     @Published var workflowId: String
     @Published var branch: String
 
+    // Device Flow 用 OAuth App client_id（用户在自己 GitHub 账号下注册，免费）
+    @Published var clientID: String
+
+    // Device Flow 轮询状态
+    @Published var deviceFlowState: String?   // 提示文案（含 user_code）
+    @Published var isDevicePolling = false
+    private var pollTimer: DispatchSourceTimer?   // 持有强引用，防止局部变量被释放导致轮询停止
+
     private let accountsKey = "trollmcp2.github_accounts"
     private let activeKey = "trollmcp2.github_active"
     private let ownerKey = "trollmcp2.github_repo_owner"
     private let repoKey = "trollmcp2.github_repo_name"
     private let workflowKey = "trollmcp2.github_workflow_id"
     private let branchKey = "trollmcp2.github_branch"
+    private let clientIDKey = "trollmcp2.github_client_id"
 
     private let apiBase = "https://api.github.com"
+    private let loginBase = "https://github.com"
 
     init() {
         let def = UserDefaults.standard
@@ -65,6 +75,7 @@ final class GitHubAccountStore: ObservableObject {
         repoName = def.string(forKey: repoKey) ?? "trollmcp2"
         workflowId = def.string(forKey: workflowKey) ?? "build-tweak"
         branch = def.string(forKey: branchKey) ?? "main"
+        clientID = def.string(forKey: clientIDKey) ?? ""
         load()
     }
 
@@ -104,6 +115,175 @@ final class GitHubAccountStore: ObservableObject {
         def.set(repoName, forKey: repoKey)
         def.set(workflowId, forKey: workflowKey)
         def.set(branch, forKey: branchKey)
+        def.set(clientID, forKey: clientIDKey)
+    }
+
+    // MARK: - Device Flow（内置浏览器登录，gh CLI 同款）
+
+    /// 设备授权码模型
+    struct DeviceCode: Codable {
+        let device_code: String
+        let user_code: String
+        let verification_uri: String
+        let expires_in: Int
+        let interval: Int
+    }
+
+    /// 第一步：请求设备授权码。回调返回验证 URL 与 user_code。
+    func startDeviceFlow(completion: @escaping (DeviceCode?, String?) -> Void) {
+        let cid = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cid.isEmpty else {
+            lastError = "请先在仓库设置里填写 OAuth App 的 Client ID"
+            completion(nil, lastError)
+            return
+        }
+        var req = URLRequest(url: URL(string: "\(loginBase)/login/device/code")!, timeoutInterval: 30)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        // scope：repo（读仓库+触发 workflow）+ workflow（workflow dispatch 必须）
+        let body = "client_id=\(cid.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? cid)&scope=repo%20workflow"
+        req.httpBody = body.data(using: .utf8)
+
+        URLSession.shared.dataTask(with: req) { [weak self] data, resp, err in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                if let err = err {
+                    self.lastError = "网络错误: \(err.localizedDescription)"
+                    completion(nil, self.lastError)
+                    return
+                }
+                let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+                guard let data = data,
+                      let code = try? JSONDecoder().decode(DeviceCode.self, from: data) else {
+                    let raw = data.map { String(data: $0, encoding: .utf8) ?? "" } ?? ""
+                    self.lastError = status == 404 ? "Client ID 无效（请检查 OAuth App 的 Client ID）" : "设备码请求失败 (HTTP \(status)) \(raw.prefix(200))"
+                    completion(nil, self.lastError)
+                    return
+                }
+                self.deviceFlowState = "请在浏览器输入代码 \(code.user_code)"
+                NetworkLog.shared.log("GitHub Device Flow 开始: user_code=\(code.user_code)")
+                completion(code, nil)
+            }
+        }.resume()
+    }
+
+    /// 第二步：轮询换取 access_token（interval 秒一次，最长 expires_in 秒）。
+    func pollDeviceToken(deviceCode: DeviceCode, completion: @escaping (Bool, String?) -> Void) {
+        let cid = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
+        isDevicePolling = true
+        deviceFlowState = "请在浏览器输入代码 \(deviceCode.user_code)，等待授权…"
+
+        let deadline = Date().addingTimeInterval(Double(deviceCode.expires_in))
+        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global())
+        pollTimer = timer
+        timer.schedule(deadline: .now() + Double(deviceCode.interval), repeating: Double(deviceCode.interval))
+        timer.setEventHandler { [weak self] in
+            guard let self = self else { timer.cancel(); return }
+            if Date() > deadline {
+                timer.cancel()
+                self.pollTimer = nil
+                DispatchQueue.main.async {
+                    self.isDevicePolling = false
+                    self.deviceFlowState = nil
+                    completion(false, "授权超时，请重试")
+                }
+                return
+            }
+            self.exchangeDeviceToken(deviceCode: deviceCode) { token, error in
+                if let token = token {
+                    timer.cancel()
+                    self.pollTimer = nil
+                    DispatchQueue.main.async {
+                        self.isDevicePolling = false
+                        self.deviceFlowState = nil
+                        // 用拿到的 token 走统一验证流程（GET /user + 存储）
+                        self.finishLoginWith(token: token) { ok, msg in
+                            completion(ok, msg)
+                        }
+                    }
+                } else if error == "authorization_pending" {
+                    // 用户还没授权，继续轮询
+                } else if error == "slow_down" {
+                    // 需要放慢，重新调度会自然多等一个 interval
+                } else if let error = error {
+                    timer.cancel()
+                    self.pollTimer = nil
+                    DispatchQueue.main.async {
+                        self.isDevicePolling = false
+                        self.deviceFlowState = nil
+                        completion(false, error)
+                    }
+                }
+            }
+        }
+        timer.resume()
+    }
+
+    private func exchangeDeviceToken(deviceCode: DeviceCode,
+                                     completion: @escaping (String?, String?) -> Void) {
+        let cid = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
+        var req = URLRequest(url: URL(string: "\(loginBase)/login/oauth/access_token")!, timeoutInterval: 20)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        let body = "client_id=\(cid.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? cid)&device_code=\(deviceCode.device_code.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? deviceCode.device_code)&grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code"
+        req.httpBody = body.data(using: .utf8)
+
+        URLSession.shared.dataTask(with: req) { data, _, err in
+            if err != nil { completion(nil, "网络错误"); return }
+            guard let data = data,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                completion(nil, "响应解析失败")
+                return
+            }
+            if let token = json["access_token"] as? String {
+                completion(token, nil)
+            } else if let err = json["error"] as? String {
+                completion(nil, err)   // authorization_pending / slow_down / expired_token / access_denied
+            } else {
+                completion(nil, "未知响应")
+            }
+        }.resume()
+    }
+
+    /// 统一登录落库：验证 token 身份 → 加入/更新账号
+    private func finishLoginWith(token: String, completion: @escaping (Bool, String?) -> Void) {
+        var req = URLRequest(url: URL(string: "\(apiBase)/user")!, timeoutInterval: 30)
+        req.httpMethod = "GET"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        URLSession.shared.dataTask(with: req) { [weak self] data, resp, err in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                if let err = err {
+                    self.lastError = "网络错误: \(err.localizedDescription)"
+                    completion(false, self.lastError)
+                    return
+                }
+                let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+                guard status == 200, let data = data,
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let login = json["login"] as? String else {
+                    self.lastError = "身份验证失败 (HTTP \(status))"
+                    completion(false, self.lastError)
+                    return
+                }
+                let acct = GitHubAccount(login: login,
+                                         name: json["name"] as? String,
+                                         avatarURL: json["avatar_url"] as? String,
+                                         token: token)
+                if let idx = self.accounts.firstIndex(where: { $0.login == login }) {
+                    self.accounts[idx] = acct
+                } else {
+                    self.accounts.append(acct)
+                }
+                self.activeLogin = login
+                NetworkLog.shared.log("GitHub 网页登录成功: \(login)")
+                self.persist()
+                completion(true, "已登录 @\(login)")
+            }
+        }.resume()
     }
 
     // MARK: - PAT 登录 / 验证

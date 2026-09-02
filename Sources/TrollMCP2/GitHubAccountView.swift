@@ -1,4 +1,5 @@
 import SwiftUI
+import SafariServices
 
 /// GitHub 账号 + 线上编译设置页（v2.9.5）
 /// 任何人的 GitHub 账号都可登录/切换，用该账号在云端 Actions 编译 tweak。
@@ -259,19 +260,17 @@ struct AddGitHubAccountView: View {
     @State private var token = ""
     @State private var errorMsg: String?
     @State private var loading = false
+    // Device Flow 状态
+    @State private var deviceCode: GitHubAccountStore.DeviceCode?
+    @State private var deviceStep = 0        // 0 未开始 / 1 等待授权 / 2 完成
+    @State private var safariURL: URL?
+    @State private var showSafari = false
 
     var body: some View {
         NavigationView {
             Form {
-                Section(header: SettingSectionHeader(title: "GitHub Personal Access Token (PAT)"),
-                        footer: Text("在 github.com → Settings → Developer settings → Personal access tokens → Tokens (classic) 生成，勾选 repo 与 workflow 权限。App 仅在你本机保存 token，用于触发线上编译与查询状态。")) {
-                    SecureField("ghp_…", text: $token)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                    if let err = errorMsg {
-                        Text(err).font(.caption).foregroundColor(.red)
-                    }
-                }
+                webLoginSection
+                patLoginSection
             }
             .navigationTitle("登录 GitHub")
             .navigationBarTitleDisplayMode(.inline)
@@ -283,15 +282,112 @@ struct AddGitHubAccountView: View {
                     if loading {
                         ProgressView().scaleEffect(0.8)
                     } else {
-                        Button("登录") {
+                        Button("手动登录") {
                             login()
                         }
                         .disabled(token.isEmpty)
                     }
                 }
             }
+            .sheet(isPresented: $showSafari) {
+                if let url = safariURL {
+                    SafariWebView(url: url)
+                }
+            }
+            .onChange(of: store.isDevicePolling) { polling in
+                if !polling, deviceStep == 1, store.activeAccount != nil {
+                    deviceStep = 2
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                        presentationMode.wrappedValue.dismiss()
+                    }
+                }
+            }
         }
         .navigationViewStyle(.stack)
+    }
+
+    @ViewBuilder private var webLoginSection: some View {
+        Section(header: SettingSectionHeader(title: "网页登录（推荐）"),
+                footer: Text("使用 GitHub 设备授权流程：App 内置浏览器打开授权页，登录授权后自动完成，无需复制 Token。需先在「仓库设置」填写你的 OAuth App Client ID。")) {
+            if deviceStep == 0 {
+                SettingRowButton(
+                    title: "在浏览器中登录",
+                    subtitle: store.clientID.isEmpty ? "⚠️ 未设置 Client ID" : "Client ID: \(store.clientID)",
+                    icon: "safari.fill",
+                    color: .black
+                ) {
+                    startDeviceFlow()
+                }
+            } else if deviceStep == 1, let dc = deviceCode {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("请在授权页输入代码").font(.footnote).foregroundColor(.secondary)
+                    HStack {
+                        Text(dc.user_code)
+                            .font(.system(size: 24, weight: .bold, design: .monospaced))
+                            .foregroundColor(.primary)
+                        Spacer()
+                    }
+                    SettingRowButton(
+                        title: "打开授权页",
+                        subtitle: dc.verification_uri,
+                        icon: "safari",
+                        color: .blue
+                    ) {
+                        openVerification(dc.verification_uri)
+                    }
+                    if store.isDevicePolling {
+                        HStack {
+                            ProgressView().scaleEffect(0.8)
+                            Text("等待授权…（或直接输入代码）").font(.caption).foregroundColor(.secondary)
+                        }
+                    }
+                }
+            } else {
+                Text("登录成功 ✓").font(.footnote).foregroundColor(.green)
+            }
+        }
+    }
+
+    @ViewBuilder private var patLoginSection: some View {
+        Section(header: SettingSectionHeader(title: "手动 Token（备选）"),
+                footer: Text("github.com → Settings → Developer settings → Personal access tokens → Tokens (classic) 生成，勾选 repo 与 workflow 权限。")) {
+            SecureField("ghp_…", text: $token)
+                .autocapitalization(.none)
+                .disableAutocorrection(true)
+            if let err = errorMsg {
+                Text(err).font(.caption).foregroundColor(.red)
+            }
+        }
+    }
+
+    // MARK: - Device Flow
+
+    private func startDeviceFlow() {
+        errorMsg = nil
+        deviceStep = 0
+        store.startDeviceFlow { code, err in
+            if let code = code {
+                self.deviceCode = code
+                self.deviceStep = 1
+                // 自动开始轮询 + 打开授权页
+                self.openVerification(code.verification_uri)
+                store.pollDeviceToken(deviceCode: code) { ok, msg in
+                    if !ok {
+                        errorMsg = msg ?? "授权失败"
+                        deviceStep = 0
+                    }
+                }
+            } else {
+                errorMsg = err ?? "设备码获取失败"
+            }
+        }
+    }
+
+    private func openVerification(_ uri: String) {
+        if let url = URL(string: uri) {
+            safariURL = url
+            showSafari = true
+        }
     }
 
     private func login() {
@@ -308,6 +404,18 @@ struct AddGitHubAccountView: View {
     }
 }
 
+// MARK: - 内置 Safari（Device Flow 授权页）
+
+struct SafariWebView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        SFSafariViewController(url: url)
+    }
+
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
+}
+
 // MARK: - 仓库与 workflow 设置
 
 struct GitHubRepoSettingsView: View {
@@ -316,6 +424,14 @@ struct GitHubRepoSettingsView: View {
 
     var body: some View {
         Form {
+            Section(header: SettingSectionHeader(title: "OAuth App（网页登录用）"),
+                    footer: Text("在 github.com → Settings → Developer settings → OAuth Apps → New OAuth App 注册（免费），Application name 随意，Homepage URL 填 https://github.com，Authorization callback URL 填 https://github.com，创建后复制 Client ID（不需要 Client secret）。")) {
+                TextField("OAuth App Client ID", text: $store.clientID)
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+                    .font(.system(.body, design: .monospaced))
+            }
+
             Section(header: SettingSectionHeader(title: "目标仓库"),
                     footer: Text("线上编译在指定仓库的 Actions 中运行。仓库须包含 build-tweak workflow，且当前账号对该仓库有写权限。")) {
                 TextField("仓库 Owner（用户名）", text: $store.repoOwner)
