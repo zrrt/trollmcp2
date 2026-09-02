@@ -110,6 +110,7 @@ struct ModelEditorView: View {
     @State private var isDefault: Bool
     @State private var temperature: Double
     @State private var maxTokens: Int
+    @State private var contextTokens: Int
 
     @State private var showKey = false
     @State private var showingQuickPicker = false
@@ -137,6 +138,7 @@ struct ModelEditorView: View {
         _isDefault = State(initialValue: config?.isDefault ?? false)
         _temperature = State(initialValue: config?.temperature ?? 0.7)
         _maxTokens = State(initialValue: config?.maxTokens ?? 4096)
+        _contextTokens = State(initialValue: config?.contextTokens ?? 24000)
     }
 
     var body: some View {
@@ -164,6 +166,15 @@ struct ModelEditorView: View {
                     }
                     Slider(value: $temperature, in: 0...2, step: 0.1)
                     Stepper("Max Tokens: \(maxTokens)", value: $maxTokens, in: 256...32768, step: 256)
+                    Stepper("上下文预算: \(contextTokens)", value: $contextTokens, in: 4000...128000, step: 2000)
+                }
+                Section(header: sectionHeader("参数说明")) {
+                    Text("Max Tokens：单次回复最多生成的 token 数（输出上限，不限制上下文）。")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text("上下文预算：发送给模型的上下文 token 上限。会话超出时自动裁剪最早的历史消息（保留最近对话），避免长会话请求过大变慢或超时。")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
 
                 Section(header: sectionHeader("操作")) {
@@ -353,7 +364,8 @@ struct ModelEditorView: View {
             authMethod: authMethod,
             isDefault: isDefault,
             temperature: temperature,
-            maxTokens: maxTokens
+            maxTokens: maxTokens,
+            contextTokens: contextTokens
         )
     }
 

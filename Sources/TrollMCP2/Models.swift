@@ -15,13 +15,17 @@ struct ModelConfig: Codable, Identifiable, Hashable {
     var isDefault: Bool = false
     var temperature: Double = 0.7
     var maxTokens: Int = 4096
+    /// v2.9.11：输入上下文预算（token 估算）。发送前按预算自动裁剪最旧消息，
+    /// 避免长会话请求体无限增长导致"一直请求中"。
+    var contextTokens: Int = 24000
     /// v2.8.4：中转站兼容级别（由 OpenAIClient 自适应降级时写入并持久化）
     /// 0=完整载荷 1=互换token参数名 2=去掉tool_choice 3=去掉tools纯对话 4=最小载荷
     var compatLevel: Int = 0
 
     init(id: UUID = UUID(), name: String, provider: String, apiProtocol: String = "OpenAI Chat Completions",
          baseURL: String, apiKey: String, model: String, authMethod: String = "Bearer",
-         isDefault: Bool = false, temperature: Double = 0.7, maxTokens: Int = 4096, compatLevel: Int = 0) {
+         isDefault: Bool = false, temperature: Double = 0.7, maxTokens: Int = 4096, compatLevel: Int = 0,
+         contextTokens: Int = 24000) {
         self.id = id
         self.name = name
         self.provider = provider
@@ -34,6 +38,7 @@ struct ModelConfig: Codable, Identifiable, Hashable {
         self.temperature = temperature
         self.maxTokens = maxTokens
         self.compatLevel = compatLevel
+        self.contextTokens = contextTokens
     }
 
     init(from decoder: Decoder) throws {
@@ -52,6 +57,7 @@ struct ModelConfig: Codable, Identifiable, Hashable {
         isDefault = (try? c.decode(Bool.self, forKey: .isDefault)) ?? false
         temperature = (try? c.decode(Double.self, forKey: .temperature)) ?? 0.7
         maxTokens = (try? c.decode(Int.self, forKey: .maxTokens)) ?? 4096
+        contextTokens = (try? c.decode(Int.self, forKey: .contextTokens)) ?? 24000
         compatLevel = (try? c.decode(Int.self, forKey: .compatLevel)) ?? 0
     }
 }
@@ -397,7 +403,7 @@ final class ConversationStore: ObservableObject {
         }
 
         let client = OpenAIClient(config)
-        let history = messagesForAPI()
+        let history = messagesForAPI(budget: config.contextTokens)
 
         client.send(messages: history, tools: tools, onStatus: { status in
             DispatchQueue.main.async { self.statusText = status }
@@ -432,8 +438,75 @@ final class ConversationStore: ObservableObject {
         }
     }
 
-    private func messagesForAPI() -> [ChatMessage] {
-        currentMessages.filter { !$0.isError }
+    private func messagesForAPI(budget: Int) -> [ChatMessage] {
+        let all = currentMessages.filter { !$0.isError }
+        guard !all.isEmpty else { return all }
+        let theBudget = budget
+        // 估算总 token；低于预算直接返回（短会话）
+        let total = all.reduce(0) { $0 + Self.estimateTokens($1) }
+        if total <= budget { return all }
+        // 长会话：从旧到新裁剪，但始终保留最后 N 条核心消息
+        let keepMin = 6
+        var kept: [ChatMessage] = []
+        var used = 0
+        // 先保留最新 keepMin 条（含用户最新提问），再从旧到新补
+        let suffix = Array(all.suffix(keepMin))
+        let prefix = Array(all.prefix(all.count - keepMin))
+        // 从旧到新累计到预算内（不含已保留的 suffix）
+        for m in prefix {
+            let t = Self.estimateTokens(m)
+            if used + t > budget { break }
+            kept.append(m)
+            used += t
+        }
+        var result = kept + suffix
+        // 清理孤立 tool 消息：裁剪可能导致 assistant(tool_calls) 被裁、其 tool 结果残留
+        result = Self.sanitizeToolSequence(result)
+        // 插入截断提示
+        let dropped = all.count - result.count
+        if dropped > 0 {
+            let hint = ChatMessage(role: "system", content: "[系统] 为控制上下文长度，已省略最早 \(dropped) 条历史消息。")
+            result.insert(hint, at: 0)
+        }
+        return result
+    }
+
+    /// 粗估 token：中文/日文等约 1 字≈1.5 token；ASCII 约 4 字符≈1 token；图片按固定值计
+    private static func estimateTokens(_ m: ChatMessage) -> Int {
+        var t = 0
+        let content = m.content
+        var cjk = 0
+        for ch in content.unicodeScalars {
+            if (ch.value >= 0x4E00 && ch.value <= 0x9FFF) || (ch.value >= 0x3040 && ch.value <= 0x30FF) || (ch.value >= 0xAC00 && ch.value <= 0xD7AF) {
+                cjk += 1
+            }
+        }
+        let ascii = content.count - cjk
+        t += Int(Double(cjk) * 1.5) + ascii / 4
+        t += (m.imageDataURLs?.count ?? 0) * 600   // 每张图约 600 token（低分辨率近似）
+        return max(t, 8)
+    }
+
+    /// 保证 assistant tool_calls 与其 tool 结果成对存在；删掉孤立的 tool 消息
+    private static func sanitizeToolSequence(_ msgs: [ChatMessage]) -> [ChatMessage] {
+        var out: [ChatMessage] = []
+        var pendingToolCalls = false
+        for m in msgs {
+            if m.role == "assistant", let calls = m.toolCalls, !calls.isEmpty {
+                pendingToolCalls = true
+                out.append(m)
+            } else if m.role == "tool" {
+                // 只有前面有未配对的 assistant tool_calls 才保留 tool 结果
+                if pendingToolCalls {
+                    out.append(m)
+                }
+                // 忽略孤立的 tool 消息
+            } else {
+                pendingToolCalls = false
+                out.append(m)
+            }
+        }
+        return out
     }
 
     private static func parseArgs(_ json: String) -> [String: Any] {
