@@ -21,7 +21,7 @@ struct GitHubAccountView: View {
         .navigationTitle("GitHub 账号")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showAdd) {
-            AddGitHubAccountView(initialToken: "")
+            AddGitHubAccountView()
         }
         .onAppear {
             store.fetchRuns { _ in }
