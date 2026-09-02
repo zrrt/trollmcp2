@@ -432,6 +432,15 @@ final class OpenAIClient {
                 }
                 continue
             }
+            // v2.9.9：多模态。图片消息在 Responses API 中同样用 content 数组。
+            if let imgs = m.imageDataURLs, !imgs.isEmpty {
+                var content: [[String: Any]] = [["type": "input_text", "text": m.content]]
+                for u in imgs {
+                    content.append(["type": "input_image", "image_url": u])
+                }
+                items.append(["role": m.role, "content": content])
+                continue
+            }
             items.append(["role": m.role, "content": m.content])
         }
         return items
@@ -518,6 +527,14 @@ final class OpenAIClient {
                     "function": ["name": $0.name, "arguments": $0.arguments]
                 ] }
             ]
+        }
+        // v2.9.9：多模态。消息带图片时 content 序列化为多模态数组。
+        if let imgs = msg.imageDataURLs, !imgs.isEmpty {
+            var content: [[String: Any]] = [["type": "text", "text": msg.content]]
+            for u in imgs {
+                content.append(["type": "image_url", "image_url": ["url": u]])
+            }
+            return ["role": msg.role, "content": content]
         }
         return ["role": msg.role, "content": msg.content]
     }

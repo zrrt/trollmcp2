@@ -146,9 +146,13 @@ struct PhotoPickerView: UIViewControllerRepresentable {
             let group = DispatchGroup()
             for result in results {
                 group.enter()
+                // v2.9.9：优先复制到沙盒临时目录，保证 onSelect 后 URL 仍可读（原 itemProvider 临时文件可能立即失效）
                 result.itemProvider.loadFileRepresentation(forTypeIdentifier: "public.image") { url, error in
                     if let url = url {
-                        urls.append(url)
+                        let dest = FileManager.default.temporaryDirectory
+                            .appendingPathComponent("trollmcp_img_\(UUID().uuidString).jpg")
+                        try? FileManager.default.copyItem(at: url, to: dest)
+                        urls.append(dest)
                     }
                     group.leave()
                 }

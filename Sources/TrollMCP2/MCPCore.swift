@@ -215,6 +215,12 @@ public final class ToolRegistry: ObservableObject {
         register(BuildEnvironmentTool())
         register(BuildRunTool())
 
+        // M9 GitHub 线上编译（v2.9.9：账号状态 / 触发编译 / 查进度 / 下载产物）
+        register(GitHubAccountStatusTool())
+        register(GitHubTriggerBuildTool())
+        register(GitHubFetchRunsTool())
+        register(GitHubDownloadArtifactTool())
+
         // M7 补齐缺失设备端工具
         register(CalendarCreateEventTool())
         register(ReminderScheduleTool())

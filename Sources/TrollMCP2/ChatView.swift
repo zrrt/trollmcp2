@@ -11,6 +11,9 @@ struct ChatView: View {
     @State private var attachmentSheet: AttachmentSheet?
     @State private var showVoiceAlert = false
 
+    // v2.9.9：多模态图片（data URL）。选择相册图片后转 base64 暂存，发送时随消息传给模型
+    @State private var pendingImages: [String] = []
+
     // v2.9.2：多选模式（勾选会话内容 → 复制 / 分享到其他 App）
     @State private var selectionMode = false
     @State private var selectedIds = Set<UUID>()
@@ -99,9 +102,25 @@ struct ChatView: View {
                 }
             case .photoPicker:
                 PhotoPickerView { urls in
-                    let paths = urls.map { $0.lastPathComponent }.joined(separator: " ")
-                    let text = "[图片: \(paths)]"
-                    self.inputText = self.inputText.isEmpty ? text : self.inputText + " " + text
+                    // v2.9.9：真正把图片内容转 base64 传给模型（不再只是文件名）
+                    var dataURLs: [String] = []
+                    var names: [String] = []
+                    for u in urls {
+                        if let d = Self.imageDataURL(for: u) {
+                            dataURLs.append(d)
+                            names.append(u.lastPathComponent)
+                        }
+                    }
+                    if dataURLs.isEmpty {
+                        let paths = urls.map { $0.lastPathComponent }.joined(separator: " ")
+                        let text = "[图片: \(paths)]"
+                        self.inputText = self.inputText.isEmpty ? text : self.inputText + " " + text
+                    } else {
+                        self.pendingImages = dataURLs
+                        let tag = names.isEmpty ? "图片" : names.joined(separator: " ")
+                        let text = "[图片: \(tag)]"
+                        self.inputText = self.inputText.isEmpty ? text : self.inputText + " " + text
+                    }
                 }
             case .documentPicker:
                 DocumentPickerView { urls in
@@ -214,12 +233,20 @@ struct ChatView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 12)
             }
+            // 点击聊天区空白处收起键盘（v2.9.9）
+            .simultaneousGesture(
+                TapGesture().onEnded { dismissKeyboard() }
+            )
             .onChange(of: store.currentMessages.count) { _ in
                 if let last = store.currentMessages.last {
                     withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                 }
             }
         }
+    }
+
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
     private var currentModelBar: some View {
@@ -332,9 +359,19 @@ struct ChatView: View {
         guard let cfg = modelStore.defaultConfig, !inputText.isEmpty else { return }
         if store.selectedId == nil { store.newConversation() }
         let text = inputText
+        let imgs = pendingImages
         inputText = ""
-        store.send(text, using: cfg)
+        pendingImages = []
+        store.send(text, using: cfg, imageDataURLs: imgs)
         AuditLog.shared.log("chat", detail: "发送消息")
+    }
+
+    /// v2.9.9：图片文件 → base64 data URL（限制单张 ≤ 3MB，避免请求体过大）
+    static func imageDataURL(for url: URL) -> String? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        let limit = 3 * 1024 * 1024
+        if data.count > limit { return nil }
+        return "data:image/jpeg;base64,\(data.base64EncodedString())"
     }
 
     // MARK: - 多选 / 复制 / 分享（v2.9.2）

@@ -98,8 +98,22 @@ final class DeviceProbe: ObservableObject {
     }
 
     private func detectTrollFools() -> Bool {
-        let ids = ["com.iomsec.TrollFools", "com.icraze.TrollFools", "com.statelasso.TrollFools", "com.opa334.TrollFools"]
-        return AppCatalog.list().contains { ids.contains($0.bundleId) }
+        // 已知 bundle id 全集（含源码常量 wiki.qaq.TrollFools —— 官方 release 真实 identifier）
+        let ids = [
+            "wiki.qaq.TrollFools",
+            "com.iomsec.TrollFools",
+            "com.icraze.TrollFools",
+            "com.statelasso.TrollFools",
+            "com.opa334.TrollFools",
+        ]
+        let apps = AppCatalog.list()
+        if apps.contains(where: { ids.contains($0.bundleId) }) { return true }
+        // 兜底：按名字/路径模糊匹配（TrollFools / TrollFools.app）
+        return apps.contains {
+            $0.bundleId.localizedCaseInsensitiveContains("trollfools") ||
+            $0.name.localizedCaseInsensitiveContains("trollfools") ||
+            $0.path.localizedCaseInsensitiveContains("TrollFools.app")
+        }
     }
 
     private func testTaskForPid() -> Bool {

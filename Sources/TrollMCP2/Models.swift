@@ -288,6 +288,9 @@ struct ChatMessage: Codable, Identifiable, Hashable {
     var toolCalls: [ToolCall]?
     var toolCallId: String?
     var toolName: String?
+    /// v2.9.9：多模态附件。存 data URL（如 "data:image/jpeg;base64,..."）。
+    /// 发送时若非空，OpenAIClient 把 content 序列化为多模态数组。
+    var imageDataURLs: [String]? = nil
 
     var isTool: Bool { role == "tool" }
 }
@@ -373,8 +376,12 @@ final class ConversationStore: ObservableObject {
         sortAndSave()
     }
 
-    func send(_ text: String, using config: ModelConfig) {
-        appendToCurrent(ChatMessage(role: "user", content: text))
+    func send(_ text: String, using config: ModelConfig, imageDataURLs: [String]? = nil) {
+        var msg = ChatMessage(role: "user", content: text)
+        if let imgs = imageDataURLs, !imgs.isEmpty {
+            msg.imageDataURLs = imgs
+        }
+        appendToCurrent(msg)
         isLoading = true
 
         let tools = config.apiProtocol == "Anthropic Messages" ? nil : ToolRegistry.shared.enabledOpenAIToolSchema()

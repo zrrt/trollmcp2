@@ -67,7 +67,6 @@ struct ConversationDrawerView: View {
             searchBar
             countLabel
             conversationList
-            deviceReadinessBar
             bottomWorkbench
         }
         .background(Color(.systemBackground))
@@ -130,21 +129,35 @@ struct ConversationDrawerView: View {
     }
 
     private var conversationList: some View {
-        List {
-            ForEach(filtered) { conv in
-                Button(action: {
-                    store.select(conv.id)
-                    withAnimation { ui.drawerOpen = false }
-                }) {
-                    conversationRow(conv)
+        // 用 ScrollView + LazyVStack 替代 List，去掉行间分隔线（v2.9.9）
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(filtered) { conv in
+                    Button(action: {
+                        store.select(conv.id)
+                        withAnimation { ui.drawerOpen = false }
+                    }) {
+                        conversationRow(conv)
+                            .background(
+                                store.selectedId == conv.id ? Color.blue.opacity(0.08) : Color.clear
+                            )
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            deleteSingle(conv.id)
+                        } label: {
+                            Label("删除对话", systemImage: "trash")
+                        }
+                    }
                 }
-                .listRowBackground(
-                    store.selectedId == conv.id ? Color.blue.opacity(0.08) : Color.clear
-                )
             }
-            .onDelete(perform: delete)
         }
-        .listStyle(.plain)
+    }
+
+    private func deleteSingle(_ id: UUID) {
+        guard let idx = store.conversations.firstIndex(where: { $0.id == id }) else { return }
+        store.delete(at: IndexSet(integer: idx))
     }
 
     private func conversationRow(_ conv: ChatConversation) -> some View {
@@ -174,31 +187,8 @@ struct ConversationDrawerView: View {
     }
 
     private var deviceReadinessBar: some View {
-        Button(action: { showDevice = true }) {
-            HStack(spacing: 10) {
-                Image(systemName: "waveform.path.badge.checkmark")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-                    .background(Color.green)
-                    .cornerRadius(8)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("本机环境")
-                        .font(.body)
-                        .foregroundColor(.primary)
-                    Text(readinessText)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .foregroundColor(.secondary)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(PlainButtonStyle())
+        // 已并入 bottomWorkbench 精简入口（v2.9.9），此实现保留备用
+        EmptyView()
     }
 
     private var readinessText: String {
@@ -212,32 +202,39 @@ struct ConversationDrawerView: View {
     }
 
     private var bottomWorkbench: some View {
+        // 精简版：去掉大图标与"调试工作台"文字，仅保留环境入口 + 设置（v2.9.9）
         VStack(spacing: 0) {
             Divider()
             HStack(spacing: 12) {
-                IconBadge(icon: "cpu", color: .blue)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("TrollMCP")
-                        .font(.body)
-                        .fontWeight(.medium)
-                    Text("本机调试工作台")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                Button(action: { showDevice = true }) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "waveform.path.badge.checkmark")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(deviceReady == true ? .green : .orange)
+                            .frame(width: 28, height: 28)
+                            .background((deviceReady == true ? Color.green : Color.orange).opacity(0.12))
+                            .cornerRadius(7)
+                        Text(readinessText)
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    }
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(PlainButtonStyle())
                 Spacer()
                 Button(action: {
                     withAnimation { ui.drawerOpen = false }
                     ui.settingsPresented = true
                 }) {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 22, weight: .semibold))
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 20, weight: .semibold))
                         .foregroundColor(.primary)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 40, height: 40)
                         .contentShape(Rectangle())
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .padding(.vertical, 8)
         }
         .background(Color(.systemBackground))
     }
