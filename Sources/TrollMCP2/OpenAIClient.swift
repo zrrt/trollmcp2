@@ -48,6 +48,15 @@ final class OpenAIClient {
     let config: ModelConfig
     /// v2.9.0：级别 5 = Responses API + 工具
     private let maxLevel = 5
+    /// v2.9.10：自定义 session——waitsForConnectivity 让切后台/网络抖动时不立即失败，
+    /// 资源超时放宽到 5 分钟（配合后台恢复后继续请求）。
+    private lazy var session: URLSession = {
+        let cfg = URLSessionConfiguration.default
+        cfg.waitsForConnectivity = true
+        cfg.timeoutIntervalForResource = 300
+        cfg.timeoutIntervalForRequest = 90
+        return URLSession(configuration: cfg)
+    }()
 
     init(_ config: ModelConfig) {
         self.config = config
@@ -130,7 +139,7 @@ final class OpenAIClient {
             onStatus?("请求被拒绝，正在尝试简化参数（级别 \(level)/\(maxLevel)）…")
         }
 
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        session.dataTask(with: request) { data, response, error in
             if let error = error {
                 let err = error as NSError
                 // v2.8.6：网络超时（不是 408 HTTP 状态，而是 URLSession 的 -1001）
@@ -352,7 +361,7 @@ final class OpenAIClient {
         NetworkLog.shared.log("\(config.name) L5 Responses API+工具 → POST /responses，字段: \(body.keys.sorted().joined(separator: ","))")
         onStatus?("正在通过 Responses API 请求（保留工具调用）…")
 
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        session.dataTask(with: request) { data, response, error in
             if let error = error {
                 NetworkLog.shared.log("\(self.config.name) L5 网络错误: \(error.localizedDescription)")
                 completion(.failure(error))
@@ -479,7 +488,7 @@ final class OpenAIClient {
         ]
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        session.dataTask(with: request) { data, response, error in
             if let error = error {
                 completion(.failure(error))
                 return

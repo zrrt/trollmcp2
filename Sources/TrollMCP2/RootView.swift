@@ -77,16 +77,22 @@ struct ConversationDrawerView: View {
     }
 
     private var header: some View {
-        HStack {
+        HStack(spacing: 10) {
+            Image(systemName: "text.bubble.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: 32, height: 32)
+                .background(LinearGradient(colors: [.blue, .tmCyan], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .cornerRadius(9)
             Text("对话")
-                .font(.title2)
+                .font(.title3)
                 .fontWeight(.bold)
             Spacer()
             Button(action: { withAnimation { ui.drawerOpen = false } }) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(.primary)
-                    .frame(width: 30, height: 30)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .frame(width: 28, height: 28)
                     .background(Color(.secondarySystemBackground))
                     .clipShape(Circle())
             }
@@ -97,11 +103,12 @@ struct ConversationDrawerView: View {
     }
 
     private var searchBar: some View {
-        HStack {
+        HStack(spacing: 6) {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(.secondary)
+                .font(.system(size: 14))
             TextField("搜索对话内容...", text: $searchText)
-                .font(.body)
+                .font(.subheadline)
             if !searchText.isEmpty {
                 Button(action: { searchText = "" }) {
                     Image(systemName: "xmark.circle.fill")
@@ -110,9 +117,13 @@ struct ConversationDrawerView: View {
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.vertical, 9)
         .background(Color(.secondarySystemBackground))
-        .cornerRadius(10)
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.blue.opacity(searchText.isEmpty ? 0 : 0.4), lineWidth: 1)
+        )
         .padding(.horizontal, 16)
     }
 
@@ -130,8 +141,9 @@ struct ConversationDrawerView: View {
 
     private var conversationList: some View {
         // 用 ScrollView + LazyVStack 替代 List，去掉行间分隔线（v2.9.9）
+        // v2.9.10：选中行加渐变圆角卡片
         ScrollView {
-            LazyVStack(spacing: 0) {
+            LazyVStack(spacing: 6) {
                 ForEach(filtered) { conv in
                     Button(action: {
                         store.select(conv.id)
@@ -139,8 +151,15 @@ struct ConversationDrawerView: View {
                     }) {
                         conversationRow(conv)
                             .background(
-                                store.selectedId == conv.id ? Color.blue.opacity(0.08) : Color.clear
+                                Group {
+                                    if store.selectedId == conv.id {
+                                        LinearGradient(colors: [Color.blue.opacity(0.16), Color.blue.opacity(0.05)], startPoint: .leading, endPoint: .trailing)
+                                    } else {
+                                        Color.clear
+                                    }
+                                }
                             )
+                            .cornerRadius(12)
                     }
                     .buttonStyle(PlainButtonStyle())
                     .contextMenu {
@@ -151,6 +170,7 @@ struct ConversationDrawerView: View {
                     }
                 }
             }
+            .padding(.horizontal, 10)
         }
     }
 
@@ -161,22 +181,28 @@ struct ConversationDrawerView: View {
 
     private func conversationRow(_ conv: ChatConversation) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: "message")
-                .font(.system(size: 20))
-                .foregroundColor(.blue)
-                .frame(width: 32, height: 32)
-            VStack(alignment: .leading, spacing: 4) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 9)
+                    .fill(store.selectedId == conv.id ? Color.blue : Color(.secondarySystemBackground))
+                    .frame(width: 34, height: 34)
+                Image(systemName: store.selectedId == conv.id ? "bubble.left.fill" : "message.fill")
+                    .font(.system(size: 15))
+                    .foregroundColor(store.selectedId == conv.id ? .white : .blue)
+            }
+            VStack(alignment: .leading, spacing: 3) {
                 Text(conv.title)
                     .font(.body)
+                    .fontWeight(store.selectedId == conv.id ? .semibold : .regular)
                     .foregroundColor(.primary)
                     .lineLimit(1)
                 Text(Self.formatter.string(from: conv.updatedAt))
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundColor(.secondary)
             }
             Spacer()
         }
-        .padding(.vertical, 4)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
     }
 
     private func delete(at offsets: IndexSet) {
@@ -201,41 +227,48 @@ struct ConversationDrawerView: View {
     }
 
     private var bottomWorkbench: some View {
-        // 精简版：去掉大图标与"调试工作台"文字，仅保留环境入口 + 设置（v2.9.9）
-        VStack(spacing: 0) {
-            Divider()
-            HStack(spacing: 12) {
-                Button(action: { showDevice = true }) {
-                    HStack(spacing: 10) {
+        // v2.9.10：圆角卡片式底部工具栏（环境入口 + 设置齿轮）
+        HStack(spacing: 10) {
+            Button(action: { showDevice = true }) {
+                HStack(spacing: 8) {
+                    ZStack {
+                        Circle()
+                            .fill((deviceReady == true ? Color.green : Color.orange).opacity(0.15))
+                            .frame(width: 30, height: 30)
                         Image(systemName: "waveform.path.badge.checkmark")
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(deviceReady == true ? .green : .orange)
-                            .frame(width: 28, height: 28)
-                            .background((deviceReady == true ? Color.green : Color.orange).opacity(0.12))
-                            .cornerRadius(7)
-                        Text(readinessText)
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
                     }
-                    .contentShape(Rectangle())
+                    Text(readinessText)
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
                 }
-                .buttonStyle(PlainButtonStyle())
-                Spacer()
-                Button(action: {
-                    withAnimation { ui.drawerOpen = false }
-                    ui.settingsPresented = true
-                }) {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.primary)
-                        .frame(width: 40, height: 40)
-                        .contentShape(Rectangle())
-                }
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+            .buttonStyle(PlainButtonStyle())
+            Spacer()
+            Button(action: {
+                withAnimation { ui.drawerOpen = false }
+                ui.settingsPresented = true
+            }) {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.primary)
+                    .frame(width: 38, height: 38)
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(11)
+                    .contentShape(Rectangle())
+            }
         }
-        .background(Color(.systemBackground))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
+        )
+        .padding(.horizontal, 10)
+        .padding(.bottom, 8)
     }
 
     static let formatter: DateFormatter = {

@@ -25,6 +25,30 @@ final class GatewayClient: ObservableObject {
     init() {
         serverURL = UserDefaults.standard.string(forKey: key) ?? ""
         pairedToken = UserDefaults.standard.string(forKey: tokenKey)
+        // v2.9.10：网络恢复 / 回前台自动重连（解决"切后台再回来连接中断"）
+        // 用闭包观察者而非 #selector（GatewayClient 非 NSObject 子类，#selector 不可用）
+        NotificationCenter.default.addObserver(
+            forName: AppLifecycleMonitor.networkRestored, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.autoReconnect()
+        }
+        NotificationCenter.default.addObserver(
+            forName: AppLifecycleMonitor.willEnterForeground, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.autoReconnect()
+        }
+    }
+
+    /// 网络恢复或回前台时：若之前连接过且当前断连，自动重连
+    private func autoReconnect() {
+        guard !isConnected,
+              let url = UserDefaults.standard.string(forKey: key), !url.isEmpty else { return }
+        let token = UserDefaults.standard.string(forKey: tokenKey)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self = self, !self.isConnected else { return }
+            self.connect(url: url, token: token)
+            AuditLog.shared.log("gateway.auto_reconnect", detail: "网络恢复自动重连: \(url)")
+        }
     }
 
     // MARK: - 连接 + 真实握手

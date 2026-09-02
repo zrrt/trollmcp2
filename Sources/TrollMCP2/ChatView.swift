@@ -9,10 +9,13 @@ struct ChatView: View {
     @State private var reasoning = 1          // 0=低 1=中 2=高
     @State private var smartSearch = true
     @State private var attachmentSheet: AttachmentSheet?
+    @State private var showAttachSheet = false   // v2.9.10：加号 → 紧凑半屏 actionSheet
     @State private var showVoiceAlert = false
 
     // v2.9.9：多模态图片（data URL）。选择相册图片后转 base64 暂存，发送时随消息传给模型
     @State private var pendingImages: [String] = []
+    // v2.9.10：统一待发送附件（图片缩略图 / 应用图标 / 文件），输入栏上方预览
+    @State private var pendingAttachments: [PendingAttachment] = []
 
     // v2.9.2：多选模式（勾选会话内容 → 复制 / 分享到其他 App）
     @State private var selectionMode = false
@@ -97,6 +100,17 @@ struct ChatView: View {
                 AttachmentPanelView { self.attachmentSheet = $0 }
             case .appPicker:
                 AppPickerView { app in
+                    // v2.9.10：应用选择 → 附件预览（图标 + 名称 + bundleId）
+                    let icon = Self.appIcon(for: app.path)
+                    let att = PendingAttachment(
+                        kind: .app,
+                        displayName: app.name,
+                        dataURL: nil,
+                        thumbnail: icon,
+                        bundleId: app.bundleId,
+                        fileURL: nil
+                    )
+                    self.pendingAttachments.append(att)
                     let text = "[应用: \(app.name) (\(app.bundleId))]"
                     self.inputText = self.inputText.isEmpty ? text : self.inputText + " " + text
                 }
@@ -109,6 +123,16 @@ struct ChatView: View {
                         if let d = Self.imageDataURL(for: u) {
                             dataURLs.append(d)
                             names.append(u.lastPathComponent)
+                            // v2.9.10：同时生成带缩略图的附件，输入栏预览
+                            let thumb = UIImage(contentsOfFile: u.path)
+                            self.pendingAttachments.append(PendingAttachment(
+                                kind: .image,
+                                displayName: u.lastPathComponent,
+                                dataURL: d,
+                                thumbnail: thumb,
+                                bundleId: nil,
+                                fileURL: u
+                            ))
                         }
                     }
                     if dataURLs.isEmpty {
@@ -124,10 +148,30 @@ struct ChatView: View {
                 }
             case .documentPicker:
                 DocumentPickerView { urls in
+                    // v2.9.10：文件选择 → 附件预览
+                    for u in urls {
+                        self.pendingAttachments.append(PendingAttachment(
+                            kind: .file,
+                            displayName: u.lastPathComponent,
+                            dataURL: nil,
+                            thumbnail: nil,
+                            bundleId: nil,
+                            fileURL: u
+                        ))
+                    }
                     let paths = urls.map { $0.lastPathComponent }.joined(separator: " ")
                     let text = "[文件: \(paths)]"
                     self.inputText = self.inputText.isEmpty ? text : self.inputText + " " + text
                 }
+            }
+        }
+        // v2.9.10：网络恢复 / 回前台提示（配合后台自动重连）
+        .onReceive(NotificationCenter.default.publisher(for: AppLifecycleMonitor.networkRestored)) { _ in
+            showToast("网络已恢复")
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AppLifecycleMonitor.willEnterForeground)) { _ in
+            if AppLifecycleMonitor.shared.isNetworkAvailable {
+                showToast("已回到前台")
             }
         }
     }
@@ -282,6 +326,10 @@ struct ChatView: View {
 
     private var inputBar: some View {
         VStack(spacing: 6) {
+            // v2.9.10：待发送附件预览（图片缩略图 / 应用图标 / 文件）
+            AttachmentPreviewStrip(attachments: pendingAttachments) { att in
+                withAnimation { pendingAttachments.removeAll { $0.id == att.id } }
+            }
             HStack(spacing: 8) {
                 ChatChip(label: "推理强度·\(reasoningLabel())", action: {
                     reasoning = (reasoning + 1) % 3
@@ -312,7 +360,7 @@ struct ChatView: View {
                 .background(Color(.secondarySystemBackground))
                 .cornerRadius(20)
 
-                Button(action: { attachmentSheet = .panel }) {
+                Button(action: { showAttachSheet = true }) {
                     Image(systemName: "plus")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.white)
@@ -344,6 +392,19 @@ struct ChatView: View {
         }
         .padding(.bottom, 8)
         .background(Color(.systemBackground))
+        // v2.9.10：加号 → 紧凑半屏 actionSheet（替代全屏"添加内容"面板，减少整屏弹层）
+        .actionSheet(isPresented: $showAttachSheet) {
+            ActionSheet(
+                title: Text("添加内容"),
+                message: Text("仅用于本轮请求，本机准备"),
+                buttons: [
+                    .default(Text("📱 应用 · 选择分析")) { attachmentSheet = .appPicker },
+                    .default(Text("🖼 相册 · 最多 8 张")) { attachmentSheet = .photoPicker },
+                    .default(Text("📎 文件 · 最多 8 个")) { attachmentSheet = .documentPicker },
+                    .cancel()
+                ]
+            )
+        }
         // 分享面板挂在常驻输入区上，与附件面板（挂在 NavigationView 上）分离，
         // 避免 iOS 14 同一视图挂多个 sheet 互相覆盖。
         .sheet(isPresented: $showShare) {
@@ -362,7 +423,11 @@ struct ChatView: View {
         let imgs = pendingImages
         inputText = ""
         pendingImages = []
-        store.send(text, using: cfg, imageDataURLs: imgs)
+        // v2.9.10：附件预览与发送联动——从附件里取图片 dataURL（若预览被删则不再发送）
+        let attImgs = pendingAttachments.compactMap { $0.dataURL }
+        pendingAttachments = []
+        let finalImgs = attImgs.isEmpty ? imgs : attImgs
+        store.send(text, using: cfg, imageDataURLs: finalImgs)
         AuditLog.shared.log("chat", detail: "发送消息")
     }
 
@@ -372,6 +437,17 @@ struct ChatView: View {
         let limit = 3 * 1024 * 1024
         if data.count > limit { return nil }
         return "data:image/jpeg;base64,\(data.base64EncodedString())"
+    }
+
+    /// v2.9.10：读取应用图标（用于输入栏附件预览）
+    static func appIcon(for path: String) -> UIImage? {
+        guard let info = Bundle(path: path)?.infoDictionary,
+              let icons = info["CFBundleIcons"] as? [String: Any],
+              let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
+              let files = primary["CFBundleIconFiles"] as? [String],
+              let last = files.last else { return nil }
+        let p = (path as NSString).appendingPathComponent(last + "@2x.png")
+        return UIImage(contentsOfFile: p) ?? UIImage(contentsOfFile: (path as NSString).appendingPathComponent(last + ".png"))
     }
 
     // MARK: - 多选 / 复制 / 分享（v2.9.2）
@@ -568,6 +644,10 @@ struct MessageBubble: View {
 
     private var textBubble: some View {
         VStack(alignment: isUser ? .trailing : .leading, spacing: 2) {
+            // v2.9.10：消息内图片缩略图（用户选择相册图片后，气泡里直接显示图片）
+            if let imgs = message.imageDataURLs, !imgs.isEmpty {
+                messageImageStrip(imgs)
+            }
             Text(message.content)
                 .font(.body)
                 .padding(.horizontal, 14)
@@ -580,6 +660,33 @@ struct MessageBubble: View {
                         .strokeBorder(isSelected ? (isUser ? Color.white : Color.blue) : Color.clear, lineWidth: 2)
                 )
         }
+    }
+
+    /// v2.9.10：data URL → UIImage
+    private func messageImageStrip(_ dataURLs: [String]) -> some View {
+        let images = dataURLs.compactMap { Self.uiImage(fromDataURL: $0) }
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Array(images.enumerated()), id: \.offset) { _, img in
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 140, height: 140)
+                        .cornerRadius(12)
+                        .clipped()
+                }
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 4)
+        }
+    }
+
+    /// v2.9.10：data URL → UIImage（用于消息气泡图片显示）
+    static func uiImage(fromDataURL s: String) -> UIImage? {
+        guard let comma = s.firstIndex(of: ",") else { return nil }
+        let b64 = String(s[s.index(after: comma)...])
+        guard let data = Data(base64Encoded: b64) else { return nil }
+        return UIImage(data: data)
     }
 
     private var toolBubble: some View {

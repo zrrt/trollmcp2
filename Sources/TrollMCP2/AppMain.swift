@@ -15,6 +15,7 @@ struct TrollMCP2App {
 
 final class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
+    private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
 
     func application(
         _ application: UIApplication,
@@ -24,10 +25,33 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         ToolRegistry.shared.registerBuiltinTools()
         DeviceProbe.shared.run()
         LocationProvider.shared.start()
+        // v2.9.10：网络与生命周期监控（切后台重连 / 网络恢复提示）
+        AppLifecycleMonitor.shared.start()
 
         window = UIWindow(frame: UIScreen.main.bounds)
         window?.rootViewController = UIHostingController(rootView: RootView())
         window?.makeKeyAndVisible()
         return true
+    }
+
+    // v2.9.10：进后台时申请后台任务，让正在进行的请求有保活窗口（最多 3 分钟）
+    func applicationDidEnterBackground(_ application: UIApplication) {
+        backgroundTask = application.beginBackgroundTask(withName: "trollmcp2.network") {
+            application.endBackgroundTask(self.backgroundTask)
+            self.backgroundTask = .invalid
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 180) {
+            if self.backgroundTask != .invalid {
+                application.endBackgroundTask(self.backgroundTask)
+                self.backgroundTask = .invalid
+            }
+        }
+    }
+
+    func applicationWillEnterForeground(_ application: UIApplication) {
+        if backgroundTask != .invalid {
+            application.endBackgroundTask(backgroundTask)
+            backgroundTask = .invalid
+        }
     }
 }

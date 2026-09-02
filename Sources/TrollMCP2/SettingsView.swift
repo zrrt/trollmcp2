@@ -84,11 +84,18 @@ struct SettingsView: View {
                         destination: GitHubAccountView()
                     )
                     SettingRow(
+                        title: "下载管理",
+                        subtitle: "线上编译产物 · 勾选删除",
+                        icon: "arrow.down.circle.fill",
+                        color: .green,
+                        destination: DownloadsView()
+                    )
+                    SettingRow(
                         title: "内置智能搜索",
-                        subtitle: "Bing Web · RSS 回...",
+                        subtitle: "Bing Web · 用法说明",
                         icon: "magnifyingglass.circle.fill",
                         color: .tmCyan,
-                        destination: Text("智能搜索占位")
+                        destination: SmartSearchView()
                     )
                     SettingRow(
                         title: "Gateway 设置",
@@ -166,7 +173,7 @@ struct SettingsView: View {
                         color: .orange,
                         destination: NetworkDebugView()
                     )
-                    LabeledRow(label: "版本", value: "2.9.9")
+                    LabeledRow(label: "版本", value: "2.9.10")
                     LabeledRow(label: "Bundle ID", value: Bundle.main.bundleIdentifier ?? "-")
                     LabeledRow(label: "工作区", value: Workspace.root.lastPathComponent)
                     LabeledRow(label: "工具数", value: "\(ToolRegistry.shared.definitions.count)")
