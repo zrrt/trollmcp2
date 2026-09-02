@@ -138,21 +138,26 @@ final class BuildRunner {
 final class BuildEnvironmentTool: MCPTool {
     let definition = ToolDefinition(name: "build.environment",
         summary: "检查本机编译环境：toolchain 目录、clang/make/perl/ldid、Theos、iOS SDK",
-        parameters: ["toolchain": "工具链目录名（默认 toolchain，位于 Workspace 下）"])
+        parameters: ["toolchain": "工具链路径：相对（toolchain = Workspace/toolchain）或绝对（/usr/local/theos 等系统路径）"])
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let tcRel = params["toolchain"] as? String ?? "toolchain"
-        let tc = Workspace.root.appendingPathComponent(tcRel)
+        let profile = resolveToolchainProfile(tcRel)
         let fm = FileManager.default
-        var isDir: ObjCBool = false
-        let exists = fm.fileExists(atPath: tc.path, isDirectory: &isDir) && isDir.boolValue
 
         var bins: [String: Any] = [:]
-        let binDir = tc.appendingPathComponent("bin")
+        // 系统布局：探测系统路径里的工具；规范布局：探测 toolchain/bin/
         for name in ["clang", "ld", "make", "perl", "ldid"] {
-            let p = binDir.appendingPathComponent(name).path
-            let fileExists = fm.fileExists(atPath: p)
-            let executable = fm.isExecutableFile(atPath: p)
+            let p: String
+            switch name {
+            case "clang": p = profile.clang
+            case "make": p = profile.make ?? ""
+            case "perl": p = profile.perl ?? ""
+            case "ldid": p = profile.ldid ?? ""
+            default: p = profile.isSystem ? "" : ((profile.binDir ?? "") as NSString).appendingPathComponent("ld")
+            }
+            let fileExists = !p.isEmpty && fm.fileExists(atPath: p)
+            let executable = fileExists && fm.isExecutableFile(atPath: p)
             var info: [String: Any] = ["exists": fileExists, "executable": executable]
             if fileExists && executable {
                 // 真实探测版本（短超时）
@@ -168,47 +173,58 @@ final class BuildEnvironmentTool: MCPTool {
         }
 
         // Theos
-        let theosDir = tc.appendingPathComponent("theos")
         var theosInfo: [String: Any] = [:]
-        let theosExists = fm.fileExists(atPath: theosDir.path, isDirectory: &isDir) && isDir.boolValue
+        var isDir: ObjCBool = false
+        let theosExists = fm.fileExists(atPath: profile.theos, isDirectory: &isDir) && isDir.boolValue
         theosInfo["exists"] = theosExists
+        theosInfo["path"] = profile.theos
         if theosExists {
-            theosInfo["makefiles"] = fm.fileExists(atPath: theosDir.appendingPathComponent("makefiles").path, isDirectory: &isDir) && isDir.boolValue
-            theosInfo["bin"] = fm.fileExists(atPath: theosDir.appendingPathComponent("bin").path, isDirectory: &isDir) && isDir.boolValue
-            // theos 内置的 ldid / dpkg-deb
-            theosInfo["has_ldid"] = fm.isExecutableFile(atPath: theosDir.appendingPathComponent("bin/ldid").path)
-            theosInfo["has_dpkg_deb"] = fm.isExecutableFile(atPath: theosDir.appendingPathComponent("bin/dpkg-deb").path)
+            theosInfo["makefiles"] = fm.fileExists(atPath: (profile.theos as NSString).appendingPathComponent("makefiles"), isDirectory: &isDir) && isDir.boolValue
+            theosInfo["bin"] = fm.fileExists(atPath: (profile.theos as NSString).appendingPathComponent("bin"), isDirectory: &isDir) && isDir.boolValue
+            theosInfo["has_ldid"] = fm.isExecutableFile(atPath: (profile.theos as NSString).appendingPathComponent("bin/ldid"))
+            theosInfo["has_dpkg_deb"] = fm.isExecutableFile(atPath: (profile.theos as NSString).appendingPathComponent("bin/dpkg-deb"))
         }
 
         // iOS SDK
         var sdkList: [String] = []
-        let sdkParent = tc.appendingPathComponent("sdk")
-        if let cands = try? fm.contentsOfDirectory(atPath: sdkParent.path) {
-            sdkList = cands.filter { $0.hasSuffix(".sdk") }.sorted()
+        if profile.isSystem {
+            let parents = [(profile.theos as NSString).appendingPathComponent("sdks"),
+                           (profile.theos as NSString).appendingPathComponent("sdk")]
+            for parent in parents {
+                if let cands = try? fm.contentsOfDirectory(atPath: parent) {
+                    sdkList.append(contentsOf: cands.filter { $0.hasSuffix(".sdk") }.sorted())
+                }
+            }
+        } else if let binDir = profile.binDir {
+            let sdkParent = ((binDir as NSString).deletingLastPathComponent as NSString).appendingPathComponent("sdk")
+            if let cands = try? fm.contentsOfDirectory(atPath: sdkParent) {
+                sdkList = cands.filter { $0.hasSuffix(".sdk") }.sorted()
+            }
         }
 
-        // 磁盘占用
-        let sizeBytes = folderSize(tc.path)
+        // 磁盘占用（系统布局不统计）
+        let sizeBytes = profile.isSystem ? -1 : folderSize(profile.rootPath)
 
-        let ready = exists
-            && (bins["clang"] as? [String: Any])?["exists"] as? Bool == true
+        let ready = (bins["clang"] as? [String: Any])?["exists"] as? Bool == true
             && (bins["make"] as? [String: Any])?["exists"] as? Bool == true
+            && (bins["perl"] as? [String: Any])?["exists"] as? Bool == true
             && (theosInfo["exists"] as? Bool == true)
-            && !sdkList.isEmpty
+            && profile.sdkDir != nil
 
         AuditLog.shared.log("build.environment", detail: tcRel)
         return [
             "toolchain": tcRel,
-            "workspace": Workspace.root.path,
-            "exists": exists,
+            "layout": profile.isSystem ? "system(越狱/Nyxian)" : "canonical(bin/theos/sdk)",
+            "theos_path": profile.theos,
+            "sdk": profile.sdkDir ?? "",
             "bin": bins,
             "theos": theosInfo,
             "sdks": sdkList,
             "size_bytes": sizeBytes,
             "ready": ready,
             "hint": ready
-                ? "环境就绪：可通过 build.run 编译 projects/ 下的 theos 或 clang 工程"
-                : "缺少组件：将工具链放入 \(tc.path)（bin/clang+make+perl、theos/、sdk/iPhoneOS*.sdk）。获取方式参考 DeviceBuild/toolchain/README.md（a-Shell LLVM-on-iOS / Nyxian theos）"
+                ? "环境就绪：可通过 build.run 编译 projects/ 下的 theos 或 clang 工程（toolchain 参数传 \(tcRel)）"
+                : "缺少组件：toolchain=\(tcRel)。规范布局需 bin/clang+make+perl、theos/、sdk/iPhoneOS*.sdk；越狱机可用 toolchain=system 直接指向系统工具链（Nyxian）。获取方式参考 DeviceBuild/toolchain/README.md（a-Shell LLVM-on-iOS / Nyxian theos）"
         ]
     }
 
@@ -261,6 +277,111 @@ func stringArrayParam(_ params: [String: Any], _ key: String) -> [String]? {
     return nil
 }
 
+/// v2.9.4：工具链路径解析 —— 以 "/" 开头视为绝对路径（如 Nyxian 系统 theos /usr/local/theos），
+/// 否则按工作区相对路径 Workspace/<path> 解析。
+func resolveToolchainPath(_ path: String) -> URL {
+    if path.hasPrefix("/") {
+        return URL(fileURLWithPath: path)
+    }
+    return Workspace.root.appendingPathComponent(path)
+}
+
+/// v2.9.4：解析后的工具链配置
+struct ToolchainProfile {
+    var isSystem: Bool          // 系统布局（越狱/Nyxian，clang 在 /usr/bin 等）
+    var binDir: String?         // 规范布局的 bin 目录（prepend 到 PATH）；系统布局为 nil
+    var clang: String           // clang 绝对路径（可能不存在，由前置检查判定）
+    var make: String?           // make 绝对路径
+    var perl: String?           // perl 绝对路径
+    var ldid: String?           // ldid 绝对路径（可选）
+    var theos: String           // theos 根目录
+    var sdkDir: String?         // 探测到的 iOS SDK 目录
+    var env: [String: String]   // 额外环境（PATH/THEOS/SDKROOT/TARGET）
+    var rootPath: String        // 有效根目录（size/hint 用）
+}
+
+/// 按引用解析工具链："system" 或 "/" 走系统布局（越狱机 Nyxian），否则按规范布局（bin/theos/sdk）。
+func resolveToolchainProfile(_ ref: String) -> ToolchainProfile {
+    if ref == "system" || ref == "/" {
+        return systemToolchainProfile()
+    }
+    let root = resolveToolchainPath(ref)
+    let bin = root.appendingPathComponent("bin").path
+    let theos = root.appendingPathComponent("theos").path
+
+    // 规范布局 SDK 探测
+    var sdk: String? = nil
+    let sdkParent = root.appendingPathComponent("sdk").path
+    if let cands = try? FileManager.default.contentsOfDirectory(atPath: sdkParent) {
+        if let f = cands.filter({ $0.hasSuffix(".sdk") }).sorted().first {
+            sdk = (sdkParent as NSString).appendingPathComponent(f)
+        }
+    }
+
+    return ToolchainProfile(
+        isSystem: false,
+        binDir: bin,
+        clang: (bin as NSString).appendingPathComponent("clang"),
+        make: (bin as NSString).appendingPathComponent("make"),
+        perl: (bin as NSString).appendingPathComponent("perl"),
+        ldid: (bin as NSString).appendingPathComponent("ldid"),
+        theos: theos,
+        sdkDir: sdk,
+        env: [
+            "PATH": "\(bin):/usr/bin:/bin:/usr/sbin:/sbin",
+            "HOME": "/var/mobile",
+            "THEOS": theos,
+            "SDKROOT": sdk ?? "",
+            "TARGET": "iphone:clang:latest:14.0"
+        ],
+        rootPath: root.path
+    )
+}
+
+/// 系统布局（越狱机 Nyxian / rootless）：clang/make/perl/ldid 在系统路径，theos 在 /usr/local/theos。
+private func systemToolchainProfile() -> ToolchainProfile {
+    let fm = FileManager.default
+    func firstExisting(_ paths: [String]) -> String? {
+        paths.first { fm.fileExists(atPath: $0) }
+    }
+    let theos = firstExisting(["/var/jb/usr/local/theos", "/usr/local/theos", "/opt/theos"]) ?? "/usr/local/theos"
+    let clang = firstExisting(["/var/jb/usr/bin/clang", "/usr/bin/clang", "/bin/clang"]) ?? "/usr/bin/clang"
+    let make = firstExisting(["/var/jb/usr/bin/make", "/usr/bin/make", "/bin/make"]) ?? "/usr/bin/make"
+    let perl = firstExisting(["/var/jb/usr/bin/perl", "/usr/bin/perl", "/bin/perl"]) ?? "/usr/bin/perl"
+    let ldid = firstExisting(["/var/jb/usr/bin/ldid", "/usr/bin/ldid", "/usr/local/bin/ldid"]) ?? "/usr/bin/ldid"
+
+    // SDK：theos/sdks 或 theos/sdk 下找 iPhoneOS*.sdk
+    var sdk: String? = nil
+    for parent in [(theos as NSString).appendingPathComponent("sdks"),
+                   (theos as NSString).appendingPathComponent("sdk")] {
+        if let cands = try? fm.contentsOfDirectory(atPath: parent) {
+            if let f = cands.filter({ $0.hasSuffix(".sdk") }).sorted().first {
+                sdk = (parent as NSString).appendingPathComponent(f)
+                break
+            }
+        }
+    }
+
+    return ToolchainProfile(
+        isSystem: true,
+        binDir: nil,
+        clang: clang,
+        make: make,
+        perl: perl,
+        ldid: ldid,
+        theos: theos,
+        sdkDir: sdk,
+        env: [
+            "PATH": "/var/jb/usr/bin:/var/jb/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+            "HOME": "/var/mobile",
+            "THEOS": theos,
+            "SDKROOT": sdk ?? "",
+            "TARGET": "iphone:clang:latest:14.0"
+        ],
+        rootPath: "/"
+    )
+}
+
 // MARK: - 编译执行
 
 /// build.run：编译 Workspace/projects/<project> 下的工程
@@ -274,7 +395,7 @@ final class BuildRunTool: MCPTool {
             "mode": "theos 或 clang（默认 theos）",
             "package": "theos 模式是否执行 make package 产出 .deb（true/false）",
             "clean": "编译前先 make clean（true/false）",
-            "toolchain": "工具链目录名（默认 toolchain）",
+            "toolchain": "工具链路径：相对（toolchain = Workspace/toolchain）或绝对（/usr/local/theos 等系统路径）",
             "sdk": "SDK 名（可选，自动探测 toolchain/sdk/iPhoneOS*.sdk）",
             "output": "clang 模式产物文件名（默认 <project>.dylib）",
             "cflags": "clang 模式额外编译参数数组",
@@ -293,10 +414,11 @@ final class BuildRunTool: MCPTool {
         let timeout = doubleParam(params, "timeout", 300)
 
         let fm = FileManager.default
-        let tc = Workspace.root.appendingPathComponent(tcRel)
+        let profile = resolveToolchainProfile(tcRel)
         let projectDir = Workspace.root.appendingPathComponent("projects/\(project)")
-        let binDir = tc.appendingPathComponent("bin")
-        let theosDir = tc.appendingPathComponent("theos")
+        let clangPath = profile.clang
+        let theosDir = profile.theos
+        let env = profile.env
 
         // ---- 前置检查 ----
         var problems: [String] = []
@@ -304,15 +426,23 @@ final class BuildRunTool: MCPTool {
         if !(fm.fileExists(atPath: projectDir.path, isDirectory: &isDir) && isDir.boolValue) {
             problems.append("工程目录不存在: \(projectDir.path)（先用 project.generate_tweak 或手动放置）")
         }
-        if !(fm.fileExists(atPath: tc.path, isDirectory: &isDir) && isDir.boolValue) {
-            problems.append("工具链目录不存在: \(tc.path)")
-        }
-        let clangPath = binDir.appendingPathComponent("clang").path
-        if !fm.fileExists(atPath: clangPath) {
-            problems.append("clang 不存在: \(clangPath)")
-        }
-        if mode == "theos" && !(fm.fileExists(atPath: theosDir.path, isDirectory: &isDir) && isDir.boolValue) {
-            problems.append("theos 目录不存在: \(theosDir.path)（mode=theos）")
+        if profile.isSystem {
+            if !fm.fileExists(atPath: clangPath) {
+                problems.append("系统 clang 不存在: \(clangPath)（越狱机需先装 Nyxian theos 工具链）")
+            }
+            if mode == "theos" && !(fm.fileExists(atPath: theosDir, isDirectory: &isDir) && isDir.boolValue) {
+                problems.append("系统 theos 不存在: \(theosDir)（越狱机需先装 Nyxian theos）")
+            }
+        } else {
+            if !(fm.fileExists(atPath: profile.rootPath, isDirectory: &isDir) && isDir.boolValue) {
+                problems.append("工具链目录不存在: \(profile.rootPath)")
+            }
+            if !fm.fileExists(atPath: clangPath) {
+                problems.append("clang 不存在: \(clangPath)")
+            }
+            if mode == "theos" && !(fm.fileExists(atPath: theosDir, isDirectory: &isDir) && isDir.boolValue) {
+                problems.append("theos 目录不存在: \(theosDir)（mode=theos）")
+            }
         }
         if !problems.isEmpty {
             return ["ok": false, "project": project, "mode": mode, "exit_code": -1,
@@ -321,27 +451,15 @@ final class BuildRunTool: MCPTool {
         }
 
         // SDK 探测
-        var sdkDir: String? = nil
+        var sdkDir: String? = profile.sdkDir
         if !sdkName.isEmpty {
-            sdkDir = tc.appendingPathComponent("sdk/\(sdkName)").path
-        } else {
-            let sdkParent = tc.appendingPathComponent("sdk").path
-            if let cands = try? fm.contentsOfDirectory(atPath: sdkParent) {
-                if let found = cands.filter({ $0.hasSuffix(".sdk") }).sorted().first {
-                    sdkDir = (sdkParent as NSString).appendingPathComponent(found)
-                }
-            }
+            sdkDir = profile.isSystem
+                ? (theosDir as NSString).appendingPathComponent("sdks/\(sdkName)")
+                : (profile.rootPath as NSString).appendingPathComponent("sdk/\(sdkName)")
         }
-
-        // 公共环境
-        let binPath = binDir.path
-        let env: [String: String] = [
-            "PATH": "\(binPath):/usr/bin:/bin:/usr/sbin:/sbin",
-            "HOME": "/var/mobile",
-            "THEOS": theosDir.path,
-            "SDKROOT": sdkDir ?? "",
-            "TARGET": "iphone:clang:latest:14.0"
-        ]
+        // 若探测到 SDK 则注入 env
+        var env2 = env
+        if let sdk = sdkDir { env2["SDKROOT"] = sdk }
 
         let start = Date()
         var stdoutText = ""
@@ -351,20 +469,20 @@ final class BuildRunTool: MCPTool {
         var artifacts: [String] = []
 
         if mode == "theos" {
-            let makePath = binDir.appendingPathComponent("make").path
-            if !fm.fileExists(atPath: makePath) {
+            let makePath = profile.make ?? ""
+            if makePath.isEmpty || !fm.fileExists(atPath: makePath) {
                 return ["ok": false, "project": project, "mode": mode, "exit_code": -1,
                         "stdout": "", "stderr": "make 不存在: \(makePath)", "artifacts": [String](), "duration_ms": 0]
             }
             if doClean {
-                let r = BuildRunner.shared.run(executable: makePath, args: ["clean"], workingDir: projectDir.path, env: env, timeout: timeout)
+                let r = BuildRunner.shared.run(executable: makePath, args: ["clean"], workingDir: projectDir.path, env: env2, timeout: timeout)
                 if r.exitCode != 0 {
                     stdoutText += r.stdout; stderrText += r.stderr
                 }
             }
             var args = [String]()
             if doPackage { args.append("package") }
-            let r = BuildRunner.shared.run(executable: makePath, args: args, workingDir: projectDir.path, env: env, timeout: timeout)
+            let r = BuildRunner.shared.run(executable: makePath, args: args, workingDir: projectDir.path, env: env2, timeout: timeout)
             exitCode = r.exitCode; stdoutText = r.stdout; stderrText = r.stderr; timedOut = r.timedOut
             artifacts = collectArtifacts(projectDir.path)
         } else {
