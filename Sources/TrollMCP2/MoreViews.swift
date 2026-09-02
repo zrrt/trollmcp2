@@ -387,41 +387,178 @@ struct DocumentImporter: UIViewControllerRepresentable {
     }
 }
 
-// MARK: - 开发者指令
+// MARK: - 开发者指令（v2.9.19：可自建/编辑/设默认）
 
 struct DeveloperInstructionsView: View {
-    @State private var content = "加载中..."
+    @State private var items: [DeveloperInstructionStore.Item] = []
+    @State private var editing: DevInstrEditorPayload?
+    @State private var creating = false
 
     var body: some View {
         NavigationView {
-            ScrollView {
-                Text(content)
-                    .font(.system(.body, design: .monospaced))
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            List {
+                if items.isEmpty {
+                    Section {
+                        Text("还没有开发者指令，点右上角 + 新建。")
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    ForEach(items) { item in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 8) {
+                                Text(item.name)
+                                    .font(.body)
+                                    .foregroundColor(item.enabled ? .primary : .secondary)
+                                if item.isDefault {
+                                    Text("默认")
+                                        .font(.caption2)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.blue.opacity(0.15))
+                                        .foregroundColor(.blue)
+                                        .cornerRadius(6)
+                                }
+                                Spacer()
+                            }
+                            Text(preview(item.content))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .lineLimit(2)
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            editing = DevInstrEditorPayload(name: item.name, content: item.content)
+                        }
+                        .contextMenu {
+                            if !item.isDefault {
+                                Button(action: { makeDefault(item) }) {
+                                    Label("设为默认（注入 AI）", systemImage: "checkmark.seal.fill")
+                                }
+                            }
+                            Button(action: {
+                                editing = DevInstrEditorPayload(name: item.name, content: item.content)
+                            }) {
+                                Label("编辑", systemImage: "pencil")
+                            }
+                            Button(action: { remove(item) }) {
+                                Label("删除", systemImage: "trash")
+                            }
+                        }
+                    }
+                    Section {
+                        Toggle("AI 请求注入默认指令", isOn: Binding(
+                            get: { DeveloperInstructionStore.shared.defaultInjectionContent() != nil },
+                            set: { _ in }
+                        ))
+                        .disabled(true)
+                    } footer: {
+                        Text("默认指令（标"默认"）会在每次 AI 请求时作为 system 消息注入，AI 将遵循其中的约定。长按指令可设默认/编辑/删除。")
+                    }
+                }
             }
+            .listStyle(.insetGrouped)
             .navigationTitle("开发者指令")
-            .onAppear(perform: load)
+            .onAppear(perform: reload)
             .toolbar {
-                Button(action: load) { Image(systemName: "arrow.clockwise") }
+                Button(action: { creating = true }) { Image(systemName: "plus") }
+            }
+            .sheet(item: $editing) { payload in
+                DevInstructionEditorView(name: payload.name, initialContent: payload.content, mode: .edit)
+            }
+            .sheet(isPresented: $creating) {
+                DevInstructionEditorView(name: "", initialContent: "", mode: .create)
             }
         }
         .navigationViewStyle(.stack)
     }
 
-    private func load() {
-        let candidates = [
-            Bundle.main.url(forResource: "TrollMCPDeveloperInstructions", withExtension: "md"),
-            Bundle.main.url(forResource: "TrollMCPDeveloperInstructions", withExtension: "md", subdirectory: "bin"),
-            Bundle.main.url(forResource: "TrollMCPDeveloperInstructions", withExtension: "md", subdirectory: "")
-        ]
-        for url in candidates {
-            if let url = url, let text = try? String(contentsOf: url, encoding: .utf8) {
-                content = text
-                return
+    private func preview(_ c: String) -> String {
+        let lines = c.split(separator: "\n").map(String.init)
+        // 取第一个非空、非标题行作摘要
+        for ln in lines {
+            let t = ln.trimmingCharacters(in: .whitespaces)
+            if !t.isEmpty && !t.hasPrefix("#") { return String(t.prefix(60)) }
+        }
+        return c.isEmpty ? "（空指令）" : String(c.prefix(60))
+    }
+
+    private func reload() {
+        items = DeveloperInstructionStore.shared.list()
+    }
+
+    private func makeDefault(_ item: DeveloperInstructionStore.Item) {
+        DeveloperInstructionStore.shared.setDefault(name: item.name)
+        reload()
+    }
+
+    private func remove(_ item: DeveloperInstructionStore.Item) {
+        DeveloperInstructionStore.shared.delete(name: item.name)
+        reload()
+    }
+}
+
+struct DevInstrEditorPayload: Identifiable {
+    var id: String { name }
+    let name: String
+    let content: String
+}
+
+struct DevInstructionEditorView: View {
+    enum Mode { case create, edit }
+    let name: String
+    let initialContent: String
+    let mode: Mode
+
+    @State private var title = ""
+    @State private var content = ""
+    @Environment(\.presentationMode) private var presentationMode
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: SettingSectionHeader(title: "指令名称")) {
+                    TextField("如：我的工程规范", text: $title)
+                }
+                Section(header: SettingSectionHeader(title: "指令内容（Markdown）")) {
+                    TextEditor(text: $content)
+                        .frame(minHeight: 260)
+                        .font(.system(.body, design: .monospaced))
+                }
+                Section(header: SettingSectionHeader(title: "说明")) {
+                    Text("默认指令会注入 AI 请求。可写：工程约定、代码风格、工具使用偏好、回复格式要求等。")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .navigationTitle(mode == .create ? "新建指令" : "编辑指令")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("取消") { presentationMode.wrappedValue.dismiss() }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("保存") { save() }
+                }
+            }
+            .onAppear {
+                if mode == .edit && title.isEmpty {
+                    title = name
+                    content = initialContent
+                }
             }
         }
-        content = "未在 App Bundle 中找到 TrollMCPDeveloperInstructions.md。\n\n请在构建前将原包中的 TrollMCPDeveloperInstructions.md 放入 Resources 目录。"
+        .navigationViewStyle(.stack)
+    }
+
+    private func save() {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if mode == .create {
+            DeveloperInstructionStore.shared.create(name: trimmed, content: content)
+        } else {
+            DeveloperInstructionStore.shared.update(name: trimmed, content: content)
+        }
+        presentationMode.wrappedValue.dismiss()
     }
 }
 

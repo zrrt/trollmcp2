@@ -439,7 +439,11 @@ final class ConversationStore: ObservableObject {
 
         let client = OpenAIClient(config)
         currentClient = client
-        let history = messagesForAPI(budget: config.contextTokens)
+        var history = messagesForAPI(budget: config.contextTokens)
+        // v2.9.19：默认开发者指令注入为 system 前缀（用户可自建并设为默认）
+        if let devInstr = DeveloperInstructionStore.shared.defaultInjectionContent(), !devInstr.isEmpty {
+            history.insert(ChatMessage(role: "system", content: "以下是开发者指令，请始终遵守：\n" + devInstr), at: 0)
+        }
 
         client.send(messages: history, tools: effectiveTools, onStatus: { status in
             DispatchQueue.main.async { self.statusText = status }
