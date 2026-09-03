@@ -631,3 +631,18 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 - `ToolRegistry` 加 `coreToolNames` 只读访问器 + `isCore(_:)`；MoreViews 工具名加 ★ 标记（蓝色）。
 
 **校验**：verify_v2932.py 检查 spawnRoot/runAsRoot/@_silgen_name 移除/dlsym/TSRootBinaries/persona-mgmt/dylibSourcePath/cp 版本选择/injected 判定/权限页 isCore/版本 2.9.32；全过。CI 首次失败（@_silgen_name 链接 undefined symbol _posix_spawnattr_setuid_np）→ 改 dlsym 后成功。
+
+
+### v2.9.33（2026-09-03）
+
+**问题现场（用户截图）**：AI 想注入 CompileProbe.dylib 到 TrollMCP（巨魔MCP，非 trollmcp2），调用 artifact_list 读 downloads/run_xxx/packages/com.example.compileprobe_*.deb 报 NSCocoaErrorDomain Code=256 / NSPOSIXErrorDomain Code=20 "Not a directory"。
+
+**根因**：Theos `make package` 产物是 .deb 归档（ar+tar），裸 .dylib 在 downloads/run_*/private/.theos/obj/debug/ 下；artifact.list 对文件路径直接 contentsOfDirectory → Code 20。
+
+**落地**：
+1. artifact.list 文件友好化：subpath 是文件时返回该文件信息（isDirectory:false + size + hint"这是文件不是目录"），不报错；列目录时标注 isDirectory。
+2. 新增 artifact.find：递归扫描工作区，按 ext（dylib/deb/ipa）或 name 片段查找，返回路径+大小+limit；hint 引导"用裸 dylib 路径传给 injection.enable 的 dylib_path"（.deb 是归档不能直接注入）。
+3. artifact.find 入常驻核心（coreToolNames 增至 10：tool_search/ping/device.info/device.probe/workspace.info/artifact.list/artifact.read_text/artifact.find/model.config/injection.status）。
+4. 版本 2.9.33（Info.plist + SettingsView）。CI 33740774416 success，commit 07ba0f1。
+
+**注入流程（给用户/AI 的正确路径）**：injection_list 找目标 app bundle id（如 dev.trollmcp.app）→ artifact.find ext=dylib 找 CompileProbe.dylib → injection.enable {bundle_id, dylib_path=裸dylib路径} → 打开目标 app 验证。
