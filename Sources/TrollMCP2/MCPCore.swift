@@ -105,7 +105,7 @@ public final class ToolRegistry: ObservableObject {
         "ping",                 // 连通性
         "device.info", "device.probe",  // 设备/环境信息
         "workspace.info",       // 工作区信息
-        "artifact.list", "artifact.read_text",  // 文件浏览/读取（AI 最常用）
+        "artifact.list", "artifact.read_text", "artifact.find",  // 文件浏览/查找（AI 最常用，find 定位下载产物）
         "model.config",         // 当前模型配置
         "injection.status"      // 注入状态（用户主线常用）
     ]
@@ -283,6 +283,7 @@ public final class ToolRegistry: ObservableObject {
         register(ArtifactReadTextTool())
         register(ArtifactWriteTextTool())
         register(ArtifactListTool())
+        register(ArtifactFindTool())   // v2.9.33：递归查找下载产物 dylib/deb
         register(PingTool())
         register(DeviceInfoTool())
         register(DeviceProbeTool())
