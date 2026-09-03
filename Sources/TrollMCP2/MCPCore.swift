@@ -35,15 +35,12 @@ public enum MCPError: Error, CustomStringConvertible {
     case unknownTool(String)
     case invalidParams(String)
     case failed(String)
-    /// v2.9.25：工具未授权（不在白名单、也未被会话/单次授权），需用户确认
-    case requiresApproval(String)
 
     public var description: String {
         switch self {
         case .unknownTool(let n): return "unknown tool: \(n)"
         case .invalidParams(let m): return "invalid params: \(m)"
         case .failed(let m): return "tool failed: \(m)"
-        case .requiresApproval(let n): return "tool requires approval: \(n)"
         }
     }
 }
@@ -60,8 +57,6 @@ public final class ToolRegistry: ObservableObject {
     /// v2.9.22：会话内已授权工具（AI 通过 tool_search 搜索到并决定调用即自动放行，
     /// 无需用户手动开 Toggle）。新会话时清空。
     private var sessionApproved: Set<String> = []
-    /// v2.9.25：单次授权（本轮授权）——用一次即移除
-    private var singleUseApproved: Set<String> = []
     /// v2.9.26：策略版本号。setEnabled 时递增，通过 @Published 可靠触发
     /// 工具权限策略页刷新（修复 iOS16 List 内 Toggle 只靠 objectWillChange.send()
     /// 刷新不可靠、开关点了没反应/弹回的问题）。
@@ -82,8 +77,6 @@ public final class ToolRegistry: ObservableObject {
     /// v2.9.15：聊天默认工具白名单。
     /// 根因：80+ 工具全量进 schema 导致每次请求载荷巨大，中转/gpt-5.6 处理极慢甚至超时。
     /// 未显式设置的工具按此白名单决定默认启用；用户显式开/关过的仍以用户为准。
-    /// v2.9.25：高危执行类（注入 enable/disable/remove、本机编译 build.run）移出白名单，
-    /// 由 AI 搜索到后调用时弹窗让用户选「本轮/会话/拒绝」。
     private static let defaultEnabledTools: Set<String> = [
         "tool_search",   // v2.9.16：渐进式披露元工具，必须始终可用
         "ping", "device.info", "device.probe", "workspace.info",
@@ -96,28 +89,18 @@ public final class ToolRegistry: ObservableObject {
         "build.environment"
     ]
 
-    /// v2.9.25：敏感/隐私/高危工具。AI 搜索到这类工具时**不自动授权**，
-    /// 调用时会弹出授权选择（本轮授权 / 本轮会话授权 / 拒绝）。
-    /// 用户在工具权限策略里手动开启的仍直接放行（用户已明确授权）。
-    private static let sensitiveTools: Set<String> = [
-        // 隐私数据
-        "contacts.search", "location.get", "calendar.list", "calendar.create_event",
-        "reminder.create", "reminder.schedule", "reminder.schedule_recurring",
-        "notification.send", "process.list",
-        "assistant.memory_set", "assistant.memory_list", "assistant.memory_delete",
-        // 写 / 删 / 扫码 / 电话 / 打开 App 输入
-        "container.write_text", "container.delete", "apps.cache_clear",
-        "apps.open", "apps.open_and_input", "wechat.prepare_message",
-        "phone.call", "phone.schedule_call", "scan.qr",
-        // 注入（高危）
-        "injection.enable", "injection.disable", "injection.remove",
-        // 本机编译执行 / 知识删除
-        "build.run", "knowledge.delete"
+    /// v2.9.31：常驻核心工具（借鉴 Anthropic `defer_loading: false` 设计）。
+    /// **初始请求只带这些工具**，其余全部工具靠 tool_search 按需搜索加载。
+    /// 即使权限策略页全量勾选，初始请求载荷也恒定极小 → 彻底解决"全勾选后变慢"。
+    private static let coreToolNames: Set<String> = [
+        "tool_search",          // 元工具：按需发现其余工具（AI 需要时搜索）
+        "ping",                 // 连通性
+        "device.info", "device.probe",  // 设备/环境信息
+        "workspace.info",       // 工作区信息
+        "artifact.list", "artifact.read_text",  // 文件浏览/读取（AI 最常用）
+        "model.config",         // 当前模型配置
+        "injection.status"      // 注入状态（用户主线常用）
     ]
-
-    public func isSensitive(_ name: String) -> Bool {
-        Self.sensitiveTools.contains(name)
-    }
 
     public func isEnabled(name: String) -> Bool {
         // v2.9.24：改用显式状态字典。用户手动开/关过的工具以显式值为准；
@@ -128,44 +111,17 @@ public final class ToolRegistry: ObservableObject {
     }
 
     /// v2.9.22：授权某工具在本会话内可调用（绕过策略禁用）。
+    /// v2.9.31：tool_search 搜索命中即调用本方法自动授权，AI 搜索后即可调用，无弹窗。
     public func approveForSession(_ name: String) {
         lock.lock()
         sessionApproved.insert(name)
         lock.unlock()
     }
 
-    /// v2.9.25：单次授权（本轮授权）——仅本次调用放行，用一次即移除。
-    public func approveOnce(_ name: String) {
-        lock.lock()
-        singleUseApproved.insert(name)
-        lock.unlock()
-    }
-
-    /// v2.9.25：消耗一次单次授权（返回是否命中并消耗）。
-    private func consumeOnce(_ name: String) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        if singleUseApproved.contains(name) {
-            singleUseApproved.remove(name)
-            return true
-        }
-        return false
-    }
-
-    /// v2.9.25：获取工具摘要（授权弹窗展示用途）
-    public func summary(for name: String) -> String? {
-        lock.lock()
-        defer { lock.unlock() }
-        if let t = tools[name] { return t.definition.summary }
-        if let original = apiNameToOriginal[name], let t = tools[original] { return t.definition.summary }
-        return nil
-    }
-
-    /// v2.9.22：清空会话授权（新会话时调用）。v2.9.25：同时清空单次授权。
+    /// v2.9.22：清空会话授权（新会话时调用）。
     public func clearSessionApproval() {
         lock.lock()
         sessionApproved.removeAll()
-        singleUseApproved.removeAll()
         lock.unlock()
     }
 
@@ -193,10 +149,13 @@ public final class ToolRegistry: ObservableObject {
 
     /// v2.9.1：生成给 OpenAI API 用的工具 schema，同时建立 apiName → 原名映射，
     /// 供 dispatch 把模型返回的安全名转回真实工具名。
+    /// v2.9.31：**只返回常驻核心工具**（coreToolNames），不再全量返回已启用工具。
+    /// 其余工具靠 tool_search 按需披露（Anthropic defer_loading 同款设计），
+    /// 初始请求载荷恒定极小，全量勾选不影响速度。
     public func enabledOpenAIToolSchema() -> [[String: Any]] {
         lock.lock()
         defer { lock.unlock() }
-        let defs = tools.values.map { $0.definition }.filter { isEnabled(name: $0.name) }
+        let defs = tools.values.map { $0.definition }.filter { Self.coreToolNames.contains($0.name) }
         var used = Set<String>()
         var map = [String: String]()
         var result: [[String: Any]] = []
@@ -299,13 +258,15 @@ public final class ToolRegistry: ObservableObject {
         }
         lock.unlock()
         guard let t = tool else { throw MCPError.unknownTool(name) }
-        // v2.9.22+25：授权判定——策略启用 / 会话授权 / 单次授权 任一放行；
-        // 否则抛 requiresApproval，由 runLoop 弹窗让用户选「本轮/会话/拒绝」。
+        // v2.9.31：去掉授权弹窗。放行 = 策略启用（isEnabled）或会话已授权
+        // （tool_search 搜索命中即 approveForSession 自动授权）。
+        // 未加载工具（不在常驻、也未搜索过）直接返回错误，提示 AI 先用 tool_search
+        // 搜索加载，而不是弹窗打扰用户。
         let originalName = t.definition.name
-        if isEnabled(name: originalName) || isSessionApproved(originalName) || consumeOnce(originalName) {
+        if isEnabled(name: originalName) || isSessionApproved(originalName) {
             return try t.invoke(params)
         }
-        throw MCPError.requiresApproval(originalName)
+        throw MCPError.failed("tool \(originalName) 未加载，请先调用 tool_search 搜索该工具")
     }
 
     /// 全量内置工具集
@@ -424,24 +385,17 @@ final class ToolSearchTool: MCPTool {
         let query = (params["query"] as? String) ?? ""
         let limit = (params["limit"] as? NSNumber)?.intValue ?? 8
         let hits = ToolRegistry.shared.searchTools(query: query, limit: max(1, min(limit, 20)))
-        // v2.9.22+25：普通工具搜索到即自动授权本会话；敏感/隐私/高危工具不自动授权，
-        // AI 调用时会弹窗让用户选「本轮授权 / 本轮会话授权 / 拒绝」。
-        var sensitive: [String] = []
+        // v2.9.31：去掉敏感工具区分——搜索到即自动授权本会话（无弹窗，AI 自由调用）
         for h in hits {
             guard let n = h["name"], !n.isEmpty else { continue }
-            if ToolRegistry.shared.isSensitive(n) {
-                sensitive.append(n)
-            } else {
-                ToolRegistry.shared.approveForSession(n)
-            }
+            ToolRegistry.shared.approveForSession(n)
         }
         return [
             "query": query,
             "total": hits.count,
             "tools": hits,
-            "authorized": hits.filter { !ToolRegistry.shared.isSensitive($0["name"] ?? "") }.map { $0["name"] ?? "" },
-            "sensitive": sensitive,
-            "hint": "普通工具已自动授权本会话调用；标为 sensitive 的隐私/高危工具（通讯录、定位、注入、删除、打电话等）调用时会弹出授权确认，可选本轮授权 / 本轮会话授权 / 拒绝。"
+            "authorized": hits.map { $0["name"] ?? "" },
+            "hint": "搜索到的工具已自动授权本会话，可直接调用（无需弹窗确认）。"
         ]
     }
 }

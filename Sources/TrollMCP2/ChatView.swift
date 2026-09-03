@@ -94,19 +94,7 @@ struct ChatView: View {
             }, alignment: .top)
         }
         .navigationViewStyle(.stack)
-        // v2.9.30：授权弹窗挂最外层（与 inputBar 的 +号 actionSheet 分离，避免同 view 覆盖）
-        .actionSheet(item: $store.pendingApproval) { p in
-            ActionSheet(
-                title: Text("工具授权请求"),
-                message: Text("AI 想调用「\(p.toolName)」\n\(p.summary)\n\n选择授权范围："),
-                buttons: [
-                    .default(Text("本轮授权（仅此一次）")) { store.resolveApproval(.once) },
-                    .default(Text("本轮会话授权")) { store.resolveApproval(.session) },
-                    .destructive(Text("拒绝")) { store.resolveApproval(.deny) },
-                    .cancel()
-                ]
-            )
-        }
+        // v2.9.31：授权弹窗已整体移除（工具搜索即自动授权，无弹窗）。
         .sheet(item: $attachmentSheet) { sheet in
             switch sheet {
             case .panel:
