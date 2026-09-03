@@ -610,3 +610,24 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 - **ChatView 授权 actionSheet 删除**（v2.9.30 挂导航外层的那个）；+号 actionSheet 保留在 inputBar。
 - 注意：授权弹窗删除后**注入/删除/扫码/电话等原敏感工具 AI 可自由调用**——这是用户明确要求（"AI 可以选择不要限制"），需在 UI 提示用户自行承担。
 - 校验：verify_v2931.py 检查 coreToolNames 存在、enabledOpenAIToolSchema 只返回常驻、无 requiresApproval/approveOnce/sensitiveTools/pendingApproval/resolveApproval/forceDeny、版本 2.9.31、花括号配对；全过。
+
+
+### v2.9.32 关键认知（2026-09-03）
+
+**注入修复：TrollStore TSRootBinaries + persona-mgmt 机制**——无越狱下 mobile 用户无 POSIX 写权限写 root 拥有的 app bundle（此前 POSIX 13 Permission denied）。
+
+- **根因确认**：TrollMCP2 entitlements 已有 no-sandbox/no-container/platform-application，但报错是 POSIX 权限而非沙箱。TrollStore 无越狱 app 以 mobile 运行，无法写 root 拥有的 bundle。
+- **TrollFools 原理（查证）**：TrollStore 官方机制——app 无沙箱 + `com.apple.private.persona-mgmt` entitlement 即可用 `posix_spawnattr_setuid_np/setgid_np` 以 root 身份 spawn 内置二进制（TrollStore TSUtil.m 的 spawnRoot）。iOS 14+ 支持任意 UID/GID spawn；**iOS 17.6/18.0 起非 root 进程禁止 spawn root 二进制（需内核漏洞）**。用户 iOS 16.3 → 完全支持。
+- **落地**：
+  1. `InjectionManager.spawnRoot(_:args:)`：`posix_spawnattr_init` + dlsym 动态绑定 `posix_spawnattr_setuid_np/setgid_np`（uid/gid 0）→ posix_spawn。**注意**：`@_silgen_name` 绑定 _np 私有函数会链接失败（undefined symbol），必须 dlsym 运行时查找。
+  2. `Info.plist` 加 `TSRootBinaries` 数组，声明 bin/insert_dylib、ldid、cp、cp-15、mv、mv-15、rm、chown、install_name_tool、optool——TrollStore 安装时对其特殊处理。
+  3. enable/disable/remove 写 bundle 的操作全部 `runAsRoot`（root cp 拷贝 agent / root cp 备份 / root insert_dylib --inplace / root ldid -S / root rm）。cp 版本按 iOS 大版本选：iOS 15 用 cp-15，16+ 用 cp。
+  4. `enable` 新增 `dylibSourcePath` 参数：支持注入 GitHub 下载的本地 dylib（如 CompileProbe.dylib）——root 拷贝进目标 App + insert_dylib + ldid，覆盖"线上打包→下载→注入测试→移除"闭环。
+  5. injected 判定改为 `insert_dylib exit==0`（自定义 dylib 不匹配 "TrollMCPAgent" 字符串扫描）。
+- **注入工具参数**：`injection.enable` 的 `dylib_path` 传本地文件路径 → 作为注入源；传 @executable_path/@loader_path 前缀 → 作为 load name；空 → 内置 agent。
+
+**权限策略页对齐新架构（v2.9.31/32）**：
+- 说明文字改为按需加载语义：初始请求只加载常驻核心（标★），其余 AI 用工具搜索按需加载、搜索命中即自动放行本会话、无弹窗；开关控制"是否默认可用"（关闭的工具 AI 仍可先搜索再调用）；全量勾选不影响请求速度。
+- `ToolRegistry` 加 `coreToolNames` 只读访问器 + `isCore(_:)`；MoreViews 工具名加 ★ 标记（蓝色）。
+
+**校验**：verify_v2932.py 检查 spawnRoot/runAsRoot/@_silgen_name 移除/dlsym/TSRootBinaries/persona-mgmt/dylibSourcePath/cp 版本选择/injected 判定/权限页 isCore/版本 2.9.32；全过。CI 首次失败（@_silgen_name 链接 undefined symbol _posix_spawnattr_setuid_np）→ 改 dlsym 后成功。
