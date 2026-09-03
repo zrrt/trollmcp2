@@ -1,14 +1,6 @@
 import Foundation
+import Darwin
 import UIKit
-
-// v2.9.32：TrollStore root helper 机制——利用 com.apple.private.persona-mgmt entitlement
-// 以 root 身份 spawn 内置二进制（iOS 16.3 完全支持；iOS 17.6+/18+ 已禁，需内核漏洞）。
-// 这些 _np 私有函数存在于 libSystem，Swift 未导出，用 @_silgen_name 手动绑定。
-@_silgen_name("posix_spawnattr_setuid_np")
-private func posix_spawnattr_setuid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t?>, _ uid: uid_t) -> Int32
-
-@_silgen_name("posix_spawnattr_setgid_np")
-private func posix_spawnattr_setgid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t?>, _ gid: gid_t) -> Int32
 
 /// 注入管理器：使用内置 ldid / optool / insert_dylib / ct_bypass 二进制，通过 posix_spawn
 /// 真实地把 TrollMCPAgent.dylib 注入到目标 App 主可执行文件（TrollStore 无越狱注入）。
@@ -133,7 +125,8 @@ final class InjectionManager {
     }
 
     /// v2.9.32：root 版 spawn（posix_spawnattr_setuid_np/setgid_np → uid 0）。
-    /// iOS 16.3 + persona-mgmt entitlement 下有效。
+    /// 这些 _np 私有函数存在于 libSystem 但未导出到 SDK 链接（编译期 undefined symbol），
+    /// 故用 dlsym 运行时动态查找，避免链接失败。iOS 16.3 + persona-mgmt entitlement 下有效。
     func spawnRoot(_ path: String, args: [String]) -> (Int32, String) {
         var argv: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) }
         argv.append(nil)
@@ -152,11 +145,21 @@ final class InjectionManager {
         posix_spawn_file_actions_addclose(&fileActions, outPipe[0])
         posix_spawn_file_actions_addclose(&fileActions, errPipe[0])
 
-        // root 身份：setuid/setgid 0
+        // root 身份：setuid/setgid 0（dlsym 动态绑定 _np 私有 API）
         var attr: posix_spawnattr_t?
         posix_spawnattr_init(&attr)
-        posix_spawnattr_setuid_np(&attr, 0)
-        posix_spawnattr_setgid_np(&attr, 0)
+        typealias SetIdFn = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, UInt32) -> Int32
+        if let lib = dlopen("/usr/lib/libSystem.B.dylib", RTLD_LAZY) {
+            if let f = dlsym(lib, "posix_spawnattr_setuid_np") {
+                let fn = unsafeBitCast(f, to: SetIdFn.self)
+                _ = fn(&attr, 0)
+            }
+            if let f = dlsym(lib, "posix_spawnattr_setgid_np") {
+                let fn = unsafeBitCast(f, to: SetIdFn.self)
+                _ = fn(&attr, 0)
+            }
+            dlclose(lib)
+        }
 
         var env: [UnsafeMutablePointer<CChar>?] = [
             strdup("PATH=/usr/bin:/bin:/usr/sbin:/sbin"),
