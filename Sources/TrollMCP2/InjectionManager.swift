@@ -1,8 +1,19 @@
 import Foundation
 import UIKit
 
+// v2.9.32：TrollStore root helper 机制——利用 com.apple.private.persona-mgmt entitlement
+// 以 root 身份 spawn 内置二进制（iOS 16.3 完全支持；iOS 17.6+/18+ 已禁，需内核漏洞）。
+// 这些 _np 私有函数存在于 libSystem，Swift 未导出，用 @_silgen_name 手动绑定。
+@_silgen_name("posix_spawnattr_setuid_np")
+private func posix_spawnattr_setuid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t?>, _ uid: uid_t) -> Int32
+
+@_silgen_name("posix_spawnattr_setgid_np")
+private func posix_spawnattr_setgid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t?>, _ gid: gid_t) -> Int32
+
 /// 注入管理器：使用内置 ldid / optool / insert_dylib / ct_bypass 二进制，通过 posix_spawn
 /// 真实地把 TrollMCPAgent.dylib 注入到目标 App 主可执行文件（TrollStore 无越狱注入）。
+/// v2.9.32：写 bundle 的文件操作全部改 **root 身份**执行（TrollStore TSRootBinaries +
+/// persona-mgmt），修复无越狱下 mobile 用户无权写 root 拥有的 app bundle（POSIX 13）。
 final class InjectionManager {
     static let shared = InjectionManager()
 
@@ -21,6 +32,23 @@ final class InjectionManager {
         return names.filter { binaryPath($0) != nil }
     }
 
+    /// iOS 大版本（用于选择 cp / cp-15 等工具变体）
+    private var majorVersion: Int {
+        let v = ProcessInfo.processInfo.operatingSystemVersion
+        return v.majorVersion
+    }
+
+    /// 选择可用的 coreutils 复制工具：iOS 15 用 cp-15，iOS 16+ 用 cp
+    private func cpBinary() -> String? {
+        if majorVersion <= 15 { return binaryPath("cp-15") ?? binaryPath("cp") }
+        return binaryPath("cp") ?? binaryPath("cp-15")
+    }
+
+    private func mvBinary() -> String? {
+        if majorVersion <= 15 { return binaryPath("mv-15") ?? binaryPath("mv") }
+        return binaryPath("mv") ?? binaryPath("mv-15")
+    }
+
     // MARK: - posix_spawn 执行包内二进制
 
     /// 执行包内二进制，捕获 stdout/stderr，返回 (exitCode, combinedOutput)
@@ -32,6 +60,20 @@ final class InjectionManager {
         if result.0 != 0, name != "ldid", let ldid = binaryPath("ldid") {
             _ = spawn(ldid, args: ["-S", bin])
             let retry = spawn(bin, args: [name] + args)
+            if retry.0 == 0 { return retry }
+        }
+        return result
+    }
+
+    /// v2.9.32：以 **root 身份**执行包内二进制（写 app bundle 必需，mobile 无 POSIX 写权限）。
+    /// 依赖 TrollStore 安装时保留的 persona-mgmt entitlement + Info.plist TSRootBinaries 声明。
+    @discardableResult
+    func runAsRoot(_ name: String, args: [String]) -> (Int32, String) {
+        guard let bin = binaryPath(name) else { return (-1, "binary not bundled: \(name)") }
+        let result = spawnRoot(bin, args: [name] + args)
+        if result.0 != 0, name != "ldid", let ldid = binaryPath("ldid") {
+            _ = spawnRoot(ldid, args: ["-S", bin])
+            let retry = spawnRoot(bin, args: [name] + args)
             if retry.0 == 0 { return retry }
         }
         return result
@@ -90,6 +132,69 @@ final class InjectionManager {
         return (status, "posix_spawn failed (\(status))")
     }
 
+    /// v2.9.32：root 版 spawn（posix_spawnattr_setuid_np/setgid_np → uid 0）。
+    /// iOS 16.3 + persona-mgmt entitlement 下有效。
+    func spawnRoot(_ path: String, args: [String]) -> (Int32, String) {
+        var argv: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) }
+        argv.append(nil)
+        defer { for p in argv where p != nil { free(p) } }
+
+        var pid: pid_t = 0
+        var outPipe: [Int32] = [-1, -1]
+        var errPipe: [Int32] = [-1, -1]
+        pipe(&outPipe)
+        pipe(&errPipe)
+
+        var fileActions: posix_spawn_file_actions_t?
+        posix_spawn_file_actions_init(&fileActions)
+        posix_spawn_file_actions_adddup2(&fileActions, outPipe[1], 1)
+        posix_spawn_file_actions_adddup2(&fileActions, errPipe[1], 2)
+        posix_spawn_file_actions_addclose(&fileActions, outPipe[0])
+        posix_spawn_file_actions_addclose(&fileActions, errPipe[0])
+
+        // root 身份：setuid/setgid 0
+        var attr: posix_spawnattr_t?
+        posix_spawnattr_init(&attr)
+        posix_spawnattr_setuid_np(&attr, 0)
+        posix_spawnattr_setgid_np(&attr, 0)
+
+        var env: [UnsafeMutablePointer<CChar>?] = [
+            strdup("PATH=/usr/bin:/bin:/usr/sbin:/sbin"),
+            strdup("HOME=/var/root"),
+            strdup("UID=0"),
+            nil
+        ]
+        defer { for p in env where p != nil { free(p) } }
+
+        let status = posix_spawn(&pid, path, &fileActions, &attr, &argv, &env)
+        posix_spawn_file_actions_destroy(&fileActions)
+        posix_spawnattr_destroy(&attr)
+        close(outPipe[1]); close(errPipe[1])
+
+        var out = Data()
+        if status == 0 {
+            var buf = [UInt8](repeating: 0, count: 4096)
+            while true {
+                let n = read(outPipe[0], &buf, buf.count)
+                if n <= 0 { break }
+                out.append(buf, count: n)
+            }
+            var buf2 = [UInt8](repeating: 0, count: 4096)
+            while true {
+                let n = read(errPipe[0], &buf2, buf2.count)
+                if n <= 0 { break }
+                out.append(buf2, count: n)
+            }
+            var st: Int32 = 0
+            waitpid(pid, &st, 0)
+            close(outPipe[0]); close(errPipe[0])
+            let code = Int32((UInt32(st) >> 8) & 0xff)
+            return (code, String(data: out, encoding: .utf8) ?? "")
+        }
+        close(outPipe[0]); close(errPipe[0])
+        return (status, "spawnRoot failed (\(status))")
+    }
+
     // MARK: - 路径解析
 
     func executablePath(_ app: AppCatalog.AppEntry) -> String {
@@ -111,55 +216,81 @@ final class InjectionManager {
     // MARK: - 公共 API
 
     /// 注入 dylib 到指定 App：拷贝 agent → insert_dylib --inplace → ldid -S 重签
-    func enable(bundleId: String, dylibName: String = "@executable_path/TrollMCPAgent.dylib") throws -> [String: Any] {
+    /// v2.9.32：写 bundle 的文件操作全部改 root 执行（修复 mobile 无 POSIX 写权限 → POSIX 13）。
+    /// `dylibSourcePath`：指定本地 dylib 文件（如 GitHub 下载的 CompileProbe.dylib）注入；
+    /// 为空时注入内置 TrollMCPAgent.dylib。
+    func enable(bundleId: String, dylibName: String = "@executable_path/TrollMCPAgent.dylib",
+                dylibSourcePath: String? = nil) throws -> [String: Any] {
         guard let app = AppCatalog.find(bundleId) else {
             throw MCPError.failed("app not found: \(bundleId)")
         }
         guard binaryPath("insert_dylib") != nil,
-              binaryPath("ldid") != nil else {
-            throw MCPError.failed("insert_dylib / ldid 未内置")
+              binaryPath("ldid") != nil,
+              let cp = cpBinary() else {
+            throw MCPError.failed("insert_dylib / ldid / cp 未内置")
         }
         let mainBinary = executablePath(app)
         guard FileManager.default.fileExists(atPath: mainBinary) else {
             throw MCPError.failed("主二进制不存在: \(mainBinary)")
         }
-        // v2.9.21：agent dylib 在 bin/ 子目录（build-ipa.sh 把 Resources/bin 拷成 app/bin）
-        let agentSrc = binDir.appendingPathComponent("TrollMCPAgent.dylib").path
-        guard FileManager.default.fileExists(atPath: agentSrc) else {
-            throw MCPError.failed("TrollMCPAgent.dylib 未内置（\(agentSrc)）")
+        // 决定注入源 dylib 与目标 load name
+        let agentSrc: String
+        let injectName: String
+        if let src = dylibSourcePath, !src.isEmpty {
+            guard FileManager.default.fileExists(atPath: src) else {
+                throw MCPError.failed("指定的 dylib 文件不存在: \(src)")
+            }
+            agentSrc = src
+            let fileName = (src as NSString).lastPathComponent
+            injectName = (dylibName.hasPrefix("@executable_path/") || dylibName.hasPrefix("@loader_path/"))
+                ? dylibName : "@executable_path/\(fileName)"
+        } else {
+            // v2.9.21：agent dylib 在 bin/ 子目录（build-ipa.sh 把 Resources/bin 拷成 app/bin）
+            agentSrc = binDir.appendingPathComponent("TrollMCPAgent.dylib").path
+            guard FileManager.default.fileExists(atPath: agentSrc) else {
+                throw MCPError.failed("TrollMCPAgent.dylib 未内置（\(agentSrc)）")
+            }
+            injectName = dylibName
         }
-        let agentDst = (app.path as NSString).appendingPathComponent("TrollMCPAgent.dylib")
+        let agentDst = (app.path as NSString).appendingPathComponent((agentSrc as NSString).lastPathComponent)
 
-        // 1. 拷贝 agent dylib 进目标 App（@executable_path 可解析）
+        // 1. root 拷贝 agent dylib 进目标 App（@executable_path 可解析）
         if !FileManager.default.fileExists(atPath: agentDst) {
-            try FileManager.default.copyItem(atPath: agentSrc, toPath: agentDst)
+            let (c0, o0) = runAsRoot("cp", args: ["-a", agentSrc, agentDst])
+            if c0 != 0 { throw MCPError.failed("root cp agent 失败(\(c0)): \(o0)") }
         }
-        try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: agentDst)
 
-        // 2. 备份原始主二进制
+        // 2. root 备份原始主二进制
         let backup = mainBinary + ".bak_macho"
         if !FileManager.default.fileExists(atPath: backup) {
-            try FileManager.default.copyItem(atPath: mainBinary, toPath: backup)
+            let (cB, oB) = runAsRoot("cp", args: ["-a", mainBinary, backup])
+            if cB != 0 { throw MCPError.failed("root cp 备份主二进制失败(\(cB)): \(oB)") }
         }
 
-        // 3. insert_dylib --inplace
-        let (c1, o1) = runBundled("insert_dylib", args: ["--inplace", dylibName, mainBinary])
+        // 3. root insert_dylib --inplace
+        let (c1, o1) = runAsRoot("insert_dylib", args: ["--inplace", injectName, mainBinary])
         guard c1 == 0 else {
             throw MCPError.failed("insert_dylib 失败(\(c1)): \(o1)")
         }
 
-        // 4. ldid -S 重签（无 entitlements）
-        let (c2, o2) = runBundled("ldid", args: ["-S", mainBinary])
+        // 4. root ldid -S 重签（无 entitlements）
+        let (c2, o2) = runAsRoot("ldid", args: ["-S", mainBinary])
 
-        let injected = isInjected(mainBinary)
+        // v2.9.32：injected 判定——insert_dylib 成功（exit 0）即视为已注入。
+        // 自定义 dylib（如 CompileProbe.dylib）不匹配 "TrollMCPAgent" 字符串扫描，
+        // 因此不能只靠 isInjected；备份存在 + insert 成功 = 注入已写入。
+        let inserted = c1 == 0
+        let injected = inserted || isInjected(mainBinary)
         AuditLog.shared.log("injection.enable", detail: "\(bundleId) → \(mainBinary) injected=\(injected)")
         return [
             "action": "inject",
             "app": app.name,
             "bundleId": bundleId,
             "mainBinary": mainBinary,
-            "dylib": dylibName,
+            "dylib": injectName,
+            "dylibSource": agentSrc,
             "backup": backup,
+            "root": true,
             "insert_dylib_exit": Int(c1),
             "ldid_exit": Int(c2),
             "insert_output": o1,
@@ -170,6 +301,7 @@ final class InjectionManager {
     }
 
     /// 还原注入（用备份覆盖主二进制），保留 dylib 文件
+    /// v2.9.32：root 执行 rm + cp + ldid。
     func disable(bundleId: String) throws -> [String: Any] {
         guard let app = AppCatalog.find(bundleId) else {
             throw MCPError.failed("app not found: \(bundleId)")
@@ -179,15 +311,19 @@ final class InjectionManager {
         guard FileManager.default.fileExists(atPath: backup) else {
             throw MCPError.failed("未找到注入备份，可能从未注入或无法还原")
         }
-        try FileManager.default.removeItem(atPath: mainBinary)
-        try FileManager.default.copyItem(atPath: backup, toPath: mainBinary)
-        let (c, o) = runBundled("ldid", args: ["-S", mainBinary])
+        guard let cp = cpBinary() else { throw MCPError.failed("cp 未内置") }
+        let (cR, oR) = runAsRoot("rm", args: ["-f", mainBinary])
+        if cR != 0 { throw MCPError.failed("root rm 失败(\(cR)): \(oR)") }
+        let (cC, oC) = runAsRoot("cp", args: ["-a", backup, mainBinary])
+        if cC != 0 { throw MCPError.failed("root cp 还原失败(\(cC)): \(oC)") }
+        let (c, o) = runAsRoot("ldid", args: ["-S", mainBinary])
         let injected = isInjected(mainBinary)
         AuditLog.shared.log("injection.disable", detail: bundleId)
         return [
             "action": "remove",
             "bundleId": bundleId,
             "restored_from_backup": true,
+            "root": true,
             "ldid_exit": Int(c),
             "ldid_output": o,
             "injected": injected,
@@ -201,8 +337,9 @@ final class InjectionManager {
         if let app = AppCatalog.find(bundleId) {
             let agentDst = (app.path as NSString).appendingPathComponent("TrollMCPAgent.dylib")
             if FileManager.default.fileExists(atPath: agentDst) {
-                try? FileManager.default.removeItem(atPath: agentDst)
-                r["dylib_removed"] = true
+                let (cD, oD) = runAsRoot("rm", args: ["-f", agentDst])
+                r["dylib_removed"] = cD == 0
+                r["rm_output"] = oD
             }
         }
         AuditLog.shared.log("injection.remove", detail: bundleId)

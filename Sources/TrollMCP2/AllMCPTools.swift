@@ -9,13 +9,25 @@ import Vision
 // MARK: - M3 注入工具
 
 final class InjectionEnableTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.enable", summary: "向指定 App 注入 dylib",
-        parameters: ["bundle_id": "目标 App Bundle ID", "dylib_path": "dylib 文件路径"])
+    let definition = ToolDefinition(name: "injection.enable", summary: "向指定 App 注入 dylib（支持注入 GitHub 下载的本地 dylib 文件路径）",
+        parameters: ["bundle_id": "目标 App Bundle ID", "dylib_path": "dylib 本地文件路径（如 Workspace/downloads/.../CompileProbe.dylib），缺省注入内置 TrollMCPAgent.dylib"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
-        let dylib = params["dylib_path"] as? String ?? "@executable_path/TrollMCPAgent.dylib"
-        let result = try InjectionManager.shared.enable(bundleId: bid, dylibName: dylib)
-        AuditLog.shared.log("injection.enable", detail: "\(bid) → \(dylib)")
+        let dylibPath = params["dylib_path"] as? String
+        // v2.9.32：dylib_path 为本地文件路径 → 作为注入源（root 拷贝进目标 App）；
+        // 为 @executable_path/@loader_path 前缀 → 作为 load name；空 → 内置 agent。
+        var source: String?
+        var loadName = "@executable_path/TrollMCPAgent.dylib"
+        if let p = dylibPath, !p.isEmpty {
+            if p.hasPrefix("@executable_path/") || p.hasPrefix("@loader_path/") {
+                loadName = p
+            } else {
+                source = p
+                loadName = "@executable_path/\((p as NSString).lastPathComponent)"
+            }
+        }
+        let result = try InjectionManager.shared.enable(bundleId: bid, dylibName: loadName, dylibSourcePath: source)
+        AuditLog.shared.log("injection.enable", detail: "\(bid) → \(dylibPath ?? "内置agent")")
         return result
     }
 }

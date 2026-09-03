@@ -89,10 +89,18 @@ public final class ToolRegistry: ObservableObject {
         "build.environment"
     ]
 
+    /// v2.9.31：常驻核心工具名集合（UI 用只读访问）
+    public static var coreToolNames: Set<String> { Self._coreToolNames }
+
+    /// v2.9.31：判断工具是否常驻核心（初始请求自动加载，无需搜索）
+    public func isCore(_ name: String) -> Bool {
+        Self.coreToolNames.contains(name)
+    }
+
     /// v2.9.31：常驻核心工具（借鉴 Anthropic `defer_loading: false` 设计）。
     /// **初始请求只带这些工具**，其余全部工具靠 tool_search 按需搜索加载。
     /// 即使权限策略页全量勾选，初始请求载荷也恒定极小 → 彻底解决"全勾选后变慢"。
-    private static let coreToolNames: Set<String> = [
+    private static let _coreToolNames: Set<String> = [
         "tool_search",          // 元工具：按需发现其余工具（AI 需要时搜索）
         "ping",                 // 连通性
         "device.info", "device.probe",  // 设备/环境信息

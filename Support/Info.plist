@@ -17,11 +17,24 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.9.31</string>
+	<string>2.9.32</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>MinimumOSVersion</key>
 	<string>14.0</string>
+	<key>TSRootBinaries</key>
+	<array>
+		<string>bin/insert_dylib</string>
+		<string>bin/ldid</string>
+		<string>bin/cp</string>
+		<string>bin/cp-15</string>
+		<string>bin/mv</string>
+		<string>bin/mv-15</string>
+		<string>bin/rm</string>
+		<string>bin/chown</string>
+		<string>bin/install_name_tool</string>
+		<string>bin/optool</string>
+	</array>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>arm64</string>
