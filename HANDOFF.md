@@ -595,3 +595,18 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 - 单例用 `static let shared`
 - 状态管理用 `@Published` + `ObservableObject`
 - UI 不包 NavigationView 的子页 → 被 NavigationLink 推入时由父页的 NavigationView 管理
+
+
+### v2.9.31 关键认知（2026-09-03）
+
+**去掉全部授权弹窗 + 工具按需加载（Anthropic defer_loading 同款）**——用户明确要求"去掉所有本轮授权/会话授权/拒绝"、"工具只保留几个其他 AI 选择不限制"、"全勾选变慢"。
+
+- **常驻核心工具集 `coreToolNames`（9 个）**：tool_search / ping / device.info / device.probe / workspace.info / artifact.list / artifact.read_text / model.config / injection.status。
+  - `enabledOpenAIToolSchema()` 改为 **只返回 coreToolNames**（不再 filter isEnabled 全量）→ 初始请求载荷恒定极小，**权限策略页全量勾选不再影响速度**。
+  - 其余全部工具靠 tool_search 按需披露：AI 搜索命中 → approveForSession 自动授权 → 下一轮注入完整 schema（disclosed 合并逻辑不变）。
+- **删除全部授权弹窗机制**：sensitiveTools / isSensitive / approveOnce / consumeOnce / singleUseApproved / MCPError.requiresApproval / ApprovalDecision / PendingToolApproval / pendingApproval / resolveApproval / forceDeny 全删。
+  - dispatch 放行 = `isEnabled || isSessionApproved`；未加载工具返回错误 `tool X 未加载，请先调用 tool_search 搜索该工具`（不弹窗）。
+  - tool_search 现在对全部命中工具 approveForSession（含注入/删除/扫码等原敏感工具），返回 authorized 全量 + 新 hint。
+- **ChatView 授权 actionSheet 删除**（v2.9.30 挂导航外层的那个）；+号 actionSheet 保留在 inputBar。
+- 注意：授权弹窗删除后**注入/删除/扫码/电话等原敏感工具 AI 可自由调用**——这是用户明确要求（"AI 可以选择不要限制"），需在 UI 提示用户自行承担。
+- 校验：verify_v2931.py 检查 coreToolNames 存在、enabledOpenAIToolSchema 只返回常驻、无 requiresApproval/approveOnce/sensitiveTools/pendingApproval/resolveApproval/forceDeny、版本 2.9.31、花括号配对；全过。
