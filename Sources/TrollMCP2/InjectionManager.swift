@@ -124,11 +124,11 @@ final class InjectionManager {
         return (status, "posix_spawn failed (\(status))")
     }
 
-    /// v2.9.47：root 版 spawn。
-    /// 正确机制：TrollStore TSRootBinaries 在安装时给 bin/ 工具打 setuid root 位（chmod 4755 + chown root），
-    /// exec 时 kernel 自动把 euid 设为 0——**不依赖主进程 setuid**（实测主进程 setuid(0) 在 iOS16.3 不生效，euid 恒为 501）。
-    /// 若 TSRootBinaries 未生效（覆盖安装不会重打 setuid 位），fallback persona 99 attr。
-    /// 诊断：输出目标二进制是否有 setuid 位（bin-setuid）+ 主进程 euid，方便定位 root 是否生效。
+    /// v2.9.50：root 版 spawn（修复版）。
+    /// 对照 TrollStore 官方 TSUtil.m spawnRoot：persona 99 + uid=0 + gid=0 三调用缺一不可。
+    /// 之前用 dlopen("/usr/lib/libSystem.B.dylib") 在 iOS 上路径错误，dlsym 全部返回 nil，
+    /// persona 根本没设置上 → euid 恒为 501 → cp 写 root 目录 EPERM。
+    /// 修复：用 dlsym(RTLD_DEFAULT, ...) 全局符号搜索；加详细诊断；强制 persona 不依赖 setuid 位。
     func spawnRoot(_ path: String, args: [String]) -> (Int32, String) {
         var argv: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) }
         argv.append(nil)
@@ -140,7 +140,6 @@ final class InjectionManager {
            let mode = attrs[.posixPermissions] as? Int {
             binSetuid = (mode & 0o4000) != 0 ? 1 : 0
         }
-        let diagPrefix = "[bin-setuid=\(binSetuid) proc-euid=\(geteuid())] "
 
         var pid: pid_t = 0
         var outPipe: [Int32] = [-1, -1]
@@ -155,28 +154,41 @@ final class InjectionManager {
         posix_spawn_file_actions_addclose(&fileActions, outPipe[0])
         posix_spawn_file_actions_addclose(&fileActions, errPipe[0])
 
-        // 仅当二进制无 setuid 位时，才尝试 persona 99 attr（TSRootBinaries 生效时不需要）
+        // v2.9.50：强制 persona 99 + uid=0 + gid=0（对照 TrollStore 官方 TSUtil.m）
+        // 用 RTLD_DEFAULT 全局符号搜索，不依赖 dlopen 路径
         var attr: posix_spawnattr_t?
         posix_spawnattr_init(&attr)
-        if binSetuid == 0 {
-            typealias SetPersonaFn = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, UInt32, UInt32) -> Int32
-            typealias SetPersonaIdFn = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, UInt32) -> Int32
-            if let lib = dlopen("/usr/lib/libSystem.B.dylib", RTLD_LAZY) {
-                if let f = dlsym(lib, "posix_spawnattr_set_persona_np") {
-                    let fn = unsafeBitCast(f, to: SetPersonaFn.self)
-                    _ = fn(&attr, 99, 1)
-                }
-                if let f = dlsym(lib, "posix_spawnattr_set_persona_uid_np") {
-                    let fn = unsafeBitCast(f, to: SetPersonaIdFn.self)
-                    _ = fn(&attr, 0)
-                }
-                if let f = dlsym(lib, "posix_spawnattr_set_persona_gid_np") {
-                    let fn = unsafeBitCast(f, to: SetPersonaIdFn.self)
-                    _ = fn(&attr, 0)
-                }
-                dlclose(lib)
-            }
+        typealias SetPersonaFn = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, UInt32, UInt32) -> Int32
+        typealias SetPersonaIdFn = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, UInt32) -> Int32
+
+        var diagParts: [String] = []
+        diagParts.append("bin-setuid=\(binSetuid)")
+        diagParts.append("proc-euid=\(geteuid())")
+
+        let symPersona = dlsym(nil, "posix_spawnattr_set_persona_np")
+        let symUid = dlsym(nil, "posix_spawnattr_set_persona_uid_np")
+        let symGid = dlsym(nil, "posix_spawnattr_set_persona_gid_np")
+        diagParts.append("sym_persona=\(symPersona != nil ? 1 : 0)")
+        diagParts.append("sym_uid=\(symUid != nil ? 1 : 0)")
+        diagParts.append("sym_gid=\(symGid != nil ? 1 : 0)")
+
+        if let f = symPersona {
+            let fn = unsafeBitCast(f, to: SetPersonaFn.self)
+            let r = fn(&attr, 99, 1)  // POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE = 1
+            diagParts.append("persona_r=\(r)")
         }
+        if let f = symUid {
+            let fn = unsafeBitCast(f, to: SetPersonaIdFn.self)
+            let r = fn(&attr, 0)  // uid=0 (root)
+            diagParts.append("uid_r=\(r)")
+        }
+        if let f = symGid {
+            let fn = unsafeBitCast(f, to: SetPersonaIdFn.self)
+            let r = fn(&attr, 0)  // gid=0 (wheel)
+            diagParts.append("gid_r=\(r)")
+        }
+
+        let diagPrefix = "[" + diagParts.joined(separator: " ") + "] "
 
         var env: [UnsafeMutablePointer<CChar>?] = [
             strdup("PATH=/usr/bin:/bin:/usr/sbin:/sbin"),
