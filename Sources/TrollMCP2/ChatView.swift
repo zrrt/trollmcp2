@@ -6,7 +6,7 @@ struct ChatView: View {
     @ObservedObject private var modelStore = ModelStore.shared
 
     @State private var inputText = ""
-    @State private var reasoning = 1          // 0=低 1=中 2=高
+    @State private var reasoning = 0          // v2.9.49：默认 low（0=低 1=中 2=高），medium/high 推理显著增加延迟
     @State private var smartSearch = true
     @State private var attachmentSheet: AttachmentSheet?
     @State private var showModelPicker = false  // v2.9.36：聊天框切换上游模型

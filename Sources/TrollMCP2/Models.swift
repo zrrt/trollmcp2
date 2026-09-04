@@ -406,7 +406,7 @@ final class ConversationStore: ObservableObject {
     }
 
     func send(_ text: String, using config: ModelConfig, imageDataURLs: [String]? = nil,
-              reasoningLevel: Int = 1, smartSearch: Bool = true) {
+              reasoningLevel: Int = 0, smartSearch: Bool = true) {
         var msg = ChatMessage(role: "user", content: text)
         if let imgs = imageDataURLs, !imgs.isEmpty {
             msg.imageDataURLs = imgs
@@ -430,7 +430,7 @@ final class ConversationStore: ObservableObject {
         runLoop(config: config, tools: baseTools, disclosed: [], depth: 0, reasoningLevel: reasoningLevel)
     }
 
-    private func runLoop(config: ModelConfig, tools: [[String: Any]]?, disclosed: [String], depth: Int, reasoningLevel: Int = 1) {
+    private func runLoop(config: ModelConfig, tools: [[String: Any]]?, disclosed: [String], depth: Int, reasoningLevel: Int = 0) {
         // v2.9.25：不再限制工具调用轮次（用户可手动点「停止」）。
         // 仅保留 60 轮极端安全保险，正常流程永不触发，防止 AI 完全失控无限发请求。
         guard depth < 60 else {
@@ -573,7 +573,15 @@ final class ConversationStore: ObservableObject {
                                       disclosed: [String], depth: Int, reasoningLevel: Int) {
         switch result {
         case .success(let r):
-            let content = Self.jsonString(r)
+            let rawContent = Self.jsonString(r)
+            // v2.9.49：工具结果截断（>8000字符），防止单条工具结果（如 browser.snapshot / injection.list）
+            // 撑爆上下文导致后续请求巨慢。截断后加提示，模型可调用带分页/过滤参数的工具获取完整数据。
+            let content: String
+            if rawContent.count > 8000 {
+                content = rawContent.prefix(8000) + "\n... [工具结果已截断，共 \(rawContent.count) 字符。如需完整数据，请调用该工具时使用 limit/filter/query 等参数缩小范围。]"
+            } else {
+                content = rawContent
+            }
             var next = toolMessages
             next.append(ChatMessage(role: "tool", content: content, toolCallId: call.id, toolName: call.name))
             var nextDisclosed = newlyDisclosed

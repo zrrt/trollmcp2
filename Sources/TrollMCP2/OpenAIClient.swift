@@ -63,7 +63,7 @@ final class OpenAIClient {
     /// v2.9.15：本轮请求起始时间（用于耗时统计，写入网络兼容日志）
     private var requestStart = Date()
     /// v2.9.20：本轮推理强度（0=低 1=中 2=高），由 ChatView 传入并真实作用于请求。
-    var currentReasoningLevel = 1
+    var currentReasoningLevel = 0  // v2.9.49：默认 low（medium/high 推理显著增加延迟，对标 Codex CLI 默认 low）
 
     init(_ config: ModelConfig) {
         self.config = config

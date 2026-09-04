@@ -906,3 +906,23 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 **用户必须操作**：**卸载 TrollMCP2 后重装 v2.9.47**（不能覆盖安装），TrollStore 才会给 bin/ 工具打 setuid root 位。重装后注入时若显示 `[bin-setuid=1]` 则 root 生效。
 
 **校验**：verify_v2947.py 8 项全过；bracecheck 通过；IPA 内 TSRootBinaries 12 项确认含 ct_bypass/mkdir；MachO 5724672B。CI 33892898494 success（commit a4af0a6）。交付 artifacts\v2.9.47\TrollMCP2-v2.9.47-20260904.ipa。
+
+
+### v2.9.48（2026-09-05）Responses API 加 3 次自动重试，解决"无法解析响应"需手动点继续
+
+**用户实测问题**：v2.9.46/47 频繁出现"无法解析响应"，每次需手动点"继续"按钮才能恢复。截图显示工具结果正常返回（injection_status 返回完整 JSON），但模型下一轮响应解析失败。
+
+**根因**：`performResponses`（Responses API 路径，gpt-5.6-terra 走的就是这个）失败后直接 `completion(.failure)`，**没有任何重试逻辑**。而 chat/completions 路径有 `isRetryable` 判断。中转站（Botcf）返回的格式异常（SSE 流/夹带内容/瞬时 5xx）属于瞬时错误，应自动重试。
+
+**修复**：
+- `performResponses` 重构为 `fire(attempt:)` 递归重试循环，最多 3 次（attempt 0/1/2）。
+- `shouldRetry(_:status:)` 判断函数：网络错误（超时/连接中断/无法连接/无网络）、HTTP 5xx、解析失败（含"解析失败"/"无法解析"）→ 重试；4xx 参数/鉴权错误 → 不重试。
+- 指数退避：第 2 次等 1s，第 3 次等 2s。
+- 重试时状态文案更新为"正在重试 Responses API（第 N/3 次）…"，用户可见。
+- 4xx（如 401 鉴权失败、400 参数错误）不重试，直接报错——避免浪费请求。
+
+**校验**：verify_v2948.py 8 项全过（shouldRetry/fire/重试判断/超时/连接中断/版本号）；bracecheck 通过；MachO 5744048B。CI 33896119755 success（commit ae50380）。交付 artifacts\v2.9.48\TrollMCP2-v2.9.48-20260905.ipa。
+
+**待实测**：
+1. "无法解析响应"是否自动恢复（不再需要手动点继续）。
+2. 注入 EPERM：用户需卸载重装 v2.9.48（含 v2.9.47 的 TSRootBinaries 修复），看 `[bin-setuid=0|1]` 诊断。
