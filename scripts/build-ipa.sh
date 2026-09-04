@@ -53,7 +53,8 @@ if [ -d "Resources/bin" ]; then
                 if [ "$SIGN_TOOL" = codesign ]; then
                     codesign -s - -f --entitlements "Support/bin-entitlements.plist" "$t" 2>/dev/null || true
                 else
-                    "$SIGN_TOOL" -S "Support/bin-entitlements.plist" "$t" 2>/dev/null || true
+                    # xerub ldid 语法：-S 后必须紧跟文件名（-Sent.plist），否则 entitlements 写不进去
+                    "$SIGN_TOOL" -S"Support/bin-entitlements.plist" "$t" 2>/dev/null || true
                 fi
             done
             echo ">>> signed bin tools with no-sandbox entitlements (via $SIGN_TOOL)"
@@ -91,7 +92,7 @@ if [ -f "Support/TrollMCP2.entitlements" ]; then
             LDID="$APP/bin/ldid"
         fi
         if [ -n "$LDID" ]; then
-            "$LDID" -S "Support/TrollMCP2.entitlements" "$APP/TrollMCP2"
+            "$LDID" -S"Support/TrollMCP2.entitlements" "$APP/TrollMCP2"
             echo ">>> signed main binary with ldid"
         else
             echo "!!! codesign/ldid not available; cannot inject entitlements" >&2
