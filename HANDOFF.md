@@ -749,3 +749,22 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 **验证**：v2.9.38（CI 33874972457）→ v2.9.38b（33876406729）→ v2.9.38d（33876841718，success）最终 IPA 内 bin/*.11 个工具全部 no-sandbox=True task_for_pid=True。版本 2.9.38 / dev.trollmcp2.app / main Mach-O 5608608B。
 
 **预期效果**：装此版后，注入目标 App bundle 的 cp 操作不再 Permission denied；配合已有 spawnRoot(root) + insert_dylib + ldid 重签流程，injection.enable 应能真正写 dylib 进 TrollMCP.app 并完成注入。若仍失败，下一步查目标 App 目录 POSIX 属主/权限与 TrollStore 对已安装 App 的重签。
+
+
+### v2.9.39（2026-09-04）内置浏览器改悬浮窗（AI 操作可见）
+
+**用户诉求**：内置浏览器要能缩到右侧手机边缘、边缘唤醒、且至少能看到 AI 怎么操作页面。
+
+**改造方案**：
+- 新增 `FloatingBrowser.swift`（状态单例）：`isVisible/isCollapsed/center/lastExpandedCenter`；`show()`（主线程安全，AI 工具调用时自动浮现）/`hide()`/`collapse()`（右缘胶囊 x=width-28）/`expand()`/`beginDrag`/`drag(by:)`/`endDrag()`（缩小态 y 夹 [60, h-60]；展开态 center.x > width*0.82 自动缩胶囊）。
+- 新增 `FloatingBrowserOverlay.swift`（视图）：展开态 = 顶部渐变拖动条（缩小/关闭按钮）+ URL 栏 + 控制条（后退/前进/刷新 + 蓝框开关 + 元素数）+ 复用 BrowserManager 单例 WKWebView 的 WebViewContainer + 底部状态条；缩小态 = 右侧 44pt 蓝色胶囊（点击展开、上下拖动，DragGesture minimumDistance=12 防误触）。
+- `RootView.swift`：`.overlay(FloatingBrowserOverlay())` 挂在 ZStack 上（**注意 iOS14 用 view 参数版 overlay，trailing-closure 版仅 iOS15+**）；sheet（设置/抽屉）会盖住悬浮窗，故各入口都先关 sheet 再 show。
+- `BrowserManager.swift`：`open/goBack/goForward/reload/snapshot/clickElement/typeText/evaluate` 7 个方法统一加 `FloatingBrowser.shared.show()` —— AI 一操作浏览器就自动浮现，用户实时看到 AI 在点哪里、填什么。
+- `ChatView.swift`：AttachmentPanelView onPick 闭包对 `.browser` 特例 = 关 panel + show 悬浮窗（不占 sheet）；`case .browser` 只返回 EmptyView（ViewBuilder switch 内多语句+return 会报 "missing return in closure"）。
+- `SettingsView.swift`：「连接与扩展 → 内置浏览器」改为 SettingRowButton：先 dismiss 设置 sheet，0.35s 后 show 悬浮窗。
+
+**iOS14 坑（本次新增到禁区清单）**：`Color.cyan` 仅 iOS15+，用 `Color.tmCyan`（UIComponents.swift 已定义）；`.overlay { }` trailing-closure 版仅 iOS15+，用 `.overlay(view)`。
+
+**校验**：verify_v2939.py 全过；bracecheck2.py 全对。编译 3 连修：v2.9.39a 33878106496（cyan/overlay iOS14）→ v2.9.39b 33878386973（ChatView case return）→ v2.9.39c 33878644412 success（commit 3e5be8b）。版本 2.9.39 / dev.trollmcp2.app / main Mach-O 5699136B。交付 `artifacts\v2.9.39\TrollMCP2-v2.9.39-20260904.ipa`。
+
+**已知待办（下版）**：悬浮窗拖动高频 @Published 更新可能整树重绘（观察性能）；WKWebView 单例同时被 BrowserView（保留的 NavigationView 形态，未从入口可达）与悬浮窗引用，避免同时 attach；注入闭环验证 v2.9.38 修复后的 injection.enable。
