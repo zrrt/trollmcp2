@@ -679,3 +679,29 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 - `'presentationDetents' is only available in iOS 16.0 or newer` → 用 if #available 包裹。
 
 **校验**：verify_v2935.py 全过。CI 33871449988 success，commit d404307。
+
+
+### v2.9.36（2026-09-04）
+
+**需求（用户 2 张截图 + 文字）**：工具权限页全部勾选但勾选已无实际作用 → 去掉开关；设置里上游模型选择去掉、改聊天框点"当前模型"切换；推理强度/智能搜索改老 MCP 浅蓝框（关=灰开=浅蓝）；去掉无用麦克风按钮；审计页对齐老 MCP"本机工具审计"（执行成功/失败可见 + 可导出给 AI 查看）；内置浏览器是大功能、单独下版做。
+
+**改动**：
+1. **工具权限策略页去开关**：删每行 Capsule Toggle 与"全部启用/全部禁用"按钮；工具名右侧改只读徽标（★核心=「常驻」蓝标，其余=「按需」灰标）。顶部说明改为"常驻核心始终可用，其余 AI 搜索即放行，无需配置"。
+2. **上游模型选择移到聊天框**：设置"上游模型"入口改"模型管理"（指向 ModelsView 增删改配置）；ChatView 点"当前模型"弹 ChatModelPickerSheet 半屏（360pt），点选即 setDefault 切换。注：ModelsView 已有同名 ModelPickerSheet（models:[String]+Binding），新建须改名 ChatModelPickerSheet 防重名。
+3. **推理强度/智能搜索 chips**：ChatChip 加 accent 参数——推理强度恒浅蓝描边框；智能搜索开=浅蓝/关=灰（对齐老 MCP）。
+4. **去掉麦克风**：删 mic 按钮与 showVoiceAlert；占位改"发消息…"。
+5. **本机工具审计（老 MCP 样式 + 导出）**：
+   - AuditLog.Entry 加 status(success/failure)/elapsedMs/dataBytes/permission，新增 logTool()。
+   - ToolRegistry.dispatch 统一记录：permissionLabel（按工具名粗分 write/privilegedRead/readOnly）+ resultBytes（JSON 字节）+ 耗时。
+   - AuditLogView 重写为老 MCP 样式：工具名 + "执行成功/失败·权限" + "M/d/yy, h:mm:ss a·耗时·大小" + 绿勾/红叉；非工具事件保留旧样式。
+   - 设置"安全"区加"本机工具审计"入口；"活动记录"保留（设置变更事件，二者区分）。
+   - 导出按钮：写 workspace/audit/audit_时间戳.txt，alert 显示路径，AI 可用 artifact.read_text 查看失败命令。
+
+**编译排障**（CI 两次失败，commit c81822f 成功）：
+- `invalid redeclaration of 'ModelPickerSheet'`：ModelsView.swift 已有同名 struct → 改名 ChatModelPickerSheet。
+- `trailing closure passed to parameter of type '[String]'`：尾随闭包解析到旧 ModelPickerSheet（models:[String]）→ 同因。
+- `argument 'action' must precede 'accent'`：Swift 无默认值参数必须在有默认值前 → ChatChip(label:, action:, accent:)。
+- `'PresentationDetent' only available in iOS 16.0`：部署目标<16，extension 签名引用 iOS16 类型不可行 → 删 extension，调用处 if #available 内联。
+- `.alert(_:isPresented:actions:message:)` iOS15 only → 改 iOS13 `Alert(title:message:dismissButton:)`。
+
+**校验**：verify_v2936.py 全过；bracecheck2.py 全对。CI 33872788275 success（headSha c81822f）。
