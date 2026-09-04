@@ -768,3 +768,22 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 **校验**：verify_v2939.py 全过；bracecheck2.py 全对。编译 3 连修：v2.9.39a 33878106496（cyan/overlay iOS14）→ v2.9.39b 33878386973（ChatView case return）→ v2.9.39c 33878644412 success（commit 3e5be8b）。版本 2.9.39 / dev.trollmcp2.app / main Mach-O 5699136B。交付 `artifacts\v2.9.39\TrollMCP2-v2.9.39-20260904.ipa`。
 
 **已知待办（下版）**：悬浮窗拖动高频 @Published 更新可能整树重绘（观察性能）；WKWebView 单例同时被 BrowserView（保留的 NavigationView 形态，未从入口可达）与悬浮窗引用，避免同时 attach；注入闭环验证 v2.9.38 修复后的 injection.enable。
+
+
+### v2.9.40（2026-09-04）修复「AI 拿不到 Bundle ID」导致注入卡住
+
+**用户现象（4 张截图）**：AI 尝试注入 CompileProbe.dylib 到巨魔 MCP（dev.trollmcp.app），但一直说"工具只返回 266 个 App 数量、没有 Bundle ID"，让用户去 TrollFools 手动查 ID。用户问"他没有查询 Bundle ID 的权限？"
+
+**排查结论**：**不是权限问题**。App 完全有能力查 Bundle ID：
+- `injection.list` 工具返回全部应用 `bundle_id + name`（AppCatalog.list()，设备 266 个都能列出）。
+- 卡点 1（工具侧）：AI 调的是常驻核心 `injection.status`（只报 total_apps/injected_count），没走 tool_search 找到 `injection.list`。
+- 卡点 2（附件侧，根因）：用户聊天里选的应用附件 `PendingAttachment(kind:.app, bundleId:)` 虽然存了 bundleId，但 v2.9.18 故意只往输入框塞 `[📱应用]` 文字，**发送时 store.send 只传文本+图片，bundleId 从未传给 AI**。
+
+**修复（三处）**：
+1. `AllMCPTools.swift`：`injection.status` summary 改为"查看注入统计…要拿具体 App 的 bundle_id 请调用 injection.list"；`injection.list` summary 强化为"列出设备全部已安装 App 的 bundle_id + 名称…供 injection.enable 的 bundle_id 参数使用"。
+2. `InjectionManager.swift`：`status()` 返回加 `"hint": "要获取具体 App 的 bundle_id + 名称，请调用 injection.list"`——AI 即使只调 status 也会被引导走对。
+3. `ChatView.swift` `send()`：发送前把 `.app` 附件的 bundleId 组装进消息文本——把输入框里的 `[📱应用]` 替换为 `[📱应用：<name>（<bundleId>）]`（按附件顺序），附件多于标记时追加到末尾。这样 AI 直接从对话里看到目标 App 的 Bundle ID，无需再查。
+
+**校验**：verify_v2940.py 全过（8 项）；bracecheck2.py 全对。CI 33881021188 success（commit 491d8ee；push/gh 遇 schannel EOF 退避重试成功）。版本 2.9.40 / dev.trollmcp2.app / main Mach-O 5700224B。交付 `artifacts\v2.9.40\TrollMCP2-v2.9.40-20260904.ipa`。
+
+**预期效果**：装此版后，用户在聊天里选择"巨魔 MCP"应用 → 发送 → AI 直接看到 `[📱应用：巨魔 MCP（dev.trollmcp.app）]`，配合 injection.list 可核对 → injection.enable 注入 CompileProbe.dylib 完成闭环。
