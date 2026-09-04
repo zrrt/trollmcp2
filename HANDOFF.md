@@ -705,3 +705,25 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 - `.alert(_:isPresented:actions:message:)` iOS15 only → 改 iOS13 `Alert(title:message:dismissButton:)`。
 
 **校验**：verify_v2936.py 全过；bracecheck2.py 全对。CI 33872788275 success（headSha c81822f）。
+
+
+### v2.9.37（2026-09-04）
+
+**需求（用户）**：内置浏览器，AI 能控制（填表、看网页交互元素、js、点击 UI），控制时按钮/填表文字显示蓝框高亮。
+
+**改动**（3 个新文件 + 注册/入口）：
+1. **BrowserManager.swift**（WKWebView 单例 + JS 桥）：
+   - `highlightScript`：注入 JS 给可见可交互元素（a/button/input/textarea/select/[role]/label/[onclick]）加 `data-browser-idx` 编号 + 2px 蓝色 outline 蓝框，返回元素 JSON 数组（idx/tag/text/type/href/placeholder/value）。
+   - `evalSync`：工具在后台线程调用，主线程 evaluateJavaScript + DispatchSemaphore 同步等待（**WKWebView 必须在主线程创建**，ensureWebView 用 main.sync 切主线程）。
+   - `snapshot/clickElement/typeText/evaluate/open/goBack/goForward/reload/status`。
+   - `didFinish` 自动高亮（打开浏览器即可看到蓝框）。
+2. **WebBrowserTools.swift**（7 个 MCP 工具）：browser.status / browser.open / browser.snapshot / browser.click(idx) / browser.type(idx,text) / browser.eval(js) / browser.navigate(back/forward/reload)。
+3. **BrowserView.swift**：URL 栏 + 控制条（后退/前进/刷新 + 蓝框开关 + 元素计数）+ WKWebView 容器 + 底部状态条。
+4. 注册到 ToolRegistry（M5.5 段）；`browser.status` 入常驻核心 coreToolNames（描述引导 AI 搜索 browser.*），全部 7 个入 defaultEnabledTools（搜索即放行）。
+5. 入口：添加内容面板加第 4 个"浏览器"入口（2×2 网格，detent 240→340）；设置"连接与扩展"加"内置浏览器"。
+
+**AI 控制流程**：browser.open(url) → browser.snapshot()（蓝框编号+元素列表）→ browser.click(idx) / browser.type(idx,text) → browser.eval(js)。idx 在页面变化/重新 snapshot 后失效，脚本会提示重新 snapshot。
+
+**线程要点**：工具 invoke 在后台线程（Models.swift:552 global.async）→ evalSync 用 main.async + semaphore 安全；ensureWebView 用 main.sync 保证主线程创建。
+
+**校验**：verify_v2937.py 全过；bracecheck2.py 全对。CI 33874972457 success（commit e22678d）。Mach-O 5608608 B（+浏览器 ~250KB）。
