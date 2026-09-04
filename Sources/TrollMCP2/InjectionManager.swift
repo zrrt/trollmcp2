@@ -2,6 +2,18 @@ import Foundation
 import Darwin
 import UIKit
 
+// v2.9.52：对照 TrollStore 官方 TSUtil.m，用 @_silgen_name 编译时链接 persona 函数。
+// 之前用 dlsym(nil, ...) 运行时查找，但这些符号在 iOS 上是隐藏符号，dlsym 全返回 nil，
+// 导致 persona 99+uid0+gid0 根本没设置上，euid 恒为 501，cp 写 root 目录 EPERM。
+// 编译时链接后，只要 App 有 com.apple.private.persona-mgmt entitlement，就能以 root spawn。
+@_silgen_name("posix_spawnattr_set_persona_np")
+private func posix_spawnattr_set_persona_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t?>, _ persona: UInt32, _ flags: UInt32) -> Int32
+@_silgen_name("posix_spawnattr_set_persona_uid_np")
+private func posix_spawnattr_set_persona_uid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t?>, _ uid: UInt32) -> Int32
+@_silgen_name("posix_spawnattr_set_persona_gid_np")
+private func posix_spawnattr_set_persona_gid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t?>, _ gid: UInt32) -> Int32
+private let POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE: UInt32 = 1
+
 /// 注入管理器：使用内置 ldid / optool / insert_dylib / ct_bypass 二进制，通过 posix_spawn
 /// 真实地把 TrollMCPAgent.dylib 注入到目标 App 主可执行文件（TrollStore 无越狱注入）。
 /// v2.9.32：写 bundle 的文件操作全部改 **root 身份**执行（TrollStore TSRootBinaries +
@@ -124,11 +136,10 @@ final class InjectionManager {
         return (status, "posix_spawn failed (\(status))")
     }
 
-    /// v2.9.50：root 版 spawn（修复版）。
-    /// 对照 TrollStore 官方 TSUtil.m spawnRoot：persona 99 + uid=0 + gid=0 三调用缺一不可。
-    /// 之前用 dlopen("/usr/lib/libSystem.B.dylib") 在 iOS 上路径错误，dlsym 全部返回 nil，
-    /// persona 根本没设置上 → euid 恒为 501 → cp 写 root 目录 EPERM。
-    /// 修复：用 dlsym(RTLD_DEFAULT, ...) 全局符号搜索；加详细诊断；强制 persona 不依赖 setuid 位。
+    /// v2.9.52：root 版 spawn（真正修复版）。
+    /// 对照 TrollStore 官方 TSUtil.m spawnRoot：persona 99 + uid=0 + gid=0，编译时链接（@_silgen_name）。
+    /// 之前用 dlsym 运行时查找，iOS 上这些是隐藏符号，dlsym 全返回 nil → persona 没设置 → euid=501 → EPERM。
+    /// 编译时链接后直接调用，有 persona-mgmt entitlement 即可 root spawn，不依赖 TSRootBinaries setuid 位。
     func spawnRoot(_ path: String, args: [String]) -> (Int32, String) {
         var argv: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) }
         argv.append(nil)
@@ -154,41 +165,14 @@ final class InjectionManager {
         posix_spawn_file_actions_addclose(&fileActions, outPipe[0])
         posix_spawn_file_actions_addclose(&fileActions, errPipe[0])
 
-        // v2.9.50：强制 persona 99 + uid=0 + gid=0（对照 TrollStore 官方 TSUtil.m）
-        // 用 RTLD_DEFAULT 全局符号搜索，不依赖 dlopen 路径
+        // v2.9.52：编译时链接的 persona 函数，直接调用（对照 TrollStore 官方 TSUtil.m）
         var attr: posix_spawnattr_t?
         posix_spawnattr_init(&attr)
-        typealias SetPersonaFn = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, UInt32, UInt32) -> Int32
-        typealias SetPersonaIdFn = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, UInt32) -> Int32
+        let rPersona = posix_spawnattr_set_persona_np(&attr, 99, POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE)
+        let rUid = posix_spawnattr_set_persona_uid_np(&attr, 0)  // uid=0 (root)
+        let rGid = posix_spawnattr_set_persona_gid_np(&attr, 0)  // gid=0 (wheel)
 
-        var diagParts: [String] = []
-        diagParts.append("bin-setuid=\(binSetuid)")
-        diagParts.append("proc-euid=\(geteuid())")
-
-        let symPersona = dlsym(nil, "posix_spawnattr_set_persona_np")
-        let symUid = dlsym(nil, "posix_spawnattr_set_persona_uid_np")
-        let symGid = dlsym(nil, "posix_spawnattr_set_persona_gid_np")
-        diagParts.append("sym_persona=\(symPersona != nil ? 1 : 0)")
-        diagParts.append("sym_uid=\(symUid != nil ? 1 : 0)")
-        diagParts.append("sym_gid=\(symGid != nil ? 1 : 0)")
-
-        if let f = symPersona {
-            let fn = unsafeBitCast(f, to: SetPersonaFn.self)
-            let r = fn(&attr, 99, 1)  // POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE = 1
-            diagParts.append("persona_r=\(r)")
-        }
-        if let f = symUid {
-            let fn = unsafeBitCast(f, to: SetPersonaIdFn.self)
-            let r = fn(&attr, 0)  // uid=0 (root)
-            diagParts.append("uid_r=\(r)")
-        }
-        if let f = symGid {
-            let fn = unsafeBitCast(f, to: SetPersonaIdFn.self)
-            let r = fn(&attr, 0)  // gid=0 (wheel)
-            diagParts.append("gid_r=\(r)")
-        }
-
-        let diagPrefix = "[" + diagParts.joined(separator: " ") + "] "
+        let diagPrefix = "[bin-setuid=\(binSetuid) proc-euid=\(geteuid()) persona_r=\(rPersona) uid_r=\(rUid) gid_r=\(rGid)] "
 
         var env: [UnsafeMutablePointer<CChar>?] = [
             strdup("PATH=/usr/bin:/bin:/usr/sbin:/sbin"),
