@@ -7,6 +7,7 @@ enum AttachmentSheet: Identifiable {
     case appPicker
     case photoPicker
     case documentPicker
+    case browser      // v2.9.37：内置浏览器
 
     var id: Int {
         switch self {
@@ -14,6 +15,7 @@ enum AttachmentSheet: Identifiable {
         case .appPicker: return 1
         case .photoPicker: return 2
         case .documentPicker: return 3
+        case .browser: return 4
         }
     }
 }
@@ -59,7 +61,8 @@ struct AttachmentPanelView: View {
             .padding(.top, 20)
             .padding(.bottom, 16)
 
-            HStack(spacing: 24) {
+            // v2.9.37：4 入口改 2×2 网格（应用/相册/文件/浏览器）
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 18) {
                 AttachmentOption(
                     icon: "square.grid.2x2",
                     title: "应用",
@@ -88,6 +91,17 @@ struct AttachmentPanelView: View {
                     presentationMode.wrappedValue.dismiss()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                         onPick(.documentPicker)
+                    }
+                }
+                // v2.9.37：内置浏览器（AI 可控制，蓝框高亮）
+                AttachmentOption(
+                    icon: "globe",
+                    title: "浏览器",
+                    subtitle: "AI 可控制"
+                ) {
+                    presentationMode.wrappedValue.dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        onPick(.browser)
                     }
                 }
             }

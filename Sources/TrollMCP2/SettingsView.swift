@@ -97,6 +97,14 @@ struct SettingsView: View {
                         color: .tmCyan,
                         destination: SmartSearchView()
                     )
+                    // v2.9.37：内置浏览器（AI 可控，蓝框高亮）
+                    SettingRow(
+                        title: "内置浏览器",
+                        subtitle: "AI 可控制 · 元素蓝框高亮",
+                        icon: "globe.asia.australia.fill",
+                        color: .tmCyan,
+                        destination: BrowserView()
+                    )
                     SettingRow(
                         title: "Gateway 设置",
                         subtitle: "服务端管理 · \(GatewayServerStore.shared.servers.count) 个",
@@ -174,7 +182,7 @@ struct SettingsView: View {
                         color: .orange,
                         destination: NetworkDebugView()
                     )
-                    LabeledRow(label: "版本", value: "2.9.36")
+                    LabeledRow(label: "版本", value: "2.9.37")
                     LabeledRow(label: "Bundle ID", value: Bundle.main.bundleIdentifier ?? "-")
                     LabeledRow(label: "工作区", value: Workspace.root.lastPathComponent)
                     LabeledRow(label: "工具数", value: "\(ToolRegistry.shared.definitions.count)")

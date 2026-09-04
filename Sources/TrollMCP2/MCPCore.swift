@@ -87,7 +87,9 @@ public final class ToolRegistry: ObservableObject {
         "model.config", "model.authentication", "model.selected_profile_id",
         "skills.list", "skills.read",   // v2.9.17：技能发现/读取
         "gateway.status", "injection.status", "injection.list", "injection.inspect",   // 查询类
-        "build.environment"
+        "build.environment",
+        // v2.9.37：内置浏览器（AI 控制入口，搜索即用）
+        "browser.status", "browser.open", "browser.snapshot", "browser.click", "browser.type", "browser.eval", "browser.navigate"
     ]
 
     /// v2.9.31：常驻核心工具名集合（UI 用只读访问）
@@ -108,7 +110,8 @@ public final class ToolRegistry: ObservableObject {
         "workspace.info",       // 工作区信息
         "artifact.list", "artifact.read_text", "artifact.find",  // 文件浏览/查找（AI 最常用，find 定位下载产物）
         "model.config",         // 当前模型配置
-        "injection.status"      // 注入状态（用户主线常用）
+        "injection.status",     // 注入状态（用户主线常用）
+        "browser.status"        // v2.9.37：浏览器状态入口（描述引导 AI 搜索 browser.* 其他工具）
     ]
 
     public func isEnabled(name: String) -> Bool {
@@ -376,6 +379,15 @@ public final class ToolRegistry: ObservableObject {
         register(NotificationSendTool())
         register(ScanQRTool())
         register(ProcessListTool())
+
+        // M5.5 内置浏览器（v2.9.37：AI 可控，蓝框高亮元素）
+        register(BrowserStatusTool())
+        register(BrowserOpenTool())
+        register(BrowserSnapshotTool())
+        register(BrowserClickTool())
+        register(BrowserTypeTool())
+        register(BrowserEvalTool())
+        register(BrowserNavigateTool())
 
         // M6 编译模式 + 模型配置 + 工作区输出（原版命名）
         register(BuildRunnerTokenTool())

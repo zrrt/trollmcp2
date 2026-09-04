@@ -101,10 +101,13 @@ struct ChatView: View {
                 // 紧凑半屏（老 MCP"添加内容"卡片式）；presentationDetents 需 iOS16+
                 if #available(iOS 16.0, *) {
                     AttachmentPanelView(onPick: { self.attachmentSheet = $0 }, selectedCount: pendingAttachments.count)
-                        .presentationDetents([.height(240)])
+                        .presentationDetents([.height(340)])   // v2.9.37：4 入口 2×2 网格需更高
                 } else {
                     AttachmentPanelView(onPick: { self.attachmentSheet = $0 }, selectedCount: pendingAttachments.count)
                 }
+            case .browser:
+                // v2.9.37：内置浏览器（AI 可控，蓝框高亮）
+                BrowserView()
             case .appPicker:
                 AppPickerView { app in
                     // v2.9.10：应用选择 → 附件预览（图标 + 名称 + bundleId）
