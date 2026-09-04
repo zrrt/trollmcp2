@@ -225,7 +225,7 @@ final class OpenAIClient {
                 let next = self.nextLevel(after: level, hasTools: tools != nil && !(tools?.isEmpty ?? true))
                 if next <= self.maxLevel {
                     NetworkLog.shared.log("\(self.config.name) 自动降级 → 级别 \(next)（\(self.levelName(next))）")
-                    self.attempt(level: next, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, completion: completion)
+                    self.attempt(level: next, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, completion: completion)
                     return
                 }
             }
@@ -796,7 +796,6 @@ final class OpenAIClient {
         var currentCallName = ""
         var currentCallArgs = ""
         var completedResponse: [String: Any]?
-        var httpStatus = 0
 
         let delegate = SSEStreamDelegate()
         let streamSession = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
