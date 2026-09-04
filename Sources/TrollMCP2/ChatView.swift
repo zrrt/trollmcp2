@@ -98,9 +98,13 @@ struct ChatView: View {
             switch sheet {
             case .panel:
                 // v2.9.35：传已选数量，面板右上角显示"已选 N"（对齐老 MCP）
-                AttachmentPanelView(onPick: { self.attachmentSheet = $0 }, selectedCount: pendingAttachments.count)
-                    // 紧凑半屏（老 MCP"添加内容"卡片式），iOS16 支持 detents
-                    .presentationDetents([.height(240)])
+                // 紧凑半屏（老 MCP"添加内容"卡片式）；presentationDetents 需 iOS16+
+                if #available(iOS 16.0, *) {
+                    AttachmentPanelView(onPick: { self.attachmentSheet = $0 }, selectedCount: pendingAttachments.count)
+                        .presentationDetents([.height(240)])
+                } else {
+                    AttachmentPanelView(onPick: { self.attachmentSheet = $0 }, selectedCount: pendingAttachments.count)
+                }
             case .appPicker:
                 AppPickerView { app in
                     // v2.9.10：应用选择 → 附件预览（图标 + 名称 + bundleId）
