@@ -852,3 +852,25 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 **校验**：verify_v2944.py 全过（10 项）；bracecheck2.py 全对。CI 33884691816 success（commit 8378b9b）。版本 2.9.44 / dev.trollmcp2.app / Mach-O 5722384B。交付 `artifacts\v2.9.44\TrollMCP2-v2.9.44-20260904.ipa`。
 
 **已知遗留（下版）**：① 注入仍 `Operation not permitted`（v2.9.38 no-sandbox 未传给 exec 子进程）→ 计划改主进程 FileManager 直接拷贝 dylib（对齐 TrollFools）；② 若悬浮窗页面仍空白（死锁已修，需实测），再查 WKWebView 在 overlay 的 attach/渲染。
+
+
+### v2.9.45（2026-09-04）注入 EPERM 根因修复：persona root（对齐 TrollFools）
+
+**用户反馈**：注入仍 `Operation not permitted`，改了很多次都失败；提供了 TrollFools 日志（成功注入 TrollMCP.app）+ 疑问"TrollMCP2 是不是外部调 TrollFools/内存注入"。
+
+**排查结论**：
+- TrollMCP2 是自己写的**文件级静态注入**（非外部调 TrollFools、非内存注入）：posix_spawn 自带工具 → cp dylib → insert_dylib 改 Mach-O → ldid/ct_bypass 重签，与 TrollFools 同原理。
+- IPA 构建的 entitlements 经验证完全正确（主二进制 + bin/cp 都有 platform-application + no-sandbox）。
+- **EPERM 真根因**：spawnRoot 用 `posix_spawnattr_setuid_np(0)`（setuid 0）。iOS 上非 root 进程 setuid 不真正生效（返回值被忽略），子进程实际仍是 mobile 用户 + 无沙箱 → 写 root 拥有的其他 app bundle → **EPERM**。TrollFools/TrollStore 的标准做法是 **persona API**：`posix_spawnattr_set_persona_np(attr, 99, POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE)` + `set_persona_uid/gid_np(0)`（配合 com.apple.private.persona-mgmt entitlement，我们已有）。
+
+**修复（InjectionManager.swift）**：
+1. spawnRoot 改用 persona 99 root（dlsym 动态绑定三个 _np API），替换无效的 setuid_np。
+2. 对齐 TrollFools 完整注入流程：
+   - dylib 源先 `ct_bypass -r -i <dylib> -t TROLLTROLL` + `chown 33:33`（保证目标 App 能通过签名校验加载）
+   - 拷贝目标优先 `Frameworks/`（`@rpath/<name>`），无 Frameworks 才落 app 根目录（`@executable_path/`）
+   - 注入目标 Mach-O 后补 `ct_bypass -r -i <mainBinary> -t TROLLTROLL`（TrollStore App 改 Mach-O 后必须 CoreTrust 重签，否则启动失败/不加载）
+3. remove 兼容删 Frameworks/ 与根目录两处 dylib。
+
+**校验**：verify_v2945.py 全过（11 项）；bracecheck2.py 全对；Mach-O 内确认含 persona/TROLLTROLL/ct_bypass 字符串。CI 33888278190 success（commit 8c074d5）。版本 2.9.45 / dev.trollmcp2.app / Mach-O 5722384B。交付 `artifacts\v2.9.45\TrollMCP2-v2.9.45-20260904.ipa`。
+
+**已知遗留（下版）**：工具 error 后 AI "无法解析响应" + 思考很久——独立 bug（客户端流式解析/工具结果转义），与注入无关，下版专门修；injection 需实测确认 persona root 生效。
