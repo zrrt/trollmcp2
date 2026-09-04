@@ -277,9 +277,42 @@ public final class ToolRegistry: ObservableObject {
         // 但 defaultEnabledTools 未收录时 isEnabled 返回 false → 报"未加载"。
         // 常驻核心必然放行（它本来就在初始请求里，用户开关不应对它二次拦截）。
         if isEnabled(name: originalName) || isSessionApproved(originalName) || isCore(originalName) {
-            return try t.invoke(params)
+            // v2.9.36：统一审计（老 MCP 样式：成功/失败 · 权限 · 耗时 · 数据量）
+            let start = CFAbsoluteTimeGetCurrent()
+            let perm = Self.permissionLabel(originalName)
+            do {
+                let result = try t.invoke(params)
+                let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+                let bytes = Self.resultBytes(result)
+                AuditLog.shared.logTool(originalName, status: .success,
+                                        elapsedMs: elapsedMs, dataBytes: bytes, permission: perm)
+                return result
+            } catch {
+                let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+                AuditLog.shared.logTool(originalName, status: .failure,
+                                        elapsedMs: elapsedMs, dataBytes: 0, permission: perm,
+                                        detail: (error as? MCPError)?.description ?? error.localizedDescription)
+                throw error
+            }
         }
         throw MCPError.failed("tool \(originalName) 未加载，请先调用 tool_search 搜索该工具")
+    }
+
+    // v2.9.36：权限标签（对齐老 MCP readOnly/privilegedRead/write 语义，按工具名前缀粗分）
+    private static func permissionLabel(_ name: String) -> String {
+        let write = ["open", "open_and_input", "enable", "disable", "remove", "write",
+                     "set", "delete", "clear", "run", "send", "connect", "create",
+                     "cancel", "fire", "schedule", "prepare", "stop", "import",
+                     "generate", "config", "set_enabled", "output", "approve", "refresh"]
+        for w in write where name.contains(w) { return "write" }
+        if name.contains("cache") { return "privilegedRead" }
+        return "readOnly"
+    }
+
+    // v2.9.36：结果数据量（JSON 序列化字节估算）
+    private static func resultBytes(_ result: [String: Any]) -> Int {
+        guard let data = try? JSONSerialization.data(withJSONObject: result) else { return 0 }
+        return data.count
     }
 
     /// 全量内置工具集

@@ -112,11 +112,11 @@ struct SettingsView: View {
                         destination: AgentsAndSkillsView()
                     )
                     SettingRow(
-                        title: "上游模型",
-                        subtitle: "获取并选择上游模型",
+                        title: "模型管理",
+                        subtitle: "配置多个上游模型与中转站",
                         icon: "arrow.triangle.2.circlepath.circle.fill",
                         color: .blue,
-                        destination: UpstreamModelPickerView()
+                        destination: ModelsView()
                     )
                     SettingRow(
                         title: "本机知识库",
@@ -135,6 +135,14 @@ struct SettingsView: View {
                 }
 
                 Section(header: SettingSectionHeader(title: "安全")) {
+                    // v2.9.36：本机工具审计（老 MCP 样式：执行成功/失败 · 权限 · 耗时 · 数据量 · 可导出）
+                    SettingRow(
+                        title: "本机工具审计",
+                        subtitle: "工具调用 · 成功/失败 · 导出给 AI 查看",
+                        icon: "list.bullet.rectangle",
+                        color: .tmIndigo,
+                        destination: AuditLogView()
+                    )
                     SettingRow(
                         title: "活动记录",
                         subtitle: "设置变更 · 全部事件",
@@ -166,7 +174,7 @@ struct SettingsView: View {
                         color: .orange,
                         destination: NetworkDebugView()
                     )
-                    LabeledRow(label: "版本", value: "2.9.35")
+                    LabeledRow(label: "版本", value: "2.9.36")
                     LabeledRow(label: "Bundle ID", value: Bundle.main.bundleIdentifier ?? "-")
                     LabeledRow(label: "工作区", value: Workspace.root.lastPathComponent)
                     LabeledRow(label: "工具数", value: "\(ToolRegistry.shared.definitions.count)")

@@ -11,9 +11,18 @@ final class AuditLog: ObservableObject {
         var category: String
         var detail: String
         var level: Level = .info
+        // v2.9.36：老 MCP 审计字段（执行状态/耗时/数据量/权限类型）
+        var status: EntryStatus? = nil
+        var elapsedMs: Int? = nil
+        var dataBytes: Int? = nil
+        var permission: String? = nil
 
         enum Level: String, Codable {
             case info, warning, error
+        }
+
+        enum EntryStatus: String, Codable {
+            case success, failure
         }
     }
 
@@ -23,6 +32,18 @@ final class AuditLog: ObservableObject {
     func log(_ category: String, detail: String, level: Entry.Level = .info) {
         DispatchQueue.main.async {
             self.entries.insert(Entry(category: category, detail: detail, level: level), at: 0)
+            if self.entries.count > self.maxEntries {
+                self.entries.removeLast()
+            }
+        }
+    }
+
+    // v2.9.36：工具调用统一审计（在 ToolRegistry.dispatch 入口记录）
+    func logTool(_ category: String, status: Entry.EntryStatus, elapsedMs: Int, dataBytes: Int, permission: String, detail: String = "") {
+        DispatchQueue.main.async {
+            self.entries.insert(Entry(category: category, detail: detail,
+                                      status: status, elapsedMs: elapsedMs,
+                                      dataBytes: dataBytes, permission: permission), at: 0)
             if self.entries.count > self.maxEntries {
                 self.entries.removeLast()
             }

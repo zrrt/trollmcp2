@@ -2,6 +2,8 @@ import SwiftUI
 
 struct AuditLogView: View {
     @ObservedObject private var log = AuditLog.shared
+    @State private var exportPath: String?
+    @State private var showExportAlert = false
 
     var body: some View {
         NavigationView {
@@ -24,35 +26,104 @@ struct AuditLogView: View {
                     }
                 } else {
                     ForEach(log.entries) { entry in
-                        Section(header: SettingSectionHeader(title: timeString(entry.timestamp))) {
-                            VStack(alignment: .leading, spacing: 6) {
-                                HStack {
-                                    Text(entry.category)
-                                        .font(.system(.caption, design: .monospaced))
-                                        .foregroundColor(levelColor(entry.level))
+                        if let status = entry.status {
+                            // v2.9.36：老 MCP 审计样式（工具名 + 执行成功/失败·权限 + 时间·耗时·大小 + 绿勾/红叉）
+                            Section {
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(entry.category)
+                                            .font(.system(.subheadline, design: .monospaced))
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.primary)
+                                        HStack(spacing: 6) {
+                                            Text(status == .success ? "执行成功" : "执行失败")
+                                                .font(.caption2)
+                                                .fontWeight(.semibold)
+                                                .foregroundColor(status == .success ? .green : .red)
+                                            if let p = entry.permission, !p.isEmpty {
+                                                Text(p)
+                                                    .font(.caption2)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                        }
+                                        Text("\(timeString(entry.timestamp))·\(durationLabel(entry.elapsedMs))·\(bytesLabel(entry.dataBytes))")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                        if !entry.detail.isEmpty {
+                                            Text(entry.detail)
+                                                .font(.caption2)
+                                                .foregroundColor(.secondary)
+                                                .lineLimit(2)
+                                        }
+                                    }
                                     Spacer()
-                                    Text(entry.level.rawValue.uppercased())
-                                        .font(.caption2)
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(levelColor(entry.level))
+                                    Image(systemName: status == .success ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(status == .success ? .green : .red)
                                 }
-                                Text(entry.detail)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .lineLimit(3)
+                                .padding(.vertical, 2)
                             }
-                            .padding(.vertical, 2)
+                        } else {
+                            // 系统事件（非工具调用）
+                            Section(header: SettingSectionHeader(title: timeString(entry.timestamp))) {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        Text(entry.category)
+                                            .font(.system(.caption, design: .monospaced))
+                                            .foregroundColor(levelColor(entry.level))
+                                        Spacer()
+                                        Text(entry.level.rawValue.uppercased())
+                                            .font(.caption2)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(levelColor(entry.level))
+                                    }
+                                    Text(entry.detail)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(3)
+                                }
+                                .padding(.vertical, 2)
+                            }
                         }
                     }
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("审计日志")
+            .navigationTitle("本机工具审计")
             .toolbar {
-                Button("清空") { log.clear() }
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    Button(action: exportLog) { Label("导出", systemImage: "square.and.arrow.up") }
+                    Button("清除") { log.clear() }
+                }
+            }
+            .alert("审计记录已导出", isPresented: $showExportAlert) {
+                Button("好", role: .cancel) {}
+            } message: {
+                Text(exportPath ?? "")
             }
         }
         .navigationViewStyle(.stack)
+    }
+
+    private func exportLog() {
+        let dir = Workspace.root.appendingPathComponent("audit")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let df = DateFormatter(); df.dateFormat = "yyyyMMdd_HHmmss"
+        let url = dir.appendingPathComponent("audit_\(df.string(from: Date())).txt")
+        var lines: [String] = []
+        for e in log.entries {
+            let status = e.status?.rawValue ?? e.level.rawValue
+            lines.append("[\(timeString(e.timestamp))] \(e.category) | \(status) | \(e.permission ?? "-") | \(e.elapsedMs ?? 0)ms | \(e.dataBytes ?? 0)B | \(e.detail)")
+        }
+        do {
+            try lines.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8)
+            exportPath = url.path
+            showExportAlert = true
+            AuditLog.shared.log("audit.export", detail: url.path)
+        } catch {
+            exportPath = "导出失败：\(error.localizedDescription)"
+            showExportAlert = true
+        }
     }
 
     private func levelColor(_ level: AuditLog.Entry.Level) -> Color {
@@ -65,8 +136,19 @@ struct AuditLogView: View {
 
     private func timeString(_ date: Date) -> String {
         let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        f.dateFormat = "M/d/yy, h:mm:ss a"
         return f.string(from: date)
+    }
+
+    private func durationLabel(_ ms: Int?) -> String {
+        guard let ms = ms else { return "-" }
+        return "\(ms) ms"
+    }
+
+    private func bytesLabel(_ bytes: Int?) -> String {
+        guard let b = bytes else { return "-" }
+        if b < 1024 { return "\(b) B" }
+        return String(format: "%.1f KB", Double(b) / 1024.0)
     }
 }
 
@@ -240,33 +322,12 @@ struct ToolPermissionPoliciesView: View {
         NavigationView {
             List {
                 Section(header: SettingSectionHeader(title: "策略")) {
-                    HStack {
-                        Text("已启用")
-                        Spacer()
-                        Text("\(registry.enabledDefinitions.count)/\(registry.definitions.count)")
-                            .foregroundColor(.secondary)
-                    }
                     // v2.9.31：工具按需加载——初始请求只带常驻核心（标★），其余靠搜索加载；
                     // v2.9.32：去掉授权弹窗，AI 搜索到工具即自动放行本会话。
-                    Text("初始请求只加载常驻核心工具（标 ★，无需搜索），其余工具由 AI 用「工具搜索」按需加载，搜索命中即自动放行本会话、无弹窗。此页开关控制该工具是否默认可用：关闭的工具 AI 仍可先搜索再调用。全量勾选不影响请求速度。")
+                    // v2.9.36：去掉开关——勾选不再影响速度与放行，此页改为只读清单。
+                    Text("初始请求只加载常驻核心工具（标 ★，无需搜索），其余工具由 AI 用「工具搜索」按需加载，搜索命中即自动放行本会话、无弹窗。常驻核心始终可用，无需在此配置。")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    SettingRowButton(
-                        title: "全部启用",
-                        subtitle: "恢复所有工具调用权限",
-                        icon: "checkmark.circle",
-                        color: .green
-                    ) {
-                        for d in registry.definitions { registry.setEnabled(name: d.name, enabled: true) }
-                    }
-                    SettingRowButton(
-                        title: "全部禁用",
-                        subtitle: "仅保留浏览",
-                        icon: "xmark.circle",
-                        color: .red
-                    ) {
-                        for d in registry.definitions { registry.setEnabled(name: d.name, enabled: false) }
-                    }
                 }
 
                 // v2.9.23：并入原"本机工具审计"的过滤
@@ -279,7 +340,6 @@ struct ToolPermissionPoliciesView: View {
 
                 Section(header: SettingSectionHeader(title: "工具列表")) {
                     ForEach(filtered, id: \.name) { def in
-                        let isOn = registry.isEnabled(name: def.name)
                         let isCore = registry.isCore(def.name)
                         HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 2) {
@@ -304,22 +364,27 @@ struct ToolPermissionPoliciesView: View {
                                     .lineLimit(2)
                             }
                             Spacer()
-                            // v2.9.26：自定义 iOS 风格开关（绕开 List+Toggle 兼容问题，整行可点切换）
-                            ZStack(alignment: isOn ? .trailing : .leading) {
-                                Capsule()
-                                    .fill(isOn ? Color.green : Color(.systemGray4))
-                                    .frame(width: 46, height: 28)
-                                Circle()
-                                    .fill(Color.white)
-                                    .shadow(radius: 1)
-                                    .frame(width: 24, height: 24)
-                                    .padding(2)
+                            // v2.9.36：去掉开关——按需加载下勾选已无实际作用（AI 搜索到即可调用）。
+                            // 常驻核心标 ★，其余由 AI 按需搜索加载。
+                            if isCore {
+                                Text("常驻")
+                                    .font(.caption2)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.blue)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(Color.blue.opacity(0.12))
+                                    .cornerRadius(6)
+                            } else {
+                                Text("按需")
+                                    .font(.caption2)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.secondary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(Color(.systemGray5))
+                                    .cornerRadius(6)
                             }
-                            .animation(.easeInOut(duration: 0.15))
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            registry.setEnabled(name: def.name, enabled: !registry.isEnabled(name: def.name))
                         }
                         .padding(.vertical, 2)
                     }

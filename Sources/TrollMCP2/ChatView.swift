@@ -9,7 +9,7 @@ struct ChatView: View {
     @State private var reasoning = 1          // 0=低 1=中 2=高
     @State private var smartSearch = true
     @State private var attachmentSheet: AttachmentSheet?
-    @State private var showVoiceAlert = false
+    @State private var showModelPicker = false  // v2.9.36：聊天框切换上游模型
 
     // v2.9.9：多模态图片（data URL）。选择相册图片后转 base64 暂存，发送时随消息传给模型
     @State private var pendingImages: [String] = []
@@ -172,6 +172,18 @@ struct ChatView: View {
                     self.inputText = self.inputText.isEmpty ? text : self.inputText + " " + text
                 }
             }
+        }
+        // v2.9.36：聊天框切换上游模型（点"当前模型"弹出，老 MCP 风格半屏）
+        .sheet(isPresented: $showModelPicker) {
+            ModelPickerSheet { cfg in
+                // 点选即切换默认模型
+                var c = cfg
+                c.isDefault = true
+                modelStore.update(c)
+                showModelPicker = false
+                showToast("已切换：\(cfg.name)")
+            }
+            .presentationDetentsIfAvailable([.height(360)])
         }
         // v2.9.10：网络恢复 / 回前台提示（配合后台自动重连）
         .onReceive(NotificationCenter.default.publisher(for: AppLifecycleMonitor.networkRestored)) { _ in
@@ -338,7 +350,8 @@ struct ChatView: View {
     }
 
     private var currentModelBar: some View {
-        Button(action: { AppUIState.shared.settingsPresented = true }) {
+        // v2.9.36：点击"当前模型"弹出模型选择 sheet（不再跳设置），直接切换上游模型
+        Button(action: { showModelPicker = true }) {
             HStack(spacing: 6) {
                 Text("当前模型")
                     .font(.caption)
@@ -358,8 +371,8 @@ struct ChatView: View {
                         .foregroundColor(.secondary)
                 }
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2)
                     .foregroundColor(.secondary)
             }
             .padding(.horizontal, 12)
@@ -375,10 +388,11 @@ struct ChatView: View {
                 withAnimation { pendingAttachments.removeAll { $0.id == att.id } }
             }
             HStack(spacing: 8) {
-                ChatChip(label: "推理强度·\(reasoningLabel())", action: {
+                // v2.9.36：推理强度恒浅蓝；智能搜索开=浅蓝、关=灰（对齐老 MCP）
+                ChatChip(label: "推理强度·\(reasoningLabel())", accent: true, action: {
                     reasoning = (reasoning + 1) % 3
                 })
-                ChatChip(label: "智能搜索·\(smartSearch ? "开" : "关")", action: {
+                ChatChip(label: "智能搜索·\(smartSearch ? "开" : "关")", accent: smartSearch, action: {
                     smartSearch.toggle()
                 })
                 Spacer()
@@ -388,7 +402,7 @@ struct ChatView: View {
 
             HStack(spacing: 8) {
                 HStack(spacing: 0) {
-                    TextField("发消息或点麦克风说话", text: $inputText)
+                    TextField("发消息…", text: $inputText)
                         .font(.body)
                         .padding(.leading, 12)
                     if !inputText.isEmpty {
@@ -414,15 +428,7 @@ struct ChatView: View {
                 }
                 // v2.9.35：+号 → 半屏"添加内容"面板（对齐老 MCP 设计），不再用 actionSheet
                 // （iOS16 actionSheet 偶发点击无响应 + 无"已选 N"徽标）
-
-                Button(action: { showVoiceAlert = true }) {
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 18))
-                        .foregroundColor(.white)
-                        .frame(width: 36, height: 36)
-                        .background(Color.blue)
-                        .clipShape(Circle())
-                }
+                // v2.9.36：移除麦克风按钮（语音无实际作用）
 
                 // v2.9.13：请求中时按钮变为"停止"，点击取消当前请求
                 if store.isLoading {
@@ -579,6 +585,8 @@ struct ChatView: View {
 struct ChatChip: View {
     let label: String
     let action: () -> Void
+    // v2.9.36：浅蓝=开启/强调，灰=关闭（老 MCP 风格）
+    var accent: Bool = true
 
     var body: some View {
         Button(action: action) {
@@ -588,9 +596,76 @@ struct ChatChip: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Color(.secondarySystemBackground))
-                .foregroundColor(.secondary)
+                .background(accent ? Color.blue.opacity(0.14) : Color(.systemGray5))
+                .foregroundColor(accent ? Color.blue : Color.secondary)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(accent ? Color.blue.opacity(0.35) : Color.clear, lineWidth: 1)
+                )
                 .cornerRadius(12)
+        }
+    }
+}
+
+// v2.9.36：聊天框"当前模型"点击弹出的上游模型选择（老 MCP 风格半屏）
+struct ModelPickerSheet: View {
+    @ObservedObject private var modelStore = ModelStore.shared
+    let onSelect: (ModelConfig) -> Void
+
+    var body: some View {
+        NavigationView {
+            List {
+                Section(header: SettingSectionHeader(title: "选择上游模型")) {
+                    ForEach(modelStore.configs) { cfg in
+                        Button(action: { onSelect(cfg) }) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(cfg.name)
+                                        .font(.body)
+                                        .foregroundColor(.primary)
+                                    Text("\(cfg.model) · \(cfg.provider)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                }
+                                Spacer()
+                                if cfg.isDefault {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                        }
+                    }
+                }
+                Section {
+                    Button(action: { AppUIState.shared.settingsPresented = true }) {
+                        Label("在设置中管理模型", systemImage: "gearshape.fill")
+                            .font(.footnote)
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .navigationTitle("切换模型")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") { }
+                        .hidden()
+                }
+            }
+        }
+        .navigationViewStyle(.stack)
+    }
+}
+
+// v2.9.36：presentationDetents 仅 iOS16+，统一条件扩展
+extension View {
+    @ViewBuilder
+    func presentationDetentsIfAvailable(_ detents: [PresentationDetent]) -> some View {
+        if #available(iOS 16.0, *) {
+            self.presentationDetents(detents)
+        } else {
+            self
         }
     }
 }
