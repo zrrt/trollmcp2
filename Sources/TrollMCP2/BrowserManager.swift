@@ -48,6 +48,8 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
 
     func open(_ urlString: String) -> String {
         ensureWebView()
+        // v2.9.39：AI 打开网页时自动浮现悬浮窗，用户实时看到操作
+        FloatingBrowser.shared.show()
         var u = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
         if u.isEmpty { return "ERR: 空 URL" }
         if !u.contains("://") { u = "https://" + u }
@@ -60,6 +62,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
 
     func goBack() -> String {
         ensureWebView()
+        FloatingBrowser.shared.show()
         DispatchQueue.main.async {
             if self.webView?.canGoBack == true { self.webView?.goBack() }
         }
@@ -68,6 +71,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
 
     func goForward() -> String {
         ensureWebView()
+        FloatingBrowser.shared.show()
         DispatchQueue.main.async {
             if self.webView?.canGoForward == true { self.webView?.goForward() }
         }
@@ -76,6 +80,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
 
     func reload() -> String {
         ensureWebView()
+        FloatingBrowser.shared.show()
         DispatchQueue.main.async { self.webView?.reload() }
         return "刷新"
     }
@@ -133,9 +138,10 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     })();
     """
 
-    /// 注入高亮并返回元素快照 JSON
+    /// 注入高亮并返回元素快照 JSON（AI 调用时自动浮现悬浮窗）
     func snapshot() -> [String: Any] {
         ensureWebView()
+        FloatingBrowser.shared.show()
         let json = evalSync(Self.highlightScript)
         lastSnapshot = json
         var result: [String: Any] = ["url": currentURL, "title": pageTitle]
@@ -160,12 +166,14 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
 
     /// 点击元素（按快照 idx）
     func clickElement(_ idx: Int) -> String {
+        FloatingBrowser.shared.show()
         let js = "(function(){var e=document.querySelector('[data-browser-idx=\\\"\(idx)\\\"]');if(!e)return 'ERR: 元素 '+\(idx)+' 不存在（页面可能已变化，请重新 snapshot）';var t=(e.innerText||e.value||'').trim().slice(0,40);e.click();return '已点击 '+e.tagName+' '+JSON.stringify(t);})();"
         return evalSync(js)
     }
 
     /// 填表（按快照 idx + 文本）
     func typeText(_ idx: Int, _ text: String) -> String {
+        FloatingBrowser.shared.show()
         let t = JSONString(text)
         let js = """
         (function(){
@@ -183,8 +191,9 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
         return evalSync(js)
     }
 
-    /// 执行任意 JS
+    /// 执行任意 JS（AI 调用时自动浮现悬浮窗）
     func evaluate(_ js: String) -> String {
+        FloatingBrowser.shared.show()
         return evalSync(js)
     }
 

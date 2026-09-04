@@ -97,14 +97,19 @@ struct SettingsView: View {
                         color: .tmCyan,
                         destination: SmartSearchView()
                     )
-                    // v2.9.37：内置浏览器（AI 可控，蓝框高亮）
-                    SettingRow(
+                    // v2.9.39：内置浏览器改为悬浮窗（可缩小到右侧边缘，AI 操作自动浮现）
+                    SettingRowButton(
                         title: "内置浏览器",
-                        subtitle: "AI 可控制 · 元素蓝框高亮",
+                        subtitle: "悬浮窗 · AI 可控制 · 蓝框高亮",
                         icon: "globe.asia.australia.fill",
-                        color: .tmCyan,
-                        destination: BrowserView()
-                    )
+                        color: .tmCyan
+                    ) {
+                        // 先关设置 sheet，再弹悬浮窗（避免被 sheet 盖住）
+                        presentationMode.wrappedValue.dismiss()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            FloatingBrowser.shared.show()
+                        }
+                    }
                     SettingRow(
                         title: "Gateway 设置",
                         subtitle: "服务端管理 · \(GatewayServerStore.shared.servers.count) 个",
@@ -182,7 +187,7 @@ struct SettingsView: View {
                         color: .orange,
                         destination: NetworkDebugView()
                     )
-                    LabeledRow(label: "版本", value: "2.9.38")
+                    LabeledRow(label: "版本", value: "2.9.39")
                     LabeledRow(label: "Bundle ID", value: Bundle.main.bundleIdentifier ?? "-")
                     LabeledRow(label: "工作区", value: Workspace.root.lastPathComponent)
                     LabeledRow(label: "工具数", value: "\(ToolRegistry.shared.definitions.count)")

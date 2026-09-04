@@ -34,6 +34,10 @@ struct RootView: View {
                 }
             }
         }
+        // v2.9.39：内置浏览器悬浮窗（所有界面之上，可缩小到右侧边缘，AI 操作自动浮现）
+        .overlay {
+            FloatingBrowserOverlay()
+        }
         .sheet(isPresented: Binding(
             get: { ui.settingsPresented },
             set: { ui.settingsPresented = $0 }
