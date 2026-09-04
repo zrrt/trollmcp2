@@ -887,3 +887,22 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 **校验**：verify_v2946.py 9 项全过；bracecheck 通过；MachO 5724688B（含 extractJSONObject/setuid 字符串）。CI 33889949938 success（commit 6fc665b）。交付 artifacts\v2.9.46\TrollMCP2-v2.9.46-20260904.ipa。
 
 **待实测**：主进程 setuid(0) 在 iOS16.3 + TrollStore 是否生效（若 euid 仍非 0 需查 persona-mgmt entitlement 是否被 TrollStore 保留）；"无法解析响应"是否根治需等工具 error 场景实测。
+
+
+### v2.9.47（2026-09-04）注入根因定位：TSRootBinaries 覆盖安装不生效；必须卸载重装
+
+**用户实测 v2.9.46 仍 EPERM**，诊断输出 `[proc-euid=501]`——确认主进程 setuid(0) 在 iOS16.3 不生效（恒为 mobile 501）。
+
+**关键发现**：Info.plist 里**早已存在 TSRootBinaries**（列出 cp/ldid/insert_dylib 等），但：
+1. 缺 `bin/ct_bypass` 和 `bin/mkdir`（已补全，现 12 项）。
+2. **TSRootBinaries 只在 TrollStore 首次安装时打 setuid root 位（chmod 4755 + chown root），覆盖安装不会重新处理**——用户一直覆盖安装，所以 bin/ 工具根本没有 setuid 位，cp 跑起来仍是 mobile。
+
+**修复**：
+- Info.plist TSRootBinaries 补全 ct_bypass、mkdir（共 12 项）。
+- spawnRoot 去掉无效的主进程 setuid(0)（ensureRoot 删除）；改为**直接 spawn**——若二进制有 setuid 位，exec 时 kernel 自动设 euid=0，不依赖主进程身份。
+- 仅当二进制无 setuid 位时（binSetuid==0）才 fallback persona 99 attr。
+- 诊断升级：输出 `[bin-setuid=0|1 proc-euid=501]`——直接显示目标二进制是否有 setuid 位，一眼判断 TSRootBinaries 是否生效。
+
+**用户必须操作**：**卸载 TrollMCP2 后重装 v2.9.47**（不能覆盖安装），TrollStore 才会给 bin/ 工具打 setuid root 位。重装后注入时若显示 `[bin-setuid=1]` 则 root 生效。
+
+**校验**：verify_v2947.py 8 项全过；bracecheck 通过；IPA 内 TSRootBinaries 12 项确认含 ct_bypass/mkdir；MachO 5724672B。CI 33892898494 success（commit a4af0a6）。交付 artifacts\v2.9.47\TrollMCP2-v2.9.47-20260904.ipa。
