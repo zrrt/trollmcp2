@@ -802,3 +802,20 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 **校验**：verify_v2941.py 全过（7 项）；bracecheck2.py 全对。CI 33881655829 success（commit dcd8245）。版本 2.9.41 / dev.trollmcp.app / main Mach-O 5700960B。交付 `artifacts\v2.9.41\TrollMCP2-v2.9.41-20260904.ipa`。
 
 **注入闭环现状（v2.9.38→40→41 串联）**：v2.9.38 签 no-sandbox 修 cp 权限 → v2.9.40 附件带 bundleId + status/list 描述引导 → v2.9.41 list 检索式。AI 现在：聊天附件直接带 `[📱应用：巨魔 MCP（dev.trollmcp.app）]` → 可选 injection.list(query:"Troll") 核对 → injection.enable 注入。
+
+
+### v2.9.42（2026-09-04）skills.list 改检索式，不再全量塞技能
+
+**用户反馈**：技能调用也不应该全量加载，应该像工具/应用一样查询智能判断。
+
+**排查**：system prompt 只注入协作规范 + 用户默认开发者指令（一份，DeveloperInstructionStore.defaultInjectionContent()）；Agents（agents.json）只在 UI 展示不进 AI 请求；技能通过 skills.list（摘要）→ skills.read（全文）按需读取，但 `skills.list` 不带参数时会把全部技能摘要一次返回。
+
+**改造（SkillStore.swift SkillsListTool）**：与 injection.list 同款——
+- 新增 `query` 参数：按技能名称 / 摘要不区分大小写匹配。
+- 带 query：返回命中项（最多 20 条）+ matched 总数。
+- 不带 query：只返回前 20 条 + hint "共 N 个技能，请用 query 按名称/摘要搜索（如 query=\"注入\"），需要执行时用 skills.read 读完整指令"。
+- summary 注明"务必带 query 缩小范围"。
+
+**校验**：verify_v2942.py 全过（8 项）；bracecheck2.py 全对。CI 33882291155 success（commit 70e309c）。版本 2.9.42 / dev.trollmcp2.app / main Mach-O 5701504B。交付 `artifacts\v2.9.42\TrollMCP2-v2.9.42-20260904.ipa`。
+
+**查询式设计已成体系**：工具（coreToolNames 常驻少数 + tool_search 按需披露）→ 应用（injection.list query 检索）→ 技能（skills.list query 检索 + skills.read 按名全文）。AI 只带少量常驻信息，其余全部"搜索即选"，从根本上降低初始载荷与上下文膨胀。
