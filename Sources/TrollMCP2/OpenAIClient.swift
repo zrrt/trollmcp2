@@ -796,12 +796,34 @@ final class OpenAIClient {
         var currentCallName = ""
         var currentCallArgs = ""
         var completedResponse: [String: Any]?
+        // v2.9.54：首字节超时降级——中转站可能不支持 SSE 流式或缓冲响应，
+        // 10 秒内没收到第一个事件就自动切回非流式 performResponses
+        var firstByteReceived = false
+        var fellBackToNonStream = false
 
         let delegate = SSEStreamDelegate()
         let streamSession = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
 
+        // 首字节超时定时器（10 秒）
+        let firstByteTimer = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            if !firstByteReceived && !fellBackToNonStream {
+                fellBackToNonStream = true
+                NetworkLog.shared.log("\(self.config.name): 流式首字节超时（10s），自动降级非流式")
+                streamSession.invalidateAndCancel()
+                // 切回非流式 performResponses
+                self.performResponses(messages: messages, tools: tools, onStatus: onStatus, completion: completion)
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10, execute: firstByteTimer)
+
         delegate.onEvent = { [weak self] raw in
             guard let self = self else { return }
+            if !firstByteReceived {
+                firstByteReceived = true
+                firstByteTimer.cancel()
+            }
+            if fellBackToNonStream { return }
             guard let ev = self.parseSSEEvent(raw) else { return }
             let type = ev.type
 
@@ -848,7 +870,10 @@ final class OpenAIClient {
 
         delegate.onComplete = { [weak self] error in
             guard let self = self else { return }
+            firstByteTimer.cancel()
             streamSession.invalidateAndCancel()
+            // v2.9.54：已降级到非流式，不重复执行 completion
+            if fellBackToNonStream { return }
 
             if let error = error {
                 completion(.failure(error))
