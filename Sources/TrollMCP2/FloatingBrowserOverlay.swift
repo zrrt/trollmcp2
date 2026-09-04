@@ -36,7 +36,7 @@ struct FloatingBrowserOverlay: View {
     private var capsuleView: some View {
         ZStack {
             Circle()
-                .fill(LinearGradient(colors: [Color.blue, Color.cyan], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .fill(LinearGradient(colors: [Color.blue, Color.tmCyan], startPoint: .topLeading, endPoint: .bottomTrailing))
                 .frame(width: 44, height: 44)
                 .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 2)
             Image(systemName: "safari.fill")
@@ -81,7 +81,7 @@ struct FloatingBrowserOverlay: View {
             }
             .padding(.horizontal, 12)
             .frame(height: 40)
-            .background(LinearGradient(colors: [Color.blue, Color.cyan], startPoint: .leading, endPoint: .trailing))
+            .background(LinearGradient(colors: [Color.blue, Color.tmCyan], startPoint: .leading, endPoint: .trailing))
             .contentShape(Rectangle())
             .gesture(dragGesture)
 
