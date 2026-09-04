@@ -36,12 +36,13 @@ struct BrowserOpenTool: MCPTool {
 struct BrowserSnapshotTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.snapshot",
-        summary: "获取当前页面可交互元素快照：给每个按钮/链接/输入框加蓝色边框并编号（idx），返回 [{idx,tag,text,type,href,placeholder,value}]。AI 按 idx 用 browser.click / browser.type 操作。",
-        parameters: [:]
+        summary: "获取当前页面可交互元素快照：给每个按钮/链接/输入框加蓝色边框并编号（idx），返回 [{idx,tag,text,type,href,placeholder,value}]。可带 query 关键字按文本/标签/占位符过滤（如 query=\"登录\"），避免长页面全量返回。AI 按 idx 用 browser.click / browser.type 操作。",
+        parameters: ["query": "过滤关键字（按元素文本/标签/占位符/href/name 模糊匹配，可选，不带则返回前 20 个）"]
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let r = BrowserManager.shared.snapshot()
-        AuditLog.shared.log("browser.snapshot", detail: "count=\(r["count"] ?? 0)")
+        let q = params["query"] as? String
+        let r = BrowserManager.shared.snapshot(query: q)
+        AuditLog.shared.log("browser.snapshot", detail: "count=\(r["count"] ?? 0) query=\(q ?? "")")
         return r
     }
 }

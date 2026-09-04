@@ -91,6 +91,10 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     func evalSync(_ js: String, timeout: TimeInterval = 15) -> String {
         ensureWebView()
         guard let wv = webView else { return "ERR: 浏览器未初始化" }
+        // v2.9.44：主线程调用会死锁（main.async 排队 + semaphore.wait 阻塞主线程），安全返回
+        if Thread.isMainThread {
+            return "ERR: evalSync 不能在主线程调用（会阻塞 UI），请用异步 evaluateJavaScript"
+        }
         var result = "ERR: 执行超时"
         let sem = DispatchSemaphore(value: 0)
         DispatchQueue.main.async {
@@ -139,7 +143,8 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     """
 
     /// 注入高亮并返回元素快照 JSON（AI 调用时自动浮现悬浮窗）
-    func snapshot() -> [String: Any] {
+    /// v2.9.44：支持 query 关键字过滤（按文本/标签/占位符/name/href 模糊匹配），长页面不爆 token
+    func snapshot(query: String? = nil) -> [String: Any] {
         ensureWebView()
         FloatingBrowser.shared.show()
         let json = evalSync(Self.highlightScript)
@@ -152,9 +157,20 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
             return result
         }
         if let data = json.data(using: .utf8),
-           let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-            result["elements"] = arr
+           let arr0 = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+            var arr = arr0
+            if let q = query, !q.isEmpty {
+                let lq = q.lowercased()
+                arr = arr.filter { el in
+                    let hay = "\(el["text"] ?? "") \(el["tag"] ?? "") \(el["placeholder"] ?? "") \(el["name"] ?? "") \(el["href"] ?? "")".lowercased()
+                    return hay.contains(lq)
+                }
+                result["query"] = q
+                result["matched"] = arr.count
+            }
+            result["elements"] = Array(arr.prefix(20))
             result["count"] = arr.count
+            result["truncated"] = arr.count > 20
             elementCount = arr.count
         } else {
             result["elements"] = []
@@ -164,11 +180,15 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
         return result
     }
 
-    /// 点击元素（按快照 idx）
+    /// 点击元素（按快照 idx）；点击后自动重新高亮，刷新蓝框编号避免旧 idx
     func clickElement(_ idx: Int) -> String {
         FloatingBrowser.shared.show()
         let js = "(function(){var e=document.querySelector('[data-browser-idx=\\\"\(idx)\\\"]');if(!e)return 'ERR: 元素 '+\(idx)+' 不存在（页面可能已变化，请重新 snapshot）';var t=(e.innerText||e.value||'').trim().slice(0,40);e.click();return '已点击 '+e.tagName+' '+JSON.stringify(t);})();"
-        return evalSync(js)
+        let r = evalSync(js)
+        if !r.hasPrefix("ERR") {
+            _ = evalSync(Self.highlightScript)   // 点击后页面可能变化，刷新编号
+        }
+        return r
     }
 
     /// 填表（按快照 idx + 文本）
@@ -227,9 +247,16 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         currentURL = webView.url?.absoluteString ?? currentURL
         pageTitle = webView.title ?? ""
-        // 页面加载完成自动高亮（用户打开浏览器即可看到蓝框交互元素）
+        // v2.9.44：修复主线程死锁——didFinish 在主线程回调，不能用 evalSync
+        // （其内部 main.async + semaphore.wait 会阻塞主线程 15s → 浏览器卡死/页面空白）
         if highlighted {
-            _ = evalSync(Self.highlightScript)
+            webView.evaluateJavaScript(Self.highlightScript) { [weak self] obj, _ in
+                guard let self = self else { return }
+                if let s = obj as? String, let d = s.data(using: .utf8),
+                   let arr = try? JSONSerialization.jsonObject(with: d) as? [[String: Any]] {
+                    DispatchQueue.main.async { self.elementCount = arr.count }
+                }
+            }
         }
     }
 
