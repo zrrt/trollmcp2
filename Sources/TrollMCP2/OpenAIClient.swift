@@ -77,7 +77,7 @@ final class OpenAIClient {
         activeTask?.cancel()
     }
 
-    func send(messages: [ChatMessage], tools: [[String: Any]]? = nil, onStatus: ((String) -> Void)? = nil, completion: @escaping (Result<ChatResult, Error>) -> Void) {
+    func send(messages: [ChatMessage], tools: [[String: Any]]? = nil, onStatus: ((String) -> Void)? = nil, onDelta: ((String) -> Void)? = nil, completion: @escaping (Result<ChatResult, Error>) -> Void) {
         cancelled = false
         requestStart = Date()
         // v2.9.0：级别 5 = Responses API + 工具调用（Codex 走的端点，GPT-5.6 家族
@@ -94,7 +94,7 @@ final class OpenAIClient {
         } else {
             NetworkLog.shared.log("\(config.name): 发起请求（级别 0 完整载荷）")
         }
-        attempt(level: start, isFirst: true, messages: messages, tools: tools, onStatus: onStatus, completion: completion)
+        attempt(level: start, isFirst: true, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, completion: completion)
     }
 
     /// 降级顺序：L0→L1→L2→（带 tools 时优先 L5 Responses API，保住工具调用）→L3→L4→结束
@@ -108,20 +108,21 @@ final class OpenAIClient {
 
     // MARK: - 逐级试探
 
-    private func attempt(level: Int, isFirst: Bool, messages: [ChatMessage], tools: [[String: Any]]?, onStatus: ((String) -> Void)?, completion: @escaping (Result<ChatResult, Error>) -> Void) {
+    private func attempt(level: Int, isFirst: Bool, messages: [ChatMessage], tools: [[String: Any]]?, onStatus: ((String) -> Void)?, onDelta: ((String) -> Void)?, completion: @escaping (Result<ChatResult, Error>) -> Void) {
         if config.apiProtocol == "Anthropic Messages" {
             performAnthropic(messages: messages, completion: completion)
             return
         }
         // v2.9.0：手动选择 Responses 协议，或降级链走到 L5
+        // v2.9.53：L5 默认走流式（SSE），逐字显示 + 完成后解析
         if level == 5 || config.apiProtocol == "OpenAI Responses" {
             // 手动选择协议时不回落；经降级链进入（L5）失败后回落 L3 纯对话
             let viaLadder = level == 5 && config.apiProtocol != "OpenAI Responses"
-            performResponses(messages: messages, tools: tools, onStatus: onStatus) { [weak self] result in
+            performResponsesStream(messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta) { [weak self] result in
                 guard let self = self else { return }
                 if case .failure = result, viaLadder {
                     // 回落到已验证可用的纯对话模式
-                    self.attempt(level: 3, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, completion: completion)
+                    self.attempt(level: 3, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, completion: completion)
                     return
                 }
                 completion(result)
@@ -174,7 +175,7 @@ final class OpenAIClient {
                     if next <= self.maxLevel {
                         NetworkLog.shared.log("\(self.config.name) L\(level) 请求超时 → 自动降级到 L\(next)（\(self.levelName(next))）")
                         onStatus?("请求超时，正在尝试简化参数（级别 \(next)/\(self.maxLevel)）…")
-                        self.attempt(level: next, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, completion: completion)
+                        self.attempt(level: next, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, completion: completion)
                         return
                     }
                 }
@@ -699,5 +700,212 @@ final class OpenAIClient {
                 request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
             }
         }
+    }
+
+    // MARK: - v2.9.53 SSE 流式
+
+    /// SSE 流式 delegate：接收增量数据，按 \n\n 切分事件，回调 onEvent。
+    private class SSEStreamDelegate: NSObject, URLSessionDataDelegate {
+        var onEvent: ((String) -> Void)?   // 每个完整 SSE 事件的原始文本
+        var onComplete: ((Error?) -> Void)?
+        private var buffer = Data()
+
+        func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+            buffer.append(data)
+            // SSE 事件以 \n\n 分隔
+            while true {
+                guard let range = buffer.range(of: Data("\n\n".utf8)) else { break }
+                let eventData = buffer.subdata(in: buffer.startIndex..<range.lowerBound)
+                buffer.removeSubrange(buffer.startIndex..<range.upperBound)
+                if let text = String(data: eventData, encoding: .utf8) {
+                    onEvent?(text)
+                }
+            }
+        }
+
+        func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+            if !buffer.isEmpty, let text = String(data: buffer, encoding: .utf8) {
+                onEvent?(text)
+                buffer.removeAll()
+            }
+            onComplete?(error)
+        }
+    }
+
+    /// 解析单个 SSE 事件，返回 (type, delta, fullJson)。
+    /// 兼容：event: xxx + data: {...}，或只有 data: {...}（type 在 JSON 里）。
+    private func parseSSEEvent(_ raw: String) -> (type: String, delta: String, json: [String: Any])? {
+        var eventType = ""
+        var dataJson = ""
+        for line in raw.components(separatedBy: "\n") {
+            let t = line.trimmingCharacters(in: .whitespaces)
+            if t.hasPrefix("event:") {
+                eventType = String(t.dropFirst(6)).trimmingCharacters(in: .whitespaces)
+            } else if t.hasPrefix("data:") {
+                dataJson += String(t.dropFirst(5)).trimmingCharacters(in: .whitespaces)
+            }
+        }
+        guard !dataJson.isEmpty, dataJson != "[DONE]" else { return nil }
+        guard let json = try? JSONSerialization.jsonObject(with: Data(dataJson.utf8)) as? [String: Any] else { return nil }
+        let type = eventType.isEmpty ? (json["type"] as? String ?? "") : eventType
+        let delta = json["delta"] as? String ?? ""
+        return (type, delta, json)
+    }
+
+    /// v2.9.53：Responses API 流式请求（SSE）。
+    /// - onDelta: 文本增量回调（逐字显示）
+    /// - completion: 响应完成后回调（完整 output 解析为 .text / .toolCalls）
+    private func performResponsesStream(messages: [ChatMessage], tools: [[String: Any]]?,
+                                        onStatus: ((String) -> Void)?,
+                                        onDelta: ((String) -> Void)?,
+                                        completion: @escaping (Result<ChatResult, Error>) -> Void) {
+        let base = config.baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard let url = URL(string: base + "/responses") else {
+            completion(.failure(NSError(domain: "OpenAIClient", code: 0, userInfo: [NSLocalizedDescriptionKey: "无效的 baseURL"])))
+            return
+        }
+
+        var request = URLRequest(url: url, timeoutInterval: 90)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        applyAuth(to: &request)
+
+        var body: [String: Any] = [
+            "model": config.model,
+            "input": responsesInput(from: messages),
+            "max_output_tokens": config.maxTokens,
+            "stream": true
+        ]
+        if config.isReasoningModel {
+            body["reasoning"] = ["effort": reasoningEffortName()]
+        }
+        if let tools = tools, !tools.isEmpty {
+            body["tools"] = tools.map { responsesToolSchema($0) }
+            body["tool_choice"] = "auto"
+        }
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        onStatus?("正在流式请求（Responses API）…")
+
+        // 累积状态
+        var fullText = ""
+        var fullThinking = ""
+        var toolCalls: [ToolCall] = []
+        var currentCallId = ""
+        var currentCallName = ""
+        var currentCallArgs = ""
+        var completedResponse: [String: Any]?
+        var httpStatus = 0
+
+        let delegate = SSEStreamDelegate()
+        let streamSession = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+
+        delegate.onEvent = { [weak self] raw in
+            guard let self = self else { return }
+            guard let ev = self.parseSSEEvent(raw) else { return }
+            let type = ev.type
+
+            // 文本增量 → 逐字显示
+            if type == "response.text.delta", !ev.delta.isEmpty {
+                fullText += ev.delta
+                DispatchQueue.main.async { onDelta?(ev.delta) }
+            }
+            // 推理增量
+            if type == "response.reasoning.delta", !ev.delta.isEmpty {
+                fullThinking += ev.delta
+            }
+            // 工具调用开始
+            if type == "response.output_item.added",
+               let item = ev.json["item"] as? [String: Any],
+               item["type"] as? String == "function_call",
+               let callId = item["call_id"] as? String,
+               let name = item["name"] as? String {
+                currentCallId = callId
+                currentCallName = name
+                currentCallArgs = ""
+            }
+            // 工具参数增量
+            if type == "response.function_call_arguments.delta", !ev.delta.isEmpty {
+                currentCallArgs += ev.delta
+            }
+            // 工具调用完成
+            if type == "response.output_item.done",
+               let item = ev.json["item"] as? [String: Any],
+               item["type"] as? String == "function_call" {
+                if !currentCallId.isEmpty {
+                    toolCalls.append(ToolCall(id: currentCallId, name: currentCallName, arguments: currentCallArgs))
+                }
+                currentCallId = ""
+                currentCallName = ""
+                currentCallArgs = ""
+            }
+            // 响应完成（包含完整 response 对象）
+            if type == "response.completed",
+               let response = ev.json["response"] as? [String: Any] {
+                completedResponse = response
+            }
+        }
+
+        delegate.onComplete = { [weak self] error in
+            guard let self = self else { return }
+            streamSession.invalidateAndCancel()
+
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+
+            // 如果 response.completed 里有完整 output，优先用它（更准确）
+            if let resp = completedResponse, let output = resp["output"] as? [[String: Any]] {
+                var calls: [ToolCall] = []
+                var text = ""
+                var thinking = ""
+                for item in output {
+                    let t = item["type"] as? String ?? ""
+                    if t == "function_call",
+                       let callId = item["call_id"] as? String,
+                       let name = item["name"] as? String,
+                       let args = item["arguments"] as? String {
+                        calls.append(ToolCall(id: callId, name: name, arguments: args))
+                    }
+                    if t == "reasoning" {
+                        if let summary = item["summary"] as? [[String: Any]] {
+                            for sm in summary { if let st = sm["text"] as? String { thinking += st } }
+                        }
+                        if let contentArr = item["content"] as? [[String: Any]] {
+                            for cc in contentArr { if let st = cc["text"] as? String { thinking += st } }
+                        }
+                    }
+                    if t == "message", let content = item["content"] as? [[String: Any]] {
+                        for c in content where (c["type"] as? String) == "output_text" {
+                            if let tt = c["text"] as? String { text += tt }
+                        }
+                    }
+                }
+                self.persist(level: 5)
+                NetworkLog.lastCompatNote = "模型「\(self.config.name)」当前兼容级别: 5（Responses API+工具，流式）"
+                if !calls.isEmpty {
+                    completion(.success(.toolCalls(calls)))
+                } else {
+                    let th = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
+                    completion(.success(.text(text, thinking: th.isEmpty ? nil : th)))
+                }
+                return
+            }
+
+            // fallback：用流式过程中累积的数据
+            self.persist(level: 5)
+            if !toolCalls.isEmpty {
+                completion(.success(.toolCalls(toolCalls)))
+            } else {
+                let th = fullThinking.trimmingCharacters(in: .whitespacesAndNewlines)
+                completion(.success(.text(fullText, thinking: th.isEmpty ? nil : th)))
+            }
+        }
+
+        let task = streamSession.dataTask(with: request)
+        activeTask = task
+        task.resume()
     }
 }

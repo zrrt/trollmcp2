@@ -330,6 +330,8 @@ final class ConversationStore: ObservableObject {
     @Published var runningTool: String?
     /// v2.9.13：当前正在进行的 OpenAIClient（支持取消）
     private var currentClient: OpenAIClient?
+    /// v2.9.53：当前流式输出的消息 ID（逐字显示时跟踪，完成后更新或清理）
+    private var streamingMessageId: UUID?
 
     private let key = "trollmcp2.conversations"
 
@@ -377,6 +379,21 @@ final class ConversationStore: ObservableObject {
         conv.updatedAt = Date()
         conversations[idx] = conv
         sortAndSave()
+    }
+
+    /// v2.9.53：流式输出时更新已有消息的 content（逐字显示）
+    func updateMessageContent(id: UUID, content: String) {
+        guard let idx = selectedIndex,
+              let mi = conversations[idx].messages.firstIndex(where: { $0.id == id }) else { return }
+        conversations[idx].messages[mi].content = content
+        conversations[idx].updatedAt = Date()
+    }
+
+    /// v2.9.53：删除指定消息（流式输出被工具调用替换时清理）
+    func removeMessage(id: UUID) {
+        guard let idx = selectedIndex,
+              let mi = conversations[idx].messages.firstIndex(where: { $0.id == id }) else { return }
+        conversations[idx].messages.remove(at: mi)
     }
 
     /// v2.9.13：取消当前进行中的请求（ChatView 停止按钮）
@@ -488,6 +505,21 @@ final class ConversationStore: ObservableObject {
                     self.statusText = status
                 }
             }
+        }, onDelta: { delta in
+            // v2.9.53：流式逐字显示
+            DispatchQueue.main.async {
+                if let sid = self.streamingMessageId {
+                    // 追加到已有流式消息
+                    guard let idx = self.selectedIndex,
+                          let mi = self.conversations[idx].messages.firstIndex(where: { $0.id == sid }) else { return }
+                    self.conversations[idx].messages[mi].content += delta
+                } else {
+                    // 第一次 delta：创建流式消息
+                    let msg = ChatMessage(role: "assistant", content: delta)
+                    self.streamingMessageId = msg.id
+                    self.appendToCurrent(msg)
+                }
+            }
         }) { result in
             DispatchQueue.main.async {
                 self.statusText = nil
@@ -497,10 +529,26 @@ final class ConversationStore: ObservableObject {
                     self.currentClient = nil
                     self.requestRound = 0
                     self.runningTool = nil
-                    var am = ChatMessage(role: "assistant", content: text)
-                    if let th = thinking, !th.isEmpty { am.thinking = th }
-                    self.appendToCurrent(am)
+                    if let sid = self.streamingMessageId {
+                        // 流式已显示，更新最终文本 + thinking
+                        self.updateMessageContent(id: sid, content: text)
+                        if let idx = self.selectedIndex,
+                           let mi = self.conversations[idx].messages.firstIndex(where: { $0.id == sid }),
+                           let th = thinking, !th.isEmpty {
+                            self.conversations[idx].messages[mi].thinking = th
+                        }
+                        self.streamingMessageId = nil
+                    } else {
+                        var am = ChatMessage(role: "assistant", content: text)
+                        if let th = thinking, !th.isEmpty { am.thinking = th }
+                        self.appendToCurrent(am)
+                    }
                 case .success(.toolCalls(let calls)):
+                    // 工具调用：删除流式文本消息（如果有），然后显示工具调用
+                    if let sid = self.streamingMessageId {
+                        self.removeMessage(id: sid)
+                        self.streamingMessageId = nil
+                    }
                     let summary = calls.map { "调用工具 \($0.name)" }.joined(separator: "\n")
                     self.appendToCurrent(ChatMessage(role: "assistant", content: summary, toolCalls: calls))
                     // v2.9.31：递归处理一批工具调用（后台执行，无授权弹窗）
@@ -516,7 +564,12 @@ final class ConversationStore: ObservableObject {
                     let nsErr = error as NSError
                     if nsErr.code == -999 {
                         self.statusText = nil
+                        self.streamingMessageId = nil
                         return
+                    }
+                    // 流式失败时保留已输出的部分文本，追加错误提示
+                    if self.streamingMessageId != nil {
+                        self.streamingMessageId = nil
                     }
                     self.appendToCurrent(ChatMessage(role: "assistant", content: "⚠️ \(error.localizedDescription)", isError: true))
                 }
