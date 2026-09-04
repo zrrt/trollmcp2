@@ -874,3 +874,16 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 **校验**：verify_v2945.py 全过（11 项）；bracecheck2.py 全对；Mach-O 内确认含 persona/TROLLTROLL/ct_bypass 字符串。CI 33888278190 success（commit 8c074d5）。版本 2.9.45 / dev.trollmcp2.app / Mach-O 5722384B。交付 `artifacts\v2.9.45\TrollMCP2-v2.9.45-20260904.ipa`。
 
 **已知遗留（下版）**：工具 error 后 AI "无法解析响应" + 思考很久——独立 bug（客户端流式解析/工具结果转义），与注入无关，下版专门修；injection 需实测确认 persona root 生效。
+
+
+### v2.9.46（2026-09-04）注入改主进程 setuid(0)；修复"无法解析响应"
+
+**用户实测 v2.9.45 仍 EPERM**（截图：写 TrollMCP.app/Frameworks/CompileProbe.dylib Operation not permitted；Frameworks 逻辑已生效但 persona 99 仍未真正切 root）。
+
+**注入修复**：不再依赖 persona attr，改用 TrollStore 最可靠的 root 方式——com.apple.private.persona-mgmt 允许**主进程** setuid(0)：spawnRoot 先 ensureRoot()（setgid/setuid 0），成功则 fork 子进程继承 root；失败才 fallback persona 99 attr。spawn 输出前缀加 [proc-euid=<euid>] 诊断（下次失败截图可直接看到 euid 是否 0，判断 root 是否生效）。
+
+**"无法解析响应"定位**：源码无此文案——它来自 OpenAIClient "Responses 解析失败"（工具 error 后模型那一轮 continuation 响应不是标准 JSON，JSONSerialization 失败）。工具 error 内容本身 AI 能读到（截图"工具结果"块完整显示）。修复：extractJSONObject 兜底——①直接 JSON ②截取首个{..}尾} ③SSE 收集 data: 行拼接重试。
+
+**校验**：verify_v2946.py 9 项全过；bracecheck 通过；MachO 5724688B（含 extractJSONObject/setuid 字符串）。CI 33889949938 success（commit 6fc665b）。交付 artifacts\v2.9.46\TrollMCP2-v2.9.46-20260904.ipa。
+
+**待实测**：主进程 setuid(0) 在 iOS16.3 + TrollStore 是否生效（若 euid 仍非 0 需查 persona-mgmt entitlement 是否被 TrollStore 保留）；"无法解析响应"是否根治需等工具 error 场景实测。
