@@ -727,3 +727,25 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 **线程要点**：工具 invoke 在后台线程（Models.swift:552 global.async）→ evalSync 用 main.async + semaphore 安全；ensureWebView 用 main.sync 保证主线程创建。
 
 **校验**：verify_v2937.py 全过；bracecheck2.py 全对。CI 33874972457 success（commit e22678d）。Mach-O 5608608 B（+浏览器 ~250KB）。
+
+
+### v2.9.38（2026-09-04）注入 Permission denied 修复
+
+**现象（用户截图）**：injection_enable 报 `cp: cannot create regular file '/private/var/containers/Bundle/Application/<UUID>/TrollMCP.app/CompileProbe.dylib': Permission denied`——即使已用 spawnRoot(root uid) 执行 cp，仍写不进目标 App bundle。
+
+**根因（两层）**：
+1. **iOS 沙箱按每次 exec 的新二进制签名计算**（per-exec sandbox）。trollmcp2 主进程虽带 no-sandbox，但 fork/exec 的 `bin/cp` 是普通 coreutils 二进制，没有 no-sandbox entitlement → exec 后立即被套普通沙箱 → 写其他 App bundle 被 sandbox deny（uid=root 也无效）。
+2. TrollStore 官方机制：IPA 内任意二进制用 ldid 签上 entitlements，安装时 TrollStore 会保留。所以正确做法是给 bin/ 注入工具签 `com.apple.private.security.no-sandbox + task_for_pid-allow + platform-application`。
+
+**修复（3 次迭代踩坑）**：
+- 新增 `Support/bin-entitlements.plist`（no-sandbox/task_for_pid/platform-application）。
+- build-ipa.sh 复制 bin 后重签全部工具（跳过 *.dylib）。
+- **坑1**：首次 fallback 到 `$APP/bin/ldid`（iOS arm64 二进制），在 macOS runner 上被 SIGKILL（`Killed: 9`），错误被 `|| true` 吞掉还打印假 success。
+- **坑2**：改 CI `brew install ldid`（原生 macOS）+ 优先 ldid，ldid 能跑，但 `ldid -S entitlements.plist binary` **空格语法错误**——xerub ldid 的 -S 必须紧跟文件名（`-Sent.plist`），否则 entitlements 文件被当输入文件，entitlements 写不进二进制（验证：明文搜不到 no-sandbox）。
+- **坑3**：修正为 `-S"Support/bin-entitlements.plist"` 连写 → **BIN_SIGNED 11/11 全带上 no-sandbox**（verify_ipa_v2938.py 明文验证）。
+
+**关键命令**：CI 已加 `brew install ldid`；build-ipa.sh 优先 `command -v ldid`（原生），fallback codesign；主二进制签名同样修正 -S 连写（codesign 优先不受影响）。
+
+**验证**：v2.9.38（CI 33874972457）→ v2.9.38b（33876406729）→ v2.9.38d（33876841718，success）最终 IPA 内 bin/*.11 个工具全部 no-sandbox=True task_for_pid=True。版本 2.9.38 / dev.trollmcp2.app / main Mach-O 5608608B。
+
+**预期效果**：装此版后，注入目标 App bundle 的 cp 操作不再 Permission denied；配合已有 spawnRoot(root) + insert_dylib + ldid 重签流程，injection.enable 应能真正写 dylib 进 TrollMCP.app 并完成注入。若仍失败，下一步查目标 App 目录 POSIX 属主/权限与 TrollStore 对已安装 App 的重签。
