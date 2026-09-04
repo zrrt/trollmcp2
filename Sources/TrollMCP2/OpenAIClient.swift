@@ -365,6 +365,7 @@ final class OpenAIClient {
     /// OpenAI /v1/responses 端点（Codex 同款）。
     /// GPT-5.6 家族的 function tools 在 chat/completions 上不可用/极慢，
     /// 但 Responses API 正常——用户在相同中转上 Codex 可运行即为证据。
+    /// v2.9.48：加自动重试（最多3次，指数退避 1s/2s）——网络错误/5xx/解析失败自动重试，不再需要手动点"继续"。
     private func performResponses(messages: [ChatMessage], tools: [[String: Any]]?, onStatus: ((String) -> Void)?, completion: @escaping (Result<ChatResult, Error>) -> Void) {
         let base = config.baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         guard let url = URL(string: base + "/responses") else {
@@ -372,101 +373,140 @@ final class OpenAIClient {
             return
         }
 
-        var request = URLRequest(url: url, timeoutInterval: 90)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        applyAuth(to: &request)
-
-        var body: [String: Any] = [
-            "model": config.model,
-            "input": responsesInput(from: messages),
-            "max_output_tokens": config.maxTokens
-        ]
-        if config.isReasoningModel {
-            body["reasoning"] = ["effort": reasoningEffortName()]
-        }
-        if let tools = tools, !tools.isEmpty {
-            body["tools"] = tools.map { responsesToolSchema($0) }
-            body["tool_choice"] = "auto"
-        }
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-
-        NetworkLog.shared.log("\(config.name) L5 Responses API+工具 → POST /responses，字段: \(body.keys.sorted().joined(separator: ","))")
-        onStatus?("正在通过 Responses API 请求（保留工具调用）…")
-
-        let task = session.dataTask(with: request) { data, response, error in
-            if self.cancelled {
-                completion(.failure(NSError(domain: "OpenAIClient", code: -999,
-                    userInfo: [NSLocalizedDescriptionKey: "请求已取消"])))
-                return
+        /// 判断某次失败是否值得重试（网络抖动/5xx/解析失败属于瞬时错误；4xx 参数/鉴权错误不重试）
+        func shouldRetry(_ err: NSError, _ statusCode: Int) -> Bool {
+            if err.domain == NSURLErrorDomain {
+                let c = err.code
+                return c == NSURLErrorTimedOut || c == NSURLErrorNetworkConnectionLost
+                    || c == NSURLErrorCannotConnectToHost || c == NSURLErrorNotConnectedToInternet
             }
-            if let error = error {
-                NetworkLog.shared.log("\(self.config.name) L5 网络错误: \(error.localizedDescription)")
-                completion(.failure(error))
-                return
-            }
-            let raw = String(data: data ?? Data(), encoding: .utf8) ?? "(no data)"
-            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if statusCode >= 500 { return true }
+            let d = err.localizedDescription
+            if d.contains("解析失败") || d.contains("无法解析") { return true }
+            return false
+        }
 
-            // v2.9.46：兜底 JSON 提取（中转站可能返回 SSE 流/夹带内容，标准 JSONSerialization 直接失败 → "无法解析响应"）
-            if let json = Self.extractJSONObject(raw) {
-                if let err = json["error"] as? [String: Any],
-                   let msg = err["message"] as? String {
-                    let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
-                    NetworkLog.shared.log("\(self.config.name) L5 失败 (HTTP \(status)，耗时 \(el)ms): \(msg)")
-                    completion(.failure(NSError(domain: "OpenAIClient", code: status,
-                        userInfo: [NSLocalizedDescriptionKey: "Responses API 错误: \(msg)"])))
+        func fire(attempt: Int) {
+            var request = URLRequest(url: url, timeoutInterval: 90)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            applyAuth(to: &request)
+
+            var body: [String: Any] = [
+                "model": config.model,
+                "input": responsesInput(from: messages),
+                "max_output_tokens": config.maxTokens
+            ]
+            if config.isReasoningModel {
+                body["reasoning"] = ["effort": reasoningEffortName()]
+            }
+            if let tools = tools, !tools.isEmpty {
+                body["tools"] = tools.map { responsesToolSchema($0) }
+                body["tool_choice"] = "auto"
+            }
+            request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+            NetworkLog.shared.log("\(config.name) L5 Responses API+工具 → POST /responses，字段: \(body.keys.sorted().joined(separator: ","))")
+            if attempt > 0 {
+                onStatus?("正在重试 Responses API（第 \(attempt + 1)/3 次）…")
+            } else {
+                onStatus?("正在通过 Responses API 请求（保留工具调用）…")
+            }
+
+            let task = session.dataTask(with: request) { [weak self] data, response, error in
+                guard let self = self else { return }
+                if self.cancelled {
+                    completion(.failure(NSError(domain: "OpenAIClient", code: -999,
+                        userInfo: [NSLocalizedDescriptionKey: "请求已取消"])))
                     return
                 }
-                if let output = json["output"] as? [[String: Any]] {
-                    var calls: [ToolCall] = []
-                    var text = ""
-                    var thinking = ""
-                    for item in output {
-                        let type = item["type"] as? String ?? ""
-                        if type == "function_call",
-                           let callId = item["call_id"] as? String,
-                           let name = item["name"] as? String,
-                           let args = item["arguments"] as? String {
-                            calls.append(ToolCall(id: callId, name: name, arguments: args))
-                        }
-                        if type == "reasoning" {
-                            if let summary = item["summary"] as? [[String: Any]] {
-                                for sm in summary {
-                                    if let st = sm["text"] as? String { thinking += st }
-                                }
-                            }
-                            if let contentArr = item["content"] as? [[String: Any]] {
-                                for cc in contentArr {
-                                    if let st = cc["text"] as? String { thinking += st }
-                                }
-                            }
-                        }
-                        if type == "message",
-                           let content = item["content"] as? [[String: Any]] {
-                            for c in content where (c["type"] as? String) == "output_text" {
-                                if let t = c["text"] as? String { text += t }
-                            }
-                        }
+                let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+
+                // 1) 网络错误
+                if let error = error {
+                    let nsErr = error as NSError
+                    NetworkLog.shared.log("\(self.config.name) L5 网络错误: \(nsErr.localizedDescription)")
+                    if attempt < 2 && shouldRetry(nsErr, status) {
+                        let delay = Double(1 << attempt)
+                        DispatchQueue.global().asyncAfter(deadline: .now() + delay) { fire(attempt: attempt + 1) }
+                        return
                     }
-                    let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
-                    NetworkLog.shared.log("\(self.config.name) L5（Responses API+工具）请求成功（\(el)ms），已记忆该级别")
-                    NetworkLog.lastCompatNote = "模型「\(self.config.name)」当前兼容级别: 5（Responses API+工具）"
-                    self.persist(level: 5)
-                    if !calls.isEmpty {
-                        completion(.success(.toolCalls(calls)))
-                    } else {
-                        let t = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
-                        completion(.success(.text(text, thinking: t.isEmpty ? nil : t)))
-                    }
+                    completion(.failure(error))
                     return
                 }
+                let raw = String(data: data ?? Data(), encoding: .utf8) ?? "(no data)"
+
+                // 2) 解析 JSON（v2.9.46 兜底：标准 JSON / 截取 {..} / SSE data: 行）
+                if let json = Self.extractJSONObject(raw) {
+                    // 2a) API 显式 error
+                    if let err = json["error"] as? [String: Any],
+                       let msg = err["message"] as? String {
+                        let nsErr = NSError(domain: "OpenAIClient", code: status,
+                            userInfo: [NSLocalizedDescriptionKey: "Responses API 错误: \(msg)"])
+                        if attempt < 2 && shouldRetry(nsErr, status) {
+                            DispatchQueue.global().asyncAfter(deadline: .now() + Double(1 << attempt)) { fire(attempt: attempt + 1) }
+                            return
+                        }
+                        let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
+                        NetworkLog.shared.log("\(self.config.name) L5 失败 (HTTP \(status)，耗时 \(el)ms): \(msg)")
+                        completion(.failure(nsErr))
+                        return
+                    }
+                    // 2b) 正常 output
+                    if let output = json["output"] as? [[String: Any]] {
+                        var calls: [ToolCall] = []
+                        var text = ""
+                        var thinking = ""
+                        for item in output {
+                            let type = item["type"] as? String ?? ""
+                            if type == "function_call",
+                               let callId = item["call_id"] as? String,
+                               let name = item["name"] as? String,
+                               let args = item["arguments"] as? String {
+                                calls.append(ToolCall(id: callId, name: name, arguments: args))
+                            }
+                            if type == "reasoning" {
+                                if let summary = item["summary"] as? [[String: Any]] {
+                                    for sm in summary { if let st = sm["text"] as? String { thinking += st } }
+                                }
+                                if let contentArr = item["content"] as? [[String: Any]] {
+                                    for cc in contentArr { if let st = cc["text"] as? String { thinking += st } }
+                                }
+                            }
+                            if type == "message",
+                               let content = item["content"] as? [[String: Any]] {
+                                for c in content where (c["type"] as? String) == "output_text" {
+                                    if let t = c["text"] as? String { text += t }
+                                }
+                            }
+                        }
+                        let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
+                        NetworkLog.shared.log("\(self.config.name) L5（Responses API+工具）请求成功（\(el)ms），已记忆该级别")
+                        NetworkLog.lastCompatNote = "模型「\(self.config.name)」当前兼容级别: 5（Responses API+工具）"
+                        self.persist(level: 5)
+                        if !calls.isEmpty {
+                            completion(.success(.toolCalls(calls)))
+                        } else {
+                            let t = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
+                            completion(.success(.text(text, thinking: t.isEmpty ? nil : t)))
+                        }
+                        return
+                    }
+                }
+
+                // 3) 解析失败（非标准 JSON / 无 output）
+                let nsErr = NSError(domain: "OpenAIClient", code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "Responses 解析失败: \(raw.prefix(300))"])
+                if attempt < 2 && shouldRetry(nsErr, status) {
+                    DispatchQueue.global().asyncAfter(deadline: .now() + Double(1 << attempt)) { fire(attempt: attempt + 1) }
+                    return
+                }
+                completion(.failure(nsErr))
             }
-            completion(.failure(NSError(domain: "OpenAIClient", code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Responses 解析失败: \(raw.prefix(300))"])))
+            activeTask = task
+            task.resume()
         }
-        activeTask = task
-        task.resume()
+        fire(attempt: 0)
     }
 
     /// v2.9.46：从原始响应体中提取 JSON 对象（兜底解析，解决"无法解析响应"）。
