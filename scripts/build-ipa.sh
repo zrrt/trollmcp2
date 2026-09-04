@@ -32,6 +32,23 @@ if [ -d "Resources/bin" ]; then
     cp -R "Resources/bin" "$APP/bin"
     chmod +x "$APP/bin/"* 2>/dev/null || true
     echo ">>> bundled bin: $(ls "$APP/bin" | wc -l | tr -d ' ') files"
+    # v2.9.38: 给注入工具签 no-sandbox entitlements
+    # iOS 沙箱按每次 exec 的新二进制签名计算：工具不签 no-sandbox 则即使被 root spawn 也仍套普通沙箱，
+    # 写其他 App bundle（/private/var/containers/Bundle/Application/...）会 Permission denied。
+    if [ -f "Support/bin-entitlements.plist" ]; then
+        LDID_TOOL="$(command -v ldid || true)"
+        if [ -z "$LDID_TOOL" ] && [ -x "$APP/bin/ldid" ]; then LDID_TOOL="$APP/bin/ldid"; fi
+        if [ -n "$LDID_TOOL" ]; then
+            for t in "$APP"/bin/*; do
+                [ -f "$t" ] || continue
+                case "$t" in *.dylib) continue;; esac
+                "$LDID_TOOL" -S "Support/bin-entitlements.plist" "$t" 2>/dev/null || true
+            done
+            echo ">>> signed bin tools with no-sandbox entitlements"
+        else
+            echo "!!! ldid not available; bin tools stay sandboxed (injection may fail)" >&2
+        fi
+    fi
 fi
 
 # 其他资源文件（开发者指令、配置模板等）
