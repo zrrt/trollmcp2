@@ -388,7 +388,9 @@ final class InjectionManager {
             "total_apps": apps.count,
             "bundled_tools": availableBinaries(),
             "injected_count": injectedApps.count,
-            "injected_apps": injectedApps
+            "injected_apps": injectedApps,
+            // v2.9.40：引导 AI 拿具体 Bundle ID（用户反馈 AI 只用 status 查不到 ID 卡住）
+            "hint": "要获取具体 App 的 bundle_id + 名称，请调用 injection.list"
         ]
     }
 }

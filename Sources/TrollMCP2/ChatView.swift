@@ -502,8 +502,26 @@ struct ChatView: View {
     private func send() {
         guard let cfg = modelStore.defaultConfig, !inputText.isEmpty else { return }
         if store.selectedId == nil { store.newConversation() }
-        let text = inputText
+        var text = inputText
         let imgs = pendingImages
+        // v2.9.40：把应用附件的 bundleId 带给 AI（此前只发"[📱应用]"文字，AI 看不到 ID → 注入找不到目标）
+        let appAtts = pendingAttachments.filter { att in
+            if case .app = att.kind { return true }
+            return false
+        }
+        if !appAtts.isEmpty {
+            let tag = "[📱应用]"
+            var remaining = appAtts
+            while let r = text.range(of: tag), !remaining.isEmpty {
+                let att = remaining.removeFirst()
+                let bid = att.bundleId ?? "unknown"
+                text.replaceSubrange(r, with: "[📱应用：\(att.displayName)（\(bid)）]")
+            }
+            if !remaining.isEmpty {
+                let extra = remaining.map { "[📱应用：\($0.displayName)（\($0.bundleId ?? "unknown")）]" }.joined(separator: " ")
+                text = text + " " + extra
+            }
+        }
         inputText = ""
         pendingImages = []
         // v2.9.10：附件预览与发送联动——从附件里取图片 dataURL（若预览被删则不再发送）

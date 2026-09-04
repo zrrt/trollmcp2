@@ -44,7 +44,7 @@ final class InjectionDisableTool: MCPTool {
 }
 
 final class InjectionStatusTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.status", summary: "查看注入工具链状态与已装 App 列表")
+    let definition = ToolDefinition(name: "injection.status", summary: "查看注入统计（应用总数/已注入数/工具链）；要拿具体 App 的 bundle_id 请调用 injection.list")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         InjectionManager.shared.status()
     }
@@ -60,7 +60,7 @@ final class InjectionInspectTool: MCPTool {
 }
 
 final class InjectionListTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.list", summary: "列出设备已安装 App（App 目录）")
+    let definition = ToolDefinition(name: "injection.list", summary: "列出设备全部已安装 App 的 bundle_id + 名称（约 266 个），用 name/bundle_id 定位注入目标，供 injection.enable 的 bundle_id 参数使用")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let apps = AppCatalog.list()
         return [
