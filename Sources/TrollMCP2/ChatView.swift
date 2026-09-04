@@ -261,15 +261,37 @@ struct ChatView: View {
                         .id(msg.id)
                     }
                     if store.isLoading {
+                        // v2.9.34：请求过程可视化（对齐老 MCP 的"正在思考"面板）
                         VStack(alignment: .trailing, spacing: 6) {
                             HStack {
                                 Spacer()
-                                TypingIndicator()
-                                    .padding(.trailing, 16)
+                                HStack(spacing: 8) {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                    Text("正在思考")
+                                        .font(.footnote.weight(.medium))
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(Color(.tertiarySystemBackground).opacity(0.9))
+                                .cornerRadius(14)
+                                .padding(.trailing, 16)
                             }
                             if let status = store.statusText {
                                 Text(status)
                                     .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .padding(.trailing, 16)
+                            }
+                            if let tool = store.runningTool {
+                                Text("正在执行工具 \(tool)…")
+                                    .font(.caption2)
+                                    .foregroundColor(.blue)
+                                    .padding(.trailing, 16)
+                            }
+                            if store.requestRound > 0 {
+                                Text("第 \(store.requestRound)/\(store.requestRounds) 轮")
+                                    .font(.caption2)
                                     .foregroundColor(.secondary)
                                     .padding(.trailing, 16)
                             }

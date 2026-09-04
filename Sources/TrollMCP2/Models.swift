@@ -323,6 +323,11 @@ final class ConversationStore: ObservableObject {
     @Published var isLoading = false
     /// v2.8.5：当前请求的实时状态文案（等待响应/降级重试中），展示在输入指示器旁
     @Published var statusText: String?
+    /// v2.9.34：请求过程可视化——当前第几轮（对齐老 MCP 的"正在请求模型（第 N/60 轮）"）
+    @Published var requestRound = 0
+    @Published var requestRounds = 60
+    /// v2.9.34：正在执行的工具名（展示"正在执行工具 xxx…"）
+    @Published var runningTool: String?
     /// v2.9.13：当前正在进行的 OpenAIClient（支持取消）
     private var currentClient: OpenAIClient?
 
@@ -431,8 +436,16 @@ final class ConversationStore: ObservableObject {
         guard depth < 60 else {
             isLoading = false
             statusText = nil
+            requestRound = 0
+            runningTool = nil
             appendToCurrent(ChatMessage(role: "assistant", content: "已达到极端安全上限（60 轮），已停止。若 AI 仍在循环，请点输入框旁的「停止」按钮中断。", isError: true))
             return
+        }
+        // v2.9.34：请求过程可视化
+        DispatchQueue.main.async {
+            self.requestRound = depth + 1
+            self.requestRounds = 60
+            self.statusText = "已准备请求（正在整理会话与可用工具）"
         }
 
         // 动态合并：白名单 schema + 已披露工具的 schema（去重）
@@ -458,13 +471,23 @@ final class ConversationStore: ObservableObject {
         client.currentReasoningLevel = reasoningLevel
         currentClient = client
         var history = messagesForAPI(budget: config.contextTokens)
+        // v2.9.34：协作规范（最高优先级，不依赖开发者指令配置）
+        // ——工具逐个调用（每次最多 1 个、等结果），次数不限；回复自然可带 emoji。
+        history.insert(ChatMessage(role: "system", content: "【协作规范】\n1. 调用工具时请逐个进行：每次只调用一个工具，等待其结果后再决定下一步；不要一次发出多个工具调用。工具调用次数不受限制，可以放心一步步推进。\n2. 回复自然、简洁、口语化，可适度使用 emoji 表达语气，但不要滥用。"), at: 0)
         // v2.9.19：默认开发者指令注入为 system 前缀（用户可自建并设为默认）
         if let devInstr = DeveloperInstructionStore.shared.defaultInjectionContent(), !devInstr.isEmpty {
             history.insert(ChatMessage(role: "system", content: "以下是开发者指令，请始终遵守：\n" + devInstr), at: 0)
         }
 
         client.send(messages: history, tools: effectiveTools, onStatus: { status in
-            DispatchQueue.main.async { self.statusText = status }
+            DispatchQueue.main.async {
+                // v2.9.34：带轮次前缀，展示"正在请求模型（第 N/60 轮）…"
+                if self.requestRound > 0 && !status.contains("第 ") {
+                    self.statusText = "正在请求模型（第 \(self.requestRound)/\(self.requestRounds) 轮）· \(status)"
+                } else {
+                    self.statusText = status
+                }
+            }
         }) { result in
             DispatchQueue.main.async {
                 self.statusText = nil
@@ -472,6 +495,8 @@ final class ConversationStore: ObservableObject {
                 case .success(.text(let text, let thinking)):
                     self.isLoading = false
                     self.currentClient = nil
+                    self.requestRound = 0
+                    self.runningTool = nil
                     var am = ChatMessage(role: "assistant", content: text)
                     if let th = thinking, !th.isEmpty { am.thinking = th }
                     self.appendToCurrent(am)
@@ -485,6 +510,8 @@ final class ConversationStore: ObservableObject {
                 case .failure(let error):
                     self.isLoading = false
                     self.currentClient = nil
+                    self.requestRound = 0
+                    self.runningTool = nil
                     // v2.9.13：用户主动取消（-999）不追加错误气泡
                     let nsErr = error as NSError
                     if nsErr.code == -999 {
@@ -516,6 +543,8 @@ final class ConversationStore: ObservableObject {
         }
         let call = calls[index]
         let params = Self.parseArgs(call.arguments)
+        // v2.9.34：展示"正在执行工具 xxx…"
+        self.runningTool = call.name
         do {
             // v2.9.29：工具执行放后台线程，避免注入/文件操作等耗时调用阻塞主线程
             // （授权恢复后执行注入导致一直转圈 + 聊天框/输入框无响应）。
@@ -525,6 +554,7 @@ final class ConversationStore: ObservableObject {
                 do { result = .success(try ToolRegistry.shared.dispatch(name: call.name, params: params)) }
                 catch { result = .failure(error) }
                 DispatchQueue.main.async {
+                    self.runningTool = nil
                     self.handleDispatchResult(result, call: call, calls: calls, index: index,
                                               toolMessages: toolMessages, newlyDisclosed: newlyDisclosed,
                                               config: config, tools: tools,

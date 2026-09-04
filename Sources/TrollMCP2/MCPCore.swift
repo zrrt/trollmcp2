@@ -81,6 +81,7 @@ public final class ToolRegistry: ObservableObject {
         "tool_search",   // v2.9.16：渐进式披露元工具，必须始终可用
         "ping", "device.info", "device.probe", "workspace.info",
         "artifact.read_text", "artifact.write_text", "artifact.list",
+        "artifact.find",   // v2.9.33/34：递归查找下载产物（与 coreToolNames 保持一致，否则报"未加载"）
         "web.search", "knowledge.search",
         "github.account_status", "github.trigger_build", "github.fetch_runs", "github.download_artifact",
         "model.config", "model.authentication", "model.selected_profile_id",
@@ -271,7 +272,11 @@ public final class ToolRegistry: ObservableObject {
         // 未加载工具（不在常驻、也未搜索过）直接返回错误，提示 AI 先用 tool_search
         // 搜索加载，而不是弹窗打扰用户。
         let originalName = t.definition.name
-        if isEnabled(name: originalName) || isSessionApproved(originalName) {
+        // v2.9.34：放行 = 策略启用 或 会话已授权 或 常驻核心工具。
+        // 修复 bug：coreToolNames 里的工具（如 artifact.find）schema 已发给模型，
+        // 但 defaultEnabledTools 未收录时 isEnabled 返回 false → 报"未加载"。
+        // 常驻核心必然放行（它本来就在初始请求里，用户开关不应对它二次拦截）。
+        if isEnabled(name: originalName) || isSessionApproved(originalName) || isCore(originalName) {
             return try t.invoke(params)
         }
         throw MCPError.failed("tool \(originalName) 未加载，请先调用 tool_search 搜索该工具")
