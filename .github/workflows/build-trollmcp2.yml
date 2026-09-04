@@ -9,6 +9,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install ldid (native macOS)
+        run: brew install ldid
+
       - name: Build unsigned IPA
         run: bash scripts/build-ipa.sh
 

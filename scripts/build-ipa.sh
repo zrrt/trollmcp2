@@ -36,17 +36,29 @@ if [ -d "Resources/bin" ]; then
     # iOS 沙箱按每次 exec 的新二进制签名计算：工具不签 no-sandbox 则即使被 root spawn 也仍套普通沙箱，
     # 写其他 App bundle（/private/var/containers/Bundle/Application/...）会 Permission denied。
     if [ -f "Support/bin-entitlements.plist" ]; then
-        LDID_TOOL="$(command -v ldid || true)"
-        if [ -z "$LDID_TOOL" ] && [ -x "$APP/bin/ldid" ]; then LDID_TOOL="$APP/bin/ldid"; fi
-        if [ -n "$LDID_TOOL" ]; then
+        # v2.9.38c: 优先 macOS 原生 ldid（CI 已加 brew install ldid；xerub ldid 对 iOS arm64e 兼容最好）。
+        # fallback codesign（macOS 原生，主二进制已验证可用）。
+        # 切勿 fallback 到 $APP/bin/ldid —— 那是 iOS arm64 二进制，在 macOS runner 上会被 SIGKILL。
+        if command -v ldid >/dev/null 2>&1; then
+            SIGN_TOOL=ldid
+        elif command -v codesign >/dev/null 2>&1; then
+            SIGN_TOOL=codesign
+        else
+            SIGN_TOOL=""
+        fi
+        if [ -n "$SIGN_TOOL" ]; then
             for t in "$APP"/bin/*; do
                 [ -f "$t" ] || continue
                 case "$t" in *.dylib) continue;; esac
-                "$LDID_TOOL" -S "Support/bin-entitlements.plist" "$t" 2>/dev/null || true
+                if [ "$SIGN_TOOL" = codesign ]; then
+                    codesign -s - -f --entitlements "Support/bin-entitlements.plist" "$t" 2>/dev/null || true
+                else
+                    "$SIGN_TOOL" -S "Support/bin-entitlements.plist" "$t" 2>/dev/null || true
+                fi
             done
-            echo ">>> signed bin tools with no-sandbox entitlements"
+            echo ">>> signed bin tools with no-sandbox entitlements (via $SIGN_TOOL)"
         else
-            echo "!!! ldid not available; bin tools stay sandboxed (injection may fail)" >&2
+            echo "!!! ldid/codesign not available; bin tools stay sandboxed (injection may fail)" >&2
         fi
     fi
 fi
