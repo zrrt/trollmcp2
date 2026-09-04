@@ -124,9 +124,17 @@ final class InjectionManager {
         return (status, "posix_spawn failed (\(status))")
     }
 
-    /// v2.9.32：root 版 spawn（posix_spawnattr_setuid_np/setgid_np → uid 0）。
-    /// 这些 _np 私有函数存在于 libSystem 但未导出到 SDK 链接（编译期 undefined symbol），
-    /// 故用 dlsym 运行时动态查找，避免链接失败。iOS 16.3 + persona-mgmt entitlement 下有效。
+    /// v2.9.46：TrollStore 最可靠的 root 方式——com.apple.private.persona-mgmt 允许**主进程** setuid(0)，
+    /// 主进程变 root 后 fork 的子进程（cp/insert_dylib/ldid/ct_bypass）自动继承 root，无需依赖 persona attr。
+    /// （v2.9.45 的 persona 99 方案实测仍 EPERM，改为进程内 setuid 最直接。）
+    @discardableResult
+    func ensureRoot() -> Bool {
+        if geteuid() == 0 { return true }
+        let ok = setgid(0) == 0 && setuid(0) == 0
+        return ok && geteuid() == 0
+    }
+
+    /// root 版 spawn：先主进程 setuid(0)，失败则 fallback persona 99 attr
     func spawnRoot(_ path: String, args: [String]) -> (Int32, String) {
         var argv: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) }
         argv.append(nil)
@@ -145,27 +153,29 @@ final class InjectionManager {
         posix_spawn_file_actions_addclose(&fileActions, outPipe[0])
         posix_spawn_file_actions_addclose(&fileActions, errPipe[0])
 
-        // root 身份：TrollStore 标准做法——persona 99 (root) + OVERRIDE（对齐 TrollFools spawnRoot）
-        // v2.9.45：之前用 posix_spawnattr_setuid_np(0) 在 iOS 上不真正生效（setuid 需真正 root 或 persona 机制），
-        // 子进程实际仍是 mobile 用户 → 写其他 app bundle 报 EPERM。改用 persona API + com.apple.private.persona-mgmt。
+        // 1) 主进程 setuid(0)（TrollStore persona-mgmt）；成功则子进程继承 root
+        let rooted = ensureRoot()
+        // 2) 主进程 setuid 失败时，fallback persona 99 attr（对齐 TrollStore spawnRoot）
         var attr: posix_spawnattr_t?
         posix_spawnattr_init(&attr)
-        typealias SetPersonaFn = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, UInt32, UInt32) -> Int32
-        typealias SetPersonaIdFn = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, UInt32) -> Int32
-        if let lib = dlopen("/usr/lib/libSystem.B.dylib", RTLD_LAZY) {
-            if let f = dlsym(lib, "posix_spawnattr_set_persona_np") {
-                let fn = unsafeBitCast(f, to: SetPersonaFn.self)
-                _ = fn(&attr, 99, 1)   // persona 99 = root；POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE = 1
+        if !rooted {
+            typealias SetPersonaFn = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, UInt32, UInt32) -> Int32
+            typealias SetPersonaIdFn = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, UInt32) -> Int32
+            if let lib = dlopen("/usr/lib/libSystem.B.dylib", RTLD_LAZY) {
+                if let f = dlsym(lib, "posix_spawnattr_set_persona_np") {
+                    let fn = unsafeBitCast(f, to: SetPersonaFn.self)
+                    _ = fn(&attr, 99, 1)
+                }
+                if let f = dlsym(lib, "posix_spawnattr_set_persona_uid_np") {
+                    let fn = unsafeBitCast(f, to: SetPersonaIdFn.self)
+                    _ = fn(&attr, 0)
+                }
+                if let f = dlsym(lib, "posix_spawnattr_set_persona_gid_np") {
+                    let fn = unsafeBitCast(f, to: SetPersonaIdFn.self)
+                    _ = fn(&attr, 0)
+                }
+                dlclose(lib)
             }
-            if let f = dlsym(lib, "posix_spawnattr_set_persona_uid_np") {
-                let fn = unsafeBitCast(f, to: SetPersonaIdFn.self)
-                _ = fn(&attr, 0)
-            }
-            if let f = dlsym(lib, "posix_spawnattr_set_persona_gid_np") {
-                let fn = unsafeBitCast(f, to: SetPersonaIdFn.self)
-                _ = fn(&attr, 0)
-            }
-            dlclose(lib)
         }
 
         var env: [UnsafeMutablePointer<CChar>?] = [
@@ -199,10 +209,12 @@ final class InjectionManager {
             waitpid(pid, &st, 0)
             close(outPipe[0]); close(errPipe[0])
             let code = Int32((UInt32(st) >> 8) & 0xff)
-            return (code, String(data: out, encoding: .utf8) ?? "")
+            // 诊断：主进程 euid 拼到输出开头，方便定位 root 是否生效
+            let prefix = "[proc-euid=\(geteuid())] "
+            return (code, prefix + (String(data: out, encoding: .utf8) ?? ""))
         }
         close(outPipe[0]); close(errPipe[0])
-        return (status, "spawnRoot failed (\(status))")
+        return (status, "[proc-euid=\(geteuid())] spawnRoot failed (\(status))")
     }
 
     // MARK: - 路径解析

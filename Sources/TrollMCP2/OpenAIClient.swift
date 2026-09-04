@@ -408,7 +408,8 @@ final class OpenAIClient {
             let raw = String(data: data ?? Data(), encoding: .utf8) ?? "(no data)"
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
 
-            if let json = try? JSONSerialization.jsonObject(with: data ?? Data()) as? [String: Any] {
+            // v2.9.46：兜底 JSON 提取（中转站可能返回 SSE 流/夹带内容，标准 JSONSerialization 直接失败 → "无法解析响应"）
+            if let json = Self.extractJSONObject(raw) {
                 if let err = json["error"] as? [String: Any],
                    let msg = err["message"] as? String {
                     let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
@@ -466,6 +467,36 @@ final class OpenAIClient {
         }
         activeTask = task
         task.resume()
+    }
+
+    /// v2.9.46：从原始响应体中提取 JSON 对象（兜底解析，解决"无法解析响应"）。
+    /// 兼容：①标准 JSON；②前后夹带日志/空白；③SSE 流（收集 data: 行拼成 JSON）。
+    private static func extractJSONObject(_ raw: String) -> [String: Any]? {
+        // 1) 直接解析
+        if let j = try? JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any] { return j }
+        // 2) 截取第一个 { 到最后一个 }（夹带前缀/后缀）
+        if let i = raw.firstIndex(of: "{"), let j = raw.lastIndex(of: "}"), i < j {
+            let sub = String(raw[i...j])
+            if let jj = try? JSONSerialization.jsonObject(with: Data(sub.utf8)) as? [String: Any] { return jj }
+        }
+        // 3) SSE：收集 "data: {...}" 或 "data:{...}" 行，拼接后重试
+        var sseAccum = ""
+        for line in raw.components(separatedBy: "\n") {
+            var l = line.trimmingCharacters(in: .whitespaces)
+            if l.hasPrefix("data:") {
+                l = String(l.dropFirst(5)).trimmingCharacters(in: .whitespaces)
+                if l == "[DONE]" { continue }
+                sseAccum += l
+            }
+        }
+        if !sseAccum.isEmpty {
+            if let j = try? JSONSerialization.jsonObject(with: Data(sseAccum.utf8)) as? [String: Any] { return j }
+            if let i = sseAccum.firstIndex(of: "{"), let j = sseAccum.lastIndex(of: "}"), i < j {
+                let sub = String(sseAccum[i...j])
+                if let jj = try? JSONSerialization.jsonObject(with: Data(sub.utf8)) as? [String: Any] { return jj }
+            }
+        }
+        return nil
     }
 
     /// 把内部消息历史转换为 Responses API 的 input 数组。
