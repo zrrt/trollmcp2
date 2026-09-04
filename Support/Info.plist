@@ -17,7 +17,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.9.46</string>
+	<string>2.9.47</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>MinimumOSVersion</key>
@@ -32,6 +32,8 @@
 		<string>bin/mv-15</string>
 		<string>bin/rm</string>
 		<string>bin/chown</string>
+		<string>bin/mkdir</string>
+		<string>bin/ct_bypass</string>
 		<string>bin/install_name_tool</string>
 		<string>bin/optool</string>
 	</array>

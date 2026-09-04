@@ -124,21 +124,23 @@ final class InjectionManager {
         return (status, "posix_spawn failed (\(status))")
     }
 
-    /// v2.9.46：TrollStore 最可靠的 root 方式——com.apple.private.persona-mgmt 允许**主进程** setuid(0)，
-    /// 主进程变 root 后 fork 的子进程（cp/insert_dylib/ldid/ct_bypass）自动继承 root，无需依赖 persona attr。
-    /// （v2.9.45 的 persona 99 方案实测仍 EPERM，改为进程内 setuid 最直接。）
-    @discardableResult
-    func ensureRoot() -> Bool {
-        if geteuid() == 0 { return true }
-        let ok = setgid(0) == 0 && setuid(0) == 0
-        return ok && geteuid() == 0
-    }
-
-    /// root 版 spawn：先主进程 setuid(0)，失败则 fallback persona 99 attr
+    /// v2.9.47：root 版 spawn。
+    /// 正确机制：TrollStore TSRootBinaries 在安装时给 bin/ 工具打 setuid root 位（chmod 4755 + chown root），
+    /// exec 时 kernel 自动把 euid 设为 0——**不依赖主进程 setuid**（实测主进程 setuid(0) 在 iOS16.3 不生效，euid 恒为 501）。
+    /// 若 TSRootBinaries 未生效（覆盖安装不会重打 setuid 位），fallback persona 99 attr。
+    /// 诊断：输出目标二进制是否有 setuid 位（bin-setuid）+ 主进程 euid，方便定位 root 是否生效。
     func spawnRoot(_ path: String, args: [String]) -> (Int32, String) {
         var argv: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) }
         argv.append(nil)
         defer { for p in argv where p != nil { free(p) } }
+
+        // 诊断：检查目标二进制是否有 setuid 位（0o4000 = S_ISUID）
+        var binSetuid = 0
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+           let mode = attrs[.posixPermissions] as? Int {
+            binSetuid = (mode & 0o4000) != 0 ? 1 : 0
+        }
+        let diagPrefix = "[bin-setuid=\(binSetuid) proc-euid=\(geteuid())] "
 
         var pid: pid_t = 0
         var outPipe: [Int32] = [-1, -1]
@@ -153,12 +155,10 @@ final class InjectionManager {
         posix_spawn_file_actions_addclose(&fileActions, outPipe[0])
         posix_spawn_file_actions_addclose(&fileActions, errPipe[0])
 
-        // 1) 主进程 setuid(0)（TrollStore persona-mgmt）；成功则子进程继承 root
-        let rooted = ensureRoot()
-        // 2) 主进程 setuid 失败时，fallback persona 99 attr（对齐 TrollStore spawnRoot）
+        // 仅当二进制无 setuid 位时，才尝试 persona 99 attr（TSRootBinaries 生效时不需要）
         var attr: posix_spawnattr_t?
         posix_spawnattr_init(&attr)
-        if !rooted {
+        if binSetuid == 0 {
             typealias SetPersonaFn = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, UInt32, UInt32) -> Int32
             typealias SetPersonaIdFn = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, UInt32) -> Int32
             if let lib = dlopen("/usr/lib/libSystem.B.dylib", RTLD_LAZY) {
@@ -209,12 +209,10 @@ final class InjectionManager {
             waitpid(pid, &st, 0)
             close(outPipe[0]); close(errPipe[0])
             let code = Int32((UInt32(st) >> 8) & 0xff)
-            // 诊断：主进程 euid 拼到输出开头，方便定位 root 是否生效
-            let prefix = "[proc-euid=\(geteuid())] "
-            return (code, prefix + (String(data: out, encoding: .utf8) ?? ""))
+            return (code, diagPrefix + (String(data: out, encoding: .utf8) ?? ""))
         }
         close(outPipe[0]); close(errPipe[0])
-        return (status, "[proc-euid=\(geteuid())] spawnRoot failed (\(status))")
+        return (status, diagPrefix + "spawnRoot failed (\(status))")
     }
 
     // MARK: - 路径解析
