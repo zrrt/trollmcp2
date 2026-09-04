@@ -661,3 +661,21 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 4. **模型/中转站适配确认**：ModelConfig 已支持 provider=openai/deepseek/anthropic/custom + apiProtocol=OpenAI Chat Completions / OpenAI Responses / Anthropic Messages / Custom + 任意 baseURL/apiKey/model/authMethod。DeepSeek 预设 https://api.deepseek.com/v1 + deepseek-chat；Botcf 自定义。中转站填 baseURL 即可。推理模型（gpt-5.x/o1/o3/o4）自动降级（sendsTemperature=false、reasoning_effort 控制、compatLevel 自适应降级）。
 
 **校验**：verify_v2934.py 检查 isCore 放行/artifact.find 白名单/协作规范/轮次状态/thinking 面板/版本 2.9.34；全过。CI 33869773624 success，commit 0a167f5。
+
+
+### v2.9.35（2026-09-04）
+
+**需求（用户 3 张老 MCP 截图）**：对齐老 MCP 的"添加内容"面板设计——半屏三入口卡片（应用·选择分析 / 相册·最多8张 / 文件·最多8个）+ 右上角"已选 N"徽标 + 输入框上方附件 chips + "仅用于本轮请求，本机准备"文案。
+
+**改动**：
+1. **+ 号改弹半屏 AttachmentPanelView**（原用系统 actionSheet，iOS16 偶发点击无响应 + 样式差）。AttachmentPanelView 本来就是老 MCP 三入口设计，但一直没被 + 号调用。加 `.presentationDetents([.height(240)])` 紧凑半屏（需 `if #available(iOS 16.0, *)`，项目部署目标 <16）。
+2. **面板右上角加"已选 N"徽标**：AttachmentPanelView 加 `selectedCount` 参数，ChatView 传 `pendingAttachments.count`。
+3. 移除 actionSheet 与 showAttachSheet 残留。
+4. 附件预览条（输入框上方：图片缩略图/应用图标+名/文件图标+名，可删除）v2.9.10 已具备，本次未动。
+
+**编译排障记录**（CI 三次失败）：
+- `incorrect argument labels in call (have 'selectedCount:_:')` → @Environment 使 onPick 在 init 首参，trailing closure 写法不行，改显式命名。
+- `argument 'onPick' must precede argument 'selectedCount'` → Swift 无默认值参数必须在前，调换顺序为 `AttachmentPanelView(onPick:, selectedCount:)`。
+- `'presentationDetents' is only available in iOS 16.0 or newer` → 用 if #available 包裹。
+
+**校验**：verify_v2935.py 全过。CI 33871449988 success，commit d404307。
