@@ -21,6 +21,9 @@ final class FloatingBrowser: ObservableObject {
 
     private var screen: CGSize { UIScreen.main.bounds.size }
 
+    // v2.9.43：胶囊半露悬浮球——中心贴在屏幕右缘，右半圆裁到屏外，露出左半圆可点击
+    private var capsuleX: CGFloat { screen.width }
+
     /// AI 操作 / 用户打开：显示并展开（自动浮现，用户可看到 AI 操作）
     func show() {
         DispatchQueue.main.async {
@@ -38,7 +41,7 @@ final class FloatingBrowser: ObservableObject {
     func collapse() {
         lastExpandedCenter = center
         isCollapsed = true
-        center = CGPoint(x: screen.width - 28, y: center.y)
+        center = CGPoint(x: capsuleX, y: center.y)
     }
 
     /// 从胶囊展开回浏览器（仅主线程 UI 调用）
@@ -58,7 +61,7 @@ final class FloatingBrowser: ObservableObject {
     func drag(by delta: CGSize) {
         if isCollapsed {
             // 缩小态：x 固定贴右缘，仅上下移动
-            center = CGPoint(x: screen.width - 28, y: dragStart.y + delta.height)
+            center = CGPoint(x: capsuleX, y: dragStart.y + delta.height)
         } else {
             center = CGPoint(x: dragStart.x + delta.width, y: dragStart.y + delta.height)
         }
@@ -67,14 +70,14 @@ final class FloatingBrowser: ObservableObject {
     func endDrag() {
         if isCollapsed {
             // 缩小态：贴右缘，y 夹在屏幕内
-            center.x = screen.width - 28
+            center.x = capsuleX
             center.y = min(max(center.y, 60), screen.height - 60)
         } else {
             // 展开态：拖到屏幕右侧边缘附近 → 自动缩成胶囊；否则夹在屏幕内
             if center.x > screen.width * 0.82 {
                 lastExpandedCenter = center
                 isCollapsed = true
-                center.x = screen.width - 28
+                center.x = capsuleX
             } else {
                 let halfW = screen.width * 0.46
                 let halfH = screen.height * 0.30

@@ -17,7 +17,7 @@ struct FloatingBrowserOverlay: View {
                 if fb.isVisible {
                     if fb.isCollapsed {
                         capsuleView
-                            .position(x: geo.size.width - 28, y: fb.center.y)
+                            .position(fb.center)
                             .gesture(dragGesture(minimumDistance: 12))
                     } else {
                         expandedView
@@ -31,38 +31,42 @@ struct FloatingBrowserOverlay: View {
         .allowsHitTesting(fb.isVisible)
     }
 
-    // MARK: - 缩小胶囊（贴右侧边缘，可上下拖动，点击展开）
+    // MARK: - 缩小胶囊（v2.9.43：右缘半露悬浮球，中心 x=屏宽-22 → 左半圆露出、可点击展开）
 
     private var capsuleView: some View {
         ZStack {
             Circle()
                 .fill(LinearGradient(colors: [Color.blue, Color.tmCyan], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .frame(width: 44, height: 44)
-                .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 2)
+                .frame(width: 46, height: 46)
+                .shadow(color: .black.opacity(0.3), radius: 6, x: 0, y: 2)
             Image(systemName: "safari.fill")
-                .font(.system(size: 18))
+                .font(.system(size: 19))
                 .foregroundColor(.white)
         }
-        .frame(width: 44, height: 44)
+        .frame(width: 46, height: 46)
         .contentShape(Circle())
-        .onTapGesture { withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { fb.expand() } }
+        .onTapGesture { withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) { fb.expand() } }
     }
 
     // MARK: - 展开态浏览器
 
     private var expandedView: some View {
         VStack(spacing: 0) {
-            // 顶部拖动条（可拖动移动窗口 + 缩小 + 关闭）
+            // 顶部条：左半"抓手区"拖动移动窗口；右侧 −/× 按钮独立、即时响应（v2.9.43 修复按钮被拖动抢占）
             HStack(spacing: 10) {
-                Image(systemName: "safari.fill")
-                    .font(.system(size: 13))
-                    .foregroundColor(.white)
-                Text(bm.pageTitle.isEmpty ? "内置浏览器" : bm.pageTitle)
-                    .font(.footnote.weight(.medium))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Image(systemName: "safari.fill")
+                        .font(.system(size: 13))
+                        .foregroundColor(.white)
+                    Text(bm.pageTitle.isEmpty ? "内置浏览器" : bm.pageTitle)
+                        .font(.footnote.weight(.medium))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                }
+                .contentShape(Rectangle())
+                .gesture(dragGesture(minimumDistance: 12))
                 Spacer()
-                Button(action: { withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { fb.collapse() } }) {
+                Button(action: { withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) { fb.collapse() } }) {
                     Image(systemName: "minus")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(.white)
@@ -82,8 +86,6 @@ struct FloatingBrowserOverlay: View {
             .padding(.horizontal, 12)
             .frame(height: 40)
             .background(LinearGradient(colors: [Color.blue, Color.tmCyan], startPoint: .leading, endPoint: .trailing))
-            .contentShape(Rectangle())
-            .gesture(dragGesture)
 
             // URL 栏
             HStack(spacing: 8) {
@@ -192,10 +194,6 @@ struct FloatingBrowserOverlay: View {
                 .foregroundColor(.blue)
                 .frame(width: 34, height: 30)
         }
-    }
-
-    private var dragGesture: some Gesture {
-        dragGesture(minimumDistance: 2)
     }
 
     private func dragGesture(minimumDistance: CGFloat) -> some Gesture {
