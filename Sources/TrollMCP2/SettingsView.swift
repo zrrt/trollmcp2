@@ -32,13 +32,6 @@ struct SettingsView: View {
 
                 Section(header: SettingSectionHeader(title: "调试服务")) {
                     SettingRow(
-                        title: "操作",
-                        subtitle: "待批准 · 运行中 · 最近活动",
-                        icon: "circle.grid.cross.fill",
-                        color: .orange,
-                        destination: OperationView()
-                    )
-                    SettingRow(
                         title: "权限与自动化",
                         subtitle: "\(permissionCount()) 项系统权限",
                         icon: "hand.raised.fill",
@@ -125,13 +118,6 @@ struct SettingsView: View {
                         destination: AgentsAndSkillsView()
                     )
                     SettingRow(
-                        title: "模型管理",
-                        subtitle: "配置多个上游模型与中转站",
-                        icon: "arrow.triangle.2.circlepath.circle.fill",
-                        color: .blue,
-                        destination: ModelsView()
-                    )
-                    SettingRow(
                         title: "本机知识库",
                         subtitle: "文件导入 · 来源检索",
                         icon: "books.vertical.fill",
@@ -157,13 +143,6 @@ struct SettingsView: View {
                         destination: AuditLogView()
                     )
                     SettingRow(
-                        title: "活动记录",
-                        subtitle: "设置变更 · 全部事件",
-                        icon: "clock.arrow.circlepath",
-                        color: .tmIndigo,
-                        destination: SettingsActivityView()
-                    )
-                    SettingRow(
                         title: "API Key 管理",
                         subtitle: "查看 · 显隐 · 恢复",
                         icon: "key.fill",
@@ -187,7 +166,7 @@ struct SettingsView: View {
                         color: .orange,
                         destination: NetworkDebugView()
                     )
-                    LabeledRow(label: "版本", value: "2.9.50")
+                    LabeledRow(label: "版本", value: "2.9.51")
                     LabeledRow(label: "Bundle ID", value: Bundle.main.bundleIdentifier ?? "-")
                     LabeledRow(label: "工作区", value: Workspace.root.lastPathComponent)
                     LabeledRow(label: "工具数", value: "\(ToolRegistry.shared.definitions.count)")

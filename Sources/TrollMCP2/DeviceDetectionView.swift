@@ -6,71 +6,135 @@ struct DeviceDetectionView: View {
     @State private var running = false
 
     var body: some View {
-        List {
-            if let r = report {
-                Section(header: SettingSectionHeader(title: "设备")) {
-                    LabeledRow(label: "名称", value: r.deviceName)
-                    LabeledRow(label: "型号", value: r.model)
-                    LabeledRow(label: "系统", value: r.systemVersion)
-                    LabeledRow(label: "标识符", value: r.vendorID)
-                }
-
-                Section(header: SettingSectionHeader(title: "环境自检")) {
-                    ForEach(r.checks) { check in
-                        HStack(alignment: .top, spacing: 10) {
-                            Image(systemName: check.passed ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                .foregroundColor(check.passed ? .green : .red)
-                                .font(.system(size: 18))
-                                .padding(.top, 2)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(check.label)
-                                    .font(.body)
-                                Text(check.detail)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            Spacer()
+        ScrollView {
+            VStack(spacing: 16) {
+                if let r = report {
+                    // 顶部状态卡片
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(LinearGradient(
+                                gradient: Gradient(colors: r.ready
+                                    ? [Color(red: 0.15, green: 0.65, blue: 0.4), Color(red: 0.1, green: 0.5, blue: 0.35)]
+                                    : [Color(red: 0.85, green: 0.3, blue: 0.3), Color(red: 0.7, green: 0.2, blue: 0.25)]),
+                                startPoint: .topLeading, endPoint: .bottomTrailing))
+                        VStack(spacing: 8) {
+                            Image(systemName: r.ready ? "checkmark.shield.fill" : "exclamationmark.shield.fill")
+                                .font(.system(size: 44))
+                                .foregroundColor(.white)
+                            Text(r.ready ? "本机环境就绪" : "本机环境异常")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                            Text("\(r.deviceName) · iOS \(r.systemVersion)")
+                                .font(.subheadline)
+                                .foregroundColor(Color.white.opacity(0.85))
+                            Text(r.model)
+                                .font(.caption)
+                                .foregroundColor(Color.white.opacity(0.7))
                         }
-                        .padding(.vertical, 3)
+                        .padding(.vertical, 24)
                     }
-                }
+                    .padding(.horizontal)
+                    .padding(.top, 8)
 
-                Section(header: SettingSectionHeader(title: "结论")) {
-                    HStack {
-                        Text("本机就绪")
-                        Spacer()
-                        Text(r.ready ? "是 ✅" : "否 ❌")
-                            .foregroundColor(r.ready ? .green : .red)
-                            .fontWeight(.medium)
+                    // 环境自检卡片
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("环境自检")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 14)
+                            .padding(.bottom, 8)
+
+                        ForEach(r.checks) { check in
+                            HStack(alignment: .top, spacing: 12) {
+                                ZStack {
+                                    Circle()
+                                        .fill(check.passed ? Color.green.opacity(0.15) : Color.red.opacity(0.15))
+                                        .frame(width: 32, height: 32)
+                                    Image(systemName: check.passed ? "checkmark" : "xmark")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(check.passed ? .green : .red)
+                                }
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(check.label)
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    Text(check.detail)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Spacer()
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            Divider().padding(.leading, 60)
+                        }
                     }
-                    HStack {
-                        Text("amfid 绕过")
-                        Spacer()
-                        Text(r.amfidBypassInferred ? "推断生效" : "未知/未生效")
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(16)
+                    .padding(.horizontal)
+
+                    // 结论卡片
+                    VStack(spacing: 12) {
+                        HStack {
+                            Label("amfid 绕过", systemImage: "lock.shield")
+                                .font(.subheadline)
+                            Spacer()
+                            Text(r.amfidBypassInferred ? "推断生效" : "未知/未生效")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        Divider()
+                        HStack {
+                            Label("设备标识符", systemImage: "number")
+                                .font(.subheadline)
+                            Spacer()
+                            Text(r.vendorID)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    }
+                    .padding(16)
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(16)
+                    .padding(.horizontal)
+
+                    // 重新检测按钮
+                    Button(action: runProbe) {
+                        HStack {
+                            Image(systemName: "arrow.clockwise")
+                            Text("重新检测")
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 16)
+                } else {
+                    // 加载中
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                            .padding(.top, 80)
+                        Text("正在检测本机环境…")
+                            .font(.headline)
                             .foregroundColor(.secondary)
                     }
-                    HStack {
-                        Text("重新检测")
-                        Spacer()
-                        Button(action: runProbe) {
-                            Image(systemName: "arrow.clockwise")
-                                .foregroundColor(.blue)
-                        }
-                    }
-                }
-            } else {
-                Section {
-                    HStack {
-                        Spacer()
-                        ProgressView("检测中…")
-                        Spacer()
-                    }
+                    .frame(maxWidth: .infinity)
                 }
             }
+            .padding(.top, 8)
         }
-        .listStyle(.insetGrouped)
-        .navigationTitle("本机环境检测")
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle("本机环境")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
