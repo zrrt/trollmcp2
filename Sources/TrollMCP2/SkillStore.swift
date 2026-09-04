@@ -127,16 +127,30 @@ final class SkillStore {
 
 /// skills.list：列出已启用技能（名称+摘要），供模型判断何时使用
 final class SkillsListTool: MCPTool {
+    // v2.9.42：检索式——query 按名称/摘要搜索，只返回命中项，不再全量塞技能
     let definition = ToolDefinition(
         name: "skills.list",
-        summary: "列出当前可用的技能（名称+用途摘要）。技能是预置的工作流指令，需要执行某项技能时先 list 再 read。",
-        parameters: [:])
+        summary: "按关键字搜索可用技能（返回名称+用途摘要）；务必带 query 缩小范围；需要执行时再用 skills.read 读取完整指令",
+        parameters: ["query": "搜索关键字（技能名称或摘要片段，可选）；不带则只返回前 20 条"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let items = SkillStore.shared.all.filter { SkillStore.shared.isEnabled($0.name) }
+        let all = SkillStore.shared.all.filter { SkillStore.shared.isEnabled($0.name) }
+        let q = (params["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let items: [SkillItem]
+        if q.isEmpty {
+            items = Array(all.prefix(20))
+        } else {
+            items = all.filter {
+                $0.name.localizedCaseInsensitiveContains(q) || $0.summary.localizedCaseInsensitiveContains(q)
+            }
+        }
         return [
-            "total": items.count,
+            "total": all.count,
+            "matched": items.count,
+            "query": q,
             "skills": items.map { ["name": $0.name, "summary": $0.summary] },
-            "hint": "需要执行某个技能时，用 skills.read 读取其完整指令。"
+            "hint": q.isEmpty
+                ? "共 \(all.count) 个技能，只返回前 20 条；请用 query 按名称/摘要搜索（如 query=\"注入\"），需要执行时用 skills.read 读完整指令"
+                : "命中 \(items.count) 个；需要执行时用 skills.read 读取该技能完整指令"
         ]
     }
 }
