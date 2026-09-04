@@ -834,3 +834,21 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 **校验**：verify_v2943.py 全过（10 项）；bracecheck2.py 全对。CI 33883459789 success（commit 320e2f4）。版本 2.9.43 / dev.trollmcp2.app / main Mach-O 5703632B。交付 `artifacts\v2.9.43\TrollMCP2-v2.9.43-20260904.ipa`。
 
 **已知遗留（下版）**：injection.enable 报 `Operation not permitted`（EPERM，与 v2.9.38 前的 Permission denied/EACCES 不同）——怀疑 exec 的子进程 bin/cp 的 no-sandbox 未真正生效（TrollStore 的 platform-application 对 fork/exec 子进程可能不继承）。下版方向：不再 exec cp，改用主进程（自身 no-sandbox 已生效）FileManager 直接拷贝 dylib 进目标 App bundle，对齐 TrollFools 实现。浏览器本身慢待观察（可能 WKWebView 首载/网络）。
+
+
+### v2.9.44（2026-09-04）修浏览器空白/卡死主因 + snapshot 查询过滤
+
+**用户反馈**：悬浮窗"并没有看到百度页面"（browser_open 返回 ok 但页面空白）；澄清设计：浏览器按钮=命令（工具），网页元素=读 DOM/UI 控制。
+
+**核心 bug（空白/慢的元凶）**：`didFinish`（WKNavigationDelegate 回调，运行在主线程）里调用了 `evalSync`——其内部 `DispatchQueue.main.async { evaluateJavaScript }` + `semaphore.wait(15s)`。主线程排队等待自己 → **每次页面加载完成都死锁阻塞主线程 15 秒** → 页面不渲染、悬浮窗卡死。
+- 修复：`didFinish` 改为**非阻塞** `webView.evaluateJavaScript`（回调里更新 elementCount），不再走 evalSync。
+- 兜底：`evalSync` 增加主线程检测——主线程调用直接返回错误提示，杜绝再次死锁。
+
+**设计对齐（业界方案，选型 Browser MCP 风格）**：
+- 浏览器控件（后退/前进/刷新/地址栏/打开）→ 命令式工具：browser.navigate/back/forward/reload/open ✓（已符合）
+- 网页元素 → 读 DOM 快照 + 索引操作：browser.snapshot 给元素加蓝框编号 idx → browser.click/type 按 idx 操作 ✓（对标 Browser MCP 的 a11y tree + 索引方案，比 Claude computer use 的"截图+坐标"更省 token、移动端更稳）
+- 增强：snapshot 支持 `query` 关键字过滤（按文本/标签/占位符/href/name 模糊匹配，命中≤20 条）——长页面不再全量返回；click 后自动重新高亮刷新 idx，避免旧编号。
+
+**校验**：verify_v2944.py 全过（10 项）；bracecheck2.py 全对。CI 33884691816 success（commit 8378b9b）。版本 2.9.44 / dev.trollmcp2.app / Mach-O 5722384B。交付 `artifacts\v2.9.44\TrollMCP2-v2.9.44-20260904.ipa`。
+
+**已知遗留（下版）**：① 注入仍 `Operation not permitted`（v2.9.38 no-sandbox 未传给 exec 子进程）→ 计划改主进程 FileManager 直接拷贝 dylib（对齐 TrollFools）；② 若悬浮窗页面仍空白（死锁已修，需实测），再查 WKWebView 在 overlay 的 attach/渲染。
