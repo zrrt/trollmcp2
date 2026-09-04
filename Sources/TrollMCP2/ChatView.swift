@@ -121,10 +121,8 @@ struct ChatView: View {
                     }, selectedCount: pendingAttachments.count)
                 }
             case .browser:
-                // v2.9.39：内置浏览器改为悬浮窗（可缩小到右侧边缘，AI 操作自动浮现）
-                self.attachmentSheet = nil
-                FloatingBrowser.shared.show()
-                return EmptyView()
+                // v2.9.39：浏览器已改为悬浮窗，面板入口在 onPick 闭包里直接开悬浮窗
+                EmptyView()
             case .appPicker:
                 AppPickerView { app in
                     // v2.9.10：应用选择 → 附件预览（图标 + 名称 + bundleId）
