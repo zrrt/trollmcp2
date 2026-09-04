@@ -145,17 +145,24 @@ final class InjectionManager {
         posix_spawn_file_actions_addclose(&fileActions, outPipe[0])
         posix_spawn_file_actions_addclose(&fileActions, errPipe[0])
 
-        // root 身份：setuid/setgid 0（dlsym 动态绑定 _np 私有 API）
+        // root 身份：TrollStore 标准做法——persona 99 (root) + OVERRIDE（对齐 TrollFools spawnRoot）
+        // v2.9.45：之前用 posix_spawnattr_setuid_np(0) 在 iOS 上不真正生效（setuid 需真正 root 或 persona 机制），
+        // 子进程实际仍是 mobile 用户 → 写其他 app bundle 报 EPERM。改用 persona API + com.apple.private.persona-mgmt。
         var attr: posix_spawnattr_t?
         posix_spawnattr_init(&attr)
-        typealias SetIdFn = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, UInt32) -> Int32
+        typealias SetPersonaFn = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, UInt32, UInt32) -> Int32
+        typealias SetPersonaIdFn = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, UInt32) -> Int32
         if let lib = dlopen("/usr/lib/libSystem.B.dylib", RTLD_LAZY) {
-            if let f = dlsym(lib, "posix_spawnattr_setuid_np") {
-                let fn = unsafeBitCast(f, to: SetIdFn.self)
+            if let f = dlsym(lib, "posix_spawnattr_set_persona_np") {
+                let fn = unsafeBitCast(f, to: SetPersonaFn.self)
+                _ = fn(&attr, 99, 1)   // persona 99 = root；POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE = 1
+            }
+            if let f = dlsym(lib, "posix_spawnattr_set_persona_uid_np") {
+                let fn = unsafeBitCast(f, to: SetPersonaIdFn.self)
                 _ = fn(&attr, 0)
             }
-            if let f = dlsym(lib, "posix_spawnattr_setgid_np") {
-                let fn = unsafeBitCast(f, to: SetIdFn.self)
+            if let f = dlsym(lib, "posix_spawnattr_set_persona_gid_np") {
+                let fn = unsafeBitCast(f, to: SetPersonaIdFn.self)
                 _ = fn(&attr, 0)
             }
             dlclose(lib)
@@ -224,6 +231,7 @@ final class InjectionManager {
     /// 为空时注入内置 TrollMCPAgent.dylib。
     func enable(bundleId: String, dylibName: String = "@executable_path/TrollMCPAgent.dylib",
                 dylibSourcePath: String? = nil) throws -> [String: Any] {
+        _ = dylibName  // v2.9.45: 注入名由 Frameworks/@rpath 自动决定，保留参数兼容旧调用
         guard let app = AppCatalog.find(bundleId) else {
             throw MCPError.failed("app not found: \(bundleId)")
         }
@@ -238,30 +246,47 @@ final class InjectionManager {
         }
         // 决定注入源 dylib 与目标 load name
         let agentSrc: String
-        let injectName: String
+        let sourceFileName: String
         if let src = dylibSourcePath, !src.isEmpty {
             guard FileManager.default.fileExists(atPath: src) else {
                 throw MCPError.failed("指定的 dylib 文件不存在: \(src)")
             }
             agentSrc = src
-            let fileName = (src as NSString).lastPathComponent
-            injectName = (dylibName.hasPrefix("@executable_path/") || dylibName.hasPrefix("@loader_path/"))
-                ? dylibName : "@executable_path/\(fileName)"
+            sourceFileName = (src as NSString).lastPathComponent
         } else {
             // v2.9.21：agent dylib 在 bin/ 子目录（build-ipa.sh 把 Resources/bin 拷成 app/bin）
             agentSrc = binDir.appendingPathComponent("TrollMCPAgent.dylib").path
             guard FileManager.default.fileExists(atPath: agentSrc) else {
                 throw MCPError.failed("TrollMCPAgent.dylib 未内置（\(agentSrc)）")
             }
-            injectName = dylibName
+            sourceFileName = "TrollMCPAgent.dylib"
         }
-        let agentDst = (app.path as NSString).appendingPathComponent((agentSrc as NSString).lastPathComponent)
 
-        // 1. root 拷贝 agent dylib 进目标 App（@executable_path 可解析）
-        if !FileManager.default.fileExists(atPath: agentDst) {
-            let (c0, o0) = runAsRoot("cp", args: ["-a", agentSrc, agentDst])
-            if c0 != 0 { throw MCPError.failed("root cp agent 失败(\(c0)): \(o0)") }
+        // v2.9.45：对齐 TrollFools —— 目标优先放 Frameworks/（@rpath 加载），无 Frameworks 才放 app 根目录（@executable_path）
+        let frameworksDir = (app.path as NSString).appendingPathComponent("Frameworks")
+        let useFramework = FileManager.default.fileExists(atPath: frameworksDir)
+        let agentDst = useFramework
+            ? (frameworksDir as NSString).appendingPathComponent(sourceFileName)
+            : (app.path as NSString).appendingPathComponent(sourceFileName)
+        let injectName = useFramework ? "@rpath/\(sourceFileName)" : "@executable_path/\(sourceFileName)"
+
+        // v2.9.45：预处理源 dylib（仅用户下载的、可写路径）——ct_bypass 加 CoreTrust 签名 + chown 33:33，
+        // 确保目标 App 能通过签名校验加载该 dylib（对齐 TrollFools：先 chown & ct_bypass 再 cp）
+        if let src = dylibSourcePath, !src.isEmpty {
+            let teamID = "TROLLTROLL"
+            let (cc, oc) = runAsRoot("ct_bypass", args: ["-r", "-i", agentSrc, "-t", teamID])
+            if cc != 0 { AuditLog.shared.log("injection.ct_bypass.dylib", detail: "exit=\(cc) \(oc)") }
+            let (ch, oh) = runAsRoot("chown", args: ["33:33", agentSrc])
+            if ch != 0 { AuditLog.shared.log("injection.chown.dylib", detail: "exit=\(ch) \(oh)") }
         }
+
+        // 1. root 拷贝 agent dylib 进目标 App（对齐 TrollFools 先清理旧文件再拷）
+        if FileManager.default.fileExists(atPath: agentDst) {
+            _ = runAsRoot("rm", args: ["-rf", agentDst])
+        }
+        let (c0, o0) = runAsRoot("cp", args: ["-a", agentSrc, agentDst])
+        if c0 != 0 { throw MCPError.failed("root cp agent 失败(\(c0)): \(o0)") }
+        _ = runAsRoot("chown", args: ["33:33", agentDst])
 
         // 2. root 备份原始主二进制
         let backup = mainBinary + ".bak_macho"
@@ -279,6 +304,11 @@ final class InjectionManager {
         // 4. root ldid -S 重签（无 entitlements）
         let (c2, o2) = runAsRoot("ldid", args: ["-S", mainBinary])
 
+        // v2.9.45：5. root ct_bypass 目标 Mach-O（CoreTrust 绕过，对齐 TrollFools）。
+        // TrollStore App 修改 Mach-O 后必须 ct_bypass 重签，否则 AMFI 校验失败、目标 App 无法启动/不加载 dylib。
+        let teamID = "TROLLTROLL"
+        let (c3, o3) = runAsRoot("ct_bypass", args: ["-r", "-i", mainBinary, "-t", teamID])
+
         // v2.9.32：injected 判定——insert_dylib 成功（exit 0）即视为已注入。
         // 自定义 dylib（如 CompileProbe.dylib）不匹配 "TrollMCPAgent" 字符串扫描，
         // 因此不能只靠 isInjected；备份存在 + insert 成功 = 注入已写入。
@@ -292,12 +322,15 @@ final class InjectionManager {
             "mainBinary": mainBinary,
             "dylib": injectName,
             "dylibSource": agentSrc,
+            "dylibDst": agentDst,
             "backup": backup,
             "root": true,
             "insert_dylib_exit": Int(c1),
             "ldid_exit": Int(c2),
+            "ct_bypass_exit": Int(c3),
             "insert_output": o1,
             "ldid_output": o2,
+            "ct_bypass_output": o3,
             "injected": injected,
             "status": injected ? "injected" : "injection_failed"
         ]
@@ -338,9 +371,13 @@ final class InjectionManager {
     func remove(bundleId: String) throws -> [String: Any] {
         var r = (try? disable(bundleId: bundleId)) ?? ["action": "remove"]
         if let app = AppCatalog.find(bundleId) {
-            let agentDst = (app.path as NSString).appendingPathComponent("TrollMCPAgent.dylib")
-            if FileManager.default.fileExists(atPath: agentDst) {
-                let (cD, oD) = runAsRoot("rm", args: ["-f", agentDst])
+            // v2.9.45：dylib 可能在 Frameworks/ 或 app 根目录，两处都检查
+            let candidates = [
+                (app.path as NSString).appendingPathComponent("TrollMCPAgent.dylib"),
+                (app.path as NSString).appendingPathComponent("Frameworks/TrollMCPAgent.dylib")
+            ]
+            for p in candidates where FileManager.default.fileExists(atPath: p) {
+                let (cD, oD) = runAsRoot("rm", args: ["-f", p])
                 r["dylib_removed"] = cD == 0
                 r["rm_output"] = oD
             }
