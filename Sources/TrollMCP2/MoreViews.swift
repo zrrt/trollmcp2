@@ -96,10 +96,10 @@ struct AuditLogView: View {
                     Button("清除") { log.clear() }
                 }
             }
-            .alert("审计记录已导出", isPresented: $showExportAlert) {
-                Button("好", role: .cancel) {}
-            } message: {
-                Text(exportPath ?? "")
+            .alert(isPresented: $showExportAlert) {
+                Alert(title: Text("审计记录已导出"),
+                      message: Text(exportPath ?? ""),
+                      dismissButton: .default(Text("好")))
             }
         }
         .navigationViewStyle(.stack)

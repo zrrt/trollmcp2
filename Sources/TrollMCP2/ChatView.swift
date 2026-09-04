@@ -175,15 +175,26 @@ struct ChatView: View {
         }
         // v2.9.36：聊天框切换上游模型（点"当前模型"弹出，老 MCP 风格半屏）
         .sheet(isPresented: $showModelPicker) {
-            ModelPickerSheet { cfg in
-                // 点选即切换默认模型
-                var c = cfg
-                c.isDefault = true
-                modelStore.update(c)
-                showModelPicker = false
-                showToast("已切换：\(cfg.name)")
+            // 老 MCP 半屏；presentationDetents 需 iOS16+
+            if #available(iOS 16.0, *) {
+                ChatModelPickerSheet { cfg in
+                    // 点选即切换默认模型
+                    var c = cfg
+                    c.isDefault = true
+                    modelStore.update(c)
+                    showModelPicker = false
+                    showToast("已切换：\(cfg.name)")
+                }
+                .presentationDetents([.height(360)])
+            } else {
+                ChatModelPickerSheet { cfg in
+                    var c = cfg
+                    c.isDefault = true
+                    modelStore.update(c)
+                    showModelPicker = false
+                    showToast("已切换：\(cfg.name)")
+                }
             }
-            .presentationDetentsIfAvailable([.height(360)])
         }
         // v2.9.10：网络恢复 / 回前台提示（配合后台自动重连）
         .onReceive(NotificationCenter.default.publisher(for: AppLifecycleMonitor.networkRestored)) { _ in
@@ -389,12 +400,12 @@ struct ChatView: View {
             }
             HStack(spacing: 8) {
                 // v2.9.36：推理强度恒浅蓝；智能搜索开=浅蓝、关=灰（对齐老 MCP）
-                ChatChip(label: "推理强度·\(reasoningLabel())", accent: true, action: {
+                ChatChip(label: "推理强度·\(reasoningLabel())", action: {
                     reasoning = (reasoning + 1) % 3
-                })
-                ChatChip(label: "智能搜索·\(smartSearch ? "开" : "关")", accent: smartSearch, action: {
+                }, accent: true)
+                ChatChip(label: "智能搜索·\(smartSearch ? "开" : "关")", action: {
                     smartSearch.toggle()
-                })
+                }, accent: smartSearch)
                 Spacer()
             }
             .padding(.horizontal, 12)
@@ -608,7 +619,7 @@ struct ChatChip: View {
 }
 
 // v2.9.36：聊天框"当前模型"点击弹出的上游模型选择（老 MCP 风格半屏）
-struct ModelPickerSheet: View {
+struct ChatModelPickerSheet: View {
     @ObservedObject private var modelStore = ModelStore.shared
     let onSelect: (ModelConfig) -> Void
 
@@ -655,18 +666,6 @@ struct ModelPickerSheet: View {
             }
         }
         .navigationViewStyle(.stack)
-    }
-}
-
-// v2.9.36：presentationDetents 仅 iOS16+，统一条件扩展
-extension View {
-    @ViewBuilder
-    func presentationDetentsIfAvailable(_ detents: [PresentationDetent]) -> some View {
-        if #available(iOS 16.0, *) {
-            self.presentationDetents(detents)
-        } else {
-            self
-        }
     }
 }
 
