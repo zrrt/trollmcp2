@@ -819,3 +819,18 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 **校验**：verify_v2942.py 全过（8 项）；bracecheck2.py 全对。CI 33882291155 success（commit 70e309c）。版本 2.9.42 / dev.trollmcp2.app / main Mach-O 5701504B。交付 `artifacts\v2.9.42\TrollMCP2-v2.9.42-20260904.ipa`。
 
 **查询式设计已成体系**：工具（coreToolNames 常驻少数 + tool_search 按需披露）→ 应用（injection.list query 检索）→ 技能（skills.list query 检索 + skills.read 按名全文）。AI 只带少量常驻信息，其余全部"搜索即选"，从根本上降低初始载荷与上下文膨胀。
+
+
+### v2.9.43（2026-09-04）悬浮球半露右缘 + 修 −/× 按钮被拖动抢占
+
+**用户反馈**：① 悬浮窗点 −（缩小）/×（关闭）反应很慢；② 右侧小图标显示成"一半"、位置怪。截图同时显示 injection_enable 仍报 `Operation not permitted`（v2.9.38 no-sandbox 对 exec 子进程未真正生效，见下）。
+
+**修复（FloatingBrowser.swift + FloatingBrowserOverlay.swift）**：
+- **胶囊改半露悬浮球**：46pt 圆形，中心贴屏幕右缘（`capsuleX = screen.width`），右半圆裁到屏外 → 露出左半圆、标准"边缘悬浮球"，点击展开、可上下拖动（这是用户要的"屏幕右侧小图标、边缘唤醒"形态）。
+- **−/× 反应慢根因**：顶部拖动条整条挂 `.gesture(DragGesture(minimumDistance:2))`，父级拖动手势抢占子 Button 的点击 → 手指按下就进拖动判定，按钮延迟。
+- **修复**：拖动手势只挂顶部条左侧"抓手区"（Safari 图标+标题，min distance 12）；−/× 按钮移出拖动容器、独立即时响应；删除无引用的无参 dragGesture。
+- 展开/缩小动画 spring 从 0.32 降到 0.28，响应更快。
+
+**校验**：verify_v2943.py 全过（10 项）；bracecheck2.py 全对。CI 33883459789 success（commit 320e2f4）。版本 2.9.43 / dev.trollmcp2.app / main Mach-O 5703632B。交付 `artifacts\v2.9.43\TrollMCP2-v2.9.43-20260904.ipa`。
+
+**已知遗留（下版）**：injection.enable 报 `Operation not permitted`（EPERM，与 v2.9.38 前的 Permission denied/EACCES 不同）——怀疑 exec 的子进程 bin/cp 的 no-sandbox 未真正生效（TrollStore 的 platform-application 对 fork/exec 子进程可能不继承）。下版方向：不再 exec cp，改用主进程（自身 no-sandbox 已生效）FileManager 直接拷贝 dylib 进目标 App bundle，对齐 TrollFools 实现。浏览器本身慢待观察（可能 WKWebView 首载/网络）。
