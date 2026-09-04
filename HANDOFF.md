@@ -787,3 +787,18 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 **校验**：verify_v2940.py 全过（8 项）；bracecheck2.py 全对。CI 33881021188 success（commit 491d8ee；push/gh 遇 schannel EOF 退避重试成功）。版本 2.9.40 / dev.trollmcp2.app / main Mach-O 5700224B。交付 `artifacts\v2.9.40\TrollMCP2-v2.9.40-20260904.ipa`。
 
 **预期效果**：装此版后，用户在聊天里选择"巨魔 MCP"应用 → 发送 → AI 直接看到 `[📱应用：巨魔 MCP（dev.trollmcp.app）]`，配合 injection.list 可核对 → injection.enable 注入 CompileProbe.dylib 完成闭环。
+
+
+### v2.9.41（2026-09-04）injection.list 改检索式，不再全量塞 266 个 App
+
+**用户反馈**：AI 一列应用就把 266 个全部展示，应该像搜索/检索一样按需查。
+
+**改造（AllMCPTools.swift InjectionListTool）**：
+- 新增 `query` 参数：按 App 名称 / bundle_id 不区分大小写模糊匹配（AppCatalog.list() 已按名称排序）。
+- 带 query：返回命中项（最多 20 条）+ `matched` 命中总数 + hint。
+- 不带 query：只返回前 20 条 + `matched=20` + hint "共 N 个，请用 query 按名称/bundle_id 搜索目标（如 query=\"Troll\"）"。
+- summary 注明"务必带 query 缩小范围，避免返回全量列表"。
+
+**校验**：verify_v2941.py 全过（7 项）；bracecheck2.py 全对。CI 33881655829 success（commit dcd8245）。版本 2.9.41 / dev.trollmcp.app / main Mach-O 5700960B。交付 `artifacts\v2.9.41\TrollMCP2-v2.9.41-20260904.ipa`。
+
+**注入闭环现状（v2.9.38→40→41 串联）**：v2.9.38 签 no-sandbox 修 cp 权限 → v2.9.40 附件带 bundleId + status/list 描述引导 → v2.9.41 list 检索式。AI 现在：聊天附件直接带 `[📱应用：巨魔 MCP（dev.trollmcp.app）]` → 可选 injection.list(query:"Troll") 核对 → injection.enable 注入。
