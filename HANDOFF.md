@@ -646,3 +646,18 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 4. 版本 2.9.33（Info.plist + SettingsView）。CI 33740774416 success，commit 07ba0f1。
 
 **注入流程（给用户/AI 的正确路径）**：injection_list 找目标 app bundle id（如 dev.trollmcp.app）→ artifact.find ext=dylib 找 CompileProbe.dylib → injection.enable {bundle_id, dylib_path=裸dylib路径} → 打开目标 app 验证。
+
+
+### v2.9.34（2026-09-04）
+
+**问题现场（用户 6 张截图）**：AI 注入调研时调用 artifact.find 报"tool artifact.find 未加载，请先调用 tool_search 搜索该工具"，随后"正在通过 Responses API 请求（保留工具调用）…"一直转圈。device_probe 全绿（ready=true、注入二进制全捆绑、amfidBypassInferred=true）。用户还抱怨：AI 一下子调多个工具、没有思考过程显示（对比老 MCP"正在思考/第 N 轮"）、回复无 emoji、问 DeepSeek 等模型/中转站适配。
+
+**根因（关键 bug）**：`ToolRegistry.dispatch` 放行条件只有 `isEnabled || isSessionApproved`。coreToolNames 决定"初始请求发给模型的 schema"，defaultEnabledTools 决定"dispatch 放行默认值"——两个集合不一致。artifact.find 只加了 coreToolNames（schema 发出去了），没加 defaultEnabledTools（isEnabled false）→ 模型按 schema 调用 → 被拒"未加载"。**常驻核心集合必须 ⊆ 放行集合**。
+
+**落地**：
+1. **dispatch 放行加 `|| isCore(originalName)`**——coreToolNames 工具必然放行（schema 已发、用户开关不再二次拦截）。defaultEnabledTools 同步补 artifact.find。
+2. **请求过程可视化（对齐老 MCP"正在思考"面板）**：ChatStore 加 `requestRound`/`requestRounds`/`runningTool` @Published；runLoop 显示"已准备请求（正在整理会话与可用工具）"→ onStatus 前缀"正在请求模型（第 N/60 轮）· …"；工具执行时 `runningTool=call.name` 显示"正在执行工具 xxx…"；ChatView isLoading 时升级为 ProgressView+"正在思考"+状态+执行中工具+轮次 卡片。
+3. **协作规范 system 注入（最高优先级，不依赖开发者指令配置）**：①工具逐个调用——每次只调 1 个、等结果再下一步，次数不限（尊重用户"不要限制次数"）；②回复自然可带 emoji。
+4. **模型/中转站适配确认**：ModelConfig 已支持 provider=openai/deepseek/anthropic/custom + apiProtocol=OpenAI Chat Completions / OpenAI Responses / Anthropic Messages / Custom + 任意 baseURL/apiKey/model/authMethod。DeepSeek 预设 https://api.deepseek.com/v1 + deepseek-chat；Botcf 自定义。中转站填 baseURL 即可。推理模型（gpt-5.x/o1/o3/o4）自动降级（sendsTemperature=false、reasoning_effort 控制、compatLevel 自适应降级）。
+
+**校验**：verify_v2934.py 检查 isCore 放行/artifact.find 白名单/协作规范/轮次状态/thinking 面板/版本 2.9.34；全过。CI 33869773624 success，commit 0a167f5。
