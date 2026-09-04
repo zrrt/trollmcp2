@@ -20,6 +20,8 @@ enum AttachmentSheet: Identifiable {
 
 struct AttachmentPanelView: View {
     var onPick: (AttachmentSheet) -> Void
+    /// v2.9.35：已选附件数量（对齐老 MCP 右上角"已选 N"徽标）
+    var selectedCount: Int = 0
     @Environment(\.presentationMode) var presentationMode
 
     var body: some View {
@@ -33,6 +35,17 @@ struct AttachmentPanelView: View {
                         .foregroundColor(.secondary)
                 }
                 Spacer()
+                // v2.9.35：已选数量徽标
+                if selectedCount > 0 {
+                    Text("已选 \(selectedCount)")
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color.blue.opacity(0.12))
+                        .cornerRadius(10)
+                        .padding(.trailing, 6)
+                }
                 Button(action: { presentationMode.wrappedValue.dismiss() }) {
                     Image(systemName: "xmark")
                         .font(.system(size: 15, weight: .semibold))

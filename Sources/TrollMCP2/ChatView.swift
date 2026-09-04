@@ -9,7 +9,6 @@ struct ChatView: View {
     @State private var reasoning = 1          // 0=低 1=中 2=高
     @State private var smartSearch = true
     @State private var attachmentSheet: AttachmentSheet?
-    @State private var showAttachSheet = false   // v2.9.10：加号 → 紧凑半屏 actionSheet
     @State private var showVoiceAlert = false
 
     // v2.9.9：多模态图片（data URL）。选择相册图片后转 base64 暂存，发送时随消息传给模型
@@ -98,7 +97,10 @@ struct ChatView: View {
         .sheet(item: $attachmentSheet) { sheet in
             switch sheet {
             case .panel:
-                AttachmentPanelView { self.attachmentSheet = $0 }
+                // v2.9.35：传已选数量，面板右上角显示"已选 N"（对齐老 MCP）
+                AttachmentPanelView(selectedCount: pendingAttachments.count) { self.attachmentSheet = $0 }
+                    // 紧凑半屏（老 MCP"添加内容"卡片式），iOS16 支持 detents
+                    .presentationDetents([.height(240)])
             case .appPicker:
                 AppPickerView { app in
                     // v2.9.10：应用选择 → 附件预览（图标 + 名称 + bundleId）
@@ -398,7 +400,7 @@ struct ChatView: View {
                 .background(Color(.secondarySystemBackground))
                 .cornerRadius(20)
 
-                Button(action: { showAttachSheet = true }) {
+                Button(action: { attachmentSheet = .panel }) {
                     Image(systemName: "plus")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.white)
@@ -406,6 +408,8 @@ struct ChatView: View {
                         .background(Color.blue)
                         .clipShape(Circle())
                 }
+                // v2.9.35：+号 → 半屏"添加内容"面板（对齐老 MCP 设计），不再用 actionSheet
+                // （iOS16 actionSheet 偶发点击无响应 + 无"已选 N"徽标）
 
                 Button(action: { showVoiceAlert = true }) {
                     Image(systemName: "mic.fill")
@@ -444,21 +448,7 @@ struct ChatView: View {
         }
         .padding(.bottom, 8)
         .background(Color(.systemBackground))
-        // v2.9.10：加号 → 紧凑半屏 actionSheet（替代全屏"添加内容"面板，减少整屏弹层）
-        .actionSheet(isPresented: $showAttachSheet) {
-            ActionSheet(
-                title: Text("添加内容"),
-                message: Text("仅用于本轮请求，本机准备"),
-                buttons: [
-                    .default(Text("📱 应用 · 选择分析")) { attachmentSheet = .appPicker },
-                    .default(Text("🖼 相册 · 最多 8 张")) { attachmentSheet = .photoPicker },
-                    .default(Text("📎 文件 · 最多 8 个")) { attachmentSheet = .documentPicker },
-                    .cancel()
-                ]
-            )
-        }
-        // 分享面板挂在常驻输入区上，与附件面板（挂在 NavigationView 上）分离，
-        // 避免 iOS 14 同一视图挂多个 sheet 互相覆盖。
+        // v2.9.35：+号面板改挂 sheet（半屏"添加内容"，见 body 外层 .sheet(item:)）
         .sheet(isPresented: $showShare) {
             ShareSheet(items: [shareText])
         }
