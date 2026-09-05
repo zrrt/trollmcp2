@@ -210,7 +210,6 @@ final class InjectionManager {
 
         close(outPipe[1]); close(errPipe[1])
 
-        let sema = DispatchSemaphore(value: 0)
         var output = ""
         let outputLock = NSLock()
         let bufsiz = 65536
@@ -256,20 +255,16 @@ final class InjectionManager {
         outSource.resume()
         errSource.resume()
 
-        var exitCode: Int32 = -1
-        let procSource = DispatchSource.makeProcessSource(identifier: pid, eventMask: .exit, queue: .global())
-        procSource.setEventHandler {
-            var st: Int32 = 0
-            var wr: Int32 = 0
-            repeat { wr = waitpid(pid, &st, 0) } while wr == -1 && errno == EINTR
-            procSource.cancel()
-            outSem.wait()
-            errSem.wait()
-            exitCode = Int32((UInt32(st) >> 8) & 0xff)
-            sema.signal()
-        }
-        procSource.resume()
-        sema.wait()
+        // v2.9.63：用 waitpid 同步等待进程结束，替代 DispatchSource.makeProcessSource。
+        // 原实现有竞态：/usr/bin/id 等快速命令在 procSource.resume() 前就退出，.exit 事件丢失，
+        // exitCode 停在初始值 -1，导致 Entitlements 检测误报"未生效"。
+        var st: Int32 = 0
+        var wr: Int32 = 0
+        repeat { wr = waitpid(pid, &st, 0) } while wr == -1 && errno == EINTR
+        // 进程已退出，等待 pipe 数据全部读完
+        outSem.wait()
+        errSem.wait()
+        let exitCode = Int32((UInt32(st) >> 8) & 0xff)
 
         return (exitCode, diagPrefix + output)
     }
@@ -494,7 +489,12 @@ final class InjectionManager {
         guard FileManager.default.fileExists(atPath: idPath) else {
             return ["error": "/usr/bin/id not found"]
         }
-        let (code, output) = spawnRoot(idPath, args: ["id"])
+        // v2.9.63：重试一次，避免瞬时竞态导致 exit=-1 误报
+        var (code, output) = spawnRoot(idPath, args: ["id"])
+        if code == -1 {
+            usleep(100_000)
+            (code, output) = spawnRoot(idPath, args: ["id"])
+        }
         return [
             "exit_code": Int(code),
             "id_output": output,
