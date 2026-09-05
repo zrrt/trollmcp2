@@ -141,6 +141,9 @@ final class InjectionManager {
     /// 之前用 dlsym 运行时查找，iOS 上这些是隐藏符号，dlsym 全返回 nil → persona 没设置 → euid=501 → EPERM。
     /// 编译时链接后直接调用，有 persona-mgmt entitlement 即可 root spawn，不依赖 TSRootBinaries setuid 位。
     func spawnRoot(_ path: String, args: [String]) -> (Int32, String) {
+        // v2.9.55：对照 TrollFools AuxiliaryExecute+Spawn.swift：
+        // args 已由 runAsRoot 加上工具名作为 argv[0]（[name] + args），此处直接用；
+        // 环境变量继承当前环境并加 DISABLE_TWEAKS=1，不硬编码 HOME=/var/root（可能不存在）。
         var argv: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) }
         argv.append(nil)
         defer { for p in argv where p != nil { free(p) } }
@@ -174,12 +177,22 @@ final class InjectionManager {
 
         let diagPrefix = "[bin-setuid=\(binSetuid) proc-euid=\(geteuid()) persona_r=\(rPersona) uid_r=\(rUid) gid_r=\(rGid)] "
 
-        var env: [UnsafeMutablePointer<CChar>?] = [
-            strdup("PATH=/usr/bin:/bin:/usr/sbin:/sbin"),
-            strdup("HOME=/var/root"),
-            strdup("UID=0"),
-            nil
-        ]
+        // v2.9.55：环境变量继承当前环境 + DISABLE_TWEAKS=1（对照 TrollFools）
+        var envBuilder = [String: String]()
+        var currentEnv = environ
+        while let rawStr = currentEnv.pointee {
+            defer { currentEnv += 1 }
+            let str = String(cString: rawStr)
+            if let eq = str.firstIndex(of: "=") {
+                let key = String(str[..<eq])
+                let val = String(str[str.index(after: eq)...])
+                envBuilder[key] = val
+            }
+        }
+        envBuilder["DISABLE_TWEAKS"] = "1"
+        envBuilder["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
+        var env: [UnsafeMutablePointer<CChar>?] = envBuilder.map { strdup("\($0.key)=\($0.value)") }
+        env.append(nil)
         defer { for p in env where p != nil { free(p) } }
 
         let status = posix_spawn(&pid, path, &fileActions, &attr, &argv, &env)
@@ -286,23 +299,23 @@ final class InjectionManager {
             if ch != 0 { AuditLog.shared.log("injection.chown.dylib", detail: "exit=\(ch) \(oh)") }
         }
 
-        // 1. root 拷贝 agent dylib 进目标 App（对齐 TrollFools 先清理旧文件再拷）
+        // 1. root 拷贝 agent dylib 进目标 App（对齐 TrollFools：cp -rfp，先清理旧文件）
         if FileManager.default.fileExists(atPath: agentDst) {
             _ = runAsRoot("rm", args: ["-rf", agentDst])
         }
-        let (c0, o0) = runAsRoot("cp", args: ["-a", agentSrc, agentDst])
+        let (c0, o0) = runAsRoot("cp", args: ["-rfp", agentSrc, agentDst])
         if c0 != 0 { throw MCPError.failed("root cp agent 失败(\(c0)): \(o0)") }
         _ = runAsRoot("chown", args: ["33:33", agentDst])
 
         // 2. root 备份原始主二进制
         let backup = mainBinary + ".bak_macho"
         if !FileManager.default.fileExists(atPath: backup) {
-            let (cB, oB) = runAsRoot("cp", args: ["-a", mainBinary, backup])
+            let (cB, oB) = runAsRoot("cp", args: ["-rfp", mainBinary, backup])
             if cB != 0 { throw MCPError.failed("root cp 备份主二进制失败(\(cB)): \(oB)") }
         }
 
-        // 3. root insert_dylib --inplace
-        let (c1, o1) = runAsRoot("insert_dylib", args: ["--inplace", injectName, mainBinary])
+        // 3. root insert_dylib（对齐 TrollFools 参数顺序：dylib target --inplace --overwrite --no-strip-codesig --all-yes）
+        let (c1, o1) = runAsRoot("insert_dylib", args: [injectName, mainBinary, "--inplace", "--overwrite", "--no-strip-codesig", "--all-yes"])
         guard c1 == 0 else {
             throw MCPError.failed("insert_dylib 失败(\(c1)): \(o1)")
         }
@@ -356,7 +369,7 @@ final class InjectionManager {
         guard let cp = cpBinary() else { throw MCPError.failed("cp 未内置") }
         let (cR, oR) = runAsRoot("rm", args: ["-f", mainBinary])
         if cR != 0 { throw MCPError.failed("root rm 失败(\(cR)): \(oR)") }
-        let (cC, oC) = runAsRoot("cp", args: ["-a", backup, mainBinary])
+        let (cC, oC) = runAsRoot("cp", args: ["-rfp", backup, mainBinary])
         if cC != 0 { throw MCPError.failed("root cp 还原失败(\(cC)): \(oC)") }
         let (c, o) = runAsRoot("ldid", args: ["-S", mainBinary])
         let injected = isInjected(mainBinary)
