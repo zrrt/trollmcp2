@@ -136,9 +136,7 @@ struct ChatView: View {
                         fileURL: nil
                     )
                     self.pendingAttachments.append(att)
-                    // v2.9.18：不再把长 bundleId 塞进输入框，用简短标记（详情见附件预览条）
-                    let text = "[📱应用]"
-                    self.inputText = self.inputText.isEmpty ? text : self.inputText + " " + text
+                    // v2.9.61：不再往输入框塞 [📱应用] 标签，附件只在上方预览条显示（微信风格），发送时自动生成描述
                 }
             case .photoPicker:
                 PhotoPickerView { urls in
@@ -161,15 +159,11 @@ struct ChatView: View {
                             ))
                         }
                     }
-                    // v2.9.18：图片缩略图在预览条显示，输入框只放简短标记，不再塞文件名
+                    // v2.9.61：图片缩略图在预览条显示，不再往输入框塞 [🖼图片] 标签
                     if dataURLs.isEmpty {
                         self.pendingImages = []
-                        let text = "[🖼图片]"
-                        self.inputText = self.inputText.isEmpty ? text : self.inputText + " " + text
                     } else {
                         self.pendingImages = dataURLs
-                        let text = "[🖼图片]"
-                        self.inputText = self.inputText.isEmpty ? text : self.inputText + " " + text
                     }
                 }
             case .documentPicker:
@@ -185,9 +179,7 @@ struct ChatView: View {
                             fileURL: u
                         ))
                     }
-                    // v2.9.18：文件预览在预览条显示，输入框只放简短标记
-                    let text = "[📎文件]"
-                    self.inputText = self.inputText.isEmpty ? text : self.inputText + " " + text
+                    // v2.9.61：文件预览在预览条显示，不再往输入框塞 [📎文件] 标签
                 }
             }
         }
@@ -500,27 +492,24 @@ struct ChatView: View {
     }
 
     private func send() {
-        guard let cfg = modelStore.defaultConfig, !inputText.isEmpty else { return }
+        guard let cfg = modelStore.defaultConfig,
+              (!inputText.isEmpty || !pendingAttachments.isEmpty || !pendingImages.isEmpty) else { return }
         if store.selectedId == nil { store.newConversation() }
         var text = inputText
         let imgs = pendingImages
-        // v2.9.40：把应用附件的 bundleId 带给 AI（此前只发"[📱应用]"文字，AI 看不到 ID → 注入找不到目标）
-        let appAtts = pendingAttachments.filter { att in
-            if case .app = att.kind { return true }
-            return false
+        // v2.9.61：输入框不再有 [📱应用] 占位标签，发送时自动把应用/文件附件拼成描述文字
+        let appAtts = pendingAttachments.filter { if case .app = $0.kind { return true }; return false }
+        let fileAtts = pendingAttachments.filter { if case .file = $0.kind { return true }; return false }
+        var attDesc: [String] = []
+        for att in appAtts {
+            let bid = att.bundleId ?? "unknown"
+            attDesc.append("[📱应用：\(att.displayName)（\(bid)）]")
         }
-        if !appAtts.isEmpty {
-            let tag = "[📱应用]"
-            var remaining = appAtts
-            while let r = text.range(of: tag), !remaining.isEmpty {
-                let att = remaining.removeFirst()
-                let bid = att.bundleId ?? "unknown"
-                text.replaceSubrange(r, with: "[📱应用：\(att.displayName)（\(bid)）]")
-            }
-            if !remaining.isEmpty {
-                let extra = remaining.map { "[📱应用：\($0.displayName)（\($0.bundleId ?? "unknown")）]" }.joined(separator: " ")
-                text = text + " " + extra
-            }
+        for att in fileAtts {
+            attDesc.append("[📎文件：\(att.displayName)]")
+        }
+        if !attDesc.isEmpty {
+            text = text.isEmpty ? attDesc.joined(separator: " ") : text + " " + attDesc.joined(separator: " ")
         }
         inputText = ""
         pendingImages = []

@@ -62,16 +62,23 @@ final class DeviceProbe: ObservableObject {
 
         // v2.9.59：TrollStore Entitlements 权限检测——执行 /usr/bin/id 验证 persona spawn 后子进程是否真的 root。
         // 若 uid!=0，说明 TrollStore 未给 App 应用 persona-mgmt 等私有 entitlement，用户需在 TrollStore 里开启"编辑 Entitlements"后重装。
+        // v2.9.61：把详细诊断（exit_code/id_output）放进 detail，方便用户判断是未开启还是覆盖安装未生效。
         let rootDiag = InjectionManager.shared.diagnoseRoot()
         let entitlementsOK = (rootDiag["is_root"] as? Bool) ?? false
+        let entDetail: String
+        if entitlementsOK {
+            entDetail = "persona spawn 已生效（子进程 uid=0 root），注入可写其他 App Bundle"
+        } else {
+            let exitCode = rootDiag["exit_code"] as? Int ?? -1
+            let idOut = (rootDiag["id_output"] as? String) ?? "(无输出)"
+            entDetail = "未生效！exit=\(exitCode)，id输出：\(idOut)。请在 TrollStore 开启「编辑 Entitlements」后**卸载重装**（覆盖安装不会重新应用 entitlements）"
+        }
 
         var checks: [Check] = []
         checks.append(Check(label: "TrollStore 已安装", passed: trollStore,
             detail: trollStore ? "检测到 TrollStore App 或越狱根" : "未检测到 TrollStore / 越狱环境"))
         checks.append(Check(label: "TrollStore Entitlements 权限", passed: entitlementsOK,
-            detail: entitlementsOK
-                ? "persona spawn 已生效（子进程 uid=0 root），注入可写其他 App Bundle"
-                : "未生效！请在 TrollStore 里开启「编辑 Entitlements」后重装本 App，否则注入会 Operation not permitted"))
+            detail: entDetail))
         checks.append(Check(label: "TrollFools 已安装", passed: trollFools,
             detail: trollFools ? "检测到 TrollFools（可注入）" : "未检测到 TrollFools，注入需手动"))
         checks.append(Check(label: "task_for_pid 权限", passed: taskForPid,
