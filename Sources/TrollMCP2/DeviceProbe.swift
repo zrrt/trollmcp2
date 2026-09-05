@@ -60,18 +60,24 @@ final class DeviceProbe: ObservableObject {
         let injectionBinaries = testInjectionBinaries()
         let amfidBypassInferred = taskForPid && !injectionBinaries.isEmpty && injectionBinaries.values.allSatisfy { $0 } && containerWrite
 
-        // v2.9.59：TrollStore Entitlements 权限检测——执行 /usr/bin/id 验证 persona spawn 后子进程是否真的 root。
-        // 若 uid!=0，说明 TrollStore 未给 App 应用 persona-mgmt 等私有 entitlement，用户需在 TrollStore 里开启"编辑 Entitlements"后重装。
-        // v2.9.61：把详细诊断（exit_code/id_output）放进 detail，方便用户判断是未开启还是覆盖安装未生效。
+        // v2.9.65：Entitlements 检测改用"实际写其他 App Bundle 目录"作为主要判断依据。
+        // 之前用 spawnRoot 执行 /usr/bin/id 检测，但外部命令执行受多种因素影响（命令不存在、pipe竞态等），
+        // 频繁误报"未生效"。Bundle 目录只有 root 能写，能写就证明 persona spawn + root 权限链路完整，
+        // 这也是注入操作的真正前提。spawnRoot 检测保留为辅助诊断。
+        let bundleWriteOK = testBundleWrite()
         let rootDiag = InjectionManager.shared.diagnoseRoot()
-        let entitlementsOK = (rootDiag["is_root"] as? Bool) ?? false
+        let spawnIsRoot = (rootDiag["is_root"] as? Bool) ?? false
+        let entitlementsOK = bundleWriteOK || spawnIsRoot
         let entDetail: String
         if entitlementsOK {
-            entDetail = "persona spawn 已生效（子进程 uid=0 root），注入可写其他 App Bundle"
+            var parts: [String] = []
+            if bundleWriteOK { parts.append("Bundle写入测试通过（root可写其他App目录）") }
+            if spawnIsRoot { parts.append("persona spawn uid=0") }
+            entDetail = parts.joined(separator: "；")
         } else {
             let exitCode = rootDiag["exit_code"] as? Int ?? -1
             let idOut = (rootDiag["id_output"] as? String) ?? "(无输出)"
-            entDetail = "未生效！exit=\(exitCode)，id输出：\(idOut)。请在 TrollStore 开启「编辑 Entitlements」后**卸载重装**（覆盖安装不会重新应用 entitlements）"
+            entDetail = "Bundle写入失败 + spawn检测exit=\(exitCode)输出：\(idOut)。请在 TrollStore 开启「编辑 Entitlements」后卸载重装（覆盖安装不会重新应用 entitlements）"
         }
 
         var checks: [Check] = []
@@ -149,6 +155,25 @@ final class DeviceProbe: ObservableObject {
         guard let other = AppCatalog.list().first(where: { $0.bundleId != Bundle.main.bundleIdentifier }),
               let container = other.containerPath else { return false }
         let probe = URL(fileURLWithPath: container).appendingPathComponent(".trollmcp_probe_\(UUID().uuidString)")
+        do {
+            try Data("ok".utf8).write(to: probe)
+            try FileManager.default.removeItem(at: probe)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    // v2.9.65：实际写其他 App Bundle 目录检测 root 权限。
+    // Bundle 目录（/private/var/containers/Bundle/Application/...）只有 root 能写，
+    // 能写就证明 persona spawn + no-sandbox + container-manager 等 entitlements 完整生效。
+    // 这是注入操作的真正前提，比执行外部命令更可靠。
+    private func testBundleWrite() -> Bool {
+        let apps = AppCatalog.list()
+        // 优先选系统 App（bundle 路径稳定，不会因用户操作而变化），但系统 App 可能不可写
+        // 选第一个非自身的 App 即可
+        guard let other = apps.first(where: { $0.bundleId != Bundle.main.bundleIdentifier && !$0.path.isEmpty }) else { return false }
+        let probe = URL(fileURLWithPath: other.path).appendingPathComponent(".trollagent_probe_\(UUID().uuidString)")
         do {
             try Data("ok".utf8).write(to: probe)
             try FileManager.default.removeItem(at: probe)
