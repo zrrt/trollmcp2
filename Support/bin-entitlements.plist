@@ -2,16 +2,41 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- v2.9.38：注入工具（bin/cp cp-15 mv mv-15 rm chown ldid insert_dylib install_name_tool optool ct_bypass）执行时所需的 entitlements。
-	     iOS 沙箱按每次 exec 的新二进制签名计算：若不签 no-sandbox，这些工具被 root spawn 后仍被套普通沙箱，
-	     写其他 App bundle（/private/var/containers/Bundle/Application/...）会 Permission denied。
-	     签上后 + TrollStore 安装时保留 → 工具无沙箱执行，配合 spawnRoot(root uid) 可正常注入。 -->
+	<!-- v2.9.56：补全 bin 工具 entitlements。iOS 沙箱按每次 exec 的新二进制签名计算权限，
+	     cp/insert_dylib/ldid 等工具执行时用自己的 entitlements，不是主 App 的。
+	     必须有绝对路径读写 + container-manager + vfs.open-by-id 才能写其他 App Bundle。 -->
 	<key>platform-application</key>
 	<true/>
 	<key>com.apple.private.security.no-sandbox</key>
 	<true/>
+	<key>com.apple.private.security.no-container</key>
+	<true/>
 	<key>com.apple.private.security.container-required</key>
 	<false/>
+	<key>com.apple.private.security.container-manager</key>
+	<true/>
+	<key>com.apple.private.security.disk-device-access</key>
+	<true/>
+	<key>com.apple.private.security.storage.AppBundles</key>
+	<true/>
+	<key>com.apple.private.security.storage.AppDataContainers</key>
+	<true/>
+	<key>com.apple.private.MobileContainerManager.allowed</key>
+	<true/>
+	<key>com.apple.private.MobileContainerManager.lookup</key>
+	<true/>
+	<key>com.apple.private.MobileContainerManager.otherIdLookup</key>
+	<true/>
+	<key>com.apple.private.vfs.open-by-id</key>
+	<true/>
+	<key>com.apple.private.vfs.allow-low-space-writes</key>
+	<true/>
+	<key>com.apple.private.persona-mgmt</key>
+	<true/>
+	<key>com.apple.security.exception.files.absolute-path.read-write</key>
+	<array>
+		<string>/</string>
+	</array>
 	<key>task_for_pid-allow</key>
 	<true/>
 </dict>
