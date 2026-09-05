@@ -388,7 +388,8 @@ final class InjectionManager {
         var ldidExit: Int32 = 0
         var ldidOutput = ""
         if c2e == 0, !o2e.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           let xmlData = o2e.data(using: .utf8), xmlData.contains("<?xml") {
+           o2e.contains("<?xml"),
+           let xmlData = o2e.data(using: .utf8) {
             // 导出成功且是有效 XML，写临时文件后签回
             try? xmlData.write(to: URL(fileURLWithPath: tmpEnt))
             let (c2s, o2s) = runAsRoot("ldid", args: ["-S\(tmpEnt)", mainBinary])
