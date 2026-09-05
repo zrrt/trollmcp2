@@ -64,16 +64,16 @@ if [ -d "Resources/bin" ]; then
     fi
 fi
 
-# 其他资源文件（开发者指令、配置模板等）
+# 其他资源文件（开发者指令、配置模板、图标等）
 if [ -d "Resources" ]; then
-    for f in Resources/*; do
-        [ -d "$f" ] && continue
-        cp "$f" "$APP/"
-    done
-    # v2.9.62：复制子目录（tweaks/ 内置 dylib 等）
-    for d in Resources/*/; do
-        [ -d "$d" ] || continue
+    # 复制文件
+    find Resources -mindepth 1 -maxdepth 1 -type f -exec cp {} "$APP/" \;
+    # v2.9.62：复制子目录（tweaks/ 内置 dylib 等）——用 find 避免 bash glob 尾部斜杠问题
+    find Resources -mindepth 1 -maxdepth 1 -type d | while read -r d; do
         dirname=$(basename "$d")
+        # bin 已在前面单独复制（需要 chmod + 签名），跳过避免重复
+        [ "$dirname" = "bin" ] && continue
+        rm -rf "$APP/$dirname"
         cp -R "$d" "$APP/$dirname"
     done
     echo ">>> bundled resources: $(find Resources -maxdepth 1 -type f | wc -l | tr -d ' ') files + $(find Resources -maxdepth 1 -type d | tail -n +2 | wc -l | tr -d ' ') dirs"
