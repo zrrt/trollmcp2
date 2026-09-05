@@ -123,7 +123,7 @@ static NSArray<NSDictionary*>* mt_search_memory(double target, mt_type_t type) {
         if (info.protection & VM_PROT_READ && info.protection & VM_PROT_WRITE &&
             !(info.protection & VM_PROT_COPY) && size < 0x10000000) {  // 跳过大于256MB的区域
             void *buf = malloc(size);
-            mach_msg_type_number_t dataCnt = 0;
+            vm_size_t dataCnt = 0;
             kr = vm_read_overwrite(mach_task_self(), addr, (vm_size_t)size, (vm_offset_t)buf, &dataCnt);
             if (kr == KERN_SUCCESS && dataCnt > 0) {
                 for (vm_offset_t i = 0; i + sz <= dataCnt; i += sz) {
