@@ -41,7 +41,7 @@ static NSString* mt_json_string(NSString *json, NSString *key) {
     NSRange r = [json rangeOfString:pattern options:NSRegularExpressionSearch];
     if (r.location == NSNotFound) return nil;
     NSString *sub = [json substringWithRange:r];
-    NSRange q1 = [sub rangeOfString:@"\"" options:0 range:NSMakeRange([@"\"" length, sub.length-1])];
+    NSRange q1 = [sub rangeOfString:@"\"" options:0 range:NSMakeRange(1, sub.length-1)];
     if (q1.location == NSNotFound) return nil;
     NSString *rest = [sub substringFromIndex:q1.location+1];
     NSRange q2 = [rest rangeOfString:@"\""];
@@ -122,21 +122,20 @@ static NSArray<NSDictionary*>* mt_search_memory(double target, mt_type_t type) {
         // 只搜索可读可写的私有区域（跳过系统共享库、__TEXT 等）
         if (info.protection & VM_PROT_READ && info.protection & VM_PROT_WRITE &&
             !(info.protection & VM_PROT_COPY) && size < 0x10000000) {  // 跳过大于256MB的区域
-            vm_offset_t data = NULL;
+            void *buf = malloc(size);
             mach_msg_type_number_t dataCnt = 0;
-            kr = vm_read_overwrite(mach_task_self(), addr, (vm_size_t)size, (vm_offset_t)malloc(size), &dataCnt);
+            kr = vm_read_overwrite(mach_task_self(), addr, (vm_size_t)size, (vm_offset_t)buf, &dataCnt);
             if (kr == KERN_SUCCESS && dataCnt > 0) {
-                void *buf = (void*)data;
                 for (vm_offset_t i = 0; i + sz <= dataCnt; i += sz) {
                     if (mt_value_match((char*)buf + i, type, target)) {
                         [results addObject:@{
-                            @"address": [NSString stringWithFormat:@"0x%llx", addr + i],
+                            @"address": [NSString stringWithFormat:@"0x%lx", (unsigned long)(addr + i)],
                             @"value": @(target)
                         }];
                         if (results.count >= MT_MAX_RESULTS) break;
                     }
                 }
-                free((void*)data);
+                free(buf);
             }
         }
         addr += size;
@@ -196,7 +195,7 @@ static void* mt_freeze_thread(void *arg) {
             mt_write_memory(addr, val, type);
         }
         pthread_mutex_unlock(&mt_mutex);
-        usleep(useconds_t)(MT_FREEZE_INTERVAL * 1000000);
+        usleep(50000);
     }
     return NULL;
 }
