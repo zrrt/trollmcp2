@@ -503,6 +503,22 @@ final class InjectionManager {
     }
 
     /// 列出真正已注入的 App（存在 .bak_macho 备份即代表曾被本工具注入）
+    /// v2.9.58：root 诊断——执行 /usr/bin/id 验证 persona spawn 后子进程真实 uid/gid
+    /// 返回 "uid=0(root) gid=0(wheel) ..." 或错误信息
+    func diagnoseRoot() -> [String: Any] {
+        let idPath = "/usr/bin/id"
+        guard FileManager.default.fileExists(atPath: idPath) else {
+            return ["error": "/usr/bin/id not found"]
+        }
+        let (code, output) = spawnRoot(idPath, args: ["id"])
+        return [
+            "exit_code": Int(code),
+            "id_output": output,
+            "is_root": output.contains("uid=0(root)"),
+            "note": "persona spawn 后子进程真实身份；若 uid!=0 说明 persona 未生效"
+        ]
+    }
+
     func status() -> [String: Any] {
         let apps = AppCatalog.list()
         var injectedApps: [[String: Any]] = []
@@ -517,12 +533,14 @@ final class InjectionManager {
                 ])
             }
         }
+        // v2.9.58：加入 root 诊断
+        let rootDiag = diagnoseRoot()
         return [
             "total_apps": apps.count,
             "bundled_tools": availableBinaries(),
             "injected_count": injectedApps.count,
             "injected_apps": injectedApps,
-            // v2.9.40：引导 AI 拿具体 Bundle ID（用户反馈 AI 只用 status 查不到 ID 卡住）
+            "root_diagnosis": rootDiag,
             "hint": "要获取具体 App 的 bundle_id + 名称，请调用 injection.list"
         ]
     }
