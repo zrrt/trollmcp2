@@ -189,3 +189,100 @@ final class DeviceProbeTool: MCPTool {
         ]
     }
 }
+
+// MARK: - MemoryTweak（H5gg 式内存修改，通过注入的 dylib HTTP API 通信）
+
+final class MemoryTweakTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "memory",
+        summary: "H5gg式内存修改：需先将 MemoryTweak.dylib 注入目标App。action=search全内存搜索/refine在上次结果过滤/write写入/freeze冻结/unfreeze取消冻结/status服务器状态/frozen已冻结列表/results上次搜索结果。type支持int/int64/float/double/byte/short。address用0x十六进制。",
+        parameters: [
+            "action": "search|refine|write|freeze|unfreeze|status|frozen|results",
+            "value": "搜索/写入/冻结的数值（search/refine/write/freeze 必填）",
+            "type": "数据类型：int(默认)|int64|float|double|byte|short",
+            "address": "内存地址（write/freeze/unfreeze 必填，0x十六进制）"
+        ]
+    )
+
+    private let port = 8765
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let action = params["action"] as? String else {
+            throw MCPError.invalidParams("action required")
+        }
+
+        let method: String
+        let path: String
+        var body: [String: Any] = [:]
+
+        switch action {
+        case "search":
+            guard let value = params["value"] else { throw MCPError.invalidParams("value required for search") }
+            method = "POST"; path = "/search"
+            body = ["value": value, "type": params["type"] as? String ?? "int"]
+        case "refine":
+            guard let value = params["value"] else { throw MCPError.invalidParams("value required for refine") }
+            method = "POST"; path = "/refine"
+            body = ["value": value, "type": params["type"] as? String ?? "int"]
+        case "write":
+            guard let value = params["value"], let addr = params["address"] as? String else {
+                throw MCPError.invalidParams("value and address required for write")
+            }
+            method = "POST"; path = "/write"
+            body = ["value": value, "address": addr, "type": params["type"] as? String ?? "int"]
+        case "freeze":
+            guard let value = params["value"], let addr = params["address"] as? String else {
+                throw MCPError.invalidParams("value and address required for freeze")
+            }
+            method = "POST"; path = "/freeze"
+            body = ["value": value, "address": addr, "type": params["type"] as? String ?? "int"]
+        case "unfreeze":
+            guard let addr = params["address"] as? String else { throw MCPError.invalidParams("address required for unfreeze") }
+            method = "POST"; path = "/unfreeze"
+            body = ["address": addr]
+        case "status":
+            method = "GET"; path = "/status"
+        case "frozen":
+            method = "GET"; path = "/frozen"
+        case "results":
+            method = "GET"; path = "/results"
+        default:
+            throw MCPError.invalidParams("unknown action: \(action)")
+        }
+
+        return try httpRequest(method: method, path: path, body: body)
+    }
+
+    private func httpRequest(method: String, path: String, body: [String: Any]) throws -> [String: Any] {
+        let url = URL(string: "http://127.0.0.1:\(port)\(path)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.timeoutInterval = 30
+
+        if method == "POST" {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        }
+
+        let semaphore = DispatchSemaphore(value: 0)
+        var resultData: Data?
+        var resultError: Error?
+
+        let task = URLSession.shared.dataTask(with: request) { data, _, error in
+            resultData = data
+            resultError = error
+            semaphore.signal()
+        }
+        task.resume()
+        _ = semaphore.wait(timeout: .now() + 35)
+
+        if let error = resultError {
+            return ["error": "连接 MemoryTweak 失败（\(error.localizedDescription)）。请确认 MemoryTweak.dylib 已注入目标App且目标App正在运行。", "connected": false]
+        }
+        guard let data = resultData,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return ["error": "解析响应失败", "connected": false]
+        }
+        return json
+    }
+}

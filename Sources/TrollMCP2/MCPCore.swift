@@ -328,6 +328,7 @@ public final class ToolRegistry: ObservableObject {
         register(PingTool())
         register(DeviceInfoTool())
         register(DeviceProbeTool())
+        register(MemoryTweakTool())   // v2.9.60：H5gg式内存修改（需先注入MemoryTweak.dylib）
         register(WorkspaceInfoTool())
 
         // M2 助理记忆（原版命名）
