@@ -244,7 +244,7 @@ struct ChatView: View {
                     .cornerRadius(22)
 
                 VStack(spacing: 8) {
-                    Text("你好，我是 TrollMCP")
+                    Text("你好，我是 TrollAgent")
                         .font(.title2)
                         .fontWeight(.semibold)
                     Text("在设备端分析应用、内存与签名信息")

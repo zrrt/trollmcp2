@@ -22,6 +22,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         Workspace.ensure()
+        Workspace.ensureBundledTweaks()  // v2.9.62：把内置 dylib（MemoryTweak 等）复制到工作区，AI 可直接 artifact.find 定位
         ToolRegistry.shared.registerBuiltinTools()
         DeviceProbe.shared.run()
         LocationProvider.shared.start()

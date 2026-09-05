@@ -472,6 +472,21 @@ public enum Workspace {
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     }
 
+    /// v2.9.62：把 App bundle 内 Resources/tweaks/ 下的内置 dylib 复制到工作区 tweaks/ 目录
+    /// AI 可通过 artifact.find 直接定位，无需用户手动传输
+    public static func ensureBundledTweaks() {
+        guard let tweaksDir = Bundle.main.url(forResource: "tweaks", withExtension: nil) else { return }
+        let destDir = root.appendingPathComponent("tweaks", isDirectory: true)
+        try? FileManager.default.createDirectory(at: destDir, withIntermediateDirectories: true)
+        guard let files = try? FileManager.default.contentsOfDirectory(at: tweaksDir, includingPropertiesForKeys: nil) else { return }
+        for src in files {
+            let dest = destDir.appendingPathComponent(src.lastPathComponent)
+            if !FileManager.default.fileExists(atPath: dest.path) {
+                try? FileManager.default.copyItem(at: src, to: dest)
+            }
+        }
+    }
+
     /// 防目录穿越：解析后必须仍在工作区内
     public static func resolve(_ path: String) throws -> URL {
         let url = root.appendingPathComponent(path)

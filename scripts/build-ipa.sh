@@ -70,7 +70,13 @@ if [ -d "Resources" ]; then
         [ -d "$f" ] && continue
         cp "$f" "$APP/"
     done
-    echo ">>> bundled resources: $(find Resources -maxdepth 1 -type f | wc -l | tr -d ' ') files"
+    # v2.9.62：复制子目录（tweaks/ 内置 dylib 等）
+    for d in Resources/*/; do
+        [ -d "$d" ] || continue
+        dirname=$(basename "$d")
+        cp -R "$d" "$APP/$dirname"
+    done
+    echo ">>> bundled resources: $(find Resources -maxdepth 1 -type f | wc -l | tr -d ' ') files + $(find Resources -maxdepth 1 -type d | tail -n +2 | wc -l | tr -d ' ') dirs"
 fi
 
 # 把特权 entitlements 签入主二进制，TrollStore 安装时才能继承 no-sandbox/no-container/task_for_pid 等权限
