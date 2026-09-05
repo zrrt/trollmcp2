@@ -182,6 +182,8 @@ final class DeviceProbeTool: MCPTool {
             "appContainerWrite": r.containerWrite,
             "injectionBinaries": r.injectionBinaries,
             "amfidBypassInferred": r.amfidBypassInferred,
+            "entitlementsOK": r.entitlementsOK,
+            "rootDiagnosis": r.rootDiagnosis ?? [:],
             "ready": r.ready,
             "checks": r.checks.map { ["label": $0.label, "passed": $0.passed, "detail": $0.detail] },
         ]

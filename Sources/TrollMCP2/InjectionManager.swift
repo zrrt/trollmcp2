@@ -381,25 +381,9 @@ final class InjectionManager {
             throw MCPError.failed("insert_dylib 失败(\(c1)): \(o1)")
         }
 
-        // 5. ldid 保留 entitlements（对齐 TrollFools cmdPseudoSign）：
-        // 先 ldid -e 导出原 entitlements，再 ldid -Sxml 签回，避免丢失主二进制的私有 entitlement
-        let tmpEnt = NSTemporaryDirectory().appending("trollmcp2_\(UUID().uuidString).xml")
-        let (c2e, o2e) = runAsRoot("ldid", args: ["-e", mainBinary])
-        var ldidExit: Int32 = 0
-        var ldidOutput = ""
-        if c2e == 0, !o2e.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           o2e.contains("<?xml"),
-           let xmlData = o2e.data(using: .utf8) {
-            // 导出成功且是有效 XML，写临时文件后签回
-            try? xmlData.write(to: URL(fileURLWithPath: tmpEnt))
-            let (c2s, o2s) = runAsRoot("ldid", args: ["-S\(tmpEnt)", mainBinary])
-            ldidExit = c2s; ldidOutput = o2s
-            try? FileManager.default.removeItem(atPath: tmpEnt)
-        } else {
-            // 导出失败或空，用普通 -S
-            let (c2s, o2s) = runAsRoot("ldid", args: ["-S", mainBinary])
-            ldidExit = c2s; ldidOutput = o2s
-        }
+        // 5. ldid 重签（v2.9.59 修复：ldid -e 导出的 plist 常含二进制段导致 -Sxml parse 失败；
+        // 直接用 -S 做 ad-hoc 重签即可，后续 ct_bypass 会完整重签 CoreTrust）
+        let (c2, o2) = runAsRoot("ldid", args: ["-S", mainBinary])
 
         // 6. ct_bypass 目标 Mach-O（CoreTrust 绕过）
         let teamID = "TROLLTROLL"
@@ -422,10 +406,10 @@ final class InjectionManager {
             "rpath_exit": Int(rpathExit),
             "rpath_output": rpathOutput,
             "insert_dylib_exit": Int(c1),
-            "ldid_exit": Int(ldidExit),
+            "ldid_exit": Int(c2),
             "ct_bypass_exit": Int(c3),
             "insert_output": o1,
-            "ldid_output": ldidOutput,
+            "ldid_output": o2,
             "ct_bypass_output": o3,
             "injected": injected,
             "status": injected ? "injected" : "injection_failed"

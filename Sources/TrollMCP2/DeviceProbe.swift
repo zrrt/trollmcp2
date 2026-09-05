@@ -26,6 +26,8 @@ final class DeviceProbe: ObservableObject {
         let containerWrite: Bool
         let injectionBinaries: [String: Bool]
         let amfidBypassInferred: Bool
+        let entitlementsOK: Bool
+        let rootDiagnosis: [String: Any]?
         let checks: [Check]
         let ready: Bool
     }
@@ -58,9 +60,18 @@ final class DeviceProbe: ObservableObject {
         let injectionBinaries = testInjectionBinaries()
         let amfidBypassInferred = taskForPid && !injectionBinaries.isEmpty && injectionBinaries.values.allSatisfy { $0 } && containerWrite
 
+        // v2.9.59：TrollStore Entitlements 权限检测——执行 /usr/bin/id 验证 persona spawn 后子进程是否真的 root。
+        // 若 uid!=0，说明 TrollStore 未给 App 应用 persona-mgmt 等私有 entitlement，用户需在 TrollStore 里开启"编辑 Entitlements"后重装。
+        let rootDiag = InjectionManager.shared.diagnoseRoot()
+        let entitlementsOK = (rootDiag["is_root"] as? Bool) ?? false
+
         var checks: [Check] = []
         checks.append(Check(label: "TrollStore 已安装", passed: trollStore,
             detail: trollStore ? "检测到 TrollStore App 或越狱根" : "未检测到 TrollStore / 越狱环境"))
+        checks.append(Check(label: "TrollStore Entitlements 权限", passed: entitlementsOK,
+            detail: entitlementsOK
+                ? "persona spawn 已生效（子进程 uid=0 root），注入可写其他 App Bundle"
+                : "未生效！请在 TrollStore 里开启「编辑 Entitlements」后重装本 App，否则注入会 Operation not permitted"))
         checks.append(Check(label: "TrollFools 已安装", passed: trollFools,
             detail: trollFools ? "检测到 TrollFools（可注入）" : "未检测到 TrollFools，注入需手动"))
         checks.append(Check(label: "task_for_pid 权限", passed: taskForPid,
@@ -74,16 +85,17 @@ final class DeviceProbe: ObservableObject {
         checks.append(Check(label: "amfid 绕过（推断）", passed: amfidBypassInferred,
             detail: amfidBypassInferred ? "task_for_pid + 注入工具 + 容器读写 均通过，dylib 注入链路可工作" : "条件不足，unsigned dylib 可能无法加载"))
 
-        let ready = trollStore && taskForPid && containerWrite && !injectionBinaries.isEmpty && injectionBinaries.values.allSatisfy { $0 }
+        let ready = trollStore && entitlementsOK && taskForPid && containerWrite && !injectionBinaries.isEmpty && injectionBinaries.values.allSatisfy { $0 }
 
         let report = Report(
             deviceName: deviceName, model: model, systemVersion: systemVersion, vendorID: vendorID,
             trollStore: trollStore, trollFools: trollFools, taskForPid: taskForPid,
             containerWrite: containerWrite, injectionBinaries: injectionBinaries,
-            amfidBypassInferred: amfidBypassInferred, checks: checks, ready: ready
+            amfidBypassInferred: amfidBypassInferred, entitlementsOK: entitlementsOK,
+            rootDiagnosis: rootDiag, checks: checks, ready: ready
         )
         lastReport = report
-        AuditLog.shared.log("device.probe", detail: "ready=\(ready) trollStore=\(trollStore) tfpid=\(taskForPid) container=\(containerWrite)")
+        AuditLog.shared.log("device.probe", detail: "ready=\(ready) trollStore=\(trollStore) entsOK=\(entitlementsOK) tfpid=\(taskForPid) container=\(containerWrite)")
         return report
     }
 
