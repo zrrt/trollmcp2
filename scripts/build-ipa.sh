@@ -80,31 +80,17 @@ if [ -d "Resources" ]; then
 fi
 
 # 把特权 entitlements 签入主二进制，TrollStore 安装时才能继承 no-sandbox/no-container/task_for_pid 等权限
+# v2.9.64：强制用 ldid 签名（TrollStore 官方明确要求 ldid -S 格式；codesign ad-hoc 签名格式不同，可能导致 entitlements 不被保留）
 if [ -f "Support/TrollMCP2.entitlements" ]; then
-    echo ">>> codesign main binary with entitlements"
-
-    # 优先用 macOS 原生 codesign（ad-hoc 签名 + --entitlements 更稳）
-    if command -v codesign >/dev/null 2>&1; then
-        codesign -s - -f --entitlements "Support/TrollMCP2.entitlements" "$APP/TrollMCP2"
-        echo ">>> signed main binary with codesign"
-    else
-        # fallback：ldid（Homebrew 优先，再试 bundled iOS 二进制）
-        if ! command -v ldid >/dev/null 2>&1 && command -v brew >/dev/null 2>&1; then
-            echo ">>> installing ldid via Homebrew"
-            brew install ldid 2>/dev/null || true
-        fi
-        LDID="$(command -v ldid || true)"
-        if [ -z "$LDID" ] && [ -x "$APP/bin/ldid" ]; then
-            LDID="$APP/bin/ldid"
-        fi
-        if [ -n "$LDID" ]; then
-            "$LDID" -S"Support/TrollMCP2.entitlements" "$APP/TrollMCP2"
-            echo ">>> signed main binary with ldid"
-        else
-            echo "!!! codesign/ldid not available; cannot inject entitlements" >&2
-            exit 1
-        fi
+    echo ">>> ldid sign main binary with entitlements"
+    # CI 已 brew install ldid；优先用 macOS 原生 ldid（xerub ldid 对 iOS arm64e 兼容最好）
+    LDID="$(command -v ldid || true)"
+    if [ -z "$LDID" ]; then
+        echo "!!! ldid not available; cannot inject entitlements" >&2
+        exit 1
     fi
+    "$LDID" -S"Support/TrollMCP2.entitlements" "$APP/TrollMCP2"
+    echo ">>> signed main binary with ldid"
 else
     echo "!!! Support/TrollMCP2.entitlements missing" >&2
     exit 1

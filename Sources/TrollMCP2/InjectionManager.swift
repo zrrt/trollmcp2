@@ -485,19 +485,20 @@ final class InjectionManager {
     /// v2.9.58：root 诊断——执行 /usr/bin/id 验证 persona spawn 后子进程真实 uid/gid
     /// 返回 "uid=0(root) gid=0(wheel) ..." 或错误信息
     func diagnoseRoot() -> [String: Any] {
-        let idPath = "/usr/bin/id"
-        guard FileManager.default.fileExists(atPath: idPath) else {
-            return ["error": "/usr/bin/id not found"]
+        // v2.9.64：不依赖 /usr/bin/id（部分 iOS 版本无此命令），改用 /bin/sh -c "id"，
+        // shell 内置总能执行；同时把 spawn 诊断前缀放进输出，避免空输出误判。
+        let shPath = "/bin/sh"
+        guard FileManager.default.fileExists(atPath: shPath) else {
+            return ["error": "/bin/sh not found", "exit_code": -1, "id_output": "(无shell)", "is_root": false]
         }
-        // v2.9.63：重试一次，避免瞬时竞态导致 exit=-1 误报
-        var (code, output) = spawnRoot(idPath, args: ["id"])
-        if code == -1 {
+        var (code, output) = spawnRoot(shPath, args: ["sh", "-c", "id"])
+        if code == -1 || output.isEmpty {
             usleep(100_000)
-            (code, output) = spawnRoot(idPath, args: ["id"])
+            (code, output) = spawnRoot(shPath, args: ["sh", "-c", "id"])
         }
         return [
             "exit_code": Int(code),
-            "id_output": output,
+            "id_output": output.isEmpty ? "(空输出)" : output,
             "is_root": output.contains("uid=0(root)"),
             "note": "persona spawn 后子进程真实身份；若 uid!=0 说明 persona 未生效"
         ]
