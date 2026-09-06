@@ -76,7 +76,9 @@ final class ArtifactListTool: MCPTool {
             _ = FileManager.default.fileExists(atPath: p, isDirectory: &isD)
             return ["name": name, "path": p, "isDirectory": isD.boolValue]
         }
-        return ["entries": entries]
+        // v2.9.68：限制最多 50 条，避免目录文件多时上下文爆炸
+        let limited = Array(entries.prefix(50))
+        return ["entries": limited, "total": entries.count, "truncated": entries.count > 50, "hint": entries.count > 50 ? "目录有 \(entries.count) 项，仅返回前 50 项；用 artifact.find 按名称/扩展名精确搜索" : ""]
     }
 }
 

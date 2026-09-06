@@ -28,7 +28,23 @@ final class InjectionEnableTool: MCPTool {
         }
         let result = try InjectionManager.shared.enable(bundleId: bid, dylibName: loadName, dylibSourcePath: source)
         AuditLog.shared.log("injection.enable", detail: "\(bid) → \(dylibPath ?? "内置agent")")
-        return result
+        // v2.9.68：截断冗长日志，只保留 exit code + 关键错误行，避免上下文爆炸
+        var slim = result
+        for key in ["ct_bypass_output", "ldid_output", "insert_output", "rpath_output"] {
+            if let full = slim[key] as? String, !full.isEmpty {
+                let lines = full.components(separatedBy: .newlines)
+                // 只保留最后 3 行 + 包含 error/fail/fatal 的行
+                let important = lines.filter { line in
+                    let lower = line.lowercased()
+                    return lower.contains("error") || lower.contains("fail") || lower.contains("fatal") || lower.contains("cannot") || lower.contains("operation not permitted")
+                }
+                let tail = Array(lines.suffix(3))
+                let summary = (important + tail).removingDuplicates().prefix(5).joined(separator: "\n")
+                slim[key] = summary.isEmpty ? "(日志已截断，完整日志见工作区)" : summary
+                slim["\(key)_truncated"] = lines.count > 5
+            }
+        }
+        return slim
     }
 }
 
