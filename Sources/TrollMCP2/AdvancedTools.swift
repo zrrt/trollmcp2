@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 // v2.9.72：符号浏览器 + 插件系统 + 兼容矩阵 + 崩溃复现 hook 模板生成
 

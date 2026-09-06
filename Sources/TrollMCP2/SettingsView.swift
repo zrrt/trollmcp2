@@ -111,49 +111,47 @@ struct SettingsView: View {
                             color: .tmCyan,
                             destination: SmartSearchView()
                         )
-                    }
-                }
-                    // v2.9.39：内置浏览器改为悬浮窗（可缩小到右侧边缘，AI 操作自动浮现）
-                    SettingRowButton(
-                        title: "内置浏览器",
-                        subtitle: "悬浮窗 · AI 可控制 · 蓝框高亮",
-                        icon: "globe.asia.australia.fill",
-                        color: .tmCyan
-                    ) {
-                        // 先关设置 sheet，再弹悬浮窗（避免被 sheet 盖住）
-                        presentationMode.wrappedValue.dismiss()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                            FloatingBrowser.shared.show()
+                        // v2.9.39：内置浏览器改为悬浮窗
+                        SettingRowButton(
+                            title: "内置浏览器",
+                            subtitle: "悬浮窗 · AI 可控制 · 蓝框高亮",
+                            icon: "globe.asia.australia.fill",
+                            color: .tmCyan
+                        ) {
+                            presentationMode.wrappedValue.dismiss()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                FloatingBrowser.shared.show()
+                            }
                         }
+                        SettingRow(
+                            title: "Gateway 设置",
+                            subtitle: "服务端管理 · \(GatewayServerStore.shared.servers.count) 个",
+                            icon: "network",
+                            color: .tmTeal,
+                            destination: GatewaySettingsView()
+                        )
+                        SettingRow(
+                            title: "Agents 与 Skills",
+                            subtitle: "隔离指令 · 工作流",
+                            icon: "person.3.fill",
+                            color: .pink,
+                            destination: AgentsAndSkillsView()
+                        )
+                        SettingRow(
+                            title: "本机知识库",
+                            subtitle: "文件导入 · 来源检索",
+                            icon: "books.vertical.fill",
+                            color: .tmBrown,
+                            destination: KnowledgeBaseView()
+                        )
+                        SettingRow(
+                            title: "Webhooks",
+                            subtitle: "HTTPS 事件出口",
+                            icon: "link.circle.fill",
+                            color: .gray,
+                            destination: WebhooksView()
+                        )
                     }
-                    SettingRow(
-                        title: "Gateway 设置",
-                        subtitle: "服务端管理 · \(GatewayServerStore.shared.servers.count) 个",
-                        icon: "network",
-                        color: .tmTeal,
-                        destination: GatewaySettingsView()
-                    )
-                    SettingRow(
-                        title: "Agents 与 Skills",
-                        subtitle: "隔离指令 · 工作流",
-                        icon: "person.3.fill",
-                        color: .pink,
-                        destination: AgentsAndSkillsView()
-                    )
-                    SettingRow(
-                        title: "本机知识库",
-                        subtitle: "文件导入 · 来源检索",
-                        icon: "books.vertical.fill",
-                        color: .tmBrown,
-                        destination: KnowledgeBaseView()
-                    )
-                    SettingRow(
-                        title: "Webhooks",
-                        subtitle: "HTTPS 事件出口",
-                        icon: "link.circle.fill",
-                        color: .gray,
-                        destination: WebhooksView()
-                    )
                 }
 
                 Section(header: SettingSectionHeader(title: "安全")) {
