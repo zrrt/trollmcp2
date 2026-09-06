@@ -22,7 +22,7 @@ struct SmartSearchView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                         Spacer()
-                        Text("web.search 工具")
+                        Text("web.search + web.fetch")
                             .font(.system(.caption, design: .monospaced))
                             .foregroundColor(.tmCyan)
                             .padding(.horizontal, 8)
@@ -30,7 +30,7 @@ struct SmartSearchView: View {
                             .background(Color.tmCyan.opacity(0.1))
                             .cornerRadius(6)
                     }
-                    Text("聊天时 AI 可通过 web.search 调用 Bing 检索并返回标题/链接/摘要，用于回答需要实时信息的问题。")
+                    Text("v2.9.79：双引擎检索——Bing 优先，失败自动回退 DuckDuckGo（均免 Key）。AI 可先用 web.search 拿标题/链接/摘要，再用 web.fetch 抓取网页原文深入阅读，回答时效性问题更准确。")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -43,7 +43,7 @@ struct SmartSearchView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     stepRow(1, "输入栏上方的「智能搜索·开」chip 保持开启")
                     stepRow(2, "提问时注明「请搜索」或直接问时效性问题")
-                    stepRow(3, "AI 会自动调用 web.search 并把结果带进回答")
+                    stepRow(3, "AI 自动调用 web.search 检索 → 必要时 web.fetch 读原文 → 带引用回答")
                 }
             }
 
@@ -59,7 +59,7 @@ struct SmartSearchView: View {
                             .font(.caption)
                             .foregroundColor(.primary)
                     }
-                    Text("→ AI 调用 web.search(\"2026 iPhone 发布会\")")
+                    Text("→ AI 调用 web.search(\"2026 iPhone 发布会\")，再 web.fetch 打开最相关的链接读正文")
                         .font(.system(.caption, design: .monospaced))
                         .foregroundColor(.secondary)
                 }
@@ -72,7 +72,7 @@ struct SmartSearchView: View {
                     Image(systemName: "hand.raised.fill")
                         .font(.system(size: 13))
                         .foregroundColor(.orange)
-                    Text("搜索词会发送到 Bing，用于返回检索结果。不会上传对话历史。")
+                    Text("搜索词会发送到 Bing / DuckDuckGo，用于返回检索结果。不会上传对话历史。")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

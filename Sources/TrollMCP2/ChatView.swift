@@ -493,34 +493,51 @@ struct ChatView: View {
 
     private var currentModelBar: some View {
         // v2.9.36：点击"当前模型"弹出模型选择 sheet（不再跳设置），直接切换上游模型
+        // v2.9.79：美化——渐变图标 + 胶囊卡片 + 上游模型名
         Button(action: { showModelPicker = true }) {
-            HStack(spacing: 6) {
-                Text("当前模型")
+            HStack(spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(LinearGradient(colors: [.tmCyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 26, height: 26)
+                    Image(systemName: "cpu")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                Text(L10n.t("current_model"))
                     .font(.caption)
                     .foregroundColor(.secondary)
                 if let cfg = modelStore.defaultConfig {
                     Text(cfg.name)
                         .font(.caption)
-                        .fontWeight(.medium)
+                        .fontWeight(.semibold)
                         .foregroundColor(.primary)
                     Text(cfg.model)
-                        .font(.caption)
+                        .font(.caption2)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 } else {
-                    Text("未配置")
+                    Text(L10n.t("not_configured"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
                 Spacer()
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.tmCyan)
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(Color(.secondarySystemBackground))
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(.secondarySystemBackground))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.tmCyan.opacity(0.25), lineWidth: 1)
+                    )
+            )
         }
+        .buttonStyle(PlainButtonStyle())
     }
 
     private var inputBar: some View {
@@ -531,12 +548,13 @@ struct ChatView: View {
             }
             HStack(spacing: 8) {
                 // v2.9.36：推理强度恒浅蓝；智能搜索开=浅蓝、关=灰（对齐老 MCP）
+                // v2.9.79：芯片前置小图标
                 ChatChip(label: "推理强度·\(reasoningLabel())", action: {
                     reasoning = (reasoning + 1) % 3
-                }, accent: true)
+                }, accent: true, icon: "gauge.with.dots.needle.67percent")
                 ChatChip(label: "智能搜索·\(smartSearch ? "开" : "关")", action: {
                     smartSearch.toggle()
-                }, accent: smartSearch)
+                }, accent: smartSearch, icon: "magnifyingglass")
                 Spacer()
             }
             .padding(.horizontal, 12)
@@ -772,23 +790,32 @@ struct ChatChip: View {
     let action: () -> Void
     // v2.9.36：浅蓝=开启/强调，灰=关闭（老 MCP 风格）
     var accent: Bool = true
+    // v2.9.79：前置小图标（推理强度 / 智能搜索）
+    var icon: String = ""
 
     var body: some View {
         Button(action: action) {
-            Text(label)
-                .font(.caption)
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(accent ? Color.blue.opacity(0.14) : Color(.systemGray5))
-                .foregroundColor(accent ? Color.blue : Color.secondary)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(accent ? Color.blue.opacity(0.35) : Color.clear, lineWidth: 1)
-                )
-                .cornerRadius(12)
+            HStack(spacing: 4) {
+                if !icon.isEmpty {
+                    Image(systemName: icon)
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                Text(label)
+                    .font(.caption)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(accent ? Color.blue.opacity(0.14) : Color(.systemGray5))
+            .foregroundColor(accent ? Color.blue : Color.secondary)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(accent ? Color.blue.opacity(0.35) : Color.clear, lineWidth: 1)
+            )
+            .cornerRadius(12)
         }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 

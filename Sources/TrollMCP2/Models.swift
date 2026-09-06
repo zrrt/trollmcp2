@@ -434,9 +434,9 @@ final class ConversationStore: ObservableObject {
         // v2.9.16：渐进式披露——初始只带白名单工具 + tool_search 元工具，
         // 模型搜索命中后按需注入其余工具，避免 80+ 工具全量进请求导致慢/超时
         var baseTools = config.apiProtocol == "Anthropic Messages" ? nil : ToolRegistry.shared.enabledOpenAIToolSchema()
-        // v2.9.20：智能搜索开关真实生效——关闭时从工具集移除 web.search / knowledge.search
+        // v2.9.20：智能搜索开关真实生效——关闭时从工具集移除 web.search / knowledge.search / web.fetch
         if !smartSearch {
-            let exclude = Set(["web.search", "knowledge.search"])
+            let exclude = Set(["web.search", "knowledge.search", "web.fetch"])
             baseTools = baseTools?.filter { t in
                 if let fn = t["function"] as? [String: Any], let n = fn["name"] as? String {
                     return !exclude.contains(n)

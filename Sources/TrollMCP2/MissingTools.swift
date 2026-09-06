@@ -115,11 +115,11 @@ final class DeviceSnapshotTool: MCPTool {
     }
 }
 
-// MARK: - 网络搜索（Bing HTML 解析）
+// MARK: - 网络搜索（v2.9.79：Bing 主引擎 + DuckDuckGo 免 key fallback，对齐 OpenClaw/Hermes 设计）
 
 final class WebSearchTool: MCPTool {
     let definition = ToolDefinition(name: "web.search",
-        summary: "用 Bing 检索并返回结果（标题/链接/摘要）",
+        summary: "联网检索：Bing 优先，失败自动回退 DuckDuckGo，返回标题/链接/摘要",
         parameters: ["query": "搜索关键词", "limit": "返回条数（默认 8）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let query = params["query"] as? String, !query.isEmpty else {
@@ -127,26 +127,51 @@ final class WebSearchTool: MCPTool {
         }
         let limit = params["limit"] as? Int ?? 8
         let q = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
-        guard let url = URL(string: "https://www.bing.com/search?q=\(q)") else {
-            throw MCPError.invalidParams("bad query")
+
+        // 1) Bing 主引擎
+        let bingResults = fetchBing(query: q, limit: limit)
+        if !bingResults.isEmpty {
+            AuditLog.shared.log("web.search", detail: "\(query) → Bing \(bingResults.count) 条")
+            return ["query": query, "engine": "Bing", "count": bingResults.count, "results": bingResults]
         }
-        var html: String = ""
+        // 2) DuckDuckGo 免 key fallback
+        let ddgResults = fetchDuckDuckGo(query: q, limit: limit)
+        AuditLog.shared.log("web.search", detail: "\(query) → DuckDuckGo \(ddgResults.count) 条（Bing 无结果时回退）")
+        return ["query": query, "engine": ddgResults.isEmpty ? "none" : "DuckDuckGo", "count": ddgResults.count, "results": ddgResults]
+    }
+
+    private func fetchBing(query: String, limit: Int) -> [[String: String]] {
+        guard let url = URL(string: "https://www.bing.com/search?q=\(query)") else { return [] }
+        guard let html = fetchHTML(url) else { return [] }
+        return parseBing(html: html, limit: limit)
+    }
+
+    private func fetchDuckDuckGo(query: String, limit: Int) -> [[String: String]] {
+        guard let url = URL(string: "https://html.duckduckgo.com/html/?q=\(query)") else { return [] }
+        guard let html = fetchHTML(url) else { return [] }
+        return parseDuckDuckGo(html: html, limit: limit)
+    }
+
+    /// 同步抓取网页（15 秒超时）
+    private func fetchHTML(_ url: URL) -> String? {
+        var html: String?
         var fetchError: String?
         let sem = DispatchSemaphore(value: 0)
         DispatchQueue.global().async {
-            let task = URLSession.shared.dataTask(with: url) { data, _, err in
+            var req = URLRequest(url: url, timeoutInterval: 15)
+            req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
+            let task = URLSession.shared.dataTask(with: req) { data, _, err in
                 defer { sem.signal() }
                 if let err = err { fetchError = err.localizedDescription; return }
-                html = String(data: data ?? Data(), encoding: .utf8) ?? ""
+                html = String(data: data ?? Data(), encoding: .utf8)
             }
             task.resume()
         }
         sem.wait()
-        if let e = fetchError { throw MCPError.failed("fetch failed: \(e)") }
-
-        let results = parseBing(html: html, limit: limit)
-        AuditLog.shared.log("web.search", detail: "\(query) → \(results.count)")
-        return ["query": query, "count": results.count, "results": results]
+        if let e = fetchError {
+            AuditLog.shared.log("web.search", detail: "fetch failed: \(e)")
+        }
+        return html
     }
 
     private func parseBing(html: String, limit: Int) -> [[String: String]] {
@@ -165,6 +190,79 @@ final class WebSearchTool: MCPTool {
         }
         return out
     }
+
+    private func parseDuckDuckGo(html: String, limit: Int) -> [[String: String]] {
+        guard let re = try? NSRegularExpression(pattern: "<a[^>]*class=\"result__a\"[^>]*href=\"([^\"]+)\"[^>]*>(.*?)</a>", options: [.dotMatchesLineSeparators]) else { return [] }
+        let ns = html as NSString
+        let matches = re.matches(in: html, range: NSRange(location: 0, length: ns.length))
+        var out: [[String: String]] = []
+        for m in matches.prefix(limit) {
+            let url = ns.substring(with: m.range(at: 1)).replacingOccurrences(of: "&amp;", with: "&")
+            var title = ns.substring(with: m.range(at: 2)).stripHTMLTags()
+            if url.hasPrefix("//") { continue }
+            // 摘要（紧随其后的 result__snippet）
+            let snipRange = NSRange(location: m.range.location, length: min(ns.length - m.range.location, 600))
+            let snipBlock = ns.substring(with: snipRange)
+            let snippet = snipBlock.firstCapture(pattern: "class=\"result__snippet\"[^>]*>(.*?)</a>")?.stripHTMLTags() ?? ""
+            if !title.isEmpty {
+                out.append(["title": title, "url": url, "snippet": snippet])
+            }
+            if out.count >= limit { break }
+        }
+        return out
+    }
+}
+
+// MARK: - 网页抓取（web.fetch，对齐 OpenClaw web_fetch 设计：搜索结果 → 抓原文）
+
+final class WebFetchTool: MCPTool {
+    let definition = ToolDefinition(name: "web.fetch",
+        summary: "抓取网页原文（HTML→纯文本），用于读取搜索结果链接的完整内容",
+        parameters: ["url": "目标链接", "maxChars": "最多返回字符数（默认 4000）"])
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let urlString = params["url"] as? String, let url = URL(string: urlString) else {
+            throw MCPError.invalidParams("url required")
+        }
+        let maxChars = params["maxChars"] as? Int ?? 4000
+        var html: String?
+        let sem = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            var req = URLRequest(url: url, timeoutInterval: 20)
+            req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
+            let task = URLSession.shared.dataTask(with: req) { data, _, err in
+                defer { sem.signal() }
+                guard err == nil, let data = data else { return }
+                html = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1)?.description
+            }
+            task.resume()
+        }
+        sem.wait()
+        guard let raw = html else {
+            throw MCPError.failed("fetch failed: \(urlString)")
+        }
+        // 提取标题 + 正文纯文本
+        var title = raw.firstCapture(pattern: "<title[^>]*>(.*?)</title>")?.stripHTMLTags() ?? ""
+        var text = stripHTML(raw)
+        if !text.isEmpty {
+            text = String(text.prefix(maxChars))
+        }
+        AuditLog.shared.log("web.fetch", detail: "\(urlString) → \(text.count) chars")
+        return ["url": urlString, "title": title, "text": text]
+    }
+
+    /// HTML → 纯文本（去 script/style/标签，压缩空白）
+    private func stripHTML(_ html: String) -> String {
+        var s = html
+        s = s.replacingOccurrences(of: "<script[\\s\\S]*?</script>", with: " ", options: .regularExpression)
+        s = s.replacingOccurrences(of: "<style[\\s\\S]*?</style>", with: " ", options: .regularExpression)
+        s = s.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+        s = s.replacingOccurrences(of: "&nbsp;", with: " ")
+        s = s.replacingOccurrences(of: "&amp;", with: "&")
+        s = s.replacingOccurrences(of: "&lt;", with: "<")
+        s = s.replacingOccurrences(of: "&gt;", with: ">")
+        s = s.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        return s.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
 
 extension String {
@@ -182,6 +280,20 @@ extension String {
     /// 返回第一个捕获组
     fileprivate func firstCapture(pattern: String) -> String? {
         firstMatch(pattern: pattern)?.first
+    }
+
+    /// v2.9.79：去除 HTML 标签与常见实体，用于搜索标题/摘要清洗
+    fileprivate func stripHTMLTags() -> String {
+        var s = self
+        s = s.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+        s = s.replacingOccurrences(of: "&nbsp;", with: " ")
+        s = s.replacingOccurrences(of: "&amp;", with: "&")
+        s = s.replacingOccurrences(of: "&quot;", with: "\"")
+        s = s.replacingOccurrences(of: "&#39;", with: "'")
+        s = s.replacingOccurrences(of: "&lt;", with: "<")
+        s = s.replacingOccurrences(of: "&gt;", with: ">")
+        s = s.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        return s.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

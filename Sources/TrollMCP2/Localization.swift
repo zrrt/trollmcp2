@@ -55,6 +55,9 @@ enum L10n {
             "warning": ["zh": "提示", "en": "Notice"],
             "enabled": ["zh": "已开启", "en": "On"],
             "disabled": ["zh": "已关闭", "en": "Off"],
+            // v2.9.79：聊天框模型条
+            "current_model": ["zh": "当前模型", "en": "Model"],
+            "not_configured": ["zh": "未配置", "en": "Not set"],
 
             // ===== 首页 =====
             "home_greeting": ["zh": "你好，我是 TrollAgent", "en": "Hi, I'm TrollAgent"],

@@ -95,7 +95,7 @@ public final class ToolRegistry: ObservableObject {
         "ping", "device.info", "device.probe", "workspace.info",
         "artifact.read_text", "artifact.write_text", "artifact.list",
         "artifact.find",   // v2.9.33/34：递归查找下载产物（与 coreToolNames 保持一致，否则报"未加载"）
-        "web.search", "knowledge.search",
+        "web.search", "web.fetch", "knowledge.search",
         "github.account_status", "github.trigger_build", "github.fetch_runs", "github.download_artifact",
         "model.config", "model.authentication", "model.selected_profile_id",
         "skills.list", "skills.read",   // v2.9.17：技能发现/读取
@@ -481,6 +481,7 @@ public final class ToolRegistry: ObservableObject {
         register(ReminderScheduleRecurringTool())
         register(DeviceSnapshotTool())
         register(WebSearchTool())
+        register(WebFetchTool())   // v2.9.79：网页抓取（搜索后读原文）
         register(KnowledgeImportTextTool())
         register(KnowledgeImportFileTool())
         register(KnowledgeSearchTool())
