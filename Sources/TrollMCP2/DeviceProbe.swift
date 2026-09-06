@@ -79,22 +79,15 @@ final class DeviceProbe: ObservableObject {
         let entitlementsOK = bundleWriteOK || spawnIsRoot  // 内部记录用，不影响 ready 和 UI 显示
 
         var checks: [Check] = []
-        checks.append(Check(label: "TrollStore 已安装", passed: trollStore, infoOnly: false,
-            detail: trollStore ? "检测到 TrollStore App 或越狱根" : "未检测到 TrollStore / 越狱环境"))
-        checks.append(Check(label: "TrollStore Entitlements 权限", passed: true, infoOnly: true,
-            detail: entDetail))
-        checks.append(Check(label: "TrollFools 已安装", passed: trollFools, infoOnly: false,
-            detail: trollFools ? "检测到 TrollFools（可注入）" : "未检测到 TrollFools，注入需手动"))
-        checks.append(Check(label: "task_for_pid 权限", passed: taskForPid, infoOnly: false,
-            detail: taskForPid ? "持有 task_for_pid-allow，可获取进程端口" : "无 task_for_pid-allow，进程级操作受限"))
-        checks.append(Check(label: "App 容器任意读写", passed: containerWrite, infoOnly: false,
-            detail: containerWrite ? "AppDataContainers 权限生效，可写任意 App 沙盒" : "无法写入其他 App 容器（缺 entitlement）"))
+        checks.append(Check(label: "TrollStore 已安装", passed: trollStore, detail: trollStore ? "检测到 TrollStore App 或越狱根" : "未检测到 TrollStore / 越狱环境", infoOnly: false))
+        checks.append(Check(label: "TrollStore Entitlements 权限", passed: true, detail: entDetail, infoOnly: true))
+        checks.append(Check(label: "TrollFools 已安装", passed: trollFools, detail: trollFools ? "检测到 TrollFools（可注入）" : "未检测到 TrollFools，注入需手动", infoOnly: false))
+        checks.append(Check(label: "task_for_pid 权限", passed: taskForPid, detail: taskForPid ? "持有 task_for_pid-allow，可获取进程端口" : "无 task_for_pid-allow，进程级操作受限", infoOnly: false))
+        checks.append(Check(label: "App 容器任意读写", passed: containerWrite, detail: containerWrite ? "AppDataContainers 权限生效，可写任意 App 沙盒" : "无法写入其他 App 容器（缺 entitlement）", infoOnly: false))
         for (name, ok) in injectionBinaries.sorted(by: { $0.key < $1.key }) {
-            checks.append(Check(label: "注入二进制 \(name)", passed: ok, infoOnly: false,
-                detail: ok ? "已捆绑且可执行" : "缺失或不可执行"))
+            checks.append(Check(label: "注入二进制 \(name)", passed: ok, detail: ok ? "已捆绑且可执行" : "缺失或不可执行", infoOnly: false))
         }
-        checks.append(Check(label: "amfid 绕过（推断）", passed: amfidBypassInferred, infoOnly: false,
-            detail: amfidBypassInferred ? "task_for_pid + 注入工具 + 容器读写 均通过，dylib 注入链路可工作" : "条件不足，unsigned dylib 可能无法加载"))
+        checks.append(Check(label: "amfid 绕过（推断）", passed: amfidBypassInferred, detail: amfidBypassInferred ? "task_for_pid + 注入工具 + 容器读写 均通过，dylib 注入链路可工作" : "条件不足，unsigned dylib 可能无法加载", infoOnly: false))
 
         // v2.9.66：ready 不再依赖 entitlementsOK（已改为信息提醒项）
         let ready = trollStore && taskForPid && containerWrite && !injectionBinaries.isEmpty && injectionBinaries.values.allSatisfy { $0 }
