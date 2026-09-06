@@ -73,7 +73,7 @@ final class SSHTool: MCPTool {
         }
 
         // 私钥或无需认证
-        var args = sshArgs(user: user, host: host, port: port, keyPath: keyPath, command: command, timeout: timeout)
+        let args = sshArgs(user: user, host: host, port: port, keyPath: keyPath, command: command, timeout: timeout)
 
         // 执行
         let (exitCode, output) = InjectionManager.shared.spawnRoot(sshPath, args: args)

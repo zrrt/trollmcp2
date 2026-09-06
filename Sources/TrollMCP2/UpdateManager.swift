@@ -78,8 +78,8 @@ final class UpdateManager: ObservableObject {
         let url = URL(string: "https://api.github.com/repos/\(repo)/actions/runs/\(runId)/artifacts")!
         guard let request = authorizedRequest(url) else {
             DispatchQueue.main.async {
-                self?.isChecking = false
-                self?.errorMessage = "请先在 GitHub 账号中登录"
+                self.isChecking = false
+                self.errorMessage = "请先在 GitHub 账号中登录"
             }
             return
         }
