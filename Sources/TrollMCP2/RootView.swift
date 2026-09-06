@@ -10,8 +10,18 @@ final class AppUIState: ObservableObject {
 struct RootView: View {
     @ObservedObject private var ui = AppUIState.shared
     @ObservedObject private var lang = LanguageManager.shared   // v2.9.76：语言切换全局刷新
-    // v2.9.78：首次启动引导
-    @State private var showOnboarding = !UserDefaults.standard.bool(forKey: "trollmcp2.has_seen_onboarding_v1")
+    // v2.9.78：首次启动引导；v2.9.83：改为按版本展示——每次安装新版本/覆盖老版本都重新展现引导页
+    @State private var showOnboarding = RootView.onboardingNeeded()
+
+    private static func onboardingNeeded() -> Bool {
+        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        return UserDefaults.standard.string(forKey: "trollmcp2.onboarding_last_version") != v
+    }
+
+    private func markOnboardingDone() {
+        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        UserDefaults.standard.set(v, forKey: "trollmcp2.onboarding_last_version")
+    }
 
     var body: some View {
         ZStack {
@@ -47,12 +57,12 @@ struct RootView: View {
         )) {
             SettingsView()
         }
-        // v2.9.78：首次启动引导
+        // v2.9.78：引导页（v2.9.83：每个新版本展示一次）
         .fullScreenCover(isPresented: $showOnboarding, onDismiss: {
-            UserDefaults.standard.set(true, forKey: "trollmcp2.has_seen_onboarding_v1")
+            markOnboardingDone()
         }) {
             OnboardingView {
-                UserDefaults.standard.set(true, forKey: "trollmcp2.has_seen_onboarding_v1")
+                markOnboardingDone()
                 showOnboarding = false
             }
         }
