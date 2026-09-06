@@ -48,6 +48,14 @@ struct SettingsView: View {
                         color: .tmIndigo,
                         destination: InjectionView()
                     )
+                    // v2.9.75：远程控制（ControlAgent 通用 UI 控制）
+                    SettingRow(
+                        title: "远程控制",
+                        subtitle: "AI 控制任意 App UI",
+                        icon: "cursorarrow.click.2",
+                        color: .tmCyan,
+                        destination: RemoteControlView()
+                    )
                     SettingRow(
                         title: "GitHub 账号",
                         subtitle: "线上编译 · \(githubAccountSubtitle())",
@@ -195,7 +203,7 @@ struct SettingsView: View {
                         color: .orange,
                         destination: NetworkDebugView()
                     )
-                    LabeledRow(label: "版本", value: "2.9.74")
+                    LabeledRow(label: "版本", value: "2.9.75")
                     // v2.9.68：自动更新检查
                     SettingRowButton(
                         title: "检查更新",

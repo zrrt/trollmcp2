@@ -346,6 +346,15 @@ public final class ToolRegistry: ObservableObject {
         register(DeviceInfoTool())
         register(DeviceProbeTool())
         register(MemoryTweakTool())   // v2.9.60：H5gg式内存修改（需先注入MemoryTweak.dylib）
+        // v2.9.75：ControlAgent 通用 UI 控制（注入后 AI 可控制任意 App UI）
+        register(ControlInjectTool())
+        register(ControlStatusTool())
+        register(ControlUITreeTool())
+        register(ControlScreenshotTool())
+        register(ControlTapTool())
+        register(ControlSwipeTool())
+        register(ControlTypeTool())
+        register(ControlKeyTool())
         register(WorkspaceInfoTool())
 
         // M2 助理记忆（原版命名）
