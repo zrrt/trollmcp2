@@ -182,7 +182,7 @@ final class ProjectTool: MCPTool {
                     "hint": "AI 应使用此项目的目标 App 和 dylib，无需用户重复说明"
                 ]
             }
-            return ["current": nil, "hint": "无当前项目，用 action=create 创建或 action=list 查看"]
+            return ["current": "none", "hint": "无当前项目，用 action=create 创建或 action=list 查看"]
 
         case "list":
             return [
