@@ -6,7 +6,7 @@ include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = ControlAgent
 ControlAgent_FILES = Tweak.x
-ControlAgent_CFLAGS = -fobjc-arc
+ControlAgent_CFLAGS = -fobjc-arc -Wno-error -Wno-deprecated-declarations -Wno-unused-variable
 ControlAgent_FRAMEWORKS = Foundation UIKit
 
 include $(THEOS_MAKE_PATH)/tweak.mk

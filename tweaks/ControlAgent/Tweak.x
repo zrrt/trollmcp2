@@ -18,6 +18,37 @@ static dispatch_source_t g_acceptSource = nil;
 static NSMutableSet *g_clientSockets = nil;
 static NSInteger g_nodeCounter = 0;
 
+// 辅助：获取所有 window（兼容 iOS 15+ 的 UIWindowScene API）
+static NSArray<UIWindow *> *allWindows(void) {
+    NSMutableArray *windows = [NSMutableArray array];
+    for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+        if ([scene isKindOfClass:[UIWindowScene class]]) {
+            UIWindowScene *ws = (UIWindowScene *)scene;
+            [windows addObjectsFromArray:ws.windows];
+        }
+    }
+    if (windows.count == 0) {
+        // fallback：旧 API
+        [windows addObjectsFromArray:allWindows()];
+    }
+    return windows;
+}
+
+// 辅助：找第一响应者
+@interface UIView (ControlAgent_FirstResponder)
+- (UIView *)ca_findFirstResponder;
+@end
+@implementation UIView (ControlAgent_FirstResponder)
+- (UIView *)ca_findFirstResponder {
+    if (self.isFirstResponder) return self;
+    for (UIView *sub in self.subviews) {
+        UIView *found = [sub ca_findFirstResponder];
+        if (found) return found;
+    }
+    return nil;
+}
+@end
+
 #pragma mark - HTTP 响应工具
 
 static NSData *httpResponse(NSInteger status, NSString *contentType, NSData *body) {
@@ -111,7 +142,7 @@ static NSDictionary *dumpUITree(void) {
     g_nodeCounter = 0;
     NSMutableArray *windows = [NSMutableArray array];
 
-    for (UIWindow *window in [UIApplication sharedApplication].windows) {
+    for (UIWindow *window in allWindows()) {
         if (window.hidden) continue;
         NSMutableDictionary *winDict = [NSMutableDictionary dictionary];
         winDict[@"class"] = NSStringFromClass([window class]);
@@ -159,11 +190,11 @@ static NSDictionary *dumpUITree(void) {
 
 static NSData *screenshotPNG(void) {
     UIWindow *keyWindow = nil;
-    for (UIWindow *w in [UIApplication sharedApplication].windows) {
+    for (UIWindow *w in allWindows()) {
         if (w.isKeyWindow) { keyWindow = w; break; }
     }
-    if (!keyWindow && [UIApplication sharedApplication].windows.count > 0) {
-        keyWindow = [UIApplication sharedApplication].windows[0];
+    if (!keyWindow && allWindows().count > 0) {
+        keyWindow = allWindows()[0];
     }
     if (!keyWindow) return nil;
 
@@ -202,11 +233,11 @@ static void simulateTouchAtPoint(CGPoint point, UIWindow *window) {
 
 static NSDictionary *tapAt(CGFloat x, CGFloat y) {
     UIWindow *keyWindow = nil;
-    for (UIWindow *w in [UIApplication sharedApplication].windows) {
+    for (UIWindow *w in allWindows()) {
         if (w.isKeyWindow) { keyWindow = w; break; }
     }
-    if (!keyWindow && [UIApplication sharedApplication].windows.count > 0) {
-        keyWindow = [UIApplication sharedApplication].windows[0];
+    if (!keyWindow && allWindows().count > 0) {
+        keyWindow = allWindows()[0];
     }
     if (!keyWindow) return @{@"error": @"no window"};
 
@@ -226,11 +257,11 @@ static NSDictionary *tapAt(CGFloat x, CGFloat y) {
 
 static NSDictionary *swipeFrom(CGFloat x1, CGFloat y1, CGFloat x2, CGFloat y2, CGFloat duration) {
     UIWindow *keyWindow = nil;
-    for (UIWindow *w in [UIApplication sharedApplication].windows) {
+    for (UIWindow *w in allWindows()) {
         if (w.isKeyWindow) { keyWindow = w; break; }
     }
-    if (!keyWindow && [UIApplication sharedApplication].windows.count > 0) {
-        keyWindow = [UIApplication sharedApplication].windows[0];
+    if (!keyWindow && allWindows().count > 0) {
+        keyWindow = allWindows()[0];
     }
     if (!keyWindow) return @{@"error": @"no window"};
 
@@ -275,7 +306,7 @@ static NSDictionary *swipeFrom(CGFloat x1, CGFloat y1, CGFloat x2, CGFloat y2, C
 static NSDictionary *typeText(NSString *text) {
     // 找到当前第一响应者（输入框），输入文字
     UIView *firstResponder = nil;
-    for (UIWindow *window in [UIApplication sharedApplication].windows) {
+    for (UIWindow *window in allWindows()) {
         for (UIView *sub in window.subviews) {
             UIView *found = [sub ca_findFirstResponder];
             if (found) { firstResponder = found; break; }
@@ -299,9 +330,8 @@ static NSDictionary *typeText(NSString *text) {
         return @{@"typed": @YES, @"text": text, @"target": @"UITextView"};
     }
 
-    // 没有第一响应者，尝试用粘贴板 + 粘贴
+    // 没有第一响应者，复制到剪贴板
     UIPasteboard *pb = [UIPasteboard generalPasteboard];
-    NSString *old = pb.string;
     pb.string = text;
     return @{
         @"typed": @NO,
@@ -310,22 +340,6 @@ static NSDictionary *typeText(NSString *text) {
         @"text": text
     };
 }
-
-// 辅助：找第一响应者
-@interface UIView (ControlAgent_FirstResponder)
-- (UIView *)ca_findFirstResponder;
-@end
-
-@implementation UIView (ControlAgent_FirstResponder)
-- (UIView *)ca_findFirstResponder {
-    if (self.isFirstResponder) return self;
-    for (UIView *sub in self.subviews) {
-        UIView *found = [sub ca_findFirstResponder];
-        if (found) return found;
-    }
-    return nil;
-}
-@end
 
 #pragma mark - HTTP 请求处理
 
