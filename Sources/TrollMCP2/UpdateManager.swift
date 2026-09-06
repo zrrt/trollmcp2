@@ -74,7 +74,7 @@ final class UpdateManager: ObservableObject {
                     return
                 }
                 let artifactName = artifact["name"] as? String ?? "unknown"
-                // artifact 名通常包含版本号，如 TrollMCP2-v2.9.68
+                // artifact 名通常包含版本号，如 TrollAgent-v2.9.73
                 let version = self?.extractVersion(from: artifactName) ?? artifactName
                 self?.latestVersion = version
                 self?.updateAvailable = self?.isVersionNewer(version, than: currentVersion) ?? false

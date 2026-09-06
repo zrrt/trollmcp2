@@ -195,7 +195,7 @@ struct SettingsView: View {
                         icon: "arrow.triangle.2.circlepath.circle.fill",
                         color: .tmCyan
                     ) {
-                        UpdateManager.shared.checkForUpdate(currentVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.9.72")
+                        UpdateManager.shared.checkForUpdate(currentVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.9.73")
                     }
                     if UpdateManager.shared.updateAvailable, let latest = UpdateManager.shared.latestVersion {
                         SettingRowButton(
@@ -295,7 +295,7 @@ struct SettingsView: View {
         if let error = UpdateManager.shared.errorMessage {
             return "检查失败: \(error.prefix(30))"
         }
-        return "当前 v2.9.68 · 点击检查"
+        return "当前 v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.9.73") · 点击检查"
     }
 }
 

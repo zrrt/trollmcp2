@@ -123,7 +123,7 @@ tweaks/<Name>/
 | 诊断 | diagnose.startup, diagnose.crash, kb.query, crash.repro_template |
 | 网络 | network.capture（需 NetworkTweak.dylib）, server.start/stop/status |
 | 项目 | project, task.run, compat.check, plugin.list, workspace.cleanup |
-| 构建 | github.trigger_build, github.build_status, github.download_artifact |
+| 构建 | github.trigger_build, github.fetch_runs, github.download_artifact |
 | 浏览器 | browser.navigate/click/type/snapshot, browser.status |
 | 内存 | memory.search/read/write（需 MemoryTweak.dylib 注入） |
 

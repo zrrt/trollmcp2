@@ -142,7 +142,7 @@ final class DeveloperInstructionStore {
             }
         }
         if !seeded {
-            let fallback = "# TrollMCP2 开发者指令\n\n在此编写你的开发者指令。\n"
+            let fallback = "# TrollAgent 开发者指令\n\n在此编写你的开发者指令。\n"
             let dst = dir.appendingPathComponent("我的开发者指令").appendingPathExtension("md")
             try? fallback.data(using: .utf8)?.write(to: dst)
             meta.defaultName = "我的开发者指令"
