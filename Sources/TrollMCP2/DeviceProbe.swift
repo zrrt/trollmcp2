@@ -285,7 +285,7 @@ final class DeviceProbe: ObservableObject {
 
     static func memoryTotal() -> String {
         let total = ProcessInfo.processInfo.physicalMemory
-        return formatBytes(total)
+        return formatBytes(Int64(total))
     }
 
     static func workspaceSize() -> String {
