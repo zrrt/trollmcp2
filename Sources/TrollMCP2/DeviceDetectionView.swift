@@ -50,11 +50,17 @@ struct DeviceDetectionView: View {
                             HStack(alignment: .top, spacing: 12) {
                                 ZStack {
                                     Circle()
-                                        .fill(check.passed ? Color.green.opacity(0.15) : Color.red.opacity(0.15))
+                                        .fill(check.infoOnly
+                                            ? Color.blue.opacity(0.15)
+                                            : (check.passed ? Color.green.opacity(0.15) : Color.red.opacity(0.15)))
                                         .frame(width: 32, height: 32)
-                                    Image(systemName: check.passed ? "checkmark" : "xmark")
-                                        .font(.system(size: 14, weight: .bold))
-                                        .foregroundColor(check.passed ? .green : .red)
+                                    Image(systemName: check.infoOnly
+                                        ? "info.circle.fill"
+                                        : (check.passed ? "checkmark" : "xmark"))
+                                        .font(.system(size: check.infoOnly ? 16 : 14, weight: .bold))
+                                        .foregroundColor(check.infoOnly
+                                            ? .blue
+                                            : (check.passed ? .green : .red))
                                 }
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(check.label)

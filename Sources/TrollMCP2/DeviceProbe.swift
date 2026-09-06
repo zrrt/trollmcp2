@@ -13,6 +13,7 @@ final class DeviceProbe: ObservableObject {
         let label: String
         let passed: Bool
         let detail: String
+        let infoOnly: Bool  // v2.9.66：信息提醒项，不显示 ✔/✘，只显示 ℹ️，不影响整体就绪状态
     }
 
     struct Report {
@@ -60,45 +61,43 @@ final class DeviceProbe: ObservableObject {
         let injectionBinaries = testInjectionBinaries()
         let amfidBypassInferred = taskForPid && !injectionBinaries.isEmpty && injectionBinaries.values.allSatisfy { $0 } && containerWrite
 
-        // v2.9.65：Entitlements 检测改用"实际写其他 App Bundle 目录"作为主要判断依据。
-        // 之前用 spawnRoot 执行 /usr/bin/id 检测，但外部命令执行受多种因素影响（命令不存在、pipe竞态等），
-        // 频繁误报"未生效"。Bundle 目录只有 root 能写，能写就证明 persona spawn + root 权限链路完整，
-        // 这也是注入操作的真正前提。spawnRoot 检测保留为辅助诊断。
+        // v2.9.66：Entitlements 检测改为信息提醒，不打 ✔/✘。
+        // 原因：persona spawn / Bundle 写入检测在不同 iOS 版本、不同 TrollStore 配置下表现不一致，
+        // 反复误报"未生效"。改为只显示当前检测到的状态和操作建议，不影响整体就绪判断。
         let bundleWriteOK = testBundleWrite()
         let rootDiag = InjectionManager.shared.diagnoseRoot()
         let spawnIsRoot = (rootDiag["is_root"] as? Bool) ?? false
-        let entitlementsOK = bundleWriteOK || spawnIsRoot
         let entDetail: String
-        if entitlementsOK {
-            var parts: [String] = []
-            if bundleWriteOK { parts.append("Bundle写入测试通过（root可写其他App目录）") }
-            if spawnIsRoot { parts.append("persona spawn uid=0") }
-            entDetail = parts.joined(separator: "；")
+        if bundleWriteOK || spawnIsRoot {
+            var parts: [String] = ["已检测到 root 写入能力，注入环境就绪"]
+            if bundleWriteOK { parts.append("（Bundle 写入测试通过）") }
+            if spawnIsRoot { parts.append("（persona spawn uid=0）") }
+            entDetail = parts.joined()
         } else {
-            let exitCode = rootDiag["exit_code"] as? Int ?? -1
-            let idOut = (rootDiag["id_output"] as? String) ?? "(无输出)"
-            entDetail = "Bundle写入失败 + spawn检测exit=\(exitCode)输出：\(idOut)。请在 TrollStore 开启「编辑 Entitlements」后卸载重装（覆盖安装不会重新应用 entitlements）"
+            entDetail = "⚠️ 注入功能需要在 TrollStore 中开启「编辑 Entitlements」权限，然后卸载重装本 App（覆盖安装不会重新应用权限）。当前未验证到 root 写入能力，注入可能失败。"
         }
+        let entitlementsOK = bundleWriteOK || spawnIsRoot  // 内部记录用，不影响 ready 和 UI 显示
 
         var checks: [Check] = []
-        checks.append(Check(label: "TrollStore 已安装", passed: trollStore,
+        checks.append(Check(label: "TrollStore 已安装", passed: trollStore, infoOnly: false,
             detail: trollStore ? "检测到 TrollStore App 或越狱根" : "未检测到 TrollStore / 越狱环境"))
-        checks.append(Check(label: "TrollStore Entitlements 权限", passed: entitlementsOK,
+        checks.append(Check(label: "TrollStore Entitlements 权限", passed: true, infoOnly: true,
             detail: entDetail))
-        checks.append(Check(label: "TrollFools 已安装", passed: trollFools,
+        checks.append(Check(label: "TrollFools 已安装", passed: trollFools, infoOnly: false,
             detail: trollFools ? "检测到 TrollFools（可注入）" : "未检测到 TrollFools，注入需手动"))
-        checks.append(Check(label: "task_for_pid 权限", passed: taskForPid,
+        checks.append(Check(label: "task_for_pid 权限", passed: taskForPid, infoOnly: false,
             detail: taskForPid ? "持有 task_for_pid-allow，可获取进程端口" : "无 task_for_pid-allow，进程级操作受限"))
-        checks.append(Check(label: "App 容器任意读写", passed: containerWrite,
+        checks.append(Check(label: "App 容器任意读写", passed: containerWrite, infoOnly: false,
             detail: containerWrite ? "AppDataContainers 权限生效，可写任意 App 沙盒" : "无法写入其他 App 容器（缺 entitlement）"))
         for (name, ok) in injectionBinaries.sorted(by: { $0.key < $1.key }) {
-            checks.append(Check(label: "注入二进制 \(name)", passed: ok,
+            checks.append(Check(label: "注入二进制 \(name)", passed: ok, infoOnly: false,
                 detail: ok ? "已捆绑且可执行" : "缺失或不可执行"))
         }
-        checks.append(Check(label: "amfid 绕过（推断）", passed: amfidBypassInferred,
+        checks.append(Check(label: "amfid 绕过（推断）", passed: amfidBypassInferred, infoOnly: false,
             detail: amfidBypassInferred ? "task_for_pid + 注入工具 + 容器读写 均通过，dylib 注入链路可工作" : "条件不足，unsigned dylib 可能无法加载"))
 
-        let ready = trollStore && entitlementsOK && taskForPid && containerWrite && !injectionBinaries.isEmpty && injectionBinaries.values.allSatisfy { $0 }
+        // v2.9.66：ready 不再依赖 entitlementsOK（已改为信息提醒项）
+        let ready = trollStore && taskForPid && containerWrite && !injectionBinaries.isEmpty && injectionBinaries.values.allSatisfy { $0 }
 
         let report = Report(
             deviceName: deviceName, model: model, systemVersion: systemVersion, vendorID: vendorID,

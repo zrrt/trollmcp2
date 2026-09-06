@@ -28,6 +28,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         LocationProvider.shared.start()
         // v2.9.10：网络与生命周期监控（切后台重连 / 网络恢复提示）
         AppLifecycleMonitor.shared.start()
+        // v2.9.66：启动时上报设备信息到统计后台（安装量/机型分布，需在设置中开启并配置服务器地址）
+        DeviceReporter.shared.reportIfNeeded()
 
         window = UIWindow(frame: UIScreen.main.bounds)
         window?.rootViewController = UIHostingController(rootView: RootView())
