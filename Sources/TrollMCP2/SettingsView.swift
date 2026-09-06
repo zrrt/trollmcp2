@@ -174,7 +174,7 @@ struct SettingsView: View {
                         color: .orange,
                         destination: NetworkDebugView()
                     )
-                    LabeledRow(label: "版本", value: "2.9.70")
+                    LabeledRow(label: "版本", value: "2.9.71")
                     // v2.9.68：自动更新检查
                     SettingRowButton(
                         title: "检查更新",

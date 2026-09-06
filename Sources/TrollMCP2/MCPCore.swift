@@ -74,6 +74,19 @@ public final class ToolRegistry: ObservableObject {
         return tools.values.map { $0.definition }.sorted { $0.name < $1.name }
     }
 
+    // v2.9.71：本地 HTTP 服务需要的工具查询接口
+    public func allToolNames() -> [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return tools.keys.sorted()
+    }
+
+    public func tool(named name: String) -> MCPTool? {
+        lock.lock()
+        defer { lock.unlock() }
+        return tools[name]
+    }
+
     /// v2.9.15：聊天默认工具白名单。
     /// 根因：80+ 工具全量进 schema 导致每次请求载荷巨大，中转/gpt-5.6 处理极慢甚至超时。
     /// 未显式设置的工具按此白名单决定默认启用；用户显式开/关过的仍以用户为准。
@@ -373,6 +386,13 @@ public final class ToolRegistry: ObservableObject {
         register(AppStatusTool())
         register(AppStatsTool())
         register(TestRunTool())
+
+        // v2.9.71：自动诊断 + 本地 HTTP 服务
+        register(DiagnoseStartupTool())
+        register(DiagnoseCrashTool())
+        register(ServerStartTool())
+        register(ServerStopTool())
+        register(ServerStatusTool())
 
         // M4 Gateway + 自动化（含原版命名）
         register(GatewayStatusTool())
