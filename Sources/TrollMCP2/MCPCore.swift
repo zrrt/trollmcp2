@@ -366,6 +366,14 @@ public final class ToolRegistry: ObservableObject {
         register(LogCollectTool())
         register(NetworkCaptureTool())
 
+        // v2.9.70：进程管理 + 测试编排器
+        register(AppStartTool())
+        register(AppStopTool())
+        register(AppRestartTool())
+        register(AppStatusTool())
+        register(AppStatsTool())
+        register(TestRunTool())
+
         // M4 Gateway + 自动化（含原版命名）
         register(GatewayStatusTool())
         register(GatewayConnectTool())
