@@ -58,7 +58,7 @@ enum L10n {
 
             // ===== 首页 =====
             "home_greeting": ["zh": "你好，我是 TrollAgent", "en": "Hi, I'm TrollAgent"],
-            "home_subtitle": ["zh": "设备端 AI 工作台：分析应用、内存、签名与 UI 自动化", "en": "On-device AI workbench: apps, memory, signing & UI automation"],
+            "home_subtitle": ["zh": "TrollStore 上的 AI 实验与 QA 工作台\n分析 · 注入 · 编译 · 控制", "en": "AI lab & QA workbench for TrollStore\nAnalyze · Inject · Build · Control"],
             "home_analyze_apps": ["zh": "分析我的应用", "en": "Analyze My Apps"],
             "home_analyze_apps_sub": ["zh": "扫描缓存、注入状态与已安装应用", "en": "Scan caches, injection state & installed apps"],
             "home_check_device": ["zh": "检查设备与内存", "en": "Check Device & Memory"],
@@ -68,6 +68,35 @@ enum L10n {
             "home_thinking": ["zh": "正在思考", "en": "Thinking"],
             "home_running_tool": ["zh": "正在执行工具", "en": "Running tool"],
             "home_round": ["zh": "第 {n}/{total} 轮", "en": "Round {n}/{total}"],
+            // v2.9.78：首页快速引导区
+            "home_quick_title": ["zh": "快速开始", "en": "Quick Start"],
+            "home_quick_sub": ["zh": "点击卡片直接体验 · 也可输入自己的指令", "en": "Tap a card to try, or type your own"],
+            "home_quick_compile": ["zh": "线上编译", "en": "Cloud Build"],
+            "home_quick_compile_sub": ["zh": "GitHub 编译 tweak / IPA", "en": "Build tweak / IPA on GitHub"],
+            "home_quick_inject": ["zh": "注入测试", "en": "Injection Test"],
+            "home_quick_inject_sub": ["zh": "给 App 注入 dylib 并验证", "en": "Inject & verify a dylib"],
+            "home_quick_memory": ["zh": "内存修改", "en": "Memory Tweak"],
+            "home_quick_memory_sub": ["zh": "H5gg 式搜索与修改", "en": "H5gg-style search & patch"],
+            "home_quick_ui": ["zh": "UI 控制", "en": "UI Control"],
+            "home_quick_ui_sub": ["zh": "控制任意 App 界面", "en": "Drive any app's UI"],
+            "home_quick_browser": ["zh": "内置浏览器", "en": "Built-in Browser"],
+            "home_quick_browser_sub": ["zh": "网页操作与抓取", "en": "Browse & scrape pages"],
+            "home_quick_automation": ["zh": "自动化", "en": "Automation"],
+            "home_quick_automation_sub": ["zh": "定时任务与重试", "en": "Scheduled tasks & retries"],
+
+            // ===== 新手引导（v2.9.78）=====
+            "ob_skip": ["zh": "跳过", "en": "Skip"],
+            "ob_next": ["zh": "下一步", "en": "Next"],
+            "ob_done": ["zh": "开始使用", "en": "Get Started"],
+            "ob_welcome_title": ["zh": "欢迎使用 TrollAgent", "en": "Welcome to TrollAgent"],
+            "ob_welcome_sub": ["zh": "TrollStore 上的 AI 实验与 QA 工作台：一句话描述目标，AI 自动完成诊断、操作、验证与报告。", "en": "An AI lab for TrollStore: describe a goal, and AI handles diagnosis, actions, verification and reporting."],
+            "ob_cap_title": ["zh": "它能做什么", "en": "What it can do"],
+            "ob_cap1": ["zh": "线上编译 tweak / IPA 并下载注入", "en": "Cloud-build tweaks / IPAs, download & inject"],
+            "ob_cap2": ["zh": "H5gg 式内存搜索与修改", "en": "H5gg-style memory search & patch"],
+            "ob_cap3": ["zh": "读取界面树、点击输入，控制任意 App", "en": "Read UI tree, tap & type to drive any app"],
+            "ob_cap4": ["zh": "内置浏览器、审计、自动化与知识库", "en": "Built-in browser, audit, automation & KB"],
+            "ob_start_title": ["zh": "开始使用", "en": "Get Started"],
+            "ob_start_sub": ["zh": "先到「设置 → 模型 API」添加你的中转站配置，然后回来试试下方的快捷卡片。", "en": "Add your relay API config under Settings → Model API, then try the quick cards below."],
 
             // ===== 抽屉 =====
             "drawer_title": ["zh": "对话", "en": "Chats"],

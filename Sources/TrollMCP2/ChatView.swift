@@ -236,27 +236,43 @@ struct ChatView: View {
 
     private var homeState: some View {
         ScrollView {
-            VStack(spacing: 24) {
-                Spacer(minLength: 40)
+            VStack(spacing: 22) {
+                Spacer(minLength: 30)
                 // v2.9.76：首页使用真实 App 图标（浅蓝巨魔脸）
-                Group {
-                    if let appIcon = UIImage(named: "AppIcon60x60@3x") ?? UIImage(named: "AppIcon1024x1024") {
-                        Image(uiImage: appIcon)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 96, height: 96)
-                            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                    .stroke(Color.tmCyan.opacity(0.25), lineWidth: 1)
-                            )
-                    } else {
-                        Image(systemName: "cpu")
-                            .font(.system(size: 56))
-                            .foregroundColor(.blue)
-                            .frame(width: 90, height: 90)
-                            .background(Color.blue.opacity(0.12))
-                            .cornerRadius(22)
+                // v2.9.78：外层加浅蓝渐变光环
+                ZStack {
+                    Circle()
+                        .fill(Color.tmCyan.opacity(0.12))
+                        .frame(width: 176, height: 176)
+                    Circle()
+                        .stroke(
+                            LinearGradient(colors: [.tmCyan.opacity(0.55), .blue.opacity(0.15)],
+                                           startPoint: .topLeading, endPoint: .bottomTrailing),
+                            lineWidth: 2
+                        )
+                        .frame(width: 156, height: 156)
+                    Group {
+                        if let appIcon = UIImage(named: "AppIcon60x60@3x") ?? UIImage(named: "AppIcon1024x1024") {
+                            Image(uiImage: appIcon)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 104, height: 104)
+                                .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 26, style: .continuous)
+                                        .stroke(Color.tmCyan.opacity(0.3), lineWidth: 1)
+                                )
+                                .shadow(color: Color.tmCyan.opacity(0.35), radius: 14, x: 0, y: 6)
+                        } else {
+                            Image(systemName: "cpu")
+                                .font(.system(size: 56))
+                                .foregroundColor(.white)
+                                .frame(width: 104, height: 104)
+                                .background(
+                                    LinearGradient(colors: [.tmCyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+                                )
+                                .cornerRadius(26)
+                        }
                     }
                 }
 
@@ -268,31 +284,112 @@ struct ChatView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
+                        .lineSpacing(3)
+                        .padding(.horizontal, 28)
                 }
 
+                // 两大主卡
                 VStack(spacing: 12) {
                     QuickActionCard(
                         icon: "square.grid.2x2",
                         title: L10n.t("home_analyze_apps"),
-                        subtitle: L10n.t("home_analyze_apps_sub")
+                        subtitle: L10n.t("home_analyze_apps_sub"),
+                        colors: [.tmCyan, .blue]
                     ) {
                         runQuickPrompt("帮我分析一下本机已安装的应用，列出缓存占用最大的几个")
                     }
                     QuickActionCard(
                         icon: "memorychip",
                         title: L10n.t("home_check_device"),
-                        subtitle: L10n.t("home_check_device_sub")
+                        subtitle: L10n.t("home_check_device_sub"),
+                        colors: [.green, .tmTeal]
                     ) {
                         runQuickPrompt("检查一下本机设备和内存情况")
                     }
                 }
                 .padding(.horizontal, 20)
 
-                Spacer(minLength: 20)
+                // v2.9.78：快速开始引导区（能力卡片，点击即发示例指令）
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.tmCyan)
+                        Text(L10n.t("home_quick_title"))
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Spacer()
+                    }
+                    Text(L10n.t("home_quick_sub"))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 22)
+
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                    miniCard("hammer.fill", L10n.t("home_quick_compile"), L10n.t("home_quick_compile_sub"), [.orange, .tmBrown]) {
+                        runQuickPrompt("帮我在 GitHub 上编译一个测试 tweak（HelloWorld），完成后把 dylib 下载到工作区")
+                    }
+                    miniCard("syringe.fill", L10n.t("home_quick_inject"), L10n.t("home_quick_inject_sub"), [.green, .tmTeal]) {
+                        runQuickPrompt("列出本机已安装的应用，选一个测试 dylib 注入并验证加载状态")
+                    }
+                    miniCard("memorychip.fill", L10n.t("home_quick_memory"), L10n.t("home_quick_memory_sub"), [.purple, .tmIndigo]) {
+                        runQuickPrompt("检查内存修改工具（MemoryTweak）是否就绪，并说明用法")
+                    }
+                    miniCard("cursorarrow.click.2", L10n.t("home_quick_ui"), L10n.t("home_quick_ui_sub"), [.tmCyan, .blue]) {
+                        runQuickPrompt("给微信注入控制代理（ControlAgent），然后读取它的界面树")
+                    }
+                    miniCard("globe", L10n.t("home_quick_browser"), L10n.t("home_quick_browser_sub"), [.red, .orange]) {
+                        runQuickPrompt("打开内置浏览器访问 bing.com，告诉我页面上有什么")
+                    }
+                    miniCard("bolt.fill", L10n.t("home_quick_automation"), L10n.t("home_quick_automation_sub"), [.blue, .purple]) {
+                        runQuickPrompt("帮我创建一个自动化任务：每 5 分钟执行一次 ping，失败时提醒我")
+                    }
+                }
+                .padding(.horizontal, 20)
+
+                Spacer(minLength: 24)
             }
-            .padding(.top, 20)
+            .padding(.top, 16)
         }
+    }
+
+    /// v2.9.78：首页能力小卡片（两列网格）
+    private func miniCard(_ icon: String, _ title: String, _ subtitle: String, _ colors: [Color], action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: icon)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, minHeight: 118, alignment: .topLeading)
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color(.secondarySystemBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(colors[0].opacity(0.18), lineWidth: 1)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 
     private func runQuickPrompt(_ text: String) {
@@ -750,17 +847,20 @@ struct QuickActionCard: View {
     let icon: String
     let title: String
     let subtitle: String
+    var colors: [Color] = [.blue, .tmCyan]   // v2.9.78：渐变图标底
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 14) {
-                Image(systemName: icon)
-                    .font(.system(size: 22))
-                    .foregroundColor(.blue)
-                    .frame(width: 44, height: 44)
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(12)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: icon)
+                        .font(.system(size: 19, weight: .semibold))
+                        .foregroundColor(.white)
+                }
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
                         .font(.body)
@@ -774,13 +874,20 @@ struct QuickActionCard: View {
                 Spacer()
                 Image(systemName: "arrow.up.forward")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(colors[0])
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
-            .background(Color(.secondarySystemBackground))
-            .cornerRadius(14)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color(.secondarySystemBackground))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(colors[0].opacity(0.15), lineWidth: 1)
+                    )
+            )
         }
+        .buttonStyle(PlainButtonStyle())
     }
 }
 

@@ -10,6 +10,8 @@ final class AppUIState: ObservableObject {
 struct RootView: View {
     @ObservedObject private var ui = AppUIState.shared
     @ObservedObject private var lang = LanguageManager.shared   // v2.9.76：语言切换全局刷新
+    // v2.9.78：首次启动引导
+    @State private var showOnboarding = !UserDefaults.standard.bool(forKey: "trollmcp2.has_seen_onboarding_v1")
 
     var body: some View {
         ZStack {
@@ -44,6 +46,15 @@ struct RootView: View {
             set: { ui.settingsPresented = $0 }
         )) {
             SettingsView()
+        }
+        // v2.9.78：首次启动引导
+        .fullScreenCover(isPresented: $showOnboarding, onDismiss: {
+            UserDefaults.standard.set(true, forKey: "trollmcp2.has_seen_onboarding_v1")
+        }) {
+            OnboardingView {
+                UserDefaults.standard.set(true, forKey: "trollmcp2.has_seen_onboarding_v1")
+                showOnboarding = false
+            }
         }
         // v2.9.76：语言切换后全局重建视图
         .id(lang.language.rawValue)
