@@ -31,6 +31,16 @@ final class DeviceProbe: ObservableObject {
         let rootDiagnosis: [String: Any]?
         let checks: [Check]
         let ready: Bool
+        // v2.9.67：增强设备信息
+        let deviceModelIdentifier: String  // 如 iPhone14,5
+        let deviceModelName: String        // 如 iPhone 13
+        let storageTotal: String           // 总存储
+        let storageFree: String            // 可用存储
+        let memoryTotal: String            // 总内存
+        let screenSize: String             // 屏幕分辨率
+        let appCount: Int                  // 已安装 App 数量
+        let workspaceSize: String          // 工作区大小
+        let batteryLevel: String           // 电池电量
     }
 
     @Published var lastReport: Report?
@@ -92,12 +102,28 @@ final class DeviceProbe: ObservableObject {
         // v2.9.66：ready 不再依赖 entitlementsOK（已改为信息提醒项）
         let ready = trollStore && taskForPid && containerWrite && !injectionBinaries.isEmpty && injectionBinaries.values.allSatisfy { $0 }
 
+        // v2.9.67：收集增强设备信息
+        let modelIdentifier = Self.deviceModelIdentifier()
+        let modelName = Self.deviceModelName(identifier: modelIdentifier)
+        let storage = Self.storageInfo()
+        let memoryTotal = Self.memoryTotal()
+        let screenSize = "\(Int(UIScreen.main.bounds.width))×\(Int(UIScreen.main.bounds.height))"
+        let appCount = AppCatalog.list().count
+        let workspaceSize = Self.workspaceSize()
+        let batteryLevel = UIDevice.current.isBatteryMonitoringEnabled ? "\(Int(UIDevice.current.batteryLevel * 100))%" : "未知"
+        if !UIDevice.current.isBatteryMonitoringEnabled { UIDevice.current.isBatteryMonitoringEnabled = true }
+
         let report = Report(
             deviceName: deviceName, model: model, systemVersion: systemVersion, vendorID: vendorID,
             trollStore: trollStore, trollFools: trollFools, taskForPid: taskForPid,
             containerWrite: containerWrite, injectionBinaries: injectionBinaries,
             amfidBypassInferred: amfidBypassInferred, entitlementsOK: entitlementsOK,
-            rootDiagnosis: rootDiag, checks: checks, ready: ready
+            rootDiagnosis: rootDiag, checks: checks, ready: ready,
+            deviceModelIdentifier: modelIdentifier, deviceModelName: modelName,
+            storageTotal: storage.total, storageFree: storage.free,
+            memoryTotal: memoryTotal, screenSize: screenSize,
+            appCount: appCount, workspaceSize: workspaceSize,
+            batteryLevel: batteryLevel
         )
         lastReport = report
         AuditLog.shared.log("device.probe", detail: "ready=\(ready) trollStore=\(trollStore) entsOK=\(entitlementsOK) tfpid=\(taskForPid) container=\(containerWrite)")
@@ -187,5 +213,103 @@ final class DeviceProbe: ObservableObject {
             result[name] = access(path, X_OK) == 0
         }
         return result
+    }
+
+    // MARK: v2.9.67 增强设备信息辅助方法
+
+    static func deviceModelIdentifier() -> String {
+        var systemInfo = utsname()
+        uname(&systemInfo)
+        let machineMirror = Mirror(reflecting: systemInfo.machine)
+        return machineMirror.children.reduce("") { identifier, element in
+            guard let value = element.value as? Int8, value != 0 else { return identifier }
+            return identifier + String(UnicodeScalar(UInt8(value)))
+        }
+    }
+
+    static func deviceModelName(identifier: String) -> String {
+        let map: [String: String] = [
+            "iPhone1,1": "iPhone", "iPhone1,2": "iPhone 3G", "iPhone2,1": "iPhone 3GS",
+            "iPhone3,1": "iPhone 4", "iPhone3,2": "iPhone 4", "iPhone3,3": "iPhone 4",
+            "iPhone4,1": "iPhone 4S", "iPhone5,1": "iPhone 5", "iPhone5,2": "iPhone 5",
+            "iPhone5,3": "iPhone 5c", "iPhone5,4": "iPhone 5c",
+            "iPhone6,1": "iPhone 5s", "iPhone6,2": "iPhone 5s",
+            "iPhone7,1": "iPhone 6 Plus", "iPhone7,2": "iPhone 6",
+            "iPhone8,1": "iPhone 6s", "iPhone8,2": "iPhone 6s Plus", "iPhone8,4": "iPhone SE",
+            "iPhone9,1": "iPhone 7", "iPhone9,2": "iPhone 7 Plus", "iPhone9,3": "iPhone 7", "iPhone9,4": "iPhone 7 Plus",
+            "iPhone10,1": "iPhone 8", "iPhone10,2": "iPhone 8 Plus", "iPhone10,3": "iPhone X",
+            "iPhone10,4": "iPhone 8", "iPhone10,5": "iPhone 8 Plus", "iPhone10,6": "iPhone X",
+            "iPhone11,2": "iPhone XS", "iPhone11,4": "iPhone XS Max", "iPhone11,6": "iPhone XS Max", "iPhone11,8": "iPhone XR",
+            "iPhone12,1": "iPhone 11", "iPhone12,3": "iPhone 11 Pro", "iPhone12,5": "iPhone 11 Pro Max", "iPhone12,8": "iPhone SE (2nd)",
+            "iPhone13,1": "iPhone 12 mini", "iPhone13,2": "iPhone 12", "iPhone13,3": "iPhone 12 Pro", "iPhone13,4": "iPhone 12 Pro Max",
+            "iPhone14,2": "iPhone 13 Pro", "iPhone14,3": "iPhone 13 Pro Max", "iPhone14,4": "iPhone 13 mini", "iPhone14,5": "iPhone 13",
+            "iPhone14,6": "iPhone SE (3rd)", "iPhone14,7": "iPhone 14", "iPhone14,8": "iPhone 14 Plus",
+            "iPhone15,2": "iPhone 14 Pro", "iPhone15,3": "iPhone 14 Pro Max",
+            "iPhone15,4": "iPhone 15", "iPhone15,5": "iPhone 15 Plus", "iPhone16,1": "iPhone 15 Pro", "iPhone16,2": "iPhone 15 Pro Max",
+            "iPad1,1": "iPad", "iPad2,1": "iPad 2", "iPad2,2": "iPad 2", "iPad2,3": "iPad 2", "iPad2,4": "iPad 2",
+            "iPad3,1": "iPad (3rd)", "iPad3,2": "iPad (3rd)", "iPad3,3": "iPad (3rd)",
+            "iPad3,4": "iPad (4th)", "iPad3,5": "iPad (4th)", "iPad3,6": "iPad (4th)",
+            "iPad4,1": "iPad Air", "iPad4,2": "iPad Air", "iPad4,3": "iPad Air",
+            "iPad5,3": "iPad Air 2", "iPad5,4": "iPad Air 2",
+            "iPad6,7": "iPad Pro (12.9\")", "iPad6,8": "iPad Pro (12.9\")",
+            "iPad6,3": "iPad Pro (9.7\")", "iPad6,4": "iPad Pro (9.7\")",
+            "iPad7,1": "iPad Pro (12.9\") 2nd", "iPad7,2": "iPad Pro (12.9\") 2nd",
+            "iPad7,3": "iPad Pro (10.5\")", "iPad7,4": "iPad Pro (10.5\")",
+            "iPad7,5": "iPad (6th)", "iPad7,6": "iPad (6th)",
+            "iPad8,1": "iPad Pro (11\")", "iPad8,2": "iPad Pro (11\")", "iPad8,3": "iPad Pro (11\")", "iPad8,4": "iPad Pro (11\")",
+            "iPad8,5": "iPad Pro (12.9\") 3rd", "iPad8,6": "iPad Pro (12.9\") 3rd", "iPad8,7": "iPad Pro (12.9\") 3rd", "iPad8,8": "iPad Pro (12.9\") 3rd",
+            "iPad11,1": "iPad mini (5th)", "iPad11,2": "iPad mini (5th)",
+            "iPad11,3": "iPad Air (3rd)", "iPad11,4": "iPad Air (3rd)",
+            "iPad11,6": "iPad (8th)", "iPad11,7": "iPad (8th)",
+            "iPad12,1": "iPad (9th)", "iPad12,2": "iPad (9th)",
+            "iPad13,1": "iPad Air (4th)", "iPad13,2": "iPad Air (4th)",
+            "iPad13,4": "iPad Pro (11\") 3rd", "iPad13,5": "iPad Pro (11\") 3rd", "iPad13,6": "iPad Pro (11\") 3rd", "iPad13,7": "iPad Pro (11\") 3rd",
+            "iPad13,8": "iPad Pro (12.9\") 5th", "iPad13,9": "iPad Pro (12.9\") 5th", "iPad13,10": "iPad Pro (12.9\") 5th", "iPad13,11": "iPad Pro (12.9\") 5th",
+            "iPad14,1": "iPad mini (6th)", "iPad14,2": "iPad mini (6th)",
+            "iPod1,1": "iPod touch", "iPod2,1": "iPod touch (2nd)", "iPod3,1": "iPod touch (3rd)",
+            "iPod4,1": "iPod touch (4th)", "iPod5,1": "iPod touch (5th)", "iPod7,1": "iPod touch (6th)", "iPod9,1": "iPod touch (7th)"
+        ]
+        return map[identifier] ?? identifier
+    }
+
+    static func storageInfo() -> (total: String, free: String) {
+        do {
+            let attrs = try FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory())
+            if let total = attrs[.systemSize] as? Int64,
+               let free = attrs[.systemFreeSize] as? Int64 {
+                return (formatBytes(total), formatBytes(free))
+            }
+        } catch {}
+        return ("未知", "未知")
+    }
+
+    static func memoryTotal() -> String {
+        let total = ProcessInfo.processInfo.physicalMemory
+        return formatBytes(total)
+    }
+
+    static func workspaceSize() -> String {
+        let workspacePath = NSHomeDirectory().appending("/Documents/Workspace")
+        guard let enumerator = FileManager.default.enumerator(atPath: workspacePath) else { return "0 B" }
+        var total: Int64 = 0
+        while let file = enumerator.nextObject() as? String {
+            let fullPath = (workspacePath as NSString).appendingPathComponent(file)
+            if let attrs = try? FileManager.default.attributesOfItem(atPath: fullPath),
+               let size = attrs[.size] as? Int64 {
+                total += size
+            }
+        }
+        return formatBytes(total)
+    }
+
+    private static func formatBytes(_ bytes: Int64) -> String {
+        if bytes >= 1_073_741_824 {
+            return String(format: "%.1f GB", Double(bytes) / 1_073_741_824.0)
+        } else if bytes >= 1_048_576 {
+            return String(format: "%.1f MB", Double(bytes) / 1_048_576.0)
+        } else if bytes >= 1024 {
+            return String(format: "%.1f KB", Double(bytes) / 1024.0)
+        }
+        return "\(bytes) B"
     }
 }

@@ -5,11 +5,13 @@ import WebKit
 struct BrowserView: View {
     @ObservedObject private var bm = BrowserManager.shared
     @State private var urlText = ""
+    @State private var isFullscreen = false
     @Environment(\.presentationMode) var presentationMode
 
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
+                if !isFullscreen {
                 // URL 栏
                 HStack(spacing: 8) {
                     HStack(spacing: 0) {
@@ -76,21 +78,41 @@ struct BrowserView: View {
                 .padding(.vertical, 6)
 
                 Divider()
+                }
 
                 // 页面
                 WebViewContainer(bm: bm)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                // 状态条
-                HStack {
-                    Text(bm.pageTitle.isEmpty ? bm.currentURL : "\(bm.pageTitle)")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                    Spacer()
-                    Text("AI 可用 browser.snapshot 获取蓝框元素")
-                        .font(.caption2)
-                        .foregroundColor(.blue)
+                // 底部状态条（全屏时也保留，显示 AI 操作进度）
+                VStack(spacing: 4) {
+                    HStack {
+                        if isFullscreen {
+                            Button(action: { isFullscreen = false }) {
+                                Image(systemName: "arrow.down.right.and.arrow.up.left")
+                                    .font(.caption)
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                        Text(bm.pageTitle.isEmpty ? bm.currentURL : "\(bm.pageTitle)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                        Spacer()
+                        Text("AI 可用 browser.snapshot")
+                            .font(.caption2)
+                            .foregroundColor(.blue)
+                    }
+                    if !bm.currentAction.isEmpty {
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                            Text(bm.currentAction)
+                                .font(.caption2)
+                                .foregroundColor(.blue)
+                            Spacer()
+                        }
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -100,13 +122,19 @@ struct BrowserView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: { bm.open("https://www.baidu.com") }) {
+                    Button(action: { bm.open("https://www.bing.com") }) {
                         Text("主页")
                             .font(.footnote)
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") { presentationMode.wrappedValue.dismiss() }
+                    HStack(spacing: 12) {
+                        Button(action: { isFullscreen.toggle() }) {
+                            Image(systemName: isFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                                .font(.footnote)
+                        }
+                        Button("完成") { presentationMode.wrappedValue.dismiss() }
+                    }
                 }
             }
         }
@@ -114,7 +142,7 @@ struct BrowserView: View {
         .onAppear {
             bm.ensureWebView()
             if bm.webView?.url == nil || bm.currentURL == "about:blank" {
-                bm.open("https://www.baidu.com")
+                bm.open("https://www.bing.com")
             }
             urlText = ""
         }

@@ -15,6 +15,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     @Published var highlighted = true          // 蓝框高亮开关
     @Published var elementCount = 0
     @Published var lastSnapshot = ""           // 最近一次元素快照 JSON 字符串
+    @Published var currentAction = ""          // v2.9.67：AI 当前正在执行的浏览器操作描述
 
     private(set) var webView: WKWebView?
     private var loadedOnce = false

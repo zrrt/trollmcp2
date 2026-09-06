@@ -82,6 +82,94 @@ struct DeviceDetectionView: View {
                     .cornerRadius(16)
                     .padding(.horizontal)
 
+                    // 设备信息卡片（v2.9.67 增强）
+                    VStack(spacing: 12) {
+                        HStack {
+                            Label("设备型号", systemImage: "iphone")
+                                .font(.subheadline)
+                            Spacer()
+                            Text("\(r.deviceModelName)（\(r.deviceModelIdentifier)）")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        Divider()
+                        HStack {
+                            Label("系统版本", systemImage: "gear")
+                                .font(.subheadline)
+                            Spacer()
+                            Text("iOS \(r.systemVersion)")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        Divider()
+                        HStack {
+                            Label("存储空间", systemImage: "internaldrive")
+                                .font(.subheadline)
+                            Spacer()
+                            Text("可用 \(r.storageFree) / 总 \(r.storageTotal)")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        Divider()
+                        HStack {
+                            Label("内存", systemImage: "memorychip")
+                                .font(.subheadline)
+                            Spacer()
+                            Text(r.memoryTotal)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        Divider()
+                        HStack {
+                            Label("屏幕分辨率", systemImage: "rectangle")
+                                .font(.subheadline)
+                            Spacer()
+                            Text(r.screenSize)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        Divider()
+                        HStack {
+                            Label("已安装应用", systemImage: "square.grid.2x2")
+                                .font(.subheadline)
+                            Spacer()
+                            Text("\(r.appCount) 个")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        Divider()
+                        HStack {
+                            Label("工作区占用", systemImage: "folder")
+                                .font(.subheadline)
+                            Spacer()
+                            Text(r.workspaceSize)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        Divider()
+                        HStack {
+                            Label("电池电量", systemImage: "battery.100")
+                                .font(.subheadline)
+                            Spacer()
+                            Text(r.batteryLevel)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        Divider()
+                        HStack {
+                            Label("设备名称", systemImage: "info.circle")
+                                .font(.subheadline)
+                            Spacer()
+                            Text(r.deviceName)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(16)
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(16)
+                    .padding(.horizontal)
+
                     // 结论卡片
                     VStack(spacing: 12) {
                         HStack {
