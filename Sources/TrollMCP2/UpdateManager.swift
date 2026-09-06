@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 // v2.9.68：自动更新管理器
 // 检查 GitHub CI 最新构建，下载 IPA，调起 TrollStore 安装

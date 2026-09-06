@@ -48,13 +48,13 @@ final class DeviceProbe: ObservableObject {
     // MARK: Mach 调用（避免 import mach 类型，直接用 UInt32 别名）
 
     @_silgen_name("task_for_pid")
-    private func tm_task_for_pid(_ task: UInt32, _ pid: Int32, _ target_task: UnsafeMutablePointer<UInt32>) -> Int32
+    public func tm_task_for_pid(_ task: UInt32, _ pid: Int32, _ target_task: UnsafeMutablePointer<UInt32>) -> Int32
 
     @_silgen_name("mach_task_self")
-    private func tm_mach_task_self() -> UInt32
+    public func tm_mach_task_self() -> UInt32
 
     @_silgen_name("mach_port_deallocate")
-    private func tm_mach_port_deallocate(_ task: UInt32, _ name: UInt32) -> Int32
+    public func tm_mach_port_deallocate(_ task: UInt32, _ name: UInt32) -> Int32
 
     // MARK: 公开入口
 

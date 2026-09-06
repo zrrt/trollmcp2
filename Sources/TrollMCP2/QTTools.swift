@@ -48,17 +48,27 @@ final class IPAInspectTool: MCPTool {
         // 读取 Info.plist
         let plistPath = bundlePath.appending("/Info.plist")
         if let plist = NSDictionary(contentsOfFile: plistPath) {
+            let name = plist["CFBundleName"] as? String ?? ""
+            let displayName = plist["CFBundleDisplayName"] as? String ?? ""
+            let bundleId = plist["CFBundleIdentifier"] as? String ?? ""
+            let version = plist["CFBundleShortVersionString"] as? String ?? ""
+            let build = plist["CFBundleVersion"] as? String ?? ""
+            let exec = plist["CFBundleExecutable"] as? String ?? ""
+            let minOS = plist["MinimumOSVersion"] as? String ?? ""
+            let platform = plist["DTPlatformName"] as? String ?? ""
+            let urlTypes = (plist["CFBundleURLTypes"] as? [[String: Any]])?.count ?? 0
+            let bgModes = (plist["UIBackgroundModes"] as? [String]) ?? []
             result["info"] = [
-                "CFBundleName": plist["CFBundleName"] as? String ?? "",
-                "CFBundleDisplayName": plist["CFBundleDisplayName"] as? String ?? "",
-                "CFBundleIdentifier": plist["CFBundleIdentifier"] as? String ?? "",
-                "CFBundleShortVersionString": plist["CFBundleShortVersionString"] as? String ?? "",
-                "CFBundleVersion": plist["CFBundleVersion"] as? String ?? "",
-                "CFBundleExecutable": plist["CFBundleExecutable"] as? String ?? "",
-                "MinimumOSVersion": plist["MinimumOSVersion"] as? String ?? "",
-                "DTPlatformName": plist["DTPlatformName"] as? String ?? "",
-                "CFBundleURLTypes": (plist["CFBundleURLTypes"] as? [[String: Any]])?.count ?? 0,
-                "UIBackgroundModes": (plist["UIBackgroundModes"] as? [String]) ?? []
+                "CFBundleName": name,
+                "CFBundleDisplayName": displayName,
+                "CFBundleIdentifier": bundleId,
+                "CFBundleShortVersionString": version,
+                "CFBundleVersion": build,
+                "CFBundleExecutable": exec,
+                "MinimumOSVersion": minOS,
+                "DTPlatformName": platform,
+                "CFBundleURLTypes": urlTypes,
+                "UIBackgroundModes": bgModes
             ]
         }
 

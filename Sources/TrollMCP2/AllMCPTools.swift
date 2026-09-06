@@ -39,7 +39,9 @@ final class InjectionEnableTool: MCPTool {
                     return lower.contains("error") || lower.contains("fail") || lower.contains("fatal") || lower.contains("cannot") || lower.contains("operation not permitted")
                 }
                 let tail = Array(lines.suffix(3))
-                let summary = (important + tail).removingDuplicates().prefix(5).joined(separator: "\n")
+                var seen = Set<String>()
+                let deduped = (important + tail).filter { seen.insert($0).inserted }
+                let summary = deduped.prefix(5).joined(separator: "\n")
                 slim[key] = summary.isEmpty ? "(日志已截断，完整日志见工作区)" : summary
                 slim["\(key)_truncated"] = lines.count > 5
             }
