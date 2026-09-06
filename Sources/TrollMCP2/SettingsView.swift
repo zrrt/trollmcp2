@@ -30,6 +30,14 @@ struct SettingsView: View {
                         color: .orange,
                         destination: DeveloperInstructionsView()
                     )
+                    // v2.9.74：系统指令选择器（不可编辑，可切换默认）
+                    SettingRow(
+                        title: "系统指令",
+                        subtitle: SystemPrompts.shared.selected.name,
+                        icon: "command.circle.fill",
+                        color: .tmCyan,
+                        destination: SystemPromptsView()
+                    )
                 }
 
                 Section(header: SettingSectionHeader(title: "核心功能")) {
@@ -187,7 +195,7 @@ struct SettingsView: View {
                         color: .orange,
                         destination: NetworkDebugView()
                     )
-                    LabeledRow(label: "版本", value: "2.9.73")
+                    LabeledRow(label: "版本", value: "2.9.74")
                     // v2.9.68：自动更新检查
                     SettingRowButton(
                         title: "检查更新",

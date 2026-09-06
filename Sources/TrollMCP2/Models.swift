@@ -488,9 +488,9 @@ final class ConversationStore: ObservableObject {
         client.currentReasoningLevel = reasoningLevel
         currentClient = client
         var history = messagesForAPI(budget: config.contextTokens)
-        // v2.9.34：协作规范（最高优先级，不依赖开发者指令配置）
-        // ——工具逐个调用（每次最多 1 个、等结果），次数不限；回复自然可带 emoji。
-        history.insert(ChatMessage(role: "system", content: "【协作规范】\n1. 调用工具时请逐个进行：每次只调用一个工具，等待其结果后再决定下一步；不要一次发出多个工具调用。工具调用次数不受限制，可以放心一步步推进。\n2. 回复自然、简洁、口语化，可适度使用 emoji 表达语气，但不要滥用。"), at: 0)
+        // v2.9.74：系统指令（用户可在设置中切换默认，不可编辑）
+        // ——优先级最高，高于开发者指令。替代 v2.9.34 写死的协作规范。
+        history.insert(ChatMessage(role: "system", content: SystemPrompts.shared.selected.content), at: 0)
         // v2.9.19：默认开发者指令注入为 system 前缀（用户可自建并设为默认）
         if let devInstr = DeveloperInstructionStore.shared.defaultInjectionContent(), !devInstr.isEmpty {
             history.insert(ChatMessage(role: "system", content: "以下是开发者指令，请始终遵守：\n" + devInstr), at: 0)
