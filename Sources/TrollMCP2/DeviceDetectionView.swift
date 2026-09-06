@@ -257,8 +257,8 @@ struct DeviceDetectionView: View {
         .navigationTitle("本机环境")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if showsDismissButton {
-                ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                if showsDismissButton {
                     Button("完成") { presentationMode.wrappedValue.dismiss() }
                 }
             }
