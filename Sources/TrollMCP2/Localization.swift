@@ -35,8 +35,8 @@ final class LanguageManager: ObservableObject {
 
 enum L10n {
     static func t(_ key: String) -> String {
-        let lang = LanguageManager.shared.language
-        let table: [String: [AppLanguage: String]] = [
+        let lang = LanguageManager.shared.language.rawValue
+        let table: [String: [String: String]] = [
             // ===== 通用 =====
             "settings": ["zh": "设置", "en": "Settings"],
             "back": ["zh": "返回", "en": "Back"],
