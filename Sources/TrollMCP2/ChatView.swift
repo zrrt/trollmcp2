@@ -224,9 +224,9 @@ struct ChatView: View {
             Image(systemName: "message.badge")
                 .font(.system(size: 48))
                 .foregroundColor(.secondary)
-            Text("尚未配置模型")
+            Text(L10n.t("home_empty_title"))
                 .font(.headline)
-            Text("请先在设置中添加 API 配置")
+            Text(L10n.t("home_empty_sub"))
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -238,35 +238,51 @@ struct ChatView: View {
         ScrollView {
             VStack(spacing: 24) {
                 Spacer(minLength: 40)
-                Image(systemName: "cpu")
-                    .font(.system(size: 56))
-                    .foregroundColor(.blue)
-                    .frame(width: 90, height: 90)
-                    .background(Color.blue.opacity(0.12))
-                    .cornerRadius(22)
+                // v2.9.76：首页使用真实 App 图标（浅蓝巨魔脸）
+                Group {
+                    if let appIcon = UIImage(named: "AppIcon60x60@3x") ?? UIImage(named: "AppIcon1024x1024") {
+                        Image(uiImage: appIcon)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 96, height: 96)
+                            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                    .stroke(Color.tmCyan.opacity(0.25), lineWidth: 1)
+                            )
+                    } else {
+                        Image(systemName: "cpu")
+                            .font(.system(size: 56))
+                            .foregroundColor(.blue)
+                            .frame(width: 90, height: 90)
+                            .background(Color.blue.opacity(0.12))
+                            .cornerRadius(22)
+                    }
+                }
 
                 VStack(spacing: 8) {
-                    Text("你好，我是 TrollAgent")
+                    Text(L10n.t("home_greeting"))
                         .font(.title2)
                         .fontWeight(.semibold)
-                    Text("在设备端分析应用、内存与签名信息")
+                    Text(L10n.t("home_subtitle"))
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
                 }
 
                 VStack(spacing: 12) {
                     QuickActionCard(
                         icon: "square.grid.2x2",
-                        title: "分析我的应用",
-                        subtitle: "扫描缓存、注入状态与已安装应用"
+                        title: L10n.t("home_analyze_apps"),
+                        subtitle: L10n.t("home_analyze_apps_sub")
                     ) {
                         runQuickPrompt("帮我分析一下本机已安装的应用，列出缓存占用最大的几个")
                     }
                     QuickActionCard(
                         icon: "memorychip",
-                        title: "检查设备与内存",
-                        subtitle: "设备信息、可用容量与环境检测"
+                        title: L10n.t("home_check_device"),
+                        subtitle: L10n.t("home_check_device_sub")
                     ) {
                         runQuickPrompt("检查一下本机设备和内存情况")
                     }
@@ -309,7 +325,7 @@ struct ChatView: View {
                                 HStack(spacing: 8) {
                                     ProgressView()
                                         .scaleEffect(0.8)
-                                    Text("正在思考")
+                                    Text(L10n.t("home_thinking"))
                                         .font(.footnote.weight(.medium))
                                 }
                                 .padding(.horizontal, 14)

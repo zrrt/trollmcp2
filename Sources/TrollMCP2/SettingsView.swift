@@ -4,67 +4,62 @@ struct SettingsView: View {
     @Environment(\.presentationMode) var presentationMode
     // v2.9.72：开发者模式开关，开启后显示高级选项
     @State private var developerMode = UserDefaults.standard.bool(forKey: "developer_mode")
+    // v2.9.76：语言选择弹窗
+    @State private var showLanguagePicker = false
 
     var body: some View {
         NavigationView {
             List {
-                Section(header: SettingSectionHeader(title: "模型")) {
+                Section(header: SettingSectionHeader(title: L10n.t("sec_models"))) {
                     SettingRow(
-                        title: "模型 API",
+                        title: L10n.t("row_model_api"),
                         subtitle: "\(ModelStore.shared.configs.count) 个 · \(modelProviderName())",
                         icon: "rectangle.stack.badge.person.crop",
                         color: .blue,
                         destination: ModelsView()
                     )
                     SettingRow(
-                        title: "数据管理",
+                        title: L10n.t("row_data"),
                         subtitle: "App 文稿目录",
                         icon: "externaldrive.fill",
                         color: .purple,
                         destination: DataManagementView()
                     )
-                    SettingRow(
-                        title: "开发者指令",
-                        subtitle: devInstructionsSubtitle(),
-                        icon: "doc.text.fill",
-                        color: .orange,
-                        destination: DeveloperInstructionsView()
-                    )
                     // v2.9.74：系统指令选择器（不可编辑，可切换默认）
                     SettingRow(
-                        title: "系统指令",
+                        title: L10n.t("row_sys_prompts"),
                         subtitle: SystemPrompts.shared.selected.name,
-                        icon: "command.circle.fill",
+                        icon: "text.book.closed.fill",
                         color: .tmCyan,
                         destination: SystemPromptsView()
                     )
                 }
 
-                Section(header: SettingSectionHeader(title: "核心功能")) {
+                Section(header: SettingSectionHeader(title: L10n.t("sec_core"))) {
                     SettingRow(
-                        title: "注入与自动化",
-                        subtitle: "全应用 · 策略 · 自动化",
+                        title: L10n.t("row_inject"),
+                        subtitle: L10n.t("row_inject_sub"),
                         icon: "syringe.fill",
                         color: .tmIndigo,
                         destination: InjectionView()
                     )
                     // v2.9.75：远程控制（ControlAgent 通用 UI 控制）
                     SettingRow(
-                        title: "远程控制",
-                        subtitle: "AI 控制任意 App UI",
+                        title: L10n.t("row_remote"),
+                        subtitle: L10n.t("row_remote_sub"),
                         icon: "cursorarrow.click.2",
                         color: .tmCyan,
                         destination: RemoteControlView()
                     )
                     SettingRow(
-                        title: "GitHub 账号",
+                        title: L10n.t("row_github"),
                         subtitle: "线上编译 · \(githubAccountSubtitle())",
                         icon: "person.crop.circle.fill.badge.checkmark",
                         color: .black,
                         destination: GitHubAccountView()
                     )
                     SettingRow(
-                        title: "下载管理",
+                        title: L10n.t("row_downloads"),
                         subtitle: "线上编译产物 · 勾选删除",
                         icon: "arrow.down.circle.fill",
                         color: .green,
@@ -72,56 +67,85 @@ struct SettingsView: View {
                     )
                 }
 
-                // v2.9.72：开发者模式开关
+                // v2.9.76：开发者模式（美化图标 + 状态色）
                 Section {
                     Toggle(isOn: Binding(
                         get: { developerMode },
                         set: { developerMode = $0; UserDefaults.standard.set($0, forKey: "developer_mode") }
                     )) {
-                        Label("开发者模式", systemImage: "wrench.and.screwdriver.fill")
-                            .foregroundColor(.secondary)
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(LinearGradient(
+                                        colors: developerMode
+                                            ? [Color(red: 0.35, green: 0.34, blue: 0.84), Color(red: 0.0, green: 0.74, blue: 0.95)]
+                                            : [Color.gray.opacity(0.55), Color.gray.opacity(0.4)],
+                                        startPoint: .topLeading, endPoint: .bottomTrailing))
+                                    .frame(width: 34, height: 34)
+                                Image(systemName: "hammer.circle.fill")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(L10n.t("row_dev_mode"))
+                                    .font(.body)
+                                    .foregroundColor(.primary)
+                                Text(developerMode ? "显示全部高级选项" : "开启后显示开发者选项")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
                     }
+                    .accentColor(.tmCyan)   // v2.9.76：iOS14 用 accentColor（.tint 需 iOS15+）
                 }
 
                 if developerMode {
-                    Section(header: SettingSectionHeader(title: "开发者选项")) {
+                    Section(header: SettingSectionHeader(title: L10n.t("sec_dev"))) {
+                        // v2.9.76：开发者指令移到开发者模式下面
                         SettingRow(
-                            title: "权限与自动化",
+                            title: L10n.t("row_dev_instructions"),
+                            subtitle: devInstructionsSubtitle(),
+                            icon: "doc.text.magnifyingglass",
+                            color: .orange,
+                            destination: DeveloperInstructionsView()
+                        )
+                        SettingRow(
+                            title: L10n.t("row_permissions"),
                             subtitle: "\(permissionCount()) 项系统权限",
                             icon: "hand.raised.fill",
                             color: .red,
                             destination: SystemCapabilitiesView()
                         )
                         SettingRow(
-                            title: "自动化中心",
+                            title: L10n.t("row_automation"),
                             subtitle: "任务 · 历史 · 重试",
                             icon: "bolt.fill",
                             color: .yellow,
                             destination: AutomationCenterView()
                         )
                         SettingRow(
-                            title: "工具权限策略",
+                            title: L10n.t("row_tool_policy"),
                             subtitle: "按工具控制 · 真实/占位",
                             icon: "lock.shield.fill",
                             color: .green,
                             destination: ToolPermissionPoliciesView()
                         )
                         SettingRow(
-                            title: "会话记录",
+                            title: L10n.t("row_transcripts"),
                             subtitle: "完整对话存档",
                             icon: "text.book.closed.fill",
                             color: .tmCyan,
                             destination: ConversationTranscriptView()
                         )
                         SettingRow(
-                            title: "SSH 远程连接",
+                            title: L10n.t("row_ssh"),
                             subtitle: sshConfigSubtitle(),
                             icon: "terminal.fill",
                             color: .tmCyan,
                             destination: SSHSettingsView()
                         )
                         SettingRow(
-                            title: "内置智能搜索",
+                            title: L10n.t("row_search"),
                             subtitle: "Bing Web · 用法说明",
                             icon: "magnifyingglass.circle.fill",
                             color: .tmCyan,
@@ -129,7 +153,7 @@ struct SettingsView: View {
                         )
                         // v2.9.39：内置浏览器改为悬浮窗
                         SettingRowButton(
-                            title: "内置浏览器",
+                            title: L10n.t("row_browser"),
                             subtitle: "悬浮窗 · AI 可控制 · 蓝框高亮",
                             icon: "globe.asia.australia.fill",
                             color: .tmCyan
@@ -140,28 +164,28 @@ struct SettingsView: View {
                             }
                         }
                         SettingRow(
-                            title: "Gateway 设置",
+                            title: L10n.t("row_gateway"),
                             subtitle: "服务端管理 · \(GatewayServerStore.shared.servers.count) 个",
                             icon: "network",
                             color: .tmTeal,
                             destination: GatewaySettingsView()
                         )
                         SettingRow(
-                            title: "Agents 与 Skills",
+                            title: L10n.t("row_agents"),
                             subtitle: "隔离指令 · 工作流",
                             icon: "person.3.fill",
                             color: .pink,
                             destination: AgentsAndSkillsView()
                         )
                         SettingRow(
-                            title: "本机知识库",
+                            title: L10n.t("row_kb"),
                             subtitle: "文件导入 · 来源检索",
                             icon: "books.vertical.fill",
                             color: .tmBrown,
                             destination: KnowledgeBaseView()
                         )
                         SettingRow(
-                            title: "Webhooks",
+                            title: L10n.t("row_webhooks"),
                             subtitle: "HTTPS 事件出口",
                             icon: "link.circle.fill",
                             color: .gray,
@@ -170,17 +194,17 @@ struct SettingsView: View {
                     }
                 }
 
-                Section(header: SettingSectionHeader(title: "安全")) {
+                Section(header: SettingSectionHeader(title: L10n.t("sec_security"))) {
                     // v2.9.36：本机工具审计（老 MCP 样式：执行成功/失败 · 权限 · 耗时 · 数据量 · 可导出）
                     SettingRow(
-                        title: "本机工具审计",
+                        title: L10n.t("row_audit"),
                         subtitle: "工具调用 · 成功/失败 · 导出给 AI 查看",
                         icon: "list.bullet.rectangle",
                         color: .tmIndigo,
                         destination: AuditLogView()
                     )
                     SettingRow(
-                        title: "API Key 管理",
+                        title: L10n.t("row_apikeys"),
                         subtitle: "查看 · 显隐 · 恢复",
                         icon: "key.fill",
                         color: .red,
@@ -188,30 +212,49 @@ struct SettingsView: View {
                     )
                 }
 
-                Section(header: SettingSectionHeader(title: "关于")) {
+                Section(header: SettingSectionHeader(title: L10n.t("sec_about"))) {
+                    // v2.9.76：语言切换
+                    SettingRowButton(
+                        title: L10n.t("row_lang"),
+                        subtitle: LanguageManager.shared.language.displayName,
+                        icon: "globe",
+                        color: .tmCyan
+                    ) {
+                        showLanguagePicker = true
+                    }
+                    .actionSheet(isPresented: $showLanguagePicker) {
+                        ActionSheet(
+                            title: Text(L10n.t("row_lang")),
+                            buttons: AppLanguage.allCases.map { lang in
+                                .default(Text(lang.displayName)) {
+                                    LanguageManager.shared.language = lang
+                                }
+                            } + [.cancel(Text(L10n.t("cancel")))]
+                        )
+                    }
                     SettingRow(
-                        title: "本机环境检测",
+                        title: L10n.t("row_env"),
                         subtitle: envSubtitle(),
-                        icon: "checkmark.shield.fill",
+                        icon: envIcon(),
                         color: envColor(),
                         destination: DeviceDetectionView()
                     )
                     SettingRow(
-                        title: "网络兼容日志",
+                        title: L10n.t("row_netlog"),
                         subtitle: NetworkLog.lastCompatNote ?? "中转站自适应降级记录",
                         icon: "network",
                         color: .orange,
                         destination: NetworkDebugView()
                     )
-                    LabeledRow(label: "版本", value: "2.9.75")
+                    LabeledRow(label: L10n.t("version"), value: "2.9.76")
                     // v2.9.68：自动更新检查
                     SettingRowButton(
-                        title: "检查更新",
+                        title: L10n.t("row_check_update"),
                         subtitle: updateSubtitle(),
                         icon: "arrow.triangle.2.circlepath.circle.fill",
                         color: .tmCyan
                     ) {
-                        UpdateManager.shared.checkForUpdate(currentVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.9.73")
+                        UpdateManager.shared.checkForUpdate(currentVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.9.76")
                     }
                     if UpdateManager.shared.updateAvailable, let latest = UpdateManager.shared.latestVersion {
                         SettingRowButton(
@@ -229,10 +272,15 @@ struct SettingsView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("设置")
+            .navigationTitle(L10n.t("settings"))
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") { presentationMode.wrappedValue.dismiss() }
+                // v2.9.76：全屏下左侧返回（去掉右上角"完成"）
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: { presentationMode.wrappedValue.dismiss() }) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 17, weight: .semibold))
+                    }
                 }
             }
         }
@@ -247,6 +295,13 @@ struct SettingsView: View {
         if r.ready { return "就绪 · 全部通过" }
         let failed = r.checks.filter { !$0.passed }.count
         return "未就绪 · \(failed) 项异常"
+    }
+
+    private func envIcon() -> String {
+        // v2.9.76：美化图标（盾牌+对勾/感叹号，随状态变化）
+        guard let r = lastProbe else { return "checkmark.shield.fill" }
+        if r.ready { return "checkmark.shield.fill" }
+        return "exclamationmark.shield.fill"
     }
 
     private func envColor() -> Color {

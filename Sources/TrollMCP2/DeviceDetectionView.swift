@@ -2,6 +2,8 @@ import SwiftUI
 
 struct DeviceDetectionView: View {
     @Environment(\.presentationMode) var presentationMode
+    // v2.9.76：从抽屉 sheet 打开时显示"完成"；从设置 push 时只显示返回箭头
+    var showsDismissButton = false
     @State private var report: DeviceProbe.Report?
     @State private var running = false
 
@@ -9,18 +11,29 @@ struct DeviceDetectionView: View {
         ScrollView {
             VStack(spacing: 16) {
                 if let r = report {
-                    // 顶部状态卡片
+                    // 顶部状态卡片（v2.9.76：美化——渐变 + 圆环徽标 + 状态点）
                     ZStack {
-                        RoundedRectangle(cornerRadius: 16)
+                        RoundedRectangle(cornerRadius: 20)
                             .fill(LinearGradient(
                                 gradient: Gradient(colors: r.ready
-                                    ? [Color(red: 0.15, green: 0.65, blue: 0.4), Color(red: 0.1, green: 0.5, blue: 0.35)]
-                                    : [Color(red: 0.85, green: 0.3, blue: 0.3), Color(red: 0.7, green: 0.2, blue: 0.25)]),
+                                    ? [Color(red: 0.16, green: 0.67, blue: 0.45), Color(red: 0.1, green: 0.52, blue: 0.38), Color(red: 0.05, green: 0.42, blue: 0.32)]
+                                    : [Color(red: 0.88, green: 0.35, blue: 0.3), Color(red: 0.75, green: 0.25, blue: 0.28), Color(red: 0.6, green: 0.18, blue: 0.24)]),
                                 startPoint: .topLeading, endPoint: .bottomTrailing))
-                        VStack(spacing: 8) {
-                            Image(systemName: r.ready ? "checkmark.shield.fill" : "exclamationmark.shield.fill")
-                                .font(.system(size: 44))
-                                .foregroundColor(.white)
+                        VStack(spacing: 10) {
+                            ZStack {
+                                Circle()
+                                    .stroke(Color.white.opacity(0.25), lineWidth: 3)
+                                    .frame(width: 76, height: 76)
+                                Circle()
+                                    .stroke(
+                                        Color.white.opacity(0.6),
+                                        style: StrokeStyle(lineWidth: 3, dash: [6, 5])
+                                    )
+                                    .frame(width: 76, height: 76)
+                                Image(systemName: r.ready ? "checkmark.shield.fill" : "exclamationmark.shield.fill")
+                                    .font(.system(size: 36))
+                                    .foregroundColor(.white)
+                            }
                             Text(r.ready ? "本机环境就绪" : "本机环境异常")
                                 .font(.title2)
                                 .fontWeight(.bold)
@@ -31,8 +44,21 @@ struct DeviceDetectionView: View {
                             Text(r.model)
                                 .font(.caption)
                                 .foregroundColor(Color.white.opacity(0.7))
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(r.ready ? Color.green : Color.yellow)
+                                    .frame(width: 8, height: 8)
+                                Text(r.ready ? "就绪 · 可注入" : "需检查下方项目")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.white)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 5)
+                            .background(Color.black.opacity(0.2))
+                            .cornerRadius(12)
                         }
-                        .padding(.vertical, 24)
+                        .padding(.vertical, 26)
                     }
                     .padding(.horizontal)
                     .padding(.top, 8)
@@ -231,8 +257,10 @@ struct DeviceDetectionView: View {
         .navigationTitle("本机环境")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button("完成") { presentationMode.wrappedValue.dismiss() }
+            if showsDismissButton {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") { presentationMode.wrappedValue.dismiss() }
+                }
             }
         }
         .onAppear(perform: runProbe)

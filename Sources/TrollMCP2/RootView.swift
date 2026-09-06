@@ -9,6 +9,7 @@ final class AppUIState: ObservableObject {
 
 struct RootView: View {
     @ObservedObject private var ui = AppUIState.shared
+    @ObservedObject private var lang = LanguageManager.shared   // v2.9.76：语言切换全局刷新
 
     var body: some View {
         ZStack {
@@ -37,12 +38,15 @@ struct RootView: View {
         // v2.9.39：内置浏览器悬浮窗（所有界面之上，可缩小到右侧边缘，AI 操作自动浮现）
         // 注意：trailing-closure 版 overlay 仅 iOS15+，项目部署目标 iOS14，用 view 参数版
         .overlay(FloatingBrowserOverlay())
-        .sheet(isPresented: Binding(
+        // v2.9.76：设置改全屏（去掉 sheet 半屏 + 顶部 grabber），子页面头部对齐
+        .fullScreenCover(isPresented: Binding(
             get: { ui.settingsPresented },
             set: { ui.settingsPresented = $0 }
         )) {
             SettingsView()
         }
+        // v2.9.76：语言切换后全局重建视图
+        .id(lang.language.rawValue)
     }
 
     private func drawerWidth(for geo: GeometryProxy) -> CGFloat {
@@ -76,7 +80,7 @@ struct ConversationDrawerView: View {
         .background(Color(.systemBackground))
         .onAppear(perform: refreshReadiness)
         .sheet(isPresented: $showDevice) {
-            NavigationView { DeviceDetectionView() }
+            NavigationView { DeviceDetectionView(showsDismissButton: true) }
         }
     }
 
@@ -88,7 +92,7 @@ struct ConversationDrawerView: View {
                 .frame(width: 32, height: 32)
                 .background(LinearGradient(colors: [.blue, .tmCyan], startPoint: .topLeading, endPoint: .bottomTrailing))
                 .cornerRadius(9)
-            Text("对话")
+            Text(L10n.t("drawer_title"))
                 .font(.title3)
                 .fontWeight(.bold)
             Spacer()
@@ -116,7 +120,7 @@ struct ConversationDrawerView: View {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(.secondary)
                 .font(.system(size: 14))
-            TextField("搜索对话内容...", text: $searchText)
+            TextField(L10n.t("drawer_search"), text: $searchText)
                 .font(.subheadline)
             if !searchText.isEmpty {
                 Button(action: { searchText = "" }) {
@@ -138,7 +142,7 @@ struct ConversationDrawerView: View {
 
     private var countLabel: some View {
         HStack {
-            Text("\(store.conversations.count) 个本机对话")
+            Text(L10n.t("drawer_count").replacingOccurrences(of: "{n}", with: "\(store.conversations.count)"))
                 .font(.caption)
                 .foregroundColor(.secondary)
             Spacer()
@@ -174,7 +178,7 @@ struct ConversationDrawerView: View {
                     .contextMenu {
                         // iOS14 兼容：不用 Button(role:)
                         Button(action: { deleteSingle(conv.id) }) {
-                            Label("删除对话", systemImage: "trash")
+                            Label(L10n.t("drawer_delete"), systemImage: "trash")
                         }
                     }
                 }
@@ -226,8 +230,8 @@ struct ConversationDrawerView: View {
     }
 
     private var readinessText: String {
-        if let ready = deviceReady { return ready ? "就绪 · 可注入" : "环境受限 · 点按查看" }
-        return "点按检测本机"
+        if let ready = deviceReady { return ready ? L10n.t("drawer_ready") : L10n.t("drawer_env_limited") }
+        return L10n.t("drawer_probe")
     }
 
     private func refreshReadiness() {
@@ -237,20 +241,33 @@ struct ConversationDrawerView: View {
 
     private var bottomWorkbench: some View {
         // v2.9.10：圆角卡片式底部工具栏（环境入口 + 设置齿轮）
+        // v2.9.76：就绪图标美化——渐变圆环 + 脉冲点 + 波浪扫描
         HStack(spacing: 10) {
             Button(action: { showDevice = true }) {
                 HStack(spacing: 8) {
                     ZStack {
                         Circle()
-                            .fill((deviceReady == true ? Color.green : Color.orange).opacity(0.15))
-                            .frame(width: 30, height: 30)
-                        Image(systemName: "waveform.path.badge.checkmark")
-                            .font(.system(size: 14, weight: .semibold))
+                            .fill((deviceReady == true ? Color.green : Color.orange).opacity(0.14))
+                            .frame(width: 32, height: 32)
+                        Circle()
+                            .stroke(
+                                (deviceReady == true ? Color.green : Color.orange).opacity(0.35),
+                                lineWidth: 2
+                            )
+                            .frame(width: 32, height: 32)
+                        Image(systemName: deviceReady == true ? "waveform.path.ecg" : "exclamationmark")
+                            .font(.system(size: 13, weight: .bold))
                             .foregroundColor(deviceReady == true ? .green : .orange)
                     }
-                    Text(readinessText)
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(readinessText)
+                            .font(.footnote)
+                            .fontWeight(.medium)
+                            .foregroundColor(deviceReady == true ? .green : .orange)
+                        Text(deviceReady == true ? "TrollStore" : "检测环境")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .contentShape(Rectangle())
             }
