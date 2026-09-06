@@ -10,6 +10,7 @@ struct FloatingBrowserOverlay: View {
     @ObservedObject private var bm = BrowserManager.shared
     @State private var urlText = ""
     @State private var dragging = false
+    @State private var isFullscreen = false   // v2.9.80：全屏模式
 
     var body: some View {
         GeometryReader { geo in
@@ -21,7 +22,8 @@ struct FloatingBrowserOverlay: View {
                             .gesture(dragGesture(minimumDistance: 12))
                     } else {
                         expandedView
-                            .frame(width: geo.size.width * 0.92, height: geo.size.height * 0.60)
+                            .frame(width: isFullscreen ? geo.size.width * 0.98 : geo.size.width * 0.92,
+                                   height: isFullscreen ? geo.size.height * 0.94 : geo.size.height * 0.60)
                             .position(fb.center)
                     }
                 }
@@ -66,6 +68,20 @@ struct FloatingBrowserOverlay: View {
                 .contentShape(Rectangle())
                 .gesture(dragGesture(minimumDistance: 12))
                 Spacer()
+                Button(action: {
+                    isFullscreen.toggle()
+                    if isFullscreen {
+                        let s = UIScreen.main.bounds.size
+                        fb.setCenter(CGPoint(x: s.width / 2, y: s.height / 2))
+                    }
+                }) {
+                    Image(systemName: isFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 26, height: 26)
+                        .background(Color.white.opacity(0.22))
+                        .clipShape(Circle())
+                }
                 Button(action: { withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) { fb.collapse() } }) {
                     Image(systemName: "minus")
                         .font(.system(size: 12, weight: .bold))
@@ -87,10 +103,12 @@ struct FloatingBrowserOverlay: View {
             .frame(height: 40)
             .background(LinearGradient(colors: [Color.blue, Color.tmCyan], startPoint: .leading, endPoint: .trailing))
 
-            // URL 栏
+            // URL 栏（v2.9.80：回车直接打开；iOS14 用 onCommit 构造器）
             HStack(spacing: 8) {
                 HStack(spacing: 0) {
-                    TextField("输入网址，如 github.com", text: $urlText)
+                    TextField("输入网址，如 github.com", text: $urlText, onCommit: {
+                        bm.open(urlText); urlText = ""
+                    })
                         .font(.footnote)
                         .autocapitalization(.none)
                         .keyboardType(.URL)
@@ -120,12 +138,18 @@ struct FloatingBrowserOverlay: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
 
-            // 控制条（后退/前进/刷新 + 蓝框开关 + 元素数）
+            // 控制条（后退/前进/刷新 + 外部打开 + 蓝框开关 + 元素数）
             HStack(spacing: 18) {
                 controlButton("arrow.backward") { _ = bm.goBack() }
                 controlButton("arrow.forward") { _ = bm.goForward() }
                 controlButton("arrow.clockwise") { _ = bm.reload() }
                 Spacer()
+                // v2.9.80：外部打开（Safari）
+                controlButton("arrow.up.right.square") {
+                    if let u = URL(string: bm.currentURL), bm.currentURL != "about:blank" {
+                        UIApplication.shared.open(u)
+                    }
+                }
                 HStack(spacing: 5) {
                     Image(systemName: "highlighter")
                         .font(.caption2)
@@ -161,16 +185,56 @@ struct FloatingBrowserOverlay: View {
             WebViewContainer(bm: bm)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // 状态条
-            HStack {
-                Text(bm.pageTitle.isEmpty ? bm.currentURL : bm.pageTitle)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                Spacer()
-                Text("AI 用 browser.* 控制")
-                    .font(.caption2)
-                    .foregroundColor(.blue)
+            // v2.9.80：加载失败提示条
+            if !bm.lastError.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(.orange)
+                    Text(bm.lastError)
+                        .font(.caption2)
+                        .foregroundColor(.orange)
+                        .lineLimit(1)
+                    Spacer()
+                    Button("重试") { _ = bm.reload() }
+                        .font(.caption2.weight(.semibold))
+                        .foregroundColor(.blue)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Color.orange.opacity(0.08))
+            }
+
+            // 状态条（v2.9.80：AI 操作进度 / 加载指示）
+            VStack(spacing: 3) {
+                HStack {
+                    if bm.isLoading {
+                        ProgressView()
+                            .scaleEffect(0.65)
+                            .padding(.trailing, 2)
+                    }
+                    Text(bm.pageTitle.isEmpty ? bm.currentURL : bm.pageTitle)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                    Spacer()
+                    Text("AI 用 browser.* 控制")
+                        .font(.caption2)
+                        .foregroundColor(.blue)
+                }
+                if !bm.currentAction.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "cursorarrow.click")
+                            .font(.system(size: 10))
+                            .foregroundColor(.blue)
+                        Text(bm.currentAction)
+                            .font(.caption2)
+                            .foregroundColor(.blue)
+                            .lineLimit(1)
+                        Spacer()
+                    }
+                    .transition(.opacity)
+                }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
@@ -182,7 +246,8 @@ struct FloatingBrowserOverlay: View {
         .onAppear {
             bm.ensureWebView()
             if bm.webView?.url == nil || bm.currentURL == "about:blank" {
-                bm.open("https://www.baidu.com")
+                // v2.9.80：默认主页统一 Bing（对齐全屏浏览器页）
+                bm.open("https://www.bing.com")
             }
         }
     }

@@ -84,6 +84,26 @@ struct BrowserView: View {
                 WebViewContainer(bm: bm)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
 
+                // v2.9.80：加载失败提示（与悬浮窗保持一致）
+                if !bm.lastError.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(.orange)
+                        Text(bm.lastError)
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                            .lineLimit(1)
+                        Spacer()
+                        Button("重试") { _ = bm.reload() }
+                            .font(.caption2.weight(.semibold))
+                            .foregroundColor(.blue)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+                    .background(Color.orange.opacity(0.08))
+                }
+
                 // 底部状态条（全屏时也保留，显示 AI 操作进度）
                 VStack(spacing: 4) {
                     HStack {

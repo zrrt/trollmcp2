@@ -52,6 +52,11 @@ final class FloatingBrowser: ObservableObject {
         isCollapsed = false
     }
 
+    /// v2.9.80：直接设置中心（全屏切换时居中）
+    func setCenter(_ p: CGPoint) {
+        center = p
+    }
+
     // MARK: - 拖动（由视图 DragGesture 调用）
 
     func beginDrag() {

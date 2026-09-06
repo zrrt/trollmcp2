@@ -16,6 +16,9 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     @Published var elementCount = 0
     @Published var lastSnapshot = ""           // 最近一次元素快照 JSON 字符串
     @Published var currentAction = ""          // v2.9.67：AI 当前正在执行的浏览器操作描述
+    // v2.9.80：加载状态与错误（overlay 显示加载进度 / 失败提示）
+    @Published var isLoading = false
+    @Published var lastError = ""
 
     private(set) var webView: WKWebView?
     private var loadedOnce = false
@@ -45,6 +48,22 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
         webView = wv
     }
 
+    // MARK: - 操作进度（AI 工具调用时设置，悬浮窗底部显示）
+
+    private func beginAction(_ desc: String) {
+        DispatchQueue.main.async {
+            self.currentAction = desc
+            self.isLoading = false
+        }
+    }
+
+    private func endAction() {
+        DispatchQueue.main.async {
+            self.currentAction = ""
+            self.isLoading = false
+        }
+    }
+
     // MARK: - 导航
 
     func open(_ urlString: String) -> String {
@@ -55,8 +74,13 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
         if u.isEmpty { return "ERR: 空 URL" }
         if !u.contains("://") { u = "https://" + u }
         guard let url = URL(string: u) else { return "ERR: 无效 URL" }
-        let req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
-        DispatchQueue.main.async { self.webView?.load(req) }
+        beginAction("正在打开 \(url.host ?? urlString)")
+        DispatchQueue.main.async {
+            self.isLoading = true
+            self.lastError = ""
+            let req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
+            self.webView?.load(req)
+        }
         currentURL = url.absoluteString
         return "已开始加载 \(url.absoluteString)"
     }
@@ -64,6 +88,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     func goBack() -> String {
         ensureWebView()
         FloatingBrowser.shared.show()
+        beginAction("后退")
         DispatchQueue.main.async {
             if self.webView?.canGoBack == true { self.webView?.goBack() }
         }
@@ -73,6 +98,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     func goForward() -> String {
         ensureWebView()
         FloatingBrowser.shared.show()
+        beginAction("前进")
         DispatchQueue.main.async {
             if self.webView?.canGoForward == true { self.webView?.goForward() }
         }
@@ -82,7 +108,12 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     func reload() -> String {
         ensureWebView()
         FloatingBrowser.shared.show()
-        DispatchQueue.main.async { self.webView?.reload() }
+        beginAction("刷新页面")
+        DispatchQueue.main.async {
+            self.isLoading = true
+            self.lastError = ""
+            self.webView?.reload()
+        }
         return "刷新"
     }
 
@@ -135,7 +166,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
           e.style.outline='2px solid rgba(10,132,255,0.95)';
           e.style.outlineOffset='1px';
           var txt=(e.innerText||e.value||'').trim().replace(/\\s+/g,' ').slice(0,60);
-          out.push({idx:idx,tag:e.tagName,text:txt,type:e.getAttribute('type')||'',name:e.getAttribute('name')||'',href:(e.getAttribute('href')||'').slice(0,90),placeholder:e.getAttribute('placeholder')||'',value:(e.value||'').slice(0,40)});
+          out.push({idx:idx,tag:e.tagName,text:txt,type:e.getAttribute('type')||'',name:e.getAttribute('name')||'',href:(e.getAttribute('href')||'').slice(0,90),placeholder:e.getAttribute('placeholder')||'',value:(e.value||'').slice(0,40),x:Math.round(r.left),y:Math.round(r.top),w:Math.round(r.width),h:Math.round(r.height)});
           idx++;
         }
         return JSON.stringify(out);
@@ -145,10 +176,13 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
 
     /// 注入高亮并返回元素快照 JSON（AI 调用时自动浮现悬浮窗）
     /// v2.9.44：支持 query 关键字过滤（按文本/标签/占位符/name/href 模糊匹配），长页面不爆 token
+    /// v2.9.80：元素带 x/y/w/h 坐标
     func snapshot(query: String? = nil) -> [String: Any] {
         ensureWebView()
         FloatingBrowser.shared.show()
+        beginAction("扫描页面可交互元素…")
         let json = evalSync(Self.highlightScript)
+        endAction()
         lastSnapshot = json
         var result: [String: Any] = ["url": currentURL, "title": pageTitle]
         if json.hasPrefix("ERR:") {
@@ -181,20 +215,34 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
         return result
     }
 
+    /// 确保页面已有 data-browser-idx 标记（蓝框关闭 / 页面跳转后重打标，否则 AI click/type 会失败）
+    private func ensureMarked() {
+        let check = evalSync("document.querySelectorAll('[data-browser-idx]').length")
+        if check == "0" || check.hasPrefix("ERR") {
+            _ = evalSync(Self.highlightScript)
+        }
+    }
+
     /// 点击元素（按快照 idx）；点击后自动重新高亮，刷新蓝框编号避免旧 idx
+    /// v2.9.80：点击前先确保标记存在（修蓝框关闭后必失败 bug）；点击时目标蓝色闪烁，用户能看到 AI 点了哪里
     func clickElement(_ idx: Int) -> String {
         FloatingBrowser.shared.show()
-        let js = "(function(){var e=document.querySelector('[data-browser-idx=\\\"\(idx)\\\"]');if(!e)return 'ERR: 元素 '+\(idx)+' 不存在（页面可能已变化，请重新 snapshot）';var t=(e.innerText||e.value||'').trim().slice(0,40);e.click();return '已点击 '+e.tagName+' '+JSON.stringify(t);})();"
+        beginAction("点击元素 #\(idx)…")
+        ensureMarked()
+        let js = "(function(){var e=document.querySelector('[data-browser-idx=\\\"\(idx)\\\"]');if(!e)return 'ERR: 元素 '+\(idx)+' 不存在（页面可能已变化，请重新 snapshot）';var t=(e.innerText||e.value||'').trim().slice(0,40);var orig=e.style.outline;e.style.outline='3px solid rgba(0,200,255,1)';e.style.outlineOffset='2px';setTimeout(function(){e.style.outline=orig;},900);e.click();return '已点击 '+e.tagName+' '+JSON.stringify(t);})();"
         let r = evalSync(js)
         if !r.hasPrefix("ERR") {
             _ = evalSync(Self.highlightScript)   // 点击后页面可能变化，刷新编号
         }
+        endAction()
         return r
     }
 
     /// 填表（按快照 idx + 文本）
     func typeText(_ idx: Int, _ text: String) -> String {
         FloatingBrowser.shared.show()
+        beginAction("向元素 #\(idx) 输入文本…")
+        ensureMarked()
         let t = JSONString(text)
         let js = """
         (function(){
@@ -209,13 +257,18 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
           return '已输入: '+\(t);
         })();
         """
-        return evalSync(js)
+        let r = evalSync(js)
+        endAction()
+        return r
     }
 
     /// 执行任意 JS（AI 调用时自动浮现悬浮窗）
     func evaluate(_ js: String) -> String {
         FloatingBrowser.shared.show()
-        return evalSync(js)
+        beginAction("执行 JavaScript…")
+        let r = evalSync(js)
+        endAction()
+        return r
     }
 
     /// 当前状态
@@ -226,6 +279,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
             "title": pageTitle,
             "highlighted": highlighted,
             "elementCount": elementCount,
+            "loading": isLoading,
             "hint": "先用 browser.snapshot 获取可交互元素（蓝框编号），再按 idx 用 browser.click / browser.type 操作"
         ]
         if let wv = webView {
@@ -248,6 +302,12 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         currentURL = webView.url?.absoluteString ?? currentURL
         pageTitle = webView.title ?? ""
+        // v2.9.80：加载完成清理状态
+        DispatchQueue.main.async {
+            self.isLoading = false
+            self.currentAction = ""
+            self.lastError = ""
+        }
         // v2.9.44：修复主线程死锁——didFinish 在主线程回调，不能用 evalSync
         // （其内部 main.async + semaphore.wait 会阻塞主线程 15s → 浏览器卡死/页面空白）
         if highlighted {
@@ -263,10 +323,20 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         pageTitle = "加载失败"
+        DispatchQueue.main.async {
+            self.isLoading = false
+            self.currentAction = ""
+            self.lastError = "加载失败：\((error as NSError).localizedDescription.prefix(60))"
+        }
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         pageTitle = "无法访问"
         currentURL = webView.url?.absoluteString ?? currentURL
+        DispatchQueue.main.async {
+            self.isLoading = false
+            self.currentAction = ""
+            self.lastError = "无法访问：\((error as NSError).localizedDescription.prefix(60))"
+        }
     }
 }
