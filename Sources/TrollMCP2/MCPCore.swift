@@ -353,6 +353,12 @@ public final class ToolRegistry: ObservableObject {
         register(ContainerWriteTextTool())
         register(ContainerDeleteTool())
 
+        // v2.9.68：SSH 远程连接 + 应用解密
+        register(SSHTool())
+        register(SCPTool())
+        register(AppDecryptTool())
+        register(AppEncryptInfoTool())
+
         // M4 Gateway + 自动化（含原版命名）
         register(GatewayStatusTool())
         register(GatewayConnectTool())
