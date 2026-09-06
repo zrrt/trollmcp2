@@ -8,7 +8,7 @@ import Foundation
 struct BrowserStatusTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.status",
-        summary: "查看内置浏览器状态：当前 URL、标题、高亮开关、元素数。AI 控制浏览器前先调用此工具了解当前页面。",
+        summary: "查看内置浏览器状态：当前 URL、标题、高亮开关、元素数。注意：如果用户要求打开/访问某个网址，请直接调用 browser.open(url) 打开，不要只查状态。",
         parameters: [:]
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

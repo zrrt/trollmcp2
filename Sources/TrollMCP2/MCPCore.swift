@@ -124,7 +124,7 @@ public final class ToolRegistry: ObservableObject {
         "artifact.list", "artifact.read_text", "artifact.find",  // 文件浏览/查找（AI 最常用，find 定位下载产物）
         "model.config",         // 当前模型配置
         "injection.status",     // 注入状态（用户主线常用）
-        "browser.status"        // v2.9.37：浏览器状态入口（描述引导 AI 搜索 browser.* 其他工具）
+        "browser.status", "browser.open"   // v2.9.82：open 常驻核心，避免 AI 只 status 不打开网址
     ]
 
     public func isEnabled(name: String) -> Bool {

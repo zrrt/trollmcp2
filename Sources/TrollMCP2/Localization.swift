@@ -58,6 +58,9 @@ enum L10n {
             // v2.9.79：聊天框模型条
             "current_model": ["zh": "当前模型", "en": "Model"],
             "not_configured": ["zh": "未配置", "en": "Not set"],
+            // v2.9.82：任务完成通知
+            "task_notify": ["zh": "任务完成通知", "en": "Task Notification"],
+            "task_notify_sub": ["zh": "AI 执行完成/失败时，后台发本地通知", "en": "Notify when AI finishes or fails in background"],
 
             // ===== 首页 =====
             "home_greeting": ["zh": "你好，我是 TrollAgent", "en": "Hi, I'm TrollAgent"],

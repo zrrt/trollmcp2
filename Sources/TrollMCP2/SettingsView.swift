@@ -101,6 +101,31 @@ struct SettingsView: View {
 
                 if developerMode {
                     Section(header: SettingSectionHeader(title: L10n.t("sec_dev"))) {
+                        // v2.9.82：任务完成通知开关
+                        Toggle(isOn: Binding(
+                            get: { TaskNotify.shared.enabled },
+                            set: { TaskNotify.shared.enabled = $0 }
+                        )) {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .fill(LinearGradient(colors: [.blue, .tmCyan], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                        .frame(width: 34, height: 34)
+                                    Image(systemName: "bell.badge.fill")
+                                        .font(.system(size: 15, weight: .semibold))
+                                        .foregroundColor(.white)
+                                }
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(L10n.t("task_notify"))
+                                        .font(.body)
+                                        .foregroundColor(.primary)
+                                    Text(L10n.t("task_notify_sub"))
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                        .accentColor(.tmCyan)
                         // v2.9.76：开发者指令移到开发者模式下面
                         SettingRow(
                             title: L10n.t("row_dev_instructions"),
@@ -246,7 +271,7 @@ struct SettingsView: View {
                         color: .orange,
                         destination: NetworkDebugView()
                     )
-                    LabeledRow(label: L10n.t("version"), value: "2.9.81")
+                    LabeledRow(label: L10n.t("version"), value: "2.9.82")
                     // v2.9.68：自动更新检查
                     SettingRowButton(
                         title: L10n.t("row_check_update"),
@@ -254,7 +279,7 @@ struct SettingsView: View {
                         icon: "arrow.triangle.2.circlepath.circle.fill",
                         color: .tmCyan
                     ) {
-                        UpdateManager.shared.checkForUpdate(currentVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.9.81")
+                        UpdateManager.shared.checkForUpdate(currentVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.9.82")
                     }
                     if UpdateManager.shared.updateAvailable, let latest = UpdateManager.shared.latestVersion {
                         SettingRowButton(
@@ -366,7 +391,7 @@ struct SettingsView: View {
         if let error = UpdateManager.shared.errorMessage {
             return "检查失败: \(error.prefix(30))"
         }
-        return "当前 v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.9.81") · 点击检查"
+        return "当前 v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.9.82") · 点击检查"
     }
 }
 

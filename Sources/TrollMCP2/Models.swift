@@ -402,6 +402,8 @@ final class ConversationStore: ObservableObject {
         currentClient = nil
         isLoading = false
         statusText = nil
+        // v2.9.82：回收后台任务
+        TaskNotify.shared.endBackground()
     }
 
     func clearCurrent() {
@@ -424,6 +426,9 @@ final class ConversationStore: ObservableObject {
 
     func send(_ text: String, using config: ModelConfig, imageDataURLs: [String]? = nil,
               reasoningLevel: Int = 0, smartSearch: Bool = true) {
+        // v2.9.82：请求开始——首次要通知权限 + 开启后台任务延长
+        TaskNotify.shared.requestPermissionIfNeeded()
+        TaskNotify.shared.beginBackground()
         var msg = ChatMessage(role: "user", content: text)
         if let imgs = imageDataURLs, !imgs.isEmpty {
             msg.imageDataURLs = imgs
@@ -455,6 +460,9 @@ final class ConversationStore: ObservableObject {
             statusText = nil
             requestRound = 0
             runningTool = nil
+            // v2.9.82：后台时通知
+            TaskNotify.shared.endBackground()
+            TaskNotify.shared.notifyIfBackground(title: "任务已停止", body: "达到极端安全上限（60 轮），已停止。可点「停止」中断。")
             appendToCurrent(ChatMessage(role: "assistant", content: "已达到极端安全上限（60 轮），已停止。若 AI 仍在循环，请点输入框旁的「停止」按钮中断。", isError: true))
             return
         }
@@ -529,6 +537,9 @@ final class ConversationStore: ObservableObject {
                     self.currentClient = nil
                     self.requestRound = 0
                     self.runningTool = nil
+                    // v2.9.82：完成通知（后台时）
+                    TaskNotify.shared.endBackground()
+                    TaskNotify.shared.notifyIfBackground(title: "AI 已回复", body: String(text.prefix(60)))
                     if let sid = self.streamingMessageId {
                         // 流式已显示，更新最终文本 + thinking
                         self.updateMessageContent(id: sid, content: text)
@@ -565,8 +576,13 @@ final class ConversationStore: ObservableObject {
                     if nsErr.code == -999 {
                         self.statusText = nil
                         self.streamingMessageId = nil
+                        // v2.9.82：取消也算结束，回收后台任务但不通知
+                        TaskNotify.shared.endBackground()
                         return
                     }
+                    // v2.9.82：失败通知（后台时）
+                    TaskNotify.shared.endBackground()
+                    TaskNotify.shared.notifyIfBackground(title: "任务出错", body: String(error.localizedDescription.prefix(60)))
                     // 流式失败时保留已输出的部分文本，追加错误提示
                     if self.streamingMessageId != nil {
                         self.streamingMessageId = nil
