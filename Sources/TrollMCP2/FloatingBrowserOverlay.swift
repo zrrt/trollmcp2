@@ -103,12 +103,10 @@ struct FloatingBrowserOverlay: View {
             .frame(height: 40)
             .background(LinearGradient(colors: [Color.blue, Color.tmCyan], startPoint: .leading, endPoint: .trailing))
 
-            // URL 栏（v2.9.80：回车直接打开；iOS14 用 onCommit 构造器）
+            // URL 栏（v2.9.80：回车直接打开；v2.9.81：统一 submitURL，错误上屏）
             HStack(spacing: 8) {
                 HStack(spacing: 0) {
-                    TextField("输入网址，如 github.com", text: $urlText, onCommit: {
-                        bm.open(urlText); urlText = ""
-                    })
+                    TextField("输入网址，如 github.com", text: $urlText, onCommit: submitURL)
                         .font(.footnote)
                         .autocapitalization(.none)
                         .keyboardType(.URL)
@@ -125,7 +123,7 @@ struct FloatingBrowserOverlay: View {
                 .frame(height: 32)
                 .background(Color(.secondarySystemBackground))
                 .cornerRadius(16)
-                Button(action: { bm.open(urlText); urlText = "" }) {
+                Button(action: submitURL) {
                     Text("打开")
                         .font(.footnote.weight(.medium))
                         .foregroundColor(.white)
@@ -245,10 +243,22 @@ struct FloatingBrowserOverlay: View {
         .shadow(color: .black.opacity(0.25), radius: 14, x: 0, y: 6)
         .onAppear {
             bm.ensureWebView()
-            if bm.webView?.url == nil || bm.currentURL == "about:blank" {
-                // v2.9.80：默认主页统一 Bing（对齐全屏浏览器页）
+            // v2.9.81：只在从未加载过任何页面时自动开 Bing，
+            // 避免自动加载覆盖用户/AI 刚发起的 URL（原 webView?.url == nil 判断有竞态）
+            if !bm.hasLoadedAny {
                 bm.open("https://www.bing.com")
             }
+        }
+    }
+
+    /// v2.9.81：统一 URL 提交（回车 / 打开按钮），失败信息显示到错误条
+    private func submitURL() {
+        let text = urlText
+        urlText = ""
+        guard !text.isEmpty else { return }
+        let result = bm.open(text)
+        if result.hasPrefix("ERR:") {
+            bm.lastError = result.replacingOccurrences(of: "ERR: ", with: "")
         }
     }
 

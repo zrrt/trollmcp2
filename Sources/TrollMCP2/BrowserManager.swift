@@ -21,7 +21,9 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     @Published var lastError = ""
 
     private(set) var webView: WKWebView?
-    private var loadedOnce = false
+    // v2.9.81：是否已加载过任意页面（替代从未赋值的 loadedOnce）
+    // 悬浮窗 onAppear 只在从未加载过时自动开 Bing，避免自动加载覆盖用户/AI 刚发起的 URL
+    private(set) var hasLoadedAny = false
 
     private override init() {
         super.init()
@@ -66,6 +68,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
 
     // MARK: - 导航
 
+    /// 打开网页（v2.9.81：URL 规范化 + 明确报错 + hasLoadedAny 标记，修自动 Bing 覆盖用户输入的竞态）
     func open(_ urlString: String) -> String {
         ensureWebView()
         // v2.9.39：AI 打开网页时自动浮现悬浮窗，用户实时看到操作
@@ -73,21 +76,30 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
         var u = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
         if u.isEmpty { return "ERR: 空 URL" }
         if !u.contains("://") { u = "https://" + u }
+        // 裸域名补 www（部分站点裸域 https 不响应，如 baidu.com → www.baidu.com）
+        if let host = URL(string: u)?.host,
+           host.split(separator: ".").count == 1 {
+            u = u.replacingOccurrences(of: "https://\(host)", with: "https://www.\(host)")
+        }
         guard let url = URL(string: u) else { return "ERR: 无效 URL" }
+        guard let wv = webView else { return "ERR: 浏览器未初始化" }
+        hasLoadedAny = true
         beginAction("正在打开 \(url.host ?? urlString)")
         DispatchQueue.main.async {
             self.isLoading = true
             self.lastError = ""
             let req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
-            self.webView?.load(req)
+            wv.load(req)
         }
         currentURL = url.absoluteString
+        AuditLog.shared.log("browser.open", detail: "\(urlString) → \(url.absoluteString)")
         return "已开始加载 \(url.absoluteString)"
     }
 
     func goBack() -> String {
         ensureWebView()
         FloatingBrowser.shared.show()
+        hasLoadedAny = true
         beginAction("后退")
         DispatchQueue.main.async {
             if self.webView?.canGoBack == true { self.webView?.goBack() }
@@ -98,6 +110,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     func goForward() -> String {
         ensureWebView()
         FloatingBrowser.shared.show()
+        hasLoadedAny = true
         beginAction("前进")
         DispatchQueue.main.async {
             if self.webView?.canGoForward == true { self.webView?.goForward() }
@@ -108,6 +121,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     func reload() -> String {
         ensureWebView()
         FloatingBrowser.shared.show()
+        hasLoadedAny = true
         beginAction("刷新页面")
         DispatchQueue.main.async {
             self.isLoading = true

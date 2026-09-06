@@ -15,7 +15,14 @@ struct BrowserView: View {
                 // URL 栏
                 HStack(spacing: 8) {
                     HStack(spacing: 0) {
-                        TextField("输入网址，如 github.com", text: $urlText)
+                        TextField("输入网址，如 github.com", text: $urlText, onCommit: {
+                            let text = urlText
+                            urlText = ""
+                            let result = bm.open(text)
+                            if result.hasPrefix("ERR:") {
+                                bm.lastError = result.replacingOccurrences(of: "ERR: ", with: "")
+                            }
+                        })
                             .font(.footnote)
                             .autocapitalization(.none)
                             .keyboardType(.URL)
@@ -32,7 +39,14 @@ struct BrowserView: View {
                     .frame(height: 34)
                     .background(Color(.secondarySystemBackground))
                     .cornerRadius(17)
-                    Button(action: { bm.open(urlText); urlText = "" }) {
+                    Button(action: {
+                        let text = urlText
+                        urlText = ""
+                        let result = bm.open(text)
+                        if result.hasPrefix("ERR:") {
+                            bm.lastError = result.replacingOccurrences(of: "ERR: ", with: "")
+                        }
+                    }) {
                         Text("打开")
                             .font(.footnote.weight(.medium))
                             .foregroundColor(.white)
@@ -161,7 +175,8 @@ struct BrowserView: View {
         .navigationViewStyle(.stack)
         .onAppear {
             bm.ensureWebView()
-            if bm.webView?.url == nil || bm.currentURL == "about:blank" {
+            // v2.9.81：只在从未加载过任何页面时自动开 Bing（修竞态覆盖）
+            if !bm.hasLoadedAny {
                 bm.open("https://www.bing.com")
             }
             urlText = ""
