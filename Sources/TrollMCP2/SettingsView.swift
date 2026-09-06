@@ -187,7 +187,7 @@ struct SettingsView: View {
                         color: .orange,
                         destination: NetworkDebugView()
                     )
-                    LabeledRow(label: "版本", value: "2.9.72")
+                    LabeledRow(label: "版本", value: "2.9.73")
                     // v2.9.68：自动更新检查
                     SettingRowButton(
                         title: "检查更新",
@@ -195,7 +195,7 @@ struct SettingsView: View {
                         icon: "arrow.triangle.2.circlepath.circle.fill",
                         color: .tmCyan
                     ) {
-                        UpdateManager.shared.checkForUpdate(currentVersion: "2.9.68")
+                        UpdateManager.shared.checkForUpdate(currentVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.9.72")
                     }
                     if UpdateManager.shared.updateAvailable, let latest = UpdateManager.shared.latestVersion {
                         SettingRowButton(

@@ -406,6 +406,10 @@ public final class ToolRegistry: ObservableObject {
         register(CompatibilityTool())
         register(CrashReproTool())
 
+        // v2.9.73：项目上下文 + 任务模板
+        register(ProjectTool())
+        register(TaskTool())
+
         // M4 Gateway + 自动化（含原版命名）
         register(GatewayStatusTool())
         register(GatewayConnectTool())
