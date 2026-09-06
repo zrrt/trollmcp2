@@ -1,0 +1,9 @@
+Package: com.trollagent.controlagent
+Name: ControlAgent
+Version: 1.0
+Architecture: iphoneos-arm64
+Description: Generic UI control dylib for TrollAgent. Inject into any app to enable AI remote control via localhost HTTP.
+Maintainer: TrollAgent
+Author: TrollAgent
+Section: Tweaks
+Depends: mobilesubstrate
