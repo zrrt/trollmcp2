@@ -6,6 +6,8 @@ struct SettingsView: View {
     @State private var developerMode = UserDefaults.standard.bool(forKey: "developer_mode")
     // v2.9.76：语言选择弹窗
     @State private var showLanguagePicker = false
+    // v2.9.84：聊天框「在设置中管理模型」→ 打开设置并自动跳到模型 API 页
+    @State private var jumpToModels = false
 
     var body: some View {
         NavigationView {
@@ -271,7 +273,7 @@ struct SettingsView: View {
                         color: .orange,
                         destination: NetworkDebugView()
                     )
-                    LabeledRow(label: L10n.t("version"), value: "2.9.83")
+                    LabeledRow(label: L10n.t("version"), value: "2.9.84")
                     // v2.9.68：自动更新检查
                     SettingRowButton(
                         title: L10n.t("row_check_update"),
@@ -279,7 +281,7 @@ struct SettingsView: View {
                         icon: "arrow.triangle.2.circlepath.circle.fill",
                         color: .tmCyan
                     ) {
-                        UpdateManager.shared.checkForUpdate(currentVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.9.83")
+                        UpdateManager.shared.checkForUpdate(currentVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.9.84")
                     }
                     if UpdateManager.shared.updateAvailable, let latest = UpdateManager.shared.latestVersion {
                         SettingRowButton(
@@ -311,6 +313,16 @@ struct SettingsView: View {
         }
         .navigationViewStyle(.stack)
         .onAppear { triggerProbe() }   // v2.9.18：进入设置页自动探测一次，更新环境状态色
+        // v2.9.84：从聊天框「在设置中管理模型」跳入时自动导航到模型 API 页
+        .background(
+            NavigationLink(destination: ModelsView(), isActive: $jumpToModels) { EmptyView() }
+        )
+        .onAppear {
+            if AppUIState.shared.settingsJumpToModels {
+                AppUIState.shared.settingsJumpToModels = false
+                jumpToModels = true
+            }
+        }
     }
 
     @State private var lastProbe: DeviceProbe.Report?
@@ -391,7 +403,7 @@ struct SettingsView: View {
         if let error = UpdateManager.shared.errorMessage {
             return "检查失败: \(error.prefix(30))"
         }
-        return "当前 v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.9.83") · 点击检查"
+        return "当前 v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.9.84") · 点击检查"
     }
 }
 

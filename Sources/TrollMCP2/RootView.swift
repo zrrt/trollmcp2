@@ -5,6 +5,8 @@ final class AppUIState: ObservableObject {
     static let shared = AppUIState()
     @Published var drawerOpen = false
     @Published var settingsPresented = false
+    // v2.9.84：打开设置后自动跳转到「模型 API」页（聊天框「在设置中管理模型」用）
+    @Published var settingsJumpToModels = false
 }
 
 struct RootView: View {

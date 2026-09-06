@@ -850,7 +850,11 @@ struct ChatModelPickerSheet: View {
                     }
                 }
                 Section {
-                    Button(action: { AppUIState.shared.settingsPresented = true }) {
+                    Button(action: {
+                        // v2.9.84：打开设置并直接跳到「模型 API」页
+                        AppUIState.shared.settingsJumpToModels = true
+                        AppUIState.shared.settingsPresented = true
+                    }) {
                         Label("在设置中管理模型", systemImage: "gearshape.fill")
                             .font(.footnote)
                     }
