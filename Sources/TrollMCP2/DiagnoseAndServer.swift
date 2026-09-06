@@ -223,7 +223,7 @@ final class DiagnoseCrashTool: MCPTool {
 
 final class LocalServerManager {
     static let shared = LocalServerManager()
-    private var serverSocket: Int32 = -1
+    private(set) var serverSocket: Int32 = -1
     private var isRunning = false
     private var acceptThread: Thread?
 
