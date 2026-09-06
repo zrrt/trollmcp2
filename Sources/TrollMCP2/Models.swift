@@ -765,10 +765,42 @@ final class ConversationStore: ObservableObject {
         var result = kept + suffix
         // 清理孤立 tool 消息：裁剪可能导致 assistant(tool_calls) 被裁、其 tool 结果残留
         result = Self.sanitizeToolSequence(result)
-        // 插入截断提示
+        // 插入截断提示（v2.9.88：本地生成话题摘要，而非简单丢弃 —— 不用额外请求，
+        // 从被裁消息里提取用户提问/工具名作为"旧会话记忆"，AI 仍能感知上下文主题）
         let dropped = all.count - result.count
         if dropped > 0 {
-            let hint = ChatMessage(role: "system", content: "[系统] 为控制上下文长度，已省略最早 \(dropped) 条历史消息。")
+            let droppedMsgs = Array(all.prefix(all.count - result.count))
+            var topics: [String] = []
+            var toolNames: Set<String> = []
+            var idx = 0
+            for m in droppedMsgs {
+                idx += 1
+                if m.role == "tool" { continue }
+                if let calls = m.toolCalls, !calls.isEmpty {
+                    for c in calls {
+                        if let n = c["function"] as? [String: Any], let name = n["name"] as? String {
+                            toolNames.insert(name)
+                        }
+                    }
+                    if topics.count < 8, idx % 4 == 0 { topics.append("工具调用") }
+                    continue
+                }
+                if m.role == "user" || m.role == "assistant" {
+                    let text = m.content.replacingOccurrences(of: "\n", with: " ")
+                    if !text.isEmpty, topics.count < 8 {
+                        topics.append(String(text.prefix(24)))
+                    }
+                }
+            }
+            var summaryParts: [String] = ["已省略最早 \(dropped) 条历史消息"]
+            if !topics.isEmpty {
+                summaryParts.append("话题: " + topics.prefix(6).joined(separator: " / "))
+            }
+            if !toolNames.isEmpty {
+                summaryParts.append("涉及工具: " + toolNames.sorted().prefix(10).joined(separator: "、"))
+            }
+            summaryParts.append("如需旧细节，请直接提问，AI 会重新执行相关工具获取。")
+            let hint = ChatMessage(role: "system", content: "[系统] " + summaryParts.joined(separator: "。"))
             result.insert(hint, at: 0)
         }
         return result

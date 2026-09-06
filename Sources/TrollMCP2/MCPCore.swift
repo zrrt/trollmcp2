@@ -447,12 +447,16 @@ public final class ToolRegistry: ObservableObject {
         register(ScanQRTool())
         register(ProcessListTool())
 
-        // M5.5 内置浏览器（v2.9.37：AI 可控，蓝框高亮元素）
+        // M5.5 内置浏览器（v2.9.37：AI 可控，蓝框高亮元素；v2.9.88：+wait/text/scroll/submit）
         register(BrowserStatusTool())
         register(BrowserOpenTool())
+        register(BrowserWaitTool())
         register(BrowserSnapshotTool())
         register(BrowserClickTool())
         register(BrowserTypeTool())
+        register(BrowserSubmitTool())
+        register(BrowserTextTool())
+        register(BrowserScrollTool())
         register(BrowserEvalTool())
         register(BrowserNavigateTool())
 

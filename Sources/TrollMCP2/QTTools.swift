@@ -197,6 +197,40 @@ final class DylibInspectTool: MCPTool {
 
 // MARK: - 注入诊断器
 
+/// v2.9.88：读取 Mach-O 架构（支持 thin + fat）。返回 arm64 / arm64e / armv7 / x86_64 / unknown。
+private func machOArch(_ path: String) -> String {
+    guard let data = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe), data.count >= 8 else { return "unknown" }
+    let magic = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 0, as: UInt32.self) }
+    // 小端
+    let magicLE = magic.byteSwapped
+    switch magic {
+    case 0xFEEDFACE:   // thin 32
+        let cpu = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: UInt32.self) }
+        return cpu == 12 ? "armv7" : (cpu == 7 ? "x86" : "cpu\(cpu)")
+    case 0xFEEDFACF:   // thin 64
+        let cpu = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: UInt32.self) }
+        return cpu == 0x0100000C ? "arm64" : (cpu == 0x01000007 ? "x86_64" : "cpu\(cpu)")
+    case 0xCAFEBABE, 0xBEBAFECA:  // fat（magic 大端）
+        let count = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: UInt32.self) }.byteSwapped
+        var arches: [String] = []
+        for i in 0..<min(count, 8) {
+            let off = 8 + Int(i) * 20
+            guard data.count >= off + 8 else { break }
+            let cpu = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: off, as: UInt32.self) }.byteSwapped
+            switch cpu {
+            case 12: arches.append("armv7")
+            case 0x0100000C: arches.append("arm64")
+            case 0x0100000C | 1: arches.append("arm64e")
+            case 0x01000007: arches.append("x86_64")
+            default: arches.append("cpu\(cpu)")
+            }
+        }
+        return arches.isEmpty ? "fat(?)" : "fat:" + arches.joined(separator: ",")
+    default:
+        return magicLE == 0xFEEDFACE || magicLE == 0xFEEDFACF ? "unknown(be)" : "unknown(\(String(magic, radix: 16)))"
+    }
+}
+
 final class InjectionDiagnoseTool: MCPTool {
     let definition = ToolDefinition(
         name: "injection.diagnose",
@@ -231,6 +265,23 @@ final class InjectionDiagnoseTool: MCPTool {
         if !probe.ready {
             issues.append("root 注入环境未就绪")
             fixes.append("在 TrollStore 开启「编辑 Entitlements」后卸载重装")
+        }
+
+        // v2.9.88：2b. Bundle 目录真实可写性（cp EPERM 的直接判据）——
+        // 注入要把 dylib 写进 /private/var/containers/Bundle/Application/.../xxx.app，
+        // 该目录归 root 所有，mobile 用户写必报 "Operation not permitted"。
+        // 用内置 mkdir 以 root 身份建探针目录来验证（包内无 touch，mkdir+rm 即可闭环）。
+        let probeDir = (target.path as NSString).appendingPathComponent(".diag_probe_\(UUID().uuidString)")
+        let (tCode, tOut) = InjectionManager.shared.runAsRoot("mkdir", args: ["-p", probeDir])
+        let bundleWritable = (tCode == 0) && FileManager.default.fileExists(atPath: probeDir)
+        if bundleWritable {
+            _ = InjectionManager.shared.runAsRoot("rm", args: ["-rf", probeDir])
+        }
+        diagnosis["bundle_write_test"] = bundleWritable
+        diagnosis["bundle_write_detail"] = bundleWritable ? "root 身份可写目标 App Bundle 目录" : "root 身份写入失败(\(tCode)): \(String(tOut.prefix(120)))"
+        if !bundleWritable {
+            issues.append("目标 App Bundle 目录不可写（注入 cp 将报 Operation not permitted）")
+            fixes.append("在 TrollStore 中开启「编辑 Entitlements」后卸载重装本 App（覆盖安装不会重新应用权限）；或检查该 App 是否系统级受保护")
         }
 
         // 3. 检查目标进程是否在运行
@@ -272,9 +323,30 @@ final class InjectionDiagnoseTool: MCPTool {
             }
         }
 
-        // 6. 检查 Mach-O 完整性（备份是否存在）
+        // 6. 检查 Mach-O 完整性（主二进制存在 + 备份）
         let mainBinary = target.path.appending("/\((NSDictionary(contentsOfFile: target.path.appending("/Info.plist"))?["CFBundleExecutable"] as? String) ?? "")")
         let backupPath = mainBinary.appending(".bak_macho")
+        let mainExists = FileManager.default.fileExists(atPath: mainBinary)
+        diagnosis["main_binary"] = mainBinary
+        diagnosis["main_binary_exists"] = mainExists
+        if !mainExists {
+            issues.append("主二进制不存在: \(mainBinary)")
+            fixes.append("目标 App 已损坏或被篡改，先卸载重装目标 App")
+        }
+        // v2.9.88：主二进制架构（与 dylib 架构做匹配校验）
+        let mainArch = machOArch(mainBinary)
+        diagnosis["main_binary_arch"] = mainArch
+        if let dylib = dylibPath, FileManager.default.fileExists(atPath: dylib) {
+            let dylibArch = machOArch(dylib)
+            diagnosis["dylib_arch"] = dylibArch
+            if !dylibArch.contains("arm64") {
+                issues.append("dylib 架构 \(dylibArch) 与设备不匹配（需要 arm64）")
+                fixes.append("用 Theos 重新编译 dylib 为 arm64 架构")
+            } else if mainArch.contains("arm64") && !mainArch.contains("fat") && mainArch != dylibArch {
+                issues.append("dylib 架构 \(dylibArch) 与主二进制 \(mainArch) 不一致")
+                fixes.append("重新编译匹配架构的 dylib，或用 lipo 合并两种架构")
+            }
+        }
         diagnosis["backup_exists"] = FileManager.default.fileExists(atPath: backupPath)
 
         // 7. 检查注入工具链

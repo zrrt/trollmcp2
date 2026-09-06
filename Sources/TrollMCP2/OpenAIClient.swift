@@ -99,7 +99,22 @@ final class OpenAIClient {
         } else {
             NetworkLog.shared.log("\(config.name): 发起请求（级别 0 完整载荷）")
         }
-        attempt(level: start, isFirst: true, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, completion: completion)
+        // v2.9.88：请求全链路耗时可视化 —— 在外层包一层 completion，
+        // 无论成功/失败/降级多少次，最终只上报一次总耗时（首字节→流式→工具调用全含在内）。
+        // 先调用原 completion（内部会清 statusText），再补报耗时，让用户看到"完成用了多久"。
+        let wrappedCompletion: (Result<ChatResult, Error>) -> Void = { result in
+            let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
+            completion(result)
+            switch result {
+            case .success:
+                let secs = String(format: "%.1f", Double(el) / 1000.0)
+                NetworkLog.shared.log("\(self.config.name) 请求完成（\(el)ms）")
+                onStatus?("响应完成 · 总耗时 \(secs)s（含降级重试）")
+            case .failure(let e):
+                NetworkLog.shared.log("\(self.config.name) 请求失败（\(el)ms）: \(e.localizedDescription)")
+            }
+        }
+        attempt(level: start, isFirst: true, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, completion: wrappedCompletion)
     }
 
     /// 降级顺序：L0→L1→L2→（带 tools 时优先 L5 Responses API，保住工具调用）→L3→L4→结束
@@ -850,6 +865,10 @@ final class OpenAIClient {
             if !firstByteReceived {
                 firstByteReceived = true
                 firstByteTimer.cancel()
+                // v2.9.88：链路可视化 —— 首字节到达即上报"已连接，开始流式接收"
+                let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
+                NetworkLog.shared.log("\(self.config.name): 流式首字节（\(el)ms）")
+                onStatus?("已连接 · 首字节 \(String(format: "%.1f", Double(el) / 1000.0))s，开始接收…")
             }
             if fellBackToNonStream { return }
             guard let ev = self.parseSSEEvent(raw) else { return }

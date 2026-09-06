@@ -131,6 +131,113 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
         return "刷新"
     }
 
+    // MARK: - v2.9.88 AI 可控浏览器补强：等待 / 正文提取 / 滚动 / 表单提交
+
+    /// 等待页面加载完成（最多 timeout 秒）。open 后必须 wait，否则 snapshot 拿不到元素。
+    func wait(timeout: Int = 15) -> [String: Any] {
+        ensureWebView()
+        FloatingBrowser.shared.show()
+        beginAction("等待页面加载…")
+        let deadline = Date().addingTimeInterval(TimeInterval(timeout))
+        var ready = false
+        while Date() < deadline {
+            let state = evalSync("document.readyState", timeout: 5)
+            if state == "complete" || state == "interactive" {
+                ready = true
+                break
+            }
+            if isLoading == false && !lastError.isEmpty { break }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        // 加载完成后重新高亮
+        if ready || highlighted {
+            _ = evalSync(Self.highlightScript)
+        }
+        endAction()
+        var r: [String: Any] = [
+            "url": currentURL,
+            "title": pageTitle,
+            "loaded": ready,
+            "error": lastError.isEmpty ? nil : lastError
+        ]
+        // 顺带返回页面正文长度，方便 AI 判断内容是否就位
+        let textLen = evalSync("(document.body && document.body.innerText || '').length")
+        r["body_text_length"] = Int(textLen) ?? 0
+        return r
+    }
+
+    /// 提取页面可见正文（供 AI 阅读/总结页面内容）。可选 query 做关键词上下文截取。
+    func getText(maxChars: Int = 3000, query: String? = nil) -> String {
+        ensureWebView()
+        FloatingBrowser.shared.show()
+        beginAction("提取页面正文…")
+        let js = """
+        (function(){
+          var t=(document.body&&document.body.innerText||'').replace(/\\s+\\n/g,'\\n').replace(/\\n{3,}/g,'\\n\\n').trim();
+          return t;
+        })();
+        """
+        var text = evalSync(js, timeout: 10)
+        if text.hasPrefix("ERR:") { endAction(); return text }
+        if let q = query, !q.isEmpty {
+            // 找关键词附近上下文：前后各 400 字符
+            if let range = text.range(of: q, options: .caseInsensitive) {
+                let lo = text.index(range.lowerBound, offsetBy: -min(400, text.distance(from: text.startIndex, to: range.lowerBound)), limitedBy: text.startIndex) ?? text.startIndex
+                let hi = text.index(range.upperBound, offsetBy: min(400, text.distance(from: range.upperBound, to: text.endIndex)), limitedBy: text.endIndex) ?? text.endIndex
+                text = "…\(text[lo..<hi])…"
+            } else {
+                text = "未找到关键词「\(q)」上下文，返回开头：\n" + String(text.prefix(800))
+            }
+        } else {
+            text = String(text.prefix(maxChars))
+        }
+        endAction()
+        return text
+    }
+
+    /// 页面滚动：down / up / top / bottom
+    func scroll(_ direction: String) -> String {
+        ensureWebView()
+        FloatingBrowser.shared.show()
+        beginAction("滚动页面（\(direction)）")
+        let js: String
+        switch direction {
+        case "down": js = "window.scrollBy(0, window.innerHeight*0.8); 'scrolled down'"
+        case "up": js = "window.scrollBy(0, -window.innerHeight*0.8); 'scrolled up'"
+        case "top": js = "window.scrollTo(0,0); 'scrolled to top'"
+        case "bottom": js = "window.scrollTo(0, document.body.scrollHeight); 'scrolled to bottom'"
+        default: endAction(); return "ERR: direction 只支持 down/up/top/bottom"
+        }
+        let r = evalSync(js)
+        _ = evalSync(Self.highlightScript)   // 滚动后元素位置变化，刷新蓝框编号
+        endAction()
+        return r
+    }
+
+    /// 表单提交：在指定输入框按回车（触发 submit），或直接提交整个 form
+    func submit(_ idx: Int) -> String {
+        FloatingBrowser.shared.show()
+        beginAction("提交表单（元素 #\(idx)）…")
+        ensureMarked()
+        let js = """
+        (function(){
+          var e=document.querySelector('[data-browser-idx="\(idx)"]');
+          if(!e)return 'ERR: 元素 '+\(idx)+' 不存在（页面可能已变化，请重新 snapshot）';
+          var form=e.closest('form');
+          if(form){form.requestSubmit();return '已提交表单 (form submit)';}
+          var ev=new KeyboardEvent('keydown',{key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true});
+          e.dispatchEvent(ev);
+          return '已发送回车键 (Enter)';
+        })();
+        """
+        let r = evalSync(js)
+        if !r.hasPrefix("ERR") {
+            _ = evalSync(Self.highlightScript)
+        }
+        endAction()
+        return r
+    }
+
     // MARK: - JS 同步执行（工具线程调用）
 
     /// 在后台线程同步等待 evaluateJavaScript 结果（主线程执行，避免死锁）
