@@ -203,7 +203,6 @@ final class WorkspaceCleanupTool: MCPTool {
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let dryRun = (params["dry_run"] as? Bool) ?? true
         let maxAge = (params["max_age_days"] as? Int) ?? 7
-        let maxSize = (params["max_size_mb"] as? Int) ?? 500
         let targets = (params["targets"] as? String) ?? "all"
 
         let workspace = NSHomeDirectory().appending("/Documents/Workspace")

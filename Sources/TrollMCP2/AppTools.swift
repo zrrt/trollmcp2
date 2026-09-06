@@ -1,6 +1,19 @@
-import Foundation
+﻿import Foundation
 import UIKit
 import ObjectiveC
+
+// v2.9.87：UIApplication.openURL 已弃用（iOS10+），统一走 open(_:options:)。
+// 工具在后台线程执行，这里用信号量同步等待结果，保持 invoke 的同步语义。
+private func openURLSync(_ url: URL) -> Bool {
+    var opened = false
+    let sem = DispatchSemaphore(value: 0)
+    UIApplication.shared.open(url, options: [:]) { success in
+        opened = success
+        sem.signal()
+    }
+    _ = sem.wait(timeout: .now() + 5)
+    return opened
+}
 
 // MARK: - App 缓存扫描
 
@@ -145,7 +158,7 @@ final class AppOpenTool: MCPTool {
 
         var opened = false
         if let url = URL(string: "\(bid)://") {
-            opened = UIApplication.shared.openURL(url)
+            opened = openURLSync(url)
         }
         if !opened {
             opened = LSAppWorkspaceOpen(bundleId: bid)
@@ -184,7 +197,7 @@ final class AppOpenAndInputTool: MCPTool {
 
         var opened = false
         if let url = URL(string: "\(bid)://") {
-            opened = UIApplication.shared.openURL(url)
+            opened = openURLSync(url)
         }
         if !opened {
             opened = LSAppWorkspaceOpen(bundleId: bid)
@@ -228,10 +241,10 @@ final class WeChatPrepareMessageTool: MCPTool {
         let recipient = params["recipient"] as? String ?? ""
         var opened = false
         if !recipient.isEmpty, let url = URL(string: "weixin://dl/chat?\(recipient.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")") {
-            opened = UIApplication.shared.openURL(url)
+            opened = openURLSync(url)
         }
         if !opened, let url = URL(string: "weixin://") {
-            opened = UIApplication.shared.openURL(url)
+            opened = openURLSync(url)
         }
         AuditLog.shared.log("wechat.prepare_message", detail: "len=\(text.count)")
         return ["copied": true, "opened_wechat": opened, "text_length": text.count]

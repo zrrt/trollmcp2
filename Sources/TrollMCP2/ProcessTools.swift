@@ -24,7 +24,7 @@ final class AppStartTool: MCPTool {
 
         let start = Date()
         // 用 open 命令启动 App
-        let (exitCode, output) = InjectionManager.shared.spawnRoot("/usr/bin/open", args: [bundleId])
+        let (exitCode, _) = InjectionManager.shared.spawnRoot("/usr/bin/open", args: [bundleId])
         Thread.sleep(forTimeInterval: TimeInterval(wait))
 
         let pid = findPid(by: bundleId)

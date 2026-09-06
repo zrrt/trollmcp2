@@ -1,4 +1,4 @@
-import Foundation
+﻿import Foundation
 
 // v2.9.69：质量与诊断工具集
 // 1. IPA/dylib 检查器 — 解析架构、签名、entitlements、依赖、注入可行性
@@ -73,7 +73,7 @@ final class IPAInspectTool: MCPTool {
         }
 
         // 找到主二进制
-        let executable = ((try? NSDictionary(contentsOfFile: plistPath))?["CFBundleExecutable"] as? String) ?? "App"
+        let executable = ((NSDictionary(contentsOfFile: plistPath))?["CFBundleExecutable"] as? String) ?? "App"
         let binaryPath = bundlePath.appending("/\(executable)")
 
         // 用 ldid 检查签名和 entitlements
@@ -273,7 +273,7 @@ final class InjectionDiagnoseTool: MCPTool {
         }
 
         // 6. 检查 Mach-O 完整性（备份是否存在）
-        let mainBinary = target.path.appending("/\((try? NSDictionary(contentsOfFile: target.path.appending("/Info.plist"))?["CFBundleExecutable"] as? String) ?? "")")
+        let mainBinary = target.path.appending("/\((NSDictionary(contentsOfFile: target.path.appending("/Info.plist"))?["CFBundleExecutable"] as? String) ?? "")")
         let backupPath = mainBinary.appending(".bak_macho")
         diagnosis["backup_exists"] = FileManager.default.fileExists(atPath: backupPath)
 

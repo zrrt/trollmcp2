@@ -173,7 +173,6 @@ final class GitHubAccountStore: ObservableObject {
 
     /// 第二步：轮询换取 access_token（interval 秒一次，最长 expires_in 秒）。
     func pollDeviceToken(deviceCode: DeviceCode, completion: @escaping (Bool, String?) -> Void) {
-        let cid = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
         isDevicePolling = true
         deviceFlowState = "请在浏览器输入代码 \(deviceCode.user_code)，等待授权…"
 

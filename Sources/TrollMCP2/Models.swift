@@ -328,6 +328,11 @@ final class ConversationStore: ObservableObject {
     @Published var requestRounds = 60
     /// v2.9.34：正在执行的工具名（展示"正在执行工具 xxx…"）
     @Published var runningTool: String?
+
+    // v2.9.87：网络恢复自动重试（"切后台回来网络中断"补偿）——
+    // 网络类错误且当前确认为断网时，等 AppLifecycleMonitor 广播 networkRestored 后自动重发一次。
+    private var retryObserver: NSObjectProtocol?
+    private var retriedNetworkOnce = false
     /// v2.9.13：当前正在进行的 OpenAIClient（支持取消）
     private var currentClient: OpenAIClient?
     /// v2.9.53：当前流式输出的消息 ID（逐字显示时跟踪，完成后更新或清理）
@@ -398,6 +403,7 @@ final class ConversationStore: ObservableObject {
 
     /// v2.9.13：取消当前进行中的请求（ChatView 停止按钮）
     func cancelCurrent() {
+        cancelNetworkRetry()
         currentClient?.cancel()
         currentClient = nil
         isLoading = false
@@ -429,6 +435,9 @@ final class ConversationStore: ObservableObject {
         // v2.9.82：请求开始——首次要通知权限 + 开启后台任务延长
         TaskNotify.shared.requestPermissionIfNeeded()
         TaskNotify.shared.beginBackground()
+        // v2.9.87：新一轮请求重置网络重试状态
+        retriedNetworkOnce = false
+        cancelNetworkRetry()
         var msg = ChatMessage(role: "user", content: text)
         if let imgs = imageDataURLs, !imgs.isEmpty {
             msg.imageDataURLs = imgs
@@ -450,6 +459,41 @@ final class ConversationStore: ObservableObject {
             }
         }
         runLoop(config: config, tools: baseTools, disclosed: [], depth: 0, reasoningLevel: reasoningLevel)
+    }
+
+    // MARK: - v2.9.87 网络恢复自动重试
+
+    private func shouldRetryOnNetworkRestore(_ err: NSError) -> Bool {
+        guard !retriedNetworkOnce, err.code != -999 else { return false }
+        // 网络类错误码：断网/找不到主机/网络连接丢失/连接重置
+        let networkCodes: Set<Int> = [-1009, -1003, -1005, -1004, -1001]
+        let isNetworkError = err.domain == NSURLErrorDomain && networkCodes.contains(err.code)
+        // 只对"当前确实断网"的情况等待重试（确认不是中转站问题）
+        return isNetworkError && !AppLifecycleMonitor.shared.isNetworkAvailable
+    }
+
+    private func scheduleRetryAfterNetworkRestore(config: ModelConfig, tools: [[String: Any]]?, disclosed: [String], depth: Int, reasoningLevel: Int) {
+        retriedNetworkOnce = true
+        retryObserver = NotificationCenter.default.addObserver(
+            forName: AppLifecycleMonitor.networkRestored,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+            if let o = self.retryObserver {
+                NotificationCenter.default.removeObserver(o)
+                self.retryObserver = nil
+            }
+            self.statusText = "网络已恢复，自动重试…"
+            self.isLoading = true
+            self.runLoop(config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
+        }
+    }
+
+    private func cancelNetworkRetry() {
+        if let o = retryObserver {
+            NotificationCenter.default.removeObserver(o)
+            retryObserver = nil
+        }
     }
 
     private func runLoop(config: ModelConfig, tools: [[String: Any]]?, disclosed: [String], depth: Int, reasoningLevel: Int = 0) {
@@ -580,6 +624,12 @@ final class ConversationStore: ObservableObject {
                         TaskNotify.shared.endBackground()
                         return
                     }
+                    // v2.9.87：网络类错误 + 当前确认断网 → 等网络恢复自动重试一次
+                    if self.shouldRetryOnNetworkRestore(nsErr) {
+                        self.statusText = "网络不可用，等待恢复后自动重试…"
+                        self.scheduleRetryAfterNetworkRestore(config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
+                        return
+                    }
                     // v2.9.82：失败通知（后台时）
                     TaskNotify.shared.endBackground()
                     TaskNotify.shared.notifyIfBackground(title: "任务出错", body: String(error.localizedDescription.prefix(60)))
@@ -691,10 +741,13 @@ final class ConversationStore: ObservableObject {
     private func messagesForAPI(budget: Int) -> [ChatMessage] {
         let all = currentMessages.filter { !$0.isError }
         guard !all.isEmpty else { return all }
-        let theBudget = budget
+        // v2.9.87：预算预留 30% 给 tools schema + 系统/开发者指令 + 请求开销。
+        // 之前只按消息估算，tools（可能几十 KB JSON）+ 两条 system 前缀没算，
+        // 长会话+多工具时实际请求体远超预算 → 中转处理慢（"一直请求中"）。
+        let theBudget = max(Int(Double(budget) * 0.7), 2000)
         // 估算总 token；低于预算直接返回（短会话）
         let total = all.reduce(0) { $0 + Self.estimateTokens($1) }
-        if total <= budget { return all }
+        if total <= theBudget { return all }
         // 长会话：从旧到新裁剪，但始终保留最后 N 条核心消息
         let keepMin = 6
         var kept: [ChatMessage] = []
@@ -705,7 +758,7 @@ final class ConversationStore: ObservableObject {
         // 从旧到新累计到「预算 - suffix」内（v2.9.16：suffix 计入预算，避免超发）
         for m in prefix {
             let t = Self.estimateTokens(m)
-            if used + t > budget { break }
+            if used + t > theBudget { break }
             kept.append(m)
             used += t
         }
@@ -732,7 +785,9 @@ final class ConversationStore: ObservableObject {
             }
         }
         let ascii = content.count - cjk
-        t += Int(Double(cjk) * 1.5) + ascii / 4
+        // v2.9.87：CJK 1.5→2.0 保守估算（中文实际约 1.5~2 token/字），
+        // 低估会让请求体超预算 → 中转处理慢。
+        t += Int(Double(cjk) * 2.0) + ascii / 3
         t += (m.imageDataURLs?.count ?? 0) * 600   // 每张图约 600 token（低分辨率近似）
         return max(t, 8)
     }

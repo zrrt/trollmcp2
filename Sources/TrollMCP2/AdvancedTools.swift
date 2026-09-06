@@ -1,4 +1,4 @@
-import Foundation
+﻿import Foundation
 import UIKit
 
 // v2.9.72：符号浏览器 + 插件系统 + 兼容矩阵 + 崩溃复现 hook 模板生成
@@ -252,7 +252,7 @@ final class CompatibilityTool: MCPTool {
         if action == "record" {
             let success = (params["success"] as? Bool) ?? false
             let detail = params["detail"] as? String ?? ""
-            let appVersion = (try? NSDictionary(contentsOfFile: "/\(bundleId)".appending("/Info.plist"))?["CFBundleShortVersionString"] as? String) ?? "unknown"
+            let appVersion = (NSDictionary(contentsOfFile: "/\(bundleId)".appending("/Info.plist"))?["CFBundleShortVersionString"] as? String) ?? "unknown"
             let iosVersion = UIDevice.current.systemVersion
             CompatibilityMatrix.shared.record(bundleId: bundleId, appVersion: appVersion, iosVersion: iosVersion, dylib: dylib, success: success, detail: detail)
             return ["recorded": true]
@@ -297,8 +297,6 @@ final class CrashReproTool: MCPTool {
         // 从崩溃日志中提取关键信息
         var exceptionType = ""
         var crashedThread = "0"
-        var crashedMethod = ""
-        var crashedClass = ""
 
         for line in crashLog.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)

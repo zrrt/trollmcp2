@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import PhotosUI
+import UniformTypeIdentifiers
 
 enum AttachmentSheet: Identifiable {
     case panel
@@ -198,7 +199,7 @@ struct DocumentPickerView: UIViewControllerRepresentable {
     @Environment(\.presentationMode) var presentationMode
 
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-        let picker = UIDocumentPickerViewController(documentTypes: ["public.item"], in: .open)
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.item])
         picker.allowsMultipleSelection = true
         picker.delegate = context.coordinator
         return picker

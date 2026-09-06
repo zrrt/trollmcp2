@@ -1,7 +1,7 @@
-import SwiftUI
+﻿import SwiftUI
 import UIKit
 
-// v2.9.86：关于作者（作者卡片 / 开源致谢 / 安全 / 注意 / 免责 / 赞助 / 反馈）
+// v2.9.87：关于作者（作者卡片 / 开源致谢 / 安全 / 注意 / 免责 / 赞助 / 反馈）
 struct AboutAuthorView: View {
     @State private var copied = false
 
@@ -170,7 +170,7 @@ struct AboutAuthorView: View {
     }
 
     private var versionLine: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.9.86"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.9.87"
     }
 
     private var thankRows: [(String, String, String)] {

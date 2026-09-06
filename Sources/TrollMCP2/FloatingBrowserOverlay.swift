@@ -246,7 +246,7 @@ struct FloatingBrowserOverlay: View {
             // v2.9.81：只在从未加载过任何页面时自动开 Bing，
             // 避免自动加载覆盖用户/AI 刚发起的 URL（原 webView?.url == nil 判断有竞态）
             if !bm.hasLoadedAny {
-                bm.open("https://www.bing.com")
+                _ = bm.open("https://www.bing.com")
             }
         }
     }

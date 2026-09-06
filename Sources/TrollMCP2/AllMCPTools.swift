@@ -245,23 +245,23 @@ final class AutomationStatusTool: MCPTool {
 }
 
 /// 读取通知授权状态（iOS 14 用 getNotificationSettings）
+/// v2.9.87：改为非阻塞——返回缓存值，后台异步刷新，避免信号量阻塞调用线程。
 func AutomationSchedulerStatus() -> String {
-    var status = "unknown"
-    let sem = DispatchSemaphore(value: 0)
-    DispatchQueue.global().async {
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            switch settings.authorizationStatus {
-            case .authorized: status = "authorized"
-            case .denied: status = "denied"
-            case .notDetermined: status = "notDetermined"
-            case .provisional: status = "provisional"
-            @unknown default: status = "unknown"
-            }
-            sem.signal()
+    let cacheKey = "automation.notif.status.cache"
+    let cached = UserDefaults.standard.string(forKey: cacheKey) ?? "unknown"
+    UNUserNotificationCenter.current().getNotificationSettings { settings in
+        var status = "unknown"
+        switch settings.authorizationStatus {
+        case .authorized: status = "authorized"
+        case .denied: status = "denied"
+        case .notDetermined: status = "notDetermined"
+        case .provisional: status = "provisional"
+        case .ephemeral: status = "ephemeral"
+        @unknown default: status = "unknown"
         }
+        UserDefaults.standard.set(status, forKey: cacheKey)
     }
-    sem.wait(timeout: .now() + 2)
-    return status
+    return cached
 }
 
 // MARK: - M5 系统能力工具
@@ -355,7 +355,7 @@ final class NotificationSendTool: MCPTool {
         content.body = body
         content.sound = .default
         let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        try UNUserNotificationCenter.current().add(req)
+        UNUserNotificationCenter.current().add(req)
         AuditLog.shared.log("notification.send", detail: title)
         return ["sent": true]
     }
@@ -375,7 +375,7 @@ final class ScanQRTool: MCPTool {
         let request = VNDetectBarcodesRequest()
         let handler = VNImageRequestHandler(cgImage: cgImage)
         try handler.perform([request])
-        let results = request.results?.compactMap { ($0 as? VNBarcodeObservation)?.payloadStringValue } ?? []
+        let results = request.results?.compactMap { $0.payloadStringValue } ?? []
         return ["codes": results]
     }
 }

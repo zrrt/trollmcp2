@@ -198,7 +198,7 @@ final class WebSearchTool: MCPTool {
         var out: [[String: String]] = []
         for m in matches.prefix(limit) {
             let url = ns.substring(with: m.range(at: 1)).replacingOccurrences(of: "&amp;", with: "&")
-            var title = ns.substring(with: m.range(at: 2)).stripHTMLTags()
+            let title = ns.substring(with: m.range(at: 2)).stripHTMLTags()
             if url.hasPrefix("//") { continue }
             // 摘要（紧随其后的 result__snippet）
             let snipRange = NSRange(location: m.range.location, length: min(ns.length - m.range.location, 600))
@@ -241,7 +241,7 @@ final class WebFetchTool: MCPTool {
             throw MCPError.failed("fetch failed: \(urlString)")
         }
         // 提取标题 + 正文纯文本
-        var title = raw.firstCapture(pattern: "<title[^>]*>(.*?)</title>")?.stripHTMLTags() ?? ""
+        let title = raw.firstCapture(pattern: "<title[^>]*>(.*?)</title>")?.stripHTMLTags() ?? ""
         var text = stripHTML(raw)
         if !text.isEmpty {
             text = String(text.prefix(maxChars))

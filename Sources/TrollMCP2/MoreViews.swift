@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct AuditLogView: View {
     @ObservedObject private var log = AuditLog.shared
@@ -575,7 +576,7 @@ struct DocumentImporter: UIViewControllerRepresentable {
     let onPick: (URL) -> Void
 
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-        let picker = UIDocumentPickerViewController(documentTypes: ["public.item"], in: .open)
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.item])
         picker.allowsMultipleSelection = false
         picker.delegate = context.coordinator
         return picker

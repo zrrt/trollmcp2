@@ -62,6 +62,10 @@ final class OpenAIClient {
     private weak var activeTask: URLSessionDataTask?
     /// v2.9.15：本轮请求起始时间（用于耗时统计，写入网络兼容日志）
     private var requestStart = Date()
+    /// v2.9.87：多级降级总预算——全链串行最坏 7 分钟+，用户感知"一直请求中"。
+    /// 单次 send() 从创建到最终成功/失败不超过该秒数，超时直接失败并给出明确提示。
+    private var overallDeadline = Date.distantFuture
+    private let overallBudget: TimeInterval = 150
     /// v2.9.20：本轮推理强度（0=低 1=中 2=高），由 ChatView 传入并真实作用于请求。
     var currentReasoningLevel = 0  // v2.9.49：默认 low（medium/high 推理显著增加延迟，对标 Codex CLI 默认 low）
 
@@ -80,6 +84,7 @@ final class OpenAIClient {
     func send(messages: [ChatMessage], tools: [[String: Any]]? = nil, onStatus: ((String) -> Void)? = nil, onDelta: ((String) -> Void)? = nil, completion: @escaping (Result<ChatResult, Error>) -> Void) {
         cancelled = false
         requestStart = Date()
+        overallDeadline = Date().addingTimeInterval(overallBudget)
         // v2.9.0：级别 5 = Responses API + 工具调用（Codex 走的端点，GPT-5.6 家族
         // 在 chat/completions 上无法用 function tools，但 /v1/responses 可以）
         var start = min(max(config.compatLevel, 0), maxLevel)
@@ -109,6 +114,14 @@ final class OpenAIClient {
     // MARK: - 逐级试探
 
     private func attempt(level: Int, isFirst: Bool, messages: [ChatMessage], tools: [[String: Any]]?, onStatus: ((String) -> Void)?, onDelta: ((String) -> Void)?, completion: @escaping (Result<ChatResult, Error>) -> Void) {
+        // v2.9.87：总预算检查——降级链整体超时直接失败，不再无限串行等
+        if Date() > overallDeadline {
+            let el = Int(Date().timeIntervalSince(requestStart) * 1000)
+            NetworkLog.shared.log("\(config.name) 多级降级总预算耗尽（\(Int(overallBudget))s，\(el)ms）")
+            completion(.failure(NSError(domain: "OpenAIClient", code: -1001,
+                userInfo: [NSLocalizedDescriptionKey: "请求超时：已按 6 个兼容级别逐级尝试仍无响应（共 \(Int(overallBudget)) 秒）。可能是中转站负载过高或模型名错误，请稍后重试或检查模型配置。"])))
+            return
+        }
         if config.apiProtocol == "Anthropic Messages" {
             performAnthropic(messages: messages, completion: completion)
             return
@@ -173,8 +186,9 @@ final class OpenAIClient {
                 if isTimeout {
                     let next = self.nextLevel(after: level, hasTools: tools != nil && !(tools?.isEmpty ?? true))
                     if next <= self.maxLevel {
+                        let remain = max(0, Int(self.overallDeadline.timeIntervalSinceNow))
                         NetworkLog.shared.log("\(self.config.name) L\(level) 请求超时 → 自动降级到 L\(next)（\(self.levelName(next))）")
-                        onStatus?("请求超时，正在尝试简化参数（级别 \(next)/\(self.maxLevel)）…")
+                        onStatus?("请求超时，正在尝试简化参数（级别 \(next)/\(self.maxLevel)）· 总预算剩余 \(remain)s…")
                         self.attempt(level: next, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, completion: completion)
                         return
                     }
@@ -801,6 +815,20 @@ final class OpenAIClient {
         var firstByteReceived = false
         var fellBackToNonStream = false
 
+        // v2.9.87：修复流式/非流式双 completion 竞态——
+        // firstByteTimer 跑主线程、SSE 回调跑 URLSession 内部队列，
+        // 10s 边界上可能两条路径都调 completion（后到覆盖先到 → 回复被吞/重复）。
+        // 统一走 guardedCompletion，任何路径只能完成一次。
+        let completionLock = NSLock()
+        var completionCalled = false
+        let guardedCompletion: (Result<ChatResult, Error>) -> Void = { r in
+            completionLock.lock()
+            if completionCalled { completionLock.unlock(); return }
+            completionCalled = true
+            completionLock.unlock()
+            completion(r)
+        }
+
         let delegate = SSEStreamDelegate()
         let streamSession = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
 
@@ -811,8 +839,8 @@ final class OpenAIClient {
                 fellBackToNonStream = true
                 NetworkLog.shared.log("\(self.config.name): 流式首字节超时（10s），自动降级非流式")
                 streamSession.invalidateAndCancel()
-                // 切回非流式 performResponses
-                self.performResponses(messages: messages, tools: tools, onStatus: onStatus, completion: completion)
+                // 切回非流式 performResponses（completion 走 guardedCompletion，防双完成）
+                self.performResponses(messages: messages, tools: tools, onStatus: onStatus, completion: guardedCompletion)
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 10, execute: firstByteTimer)
@@ -876,7 +904,7 @@ final class OpenAIClient {
             if fellBackToNonStream { return }
 
             if let error = error {
-                completion(.failure(error))
+                guardedCompletion(.failure(error))
                 return
             }
 
@@ -910,10 +938,10 @@ final class OpenAIClient {
                 self.persist(level: 5)
                 NetworkLog.lastCompatNote = "模型「\(self.config.name)」当前兼容级别: 5（Responses API+工具，流式）"
                 if !calls.isEmpty {
-                    completion(.success(.toolCalls(calls)))
+                    guardedCompletion(.success(.toolCalls(calls)))
                 } else {
                     let th = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
-                    completion(.success(.text(text, thinking: th.isEmpty ? nil : th)))
+                    guardedCompletion(.success(.text(text, thinking: th.isEmpty ? nil : th)))
                 }
                 return
             }
@@ -921,10 +949,10 @@ final class OpenAIClient {
             // fallback：用流式过程中累积的数据
             self.persist(level: 5)
             if !toolCalls.isEmpty {
-                completion(.success(.toolCalls(toolCalls)))
+                guardedCompletion(.success(.toolCalls(toolCalls)))
             } else {
                 let th = fullThinking.trimmingCharacters(in: .whitespacesAndNewlines)
-                completion(.success(.text(fullText, thinking: th.isEmpty ? nil : th)))
+                guardedCompletion(.success(.text(fullText, thinking: th.isEmpty ? nil : th)))
             }
         }
 

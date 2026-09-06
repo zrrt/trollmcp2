@@ -61,9 +61,9 @@ struct BrowserView: View {
 
                 // 控制条
                 HStack(spacing: 20) {
-                    controlButton("arrow.backward", "后退") { bm.goBack() }
-                    controlButton("arrow.forward", "前进") { bm.goForward() }
-                    controlButton("arrow.clockwise", "刷新") { bm.reload() }
+                    controlButton("arrow.backward", "后退") { _ = bm.goBack() }
+                    controlButton("arrow.forward", "前进") { _ = bm.goForward() }
+                    controlButton("arrow.clockwise", "刷新") { _ = bm.reload() }
                     Spacer()
                     // 高亮开关（蓝框）
                     HStack(spacing: 6) {
@@ -156,7 +156,7 @@ struct BrowserView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: { bm.open("https://www.bing.com") }) {
+                    Button(action: { _ = bm.open("https://www.bing.com") }) {
                         Text("主页")
                             .font(.footnote)
                     }
@@ -177,7 +177,7 @@ struct BrowserView: View {
             bm.ensureWebView()
             // v2.9.81：只在从未加载过任何页面时自动开 Bing（修竞态覆盖）
             if !bm.hasLoadedAny {
-                bm.open("https://www.bing.com")
+                _ = bm.open("https://www.bing.com")
             }
             urlText = ""
         }

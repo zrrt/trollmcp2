@@ -1,4 +1,4 @@
-import Foundation
+﻿import Foundation
 
 // v2.9.71：自动诊断 + 本地 HTTP 服务
 // 1. 自动诊断 — 启动失败/崩溃/注入失败自动判因，给出修复建议
@@ -34,7 +34,7 @@ final class DiagnoseStartupTool: MCPTool {
         diagnosis["app_path"] = target.path
 
         // 2. 检查主二进制
-        let exec = (try? NSDictionary(contentsOfFile: target.path.appending("/Info.plist"))?["CFBundleExecutable"] as? String) ?? ""
+        let exec = (NSDictionary(contentsOfFile: target.path.appending("/Info.plist"))?["CFBundleExecutable"] as? String) ?? ""
         let binaryPath = target.path.appending("/\(exec)")
         diagnosis["binary_exists"] = FileManager.default.fileExists(atPath: binaryPath)
         if !FileManager.default.fileExists(atPath: binaryPath) {
@@ -303,7 +303,6 @@ final class LocalServerManager {
 
         let parts = firstLine.components(separatedBy: " ")
         guard parts.count >= 2 else { return }
-        let method = parts[0]
         let path = parts[1]
 
         var responseBody = ""

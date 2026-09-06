@@ -24,7 +24,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         Workspace.ensure()
         Workspace.ensureBundledTweaks()  // v2.9.62：把内置 dylib（MemoryTweak 等）复制到工作区，AI 可直接 artifact.find 定位
         ToolRegistry.shared.registerBuiltinTools()
-        DeviceProbe.shared.run()
+        _ = DeviceProbe.shared.run()
         LocationProvider.shared.start()
         // v2.9.10：网络与生命周期监控（切后台重连 / 网络恢复提示）
         AppLifecycleMonitor.shared.start()

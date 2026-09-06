@@ -1,4 +1,4 @@
-import Foundation
+﻿import Foundation
 import Darwin
 import UIKit
 
@@ -162,8 +162,8 @@ final class InjectionManager {
         var errPipe: [Int32] = [0, 0]
         pipe(&outPipe)
         pipe(&errPipe)
-        fcntl(outPipe[0], F_SETFL, O_NONBLOCK)
-        fcntl(errPipe[0], F_SETFL, O_NONBLOCK)
+        _ = fcntl(outPipe[0], F_SETFL, O_NONBLOCK)
+        _ = fcntl(errPipe[0], F_SETFL, O_NONBLOCK)
 
         var fileActions: posix_spawn_file_actions_t?
         posix_spawn_file_actions_init(&fileActions)
@@ -300,7 +300,7 @@ final class InjectionManager {
         guard binaryPath("insert_dylib") != nil,
               binaryPath("ldid") != nil,
               binaryPath("install_name_tool") != nil,
-              let cp = cpBinary() else {
+              cpBinary() != nil else {
             throw MCPError.failed("insert_dylib / ldid / install_name_tool / cp 未内置")
         }
         let mainBinary = executablePath(app)
@@ -422,7 +422,7 @@ final class InjectionManager {
         guard FileManager.default.fileExists(atPath: backup) else {
             throw MCPError.failed("未找到注入备份，可能从未注入或无法还原")
         }
-        guard let cp = cpBinary() else { throw MCPError.failed("cp 未内置") }
+        guard cpBinary() != nil else { throw MCPError.failed("cp 未内置") }
         let (cR, oR) = runAsRoot("rm", args: ["-f", mainBinary])
         if cR != 0 { throw MCPError.failed("root rm 失败(\(cR)): \(oR)") }
         let (cC, oC) = runAsRoot("cp", args: ["--reflink=auto", "-rfp", backup, mainBinary])

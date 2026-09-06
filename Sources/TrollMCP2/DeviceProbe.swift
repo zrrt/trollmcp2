@@ -1,4 +1,4 @@
-import Foundation
+﻿import Foundation
 import UIKit
 
 // MARK: - 设备环境自检（"检测手机"核心层）
@@ -163,7 +163,7 @@ final class DeviceProbe: ObservableObject {
         var task: UInt32 = 0
         let kr = tm_task_for_pid(tm_mach_task_self(), getpid(), &task)
         if kr == 0 {
-            tm_mach_port_deallocate(tm_mach_task_self(), task)
+            _ = tm_mach_port_deallocate(tm_mach_task_self(), task)
             return true
         }
         return false

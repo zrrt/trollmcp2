@@ -1,4 +1,4 @@
-import Foundation
+﻿import Foundation
 
 // v2.9.68：应用解密（砸壳）工具
 // 通过 task_for_pid 读取目标 App 进程内存，替换加密段为解密后的数据
@@ -139,7 +139,7 @@ final class AppDecryptTool: MCPTool {
         // 3. 替换文件中的加密段
         // 4. 清除 cryptid 标志
         // 这个实现比较复杂，这里先返回框架状态
-        DeviceProbe.shared.tm_mach_port_deallocate(DeviceProbe.shared.tm_mach_task_self(), task)
+        _ = DeviceProbe.shared.tm_mach_port_deallocate(DeviceProbe.shared.tm_mach_task_self(), task)
 
         return [
             "mode": "memory",

@@ -1,4 +1,4 @@
-import Foundation
+﻿import Foundation
 
 // v2.9.73：项目上下文 + 任务模板框架
 // 1. ProjectContext — 统一项目状态（目标 App、dylib、配置、历史运行）
@@ -357,7 +357,7 @@ final class TaskTemplateRunner {
                         // 启动失败，自动回滚
                         let apps = AppCatalog.list()
                         if let target = apps.first(where: { $0.bundleId == bundleId }) {
-                            let exec = (try? NSDictionary(contentsOfFile: target.path.appending("/Info.plist"))?["CFBundleExecutable"] as? String) ?? ""
+                            let exec = (NSDictionary(contentsOfFile: target.path.appending("/Info.plist"))?["CFBundleExecutable"] as? String) ?? ""
                             let backup = target.path.appending("/\(exec).bak_macho")
                             if FileManager.default.fileExists(atPath: backup) {
                                 let _ = InjectionManager.shared.spawnRoot("/bin/cp", args: [backup, target.path.appending("/\(exec)")])

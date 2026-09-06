@@ -1,4 +1,4 @@
-import Foundation
+﻿import Foundation
 import UIKit
 
 // v2.9.68：自动更新管理器
@@ -19,14 +19,33 @@ final class UpdateManager: ObservableObject {
 
     private init() {}
 
+    /// v2.9.87：仓库为私有，所有 GitHub API 请求必须带已登录账号的 token，
+    /// 否则 runs/artifacts 列表返回 401/404、artifact 下载返回 403。
+    private func githubToken() -> String? {
+        GitHubAccountStore.shared.activeToken
+    }
+
+    private func authorizedRequest(_ url: URL) -> URLRequest? {
+        var request = URLRequest(url: url)
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let t = githubToken() {
+            request.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization")
+        }
+        return request
+    }
+
     // 检查更新：获取最新成功的 CI run，比较版本号
     func checkForUpdate(currentVersion: String) {
         isChecking = true
         errorMessage = nil
 
         let url = URL(string: "https://api.github.com/repos/\(repo)/actions/runs?status=success&per_page=5")!
-        var request = URLRequest(url: url)
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        guard let request = authorizedRequest(url) else {
+            isChecking = false
+            errorMessage = "请先在 GitHub 账号中登录（私有仓库需要 token 才能检查更新）"
+            return
+        }
 
         URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
             DispatchQueue.main.async {
@@ -47,7 +66,7 @@ final class UpdateManager: ObservableObject {
                     return
                 }
                 let runId = latestRun["id"] as? Int ?? 0
-                let runNumber = latestRun["run_number"] as? Int ?? 0
+
                 // 从 artifact 名或 run 信息推断版本
                 // 简化：用 run_number 作为版本判断，或者获取 artifact 名
                 self?.fetchLatestArtifactVersion(runId: runId, currentVersion: currentVersion)
@@ -57,8 +76,13 @@ final class UpdateManager: ObservableObject {
 
     private func fetchLatestArtifactVersion(runId: Int, currentVersion: String) {
         let url = URL(string: "https://api.github.com/repos/\(repo)/actions/runs/\(runId)/artifacts")!
-        var request = URLRequest(url: url)
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        guard let request = authorizedRequest(url) else {
+            DispatchQueue.main.async {
+                self?.isChecking = false
+                self?.errorMessage = "请先在 GitHub 账号中登录"
+            }
+            return
+        }
 
         URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
             DispatchQueue.main.async {
@@ -114,8 +138,13 @@ final class UpdateManager: ObservableObject {
 
         // 先获取最新 artifact 的下载 URL
         let url = URL(string: "https://api.github.com/repos/\(repo)/actions/runs?status=success&per_page=1")!
-        var request = URLRequest(url: url)
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        guard let request = authorizedRequest(url) else {
+            DispatchQueue.main.async {
+                self.isDownloading = false
+                self.errorMessage = "请先在 GitHub 账号中登录"
+            }
+            return
+        }
 
         URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
             guard let self = self else { return }
@@ -141,10 +170,16 @@ final class UpdateManager: ObservableObject {
     }
 
     private func downloadArtifact(runId: Int, version: String) {
-        // 获取 artifact 下载 URL（需要 token，公开仓库可以用 archive_download_url 重定向）
+        // 获取 artifact 下载 URL（私有仓库必须带 token；archive_download_url 会 302 到
+        // 带签名 query 的下载地址，签名 URL 本身无需 token，URLSession 跟随重定向即可）
         let url = URL(string: "https://api.github.com/repos/\(repo)/actions/runs/\(runId)/artifacts")!
-        var request = URLRequest(url: url)
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        guard let request = authorizedRequest(url) else {
+            DispatchQueue.main.async {
+                self.isDownloading = false
+                self.errorMessage = "请先在 GitHub 账号中登录"
+            }
+            return
+        }
 
         URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
             guard let self = self else { return }
@@ -173,11 +208,16 @@ final class UpdateManager: ObservableObject {
         guard let url = URL(string: urlString) else { return }
         let destPath = FileManager.default.temporaryDirectory.appendingPathComponent("TrollAgent-v\(version).ipa")
 
-        let task = URLSession.shared.downloadTask(with: url) { [weak self] tempURL, _, error in
+        // v2.9.87：签名 URL 直接下载；若带 token 的请求返回 403/401，给出明确指引
+        let task = URLSession.shared.downloadTask(with: url) { [weak self] tempURL, response, error in
             DispatchQueue.main.async {
                 self?.isDownloading = false
                 if let error = error {
                     self?.errorMessage = "下载失败: \(error.localizedDescription)"
+                    return
+                }
+                if let http = response as? HTTPURLResponse, http.statusCode != 200 {
+                    self?.errorMessage = "下载失败 (HTTP \(http.statusCode))：artifact 下载需已登录 GitHub 且该构建存在，请在 GitHub 账号中检查登录状态"
                     return
                 }
                 guard let tempURL = tempURL else {
