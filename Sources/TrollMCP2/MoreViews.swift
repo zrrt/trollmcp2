@@ -6,7 +6,16 @@ struct AuditLogView: View {
     @State private var showExportAlert = false
 
     var body: some View {
-        NavigationView {
+        VStack(spacing: 0) {
+            // v2.9.77：美化头部
+            PageHeader(
+                icon: "list.bullet.rectangle",
+                title: L10n.t("page_audit"),
+                subtitle: L10n.t("page_audit_sub"),
+                colors: [.tmIndigo, .blue]
+            )
+            .padding(.vertical, 8)
+
             List {
                 if log.entries.isEmpty {
                     Section {
@@ -89,11 +98,10 @@ struct AuditLogView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("本机工具审计")
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
-                    Button(action: exportLog) { Label("导出", systemImage: "square.and.arrow.up") }
-                    Button("清除") { log.clear() }
+                    Button(action: exportLog) { Label(L10n.t("btn_export"), systemImage: "square.and.arrow.up") }
+                    Button(L10n.t("btn_clear")) { log.clear() }
                 }
             }
             .alert(isPresented: $showExportAlert) {
@@ -102,7 +110,9 @@ struct AuditLogView: View {
                       dismissButton: .default(Text("好")))
             }
         }
-        .navigationViewStyle(.stack)
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(L10n.t("page_audit"))
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func exportLog() {
@@ -206,7 +216,16 @@ struct BuildView: View {
 
 struct SystemCapabilitiesView: View {
     var body: some View {
-        NavigationView {
+        VStack(spacing: 0) {
+            // v2.9.77：美化头部
+            PageHeader(
+                icon: "cpu.fill",
+                title: L10n.t("page_capabilities"),
+                subtitle: L10n.t("page_capabilities_sub"),
+                colors: [.tmIndigo, .purple]
+            )
+            .padding(.vertical, 8)
+
             List {
                 Section(header: SettingSectionHeader(title: "系统能力")) {
                     capRow("通讯录搜索", "contacts.search", "person.crop.circle", .blue)
@@ -226,9 +245,10 @@ struct SystemCapabilitiesView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("系统能力")
         }
-        .navigationViewStyle(.stack)
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(L10n.t("page_capabilities"))
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func capRow(_ name: String, _ tool: String, _ icon: String, _ color: Color) -> some View {
@@ -319,7 +339,36 @@ struct ToolPermissionPoliciesView: View {
     }
 
     var body: some View {
-        NavigationView {
+        VStack(spacing: 0) {
+            // v2.9.77：美化头部
+            PageHeader(
+                icon: "lock.shield.fill",
+                title: L10n.t("page_tool_policy"),
+                subtitle: L10n.t("page_tool_policy_sub"),
+                colors: [.green, .tmTeal]
+            )
+            .padding(.vertical, 8)
+
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.secondary)
+                    .font(.system(size: 14))
+                TextField("搜索工具...", text: $searchText)
+                    .font(.subheadline)
+                if !searchText.isEmpty {
+                    Button(action: { searchText = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(Color(.secondarySystemBackground))
+            .cornerRadius(12)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 4)
+
             List {
                 Section(header: SettingSectionHeader(title: "策略")) {
                     // v2.9.31：工具按需加载——初始请求只带常驻核心（标★），其余靠搜索加载；
@@ -333,12 +382,13 @@ struct ToolPermissionPoliciesView: View {
                 // v2.9.23：并入原"本机工具审计"的过滤
                 Section(header: SettingSectionHeader(title: "过滤")) {
                     Toggle("仅显示真实实现", isOn: $showOnlyReal)
+                        .accentColor(.tmCyan)
                     Text("「真实」= 有实际执行逻辑；「占位」= 仅注册了接口、未接入真实功能。")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
 
-                Section(header: SettingSectionHeader(title: "工具列表")) {
+                Section(header: SettingSectionHeader(title: "工具列表（\(filtered.count)）")) {
                     ForEach(filtered, id: \.name) { def in
                         let isCore = registry.isCore(def.name)
                         HStack(spacing: 12) {
@@ -391,16 +441,10 @@ struct ToolPermissionPoliciesView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("工具权限策略")
-            .toolbar {
-                HStack {
-                    if !searchText.isEmpty {
-                        Button("清除") { searchText = "" }
-                    }
-                }
-            }
         }
-        .navigationViewStyle(.stack)
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(L10n.t("page_tool_policy"))
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -411,7 +455,16 @@ struct DataManagementView: View {
     @State private var showingImporter = false
 
     var body: some View {
-        NavigationView {
+        VStack(spacing: 0) {
+            // v2.9.77：美化头部
+            PageHeader(
+                icon: "internaldrive.fill",
+                title: L10n.t("page_data"),
+                subtitle: L10n.t("page_data_sub"),
+                colors: [.green, .tmTeal]
+            )
+            .padding(.vertical, 8)
+
             List {
                 Section(header: SettingSectionHeader(title: "工作区")) {
                     LabeledRow(label: "路径", value: Workspace.root.path)
@@ -468,7 +521,6 @@ struct DataManagementView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("数据管理")
             .toolbar {
                 Button(action: refresh) { Image(systemName: "arrow.clockwise") }
             }
@@ -480,7 +532,9 @@ struct DataManagementView: View {
             }
             .onAppear(perform: refresh)
         }
-        .navigationViewStyle(.stack)
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(L10n.t("page_data"))
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func refresh() {
@@ -552,7 +606,16 @@ struct DeveloperInstructionsView: View {
     @State private var copiedName: String?
 
     var body: some View {
-        NavigationView {
+        VStack(spacing: 0) {
+            // v2.9.77：美化头部
+            PageHeader(
+                icon: "doc.text.magnifyingglass",
+                title: L10n.t("page_dev_instr"),
+                subtitle: L10n.t("page_dev_instr_sub"),
+                colors: [.orange, .tmBrown]
+            )
+            .padding(.vertical, 8)
+
             List {
                 if items.isEmpty {
                     Section {
@@ -590,6 +653,7 @@ struct DeveloperInstructionsView: View {
                                 .foregroundColor(.secondary)
                                 .lineLimit(2)
                         }
+                        .padding(.vertical, 4)
                         .contentShape(Rectangle())
                         .onTapGesture {
                             editing = DevInstrEditorPayload(name: item.name, content: item.content)
@@ -618,6 +682,7 @@ struct DeveloperInstructionsView: View {
                             get: { DeveloperInstructionStore.shared.defaultInjectionContent() != nil },
                             set: { _ in }
                         ))
+                        .accentColor(.tmCyan)
                         .disabled(true)
                     } footer: {
                         Text("默认指令（标「默认」）会在每次 AI 请求时作为 system 消息注入，AI 将遵循其中的约定。长按指令可设默认/编辑/删除。")
@@ -625,7 +690,6 @@ struct DeveloperInstructionsView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("开发者指令")
             .onAppear(perform: reload)
             .toolbar {
                 Button(action: { creating = true }) { Image(systemName: "plus") }
@@ -637,7 +701,9 @@ struct DeveloperInstructionsView: View {
                 DevInstructionEditorView(name: "", initialContent: "", mode: .create)
             }
         }
-        .navigationViewStyle(.stack)
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(L10n.t("page_dev_instr"))
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func preview(_ c: String) -> String {
@@ -805,7 +871,16 @@ struct KnowledgeBaseView: View {
     @State private var showingImporter = false
 
     var body: some View {
-        NavigationView {
+        VStack(spacing: 0) {
+            // v2.9.77：美化头部
+            PageHeader(
+                icon: "books.vertical.fill",
+                title: L10n.t("page_kb"),
+                subtitle: L10n.t("page_kb_sub"),
+                colors: [.tmBrown, .orange]
+            )
+            .padding(.vertical, 8)
+
             List {
                 Section(header: SettingSectionHeader(title: "来源")) {
                     SettingRowButton(
@@ -850,7 +925,6 @@ struct KnowledgeBaseView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("本机知识库")
             .toolbar {
                 Button(action: refresh) { Image(systemName: "arrow.clockwise") }
             }
@@ -863,7 +937,9 @@ struct KnowledgeBaseView: View {
             }
             .onAppear(perform: refresh)
         }
-        .navigationViewStyle(.stack)
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(L10n.t("page_kb"))
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var knowledgeBaseDir: URL {
@@ -912,7 +988,16 @@ struct WebhooksView: View {
     @State private var status = ""
 
     var body: some View {
-        NavigationView {
+        VStack(spacing: 0) {
+            // v2.9.77：美化头部
+            PageHeader(
+                icon: "link.circle.fill",
+                title: L10n.t("page_webhooks"),
+                subtitle: L10n.t("page_webhooks_sub"),
+                colors: [.purple, .tmIndigo]
+            )
+            .padding(.vertical, 8)
+
             List {
                 Section(header: SettingSectionHeader(title: "端点")) {
                     editorRow("URL", text: $url, placeholder: "https://example.com/webhook")
@@ -922,11 +1007,15 @@ struct WebhooksView: View {
 
                 Section(header: SettingSectionHeader(title: "操作")) {
                     Button(action: save) {
-                        Text("保存配置")
-                            .foregroundColor(.blue)
+                        HStack {
+                            Image(systemName: "checkmark.circle")
+                            Text("保存配置")
+                                .foregroundColor(.blue)
+                        }
                     }
                     Button(action: test) {
                         HStack {
+                            Image(systemName: "paperplane")
                             Text("发送测试事件")
                                 .foregroundColor(.blue)
                             Spacer()
@@ -943,9 +1032,10 @@ struct WebhooksView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("Webhooks")
         }
-        .navigationViewStyle(.stack)
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(L10n.t("page_webhooks"))
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func editorRow(_ label: String, text: Binding<String>, placeholder: String) -> some View {
@@ -995,7 +1085,16 @@ struct AgentsAndSkillsView: View {
     @State private var showAgentEditor = false
 
     var body: some View {
-        NavigationView {
+        VStack(spacing: 0) {
+            // v2.9.77：美化头部
+            PageHeader(
+                icon: "person.2.fill",
+                title: L10n.t("page_agents"),
+                subtitle: L10n.t("page_agents_sub"),
+                colors: [.tmCyan, .blue]
+            )
+            .padding(.vertical, 8)
+
             List {
                 Section(header: SettingSectionHeader(title: "Skills")) {
                     if skills.isEmpty {
@@ -1019,6 +1118,7 @@ struct AgentsAndSkillsView: View {
                                     set: { SkillStore.shared.setEnabled(s.name, $0); reload() }
                                 ))
                                 .labelsHidden()
+                                .accentColor(.tmCyan)
                                 .frame(width: 46)
                                 Button(action: {
                                     SkillStore.shared.delete(named: s.name)
@@ -1064,7 +1164,6 @@ struct AgentsAndSkillsView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("Agents 与 Skills")
             .onAppear {
                 SkillStore.shared.seedIfEmpty()
                 reload()
@@ -1076,7 +1175,9 @@ struct AgentsAndSkillsView: View {
             .sheet(isPresented: $showSkillEditor) { SkillEditorView() }
             .sheet(isPresented: $showAgentEditor) { AgentEditorView() }
         }
-        .navigationViewStyle(.stack)
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(L10n.t("page_agents"))
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func reload() {

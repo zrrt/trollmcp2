@@ -2,84 +2,110 @@ import SwiftUI
 
 // v2.9.75：远程控制设置页面
 // ControlAgent 通用 UI 控制的使用说明和状态展示
+// v2.9.77：界面美化——PageHeader + 卡片化 + 双语
 
 struct RemoteControlView: View {
-    @State private var connectionStatus: String = "未连接"
+    @State private var connectionStatus: String = L10n.t("status_disconnected")
     @State private var isChecking = false
     @State private var appInfo: String = ""
 
     var body: some View {
-        List {
-            Section(header: Text("ControlAgent 通用 UI 控制")) {
+        PageContainer {
+            PageHeader(
+                icon: "cursorarrow.click.2",
+                title: L10n.t("page_remote"),
+                subtitle: L10n.t("page_remote_sub"),
+                colors: [.tmCyan, .blue]
+            )
+
+            // 连接状态卡
+            CardBox {
                 VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Image(systemName: "cursorarrow.click.2")
-                            .font(.title2)
+                    HStack(spacing: 10) {
+                        ZStack {
+                            Circle()
+                                .fill(statusColor.opacity(0.15))
+                                .frame(width: 34, height: 34)
+                            Circle()
+                                .stroke(statusColor.opacity(0.4), lineWidth: 2)
+                                .frame(width: 34, height: 34)
+                            Image(systemName: isChecking ? "arrow.triangle.2.circlepath" : (connectionStatus == L10n.t("status_connected") ? "checkmark" : "xmark"))
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(statusColor)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("ControlAgent")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            Text(connectionStatus)
+                                .font(.caption)
+                                .foregroundColor(statusColor)
+                        }
+                        Spacer()
+                        Button(action: checkConnection) {
+                            HStack(spacing: 6) {
+                                if isChecking {
+                                    ProgressView().scaleEffect(0.7)
+                                }
+                                Text(isChecking ? "" : L10n.t("btn_check_connection"))
+                                    .font(.footnote)
+                                    .fontWeight(.medium)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(Color.tmCyan.opacity(0.15))
                             .foregroundColor(.tmCyan)
-                        Text("注入 ControlAgent.dylib 到任意 App 后，AI 可以通过 localhost HTTP 控制目标 App 的 UI")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .cornerRadius(10)
+                        }
+                        .disabled(isChecking)
                     }
-
+                    if !appInfo.isEmpty {
+                        Divider()
+                        HStack {
+                            Text("Bundle ID")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text(appInfo)
+                                .font(.caption)
+                                .foregroundColor(.primary)
+                        }
+                    }
                     Divider()
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("能力")
-                            .font(.headline)
-                        Label("读取完整 UI 树（所有按钮/文本框/列表的 frame、文字、类型）", systemImage: "tree")
-                        Label("实时截图", systemImage: "camera")
-                        Label("模拟点击/滑动/输入文字", systemImage: "hand.tap")
-                        Label("模拟按键（Home/返回/回车）", systemImage: "keyboard")
-                        Label("通用 UIKit API，不依赖具体 App", systemImage: "checkmark.circle")
-                    }
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    Text("127.0.0.1:4789 · localhost only")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
                 }
-                .padding(.vertical, 8)
             }
 
-            Section(header: Text("使用流程")) {
+            // 能力
+            CardSectionHeader(icon: "sparkles", title: L10n.t("page_remote_sub"))
+            CardBox {
                 VStack(alignment: .leading, spacing: 10) {
+                    capabilityRow("tree", "读取完整 UI 树（frame / 文字 / 类型 / 无障碍信息）")
+                    capabilityRow("camera", "实时截图")
+                    capabilityRow("hand.tap", "模拟点击 / 滑动 / 输入文字")
+                    capabilityRow("keyboard", "模拟按键（Home / 返回 / 回车）")
+                    capabilityRow("checkmark.circle", "通用 UIKit API，不依赖具体 App")
+                }
+            }
+
+            // 使用流程
+            CardSectionHeader(icon: "list.number", title: "使用流程")
+            CardBox {
+                VStack(alignment: .leading, spacing: 12) {
                     stepView(1, "在聊天中让 AI 注入：\"给微信注入控制代理\"")
                     stepView(2, "AI 调用 control.inject(bundle_id) 注入 ControlAgent.dylib")
                     stepView(3, "手动启动目标 App（注入后需重启）")
                     stepView(4, "AI 调用 control.status 确认连接")
                     stepView(5, "AI 自动读取 UI 树 → 决定操作 → 点击/输入/滑动")
                 }
-                .padding(.vertical, 8)
             }
 
-            Section(header: Text("连接状态")) {
-                HStack {
-                    Text("状态")
-                    Spacer()
-                    Text(connectionStatus)
-                        .foregroundColor(connectionStatus == "已连接" ? .green : .secondary)
-                }
-                if !appInfo.isEmpty {
-                    HStack {
-                        Text("目标 App")
-                        Spacer()
-                        Text(appInfo)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                Button(action: checkConnection) {
-                    HStack {
-                        Spacer()
-                        if isChecking {
-                            ProgressView()
-                        } else {
-                            Text("检查连接")
-                        }
-                        Spacer()
-                    }
-                }
-                .disabled(isChecking)
-            }
-
-            Section(header: Text("工具列表")) {
-                VStack(alignment: .leading, spacing: 6) {
+            // 工具列表
+            CardSectionHeader(icon: "wrench.and.screwdriver", title: "工具列表")
+            CardBox {
+                VStack(alignment: .leading, spacing: 8) {
                     toolRow("control.inject", "注入 ControlAgent 到目标 App")
                     toolRow("control.status", "检查连接状态")
                     toolRow("control.ui_tree", "读取 UI 树")
@@ -89,34 +115,64 @@ struct RemoteControlView: View {
                     toolRow("control.type", "输入文字")
                     toolRow("control.key", "模拟按键 (home/back/enter)")
                 }
-                .font(.caption)
-                .padding(.vertical, 4)
             }
 
-            Section(header: Text("注意事项")) {
+            // 注意事项
+            CardSectionHeader(icon: "exclamationmark.triangle", title: "注意事项", color: .orange)
+            CardBox {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("• 只监听 localhost (127.0.0.1:4789)，不暴露到网络")
-                    Text("• 注入后必须重启目标 App，ControlAgent 才会启动")
-                    Text("• 一次只能控制一个前台 App")
-                    Text("• 需要 TrollStore 开启\"编辑 Entitlements\"并卸载重装")
-                    Text("• UI 树限制 500 节点、深度 12 层")
+                    noteRow("只监听 localhost (127.0.0.1:4789)，不暴露到网络")
+                    noteRow("注入后必须重启目标 App，ControlAgent 才会启动")
+                    noteRow("一次只能控制一个前台 App")
+                    noteRow("需要 TrollStore 开启\"编辑 Entitlements\"并卸载重装")
+                    noteRow("UI 树限制 500 节点、深度 12 层")
                 }
-                .font(.caption)
-                .foregroundColor(.secondary)
             }
         }
-        .navigationTitle("远程控制")
+        .navigationTitle(L10n.t("page_remote"))
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var statusColor: Color {
+        if isChecking { return .orange }
+        return connectionStatus == L10n.t("status_connected") ? .green : .secondary
     }
 
     private func stepView(_ num: Int, _ text: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Text("\(num)")
-                .font(.caption)
-                .fontWeight(.bold)
+                .font(.system(size: 11, weight: .bold))
                 .foregroundColor(.white)
-                .frame(width: 20, height: 20)
-                .background(Circle().fill(Color.tmCyan))
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(LinearGradient(colors: [.tmCyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)))
+            Text(text)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+        }
+    }
+
+    private func toolRow(_ name: String, _ desc: String) -> some View {
+        HStack(spacing: 8) {
+            Text(name)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundColor(.tmCyan)
+                .frame(width: 120, alignment: .leading)
+            Text(desc)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+        }
+    }
+
+    private func capabilityRow(_ icon: String, _ text: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.tmCyan)
+                .frame(width: 20)
             Text(text)
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -124,31 +180,30 @@ struct RemoteControlView: View {
         }
     }
 
-    private func toolRow(_ name: String, _ desc: String) -> some View {
-        HStack {
-            Text(name)
-                .font(.system(.caption, design: .monospaced))
-                .foregroundColor(.tmCyan)
-            Spacer()
-            Text(desc)
+    private func noteRow(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text("•")
+                .foregroundColor(.orange)
+            Text(text)
                 .font(.caption)
                 .foregroundColor(.secondary)
-                .multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
         }
     }
 
     private func checkConnection() {
         isChecking = true
-        connectionStatus = "检查中..."
+        connectionStatus = L10n.t("status_checking")
         DispatchQueue.global(qos: .userInitiated).async {
             let result = ControlAgentTools.shared.status()
             DispatchQueue.main.async {
                 isChecking = false
                 if result["connected"] as? Bool == true {
-                    connectionStatus = "已连接"
+                    connectionStatus = L10n.t("status_connected")
                     appInfo = (result["app"] as? String) ?? (result["app_name"] as? String) ?? ""
                 } else {
-                    connectionStatus = "未连接"
+                    connectionStatus = L10n.t("status_disconnected")
                     appInfo = ""
                 }
             }

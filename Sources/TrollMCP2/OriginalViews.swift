@@ -158,7 +158,16 @@ struct ConversationTranscriptView: View {
     }
 
     var body: some View {
-        NavigationView {
+        VStack(spacing: 0) {
+            // v2.9.77：美化头部
+            PageHeader(
+                icon: "text.bubble.fill",
+                title: L10n.t("page_transcripts"),
+                subtitle: L10n.t("page_transcripts_sub"),
+                colors: [.blue, .tmCyan]
+            )
+            .padding(.vertical, 8)
+
             List {
                 if messages.isEmpty {
                     Text("暂无历史会话记录")
@@ -184,14 +193,15 @@ struct ConversationTranscriptView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("会话记录")
             .toolbar {
                 if !messages.isEmpty {
-                    Button("清空") { store.clearCurrent() }
+                    Button(L10n.t("btn_clear")) { store.clearCurrent() }
                 }
             }
         }
-        .navigationViewStyle(.stack)
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(L10n.t("page_transcripts"))
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     static let tf: DateFormatter = {
@@ -394,7 +404,16 @@ struct AutomationCenterView: View {
     @State private var editing: AutomationStore.Task?
 
     var body: some View {
-        NavigationView {
+        VStack(spacing: 0) {
+            // v2.9.77：美化头部
+            PageHeader(
+                icon: "bolt.fill",
+                title: L10n.t("page_automation"),
+                subtitle: L10n.t("page_automation_sub"),
+                colors: [.orange, .tmBrown]
+            )
+            .padding(.vertical, 8)
+
             List {
                 Section(header: SettingSectionHeader(title: "任务列表")) {
                     if store.tasks.isEmpty {
@@ -414,6 +433,7 @@ struct AutomationCenterView: View {
                                     get: { t.enabled },
                                     set: { AutomationStore.shared.setEnabled(t, enabled: $0) }
                                 )).labelsHidden()
+                                .accentColor(.tmCyan)
                             }
                             .contentShape(Rectangle())
                             .onTapGesture { editing = t }
@@ -442,7 +462,6 @@ struct AutomationCenterView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("自动化中心")
             .toolbar {
                 Button(action: {
                     editing = AutomationStore.Task(name: "", schedule: "*/5 * * * *", action: "ping")
@@ -452,7 +471,9 @@ struct AutomationCenterView: View {
                 AutomationTaskEditor(task: task)
             }
         }
-        .navigationViewStyle(.stack)
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(L10n.t("page_automation"))
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -558,7 +579,16 @@ struct GatewaySettingsView: View {
     @State private var editing: GatewayServer?
 
     var body: some View {
-        NavigationView {
+        VStack(spacing: 0) {
+            // v2.9.77：美化头部
+            PageHeader(
+                icon: "arrow.triangle.branch",
+                title: L10n.t("page_gateway"),
+                subtitle: L10n.t("page_gateway_sub"),
+                colors: [.purple, .tmIndigo]
+            )
+            .padding(.vertical, 8)
+
             List {
                 if store.servers.isEmpty {
                     Text("暂无 Gateway 服务端，点右上角 + 添加")
@@ -582,7 +612,6 @@ struct GatewaySettingsView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("Gateway 设置")
             .toolbar {
                 Button(action: { editing = GatewayServer(name: "", url: "ws://") }) { Image(systemName: "plus") }
             }
@@ -590,7 +619,9 @@ struct GatewaySettingsView: View {
                 GatewayEditorView(server: server)
             }
         }
-        .navigationViewStyle(.stack)
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(L10n.t("page_gateway"))
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

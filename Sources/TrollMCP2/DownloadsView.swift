@@ -27,49 +27,56 @@ struct DownloadsView: View {
     }
 
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                if items.isEmpty {
-                    emptyState
-                } else {
-                    List {
-                        Section(header: SettingSectionHeader(title: "下载产物")) {
-                            ForEach(items) { item in
-                                row(item)
-                            }
-                            .onDelete { indexSet in
-                                let targets = indexSet.map { items[$0] }
-                                for t in targets { try? FileManager.default.removeItem(atPath: t.path) }
-                                refresh()
-                            }
+        VStack(spacing: 0) {
+            // v2.9.77：顶部美化头部
+            PageHeader(
+                icon: "arrow.down.circle.fill",
+                title: L10n.t("page_downloads"),
+                subtitle: L10n.t("page_downloads_sub"),
+                colors: [.green, .tmTeal]
+            )
+            .padding(.vertical, 8)
+
+            if items.isEmpty {
+                emptyState
+            } else {
+                List {
+                    Section(header: SettingSectionHeader(title: "下载产物")) {
+                        ForEach(items) { item in
+                            row(item)
+                        }
+                        .onDelete { indexSet in
+                            let targets = indexSet.map { items[$0] }
+                            for t in targets { try? FileManager.default.removeItem(atPath: t.path) }
+                            refresh()
                         }
                     }
-                    .listStyle(.plain)
                 }
-                toolbar
+                .listStyle(.plain)
             }
-            .navigationTitle("下载管理")
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(
-                leading: Button(editMode ? "完成" : "选择") {
-                    withAnimation { editMode.toggle() }
-                    if !editMode { selected.removeAll() }
-                },
-                trailing: Button(action: refresh) { Image(systemName: "arrow.clockwise") }
-            )
-            .alert(isPresented: $showConfirm) {
-                Alert(
-                    title: Text("删除所选"),
-                    message: Text(confirmMessage),
-                    primaryButton: .destructive(Text("删除")) {
-                        deleteSelected()
-                    },
-                    secondaryButton: .cancel()
-                )
-            }
-            .onAppear { refresh() }
+            toolbar
         }
-        .navigationViewStyle(.stack)
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(L10n.t("page_downloads"))
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarItems(
+            leading: Button(editMode ? "完成" : "选择") {
+                withAnimation { editMode.toggle() }
+                if !editMode { selected.removeAll() }
+            },
+            trailing: Button(action: refresh) { Image(systemName: "arrow.clockwise") }
+        )
+        .alert(isPresented: $showConfirm) {
+            Alert(
+                title: Text("删除所选"),
+                message: Text(confirmMessage),
+                primaryButton: .destructive(Text("删除")) {
+                    deleteSelected()
+                },
+                secondaryButton: .cancel()
+            )
+        }
+        .onAppear { refresh() }
     }
 
     private var emptyState: some View {
@@ -92,12 +99,16 @@ struct DownloadsView: View {
             if editMode {
                 Image(systemName: selected.contains(item.id) ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
-                    .foregroundColor(selected.contains(item.id) ? .blue : .secondary)
+                    .foregroundColor(selected.contains(item.id) ? .tmCyan : .secondary)
             }
-            Image(systemName: item.isDir ? "folder.fill" : iconFor(item.name))
-                .font(.system(size: 22))
-                .foregroundColor(item.isDir ? .blue : .gray)
-                .frame(width: 36)
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(item.isDir ? Color.blue.opacity(0.12) : Color.tmCyan.opacity(0.12))
+                    .frame(width: 40, height: 40)
+                Image(systemName: item.isDir ? "folder.fill" : iconFor(item.name))
+                    .font(.system(size: 18))
+                    .foregroundColor(item.isDir ? .blue : .tmCyan)
+            }
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.name)
                     .font(.body)
@@ -113,6 +124,7 @@ struct DownloadsView: View {
             }
             Spacer()
         }
+        .padding(.vertical, 4)
         .contentShape(Rectangle())
         .onTapGesture {
             if editMode {

@@ -12,7 +12,36 @@ struct InjectionView: View {
     }
 
     var body: some View {
-        NavigationView {
+        VStack(spacing: 0) {
+            // v2.9.77：美化头部（标题 + 搜索）
+            PageHeader(
+                icon: "syringe.fill",
+                title: L10n.t("page_inject"),
+                subtitle: "\(apps.count) 个应用 · 点击查看详情与注入",
+                colors: [.tmIndigo, .tmCyan]
+            )
+            .padding(.vertical, 8)
+
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.secondary)
+                    .font(.system(size: 14))
+                TextField("搜索应用或 Bundle ID...", text: $searchText)
+                    .font(.subheadline)
+                if !searchText.isEmpty {
+                    Button(action: { searchText = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(Color(.secondarySystemBackground))
+            .cornerRadius(12)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 4)
+
             Group {
                 if apps.isEmpty {
                     VStack(spacing: 12) {
@@ -22,11 +51,11 @@ struct InjectionView: View {
                         Text("点击右上角刷新")
                             .foregroundColor(.secondary)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     appList
                 }
             }
-            .navigationTitle("注入管理 (\(apps.count))")
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     Button(action: refresh) { Image(systemName: "arrow.clockwise") }
@@ -36,39 +65,35 @@ struct InjectionView: View {
                 AppDetailView(app: app, inspectResult: $inspectResult)
             }
         }
-        .navigationViewStyle(.stack)
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(L10n.t("page_inject"))
+        .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: refresh)   // v2.9.18：进入自动加载应用列表
     }
 
     private var appList: some View {
         List {
-            if !searchText.isEmpty {
-                Section {
-                    EmptyView()
-                }
-            }
             ForEach(filtered) { app in
                 Button(action: { selectedApp = app; inspectApp(app) }) {
                     HStack(spacing: 12) {
                         // v2.9.18：真实 app 图标（加载失败时显示首字母占位）
                         AppIconView(bundleId: app.bundleId, path: app.path)
-                            .frame(width: 34, height: 34)
-                            .cornerRadius(8)
+                            .frame(width: 38, height: 38)
+                            .cornerRadius(10)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(app.name)
                                 .font(.body)
                                 .foregroundColor(.primary)
                             Text(app.bundleId)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
                                 .font(.system(.caption, design: .monospaced))
+                                .foregroundColor(.secondary)
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-                    .padding(.vertical, 2)
+                    .padding(.vertical, 3)
                 }
                 .buttonStyle(PlainButtonStyle())
             }
