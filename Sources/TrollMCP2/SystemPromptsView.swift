@@ -67,7 +67,7 @@ struct SystemPromptsView: View {
     }
 
     // 单个指令卡片
-    private func promptCard(_ prompt: SystemPrompt) -> some View {
+    private func promptCard(_ prompt: SystemPrompts.Prompt) -> some View {
         let isSelected = selectedId == prompt.id
         let isExpanded = expandedId == prompt.id
 
@@ -160,8 +160,7 @@ struct SystemPromptsView: View {
     private var explainCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("系统指令 vs 开发者指令", systemImage: "info.circle.fill")
-                .font(.subheadline)
-                .fontWeight(.semibold)
+                .font(.subheadline.weight(.semibold))
                 .foregroundColor(.tmCyan)
             Text("• 系统指令：App 内置，不可编辑，优先级最高，控制 AI 的基本行为模式")
                 .font(.caption)
