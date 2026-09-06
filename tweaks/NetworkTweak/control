@@ -1,0 +1,8 @@
+Package: com.trollagent.networktweak
+Name: NetworkTweak
+Version: 1.0
+Architecture: iphoneos-arm
+Description: HTTP/HTTPS 抓包 dylib，记录所有 NSURLSession 请求到本地 JSON
+Maintainer: TrollAgent
+Section: Tweaks
+Priority: optional
