@@ -34,6 +34,8 @@ struct ChatView: View {
                 } else {
                     messageList
                 }
+                // v2.9.72：工作流可视化步骤条
+                WorkflowProgressView()
                 currentModelBar
                 inputBar
             }
@@ -354,6 +356,12 @@ struct ChatView: View {
             .onChange(of: store.selectedId) { _ in
                 scrollToBottom(proxy)
             }
+            // v2.9.72：AI 回复完成时结束工作流
+            .onChange(of: store.isLoading) { loading in
+                if !loading {
+                    WorkflowManager.shared.finishRun(success: true)
+                }
+            }
         }
     }
 
@@ -490,6 +498,8 @@ struct ChatView: View {
     private func send() {
         guard let cfg = modelStore.defaultConfig,
               (!inputText.isEmpty || !pendingAttachments.isEmpty || !pendingImages.isEmpty) else { return }
+        // v2.9.72：启动工作流可视化
+        WorkflowManager.shared.startRun("处理请求")
         if store.selectedId == nil { store.newConversation() }
         var text = inputText
         let imgs = pendingImages

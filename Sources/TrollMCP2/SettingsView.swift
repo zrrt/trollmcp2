@@ -2,6 +2,8 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.presentationMode) var presentationMode
+    // v2.9.72：开发者模式开关，开启后显示高级选项
+    @State private var developerMode = UserDefaults.standard.bool(forKey: "developer_mode")
 
     var body: some View {
         NavigationView {
@@ -30,28 +32,7 @@ struct SettingsView: View {
                     )
                 }
 
-                Section(header: SettingSectionHeader(title: "调试服务")) {
-                    SettingRow(
-                        title: "权限与自动化",
-                        subtitle: "\(permissionCount()) 项系统权限",
-                        icon: "hand.raised.fill",
-                        color: .red,
-                        destination: SystemCapabilitiesView()
-                    )
-                    SettingRow(
-                        title: "自动化中心",
-                        subtitle: "任务 · 历史 · 重试",
-                        icon: "bolt.fill",
-                        color: .yellow,
-                        destination: AutomationCenterView()
-                    )
-                    SettingRow(
-                        title: "工具权限策略",
-                        subtitle: "按工具控制 · 真实/占位",
-                        icon: "lock.shield.fill",
-                        color: .green,
-                        destination: ToolPermissionPoliciesView()
-                    )
+                Section(header: SettingSectionHeader(title: "核心功能")) {
                     SettingRow(
                         title: "注入与自动化",
                         subtitle: "全应用 · 策略 · 自动化",
@@ -60,29 +41,11 @@ struct SettingsView: View {
                         destination: InjectionView()
                     )
                     SettingRow(
-                        title: "会话记录",
-                        subtitle: "完整对话存档",
-                        icon: "text.book.closed.fill",
-                        color: .tmCyan,
-                        destination: ConversationTranscriptView()
-                    )
-                }
-
-                Section(header: SettingSectionHeader(title: "连接与扩展")) {
-                    SettingRow(
                         title: "GitHub 账号",
                         subtitle: "线上编译 · \(githubAccountSubtitle())",
                         icon: "person.crop.circle.fill.badge.checkmark",
                         color: .black,
                         destination: GitHubAccountView()
-                    )
-                    // v2.9.68：SSH 远程连接
-                    SettingRow(
-                        title: "SSH 远程连接",
-                        subtitle: sshConfigSubtitle(),
-                        icon: "terminal.fill",
-                        color: .tmCyan,
-                        destination: SSHSettingsView()
                     )
                     SettingRow(
                         title: "下载管理",
@@ -91,13 +54,65 @@ struct SettingsView: View {
                         color: .green,
                         destination: DownloadsView()
                     )
-                    SettingRow(
-                        title: "内置智能搜索",
-                        subtitle: "Bing Web · 用法说明",
-                        icon: "magnifyingglass.circle.fill",
-                        color: .tmCyan,
-                        destination: SmartSearchView()
-                    )
+                }
+
+                // v2.9.72：开发者模式开关
+                Section {
+                    Toggle(isOn: Binding(
+                        get: { developerMode },
+                        set: { developerMode = $0; UserDefaults.standard.set($0, forKey: "developer_mode") }
+                    )) {
+                        Label("开发者模式", systemImage: "wrench.and.screwdriver.fill")
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                if developerMode {
+                    Section(header: SettingSectionHeader(title: "开发者选项")) {
+                        SettingRow(
+                            title: "权限与自动化",
+                            subtitle: "\(permissionCount()) 项系统权限",
+                            icon: "hand.raised.fill",
+                            color: .red,
+                            destination: SystemCapabilitiesView()
+                        )
+                        SettingRow(
+                            title: "自动化中心",
+                            subtitle: "任务 · 历史 · 重试",
+                            icon: "bolt.fill",
+                            color: .yellow,
+                            destination: AutomationCenterView()
+                        )
+                        SettingRow(
+                            title: "工具权限策略",
+                            subtitle: "按工具控制 · 真实/占位",
+                            icon: "lock.shield.fill",
+                            color: .green,
+                            destination: ToolPermissionPoliciesView()
+                        )
+                        SettingRow(
+                            title: "会话记录",
+                            subtitle: "完整对话存档",
+                            icon: "text.book.closed.fill",
+                            color: .tmCyan,
+                            destination: ConversationTranscriptView()
+                        )
+                        SettingRow(
+                            title: "SSH 远程连接",
+                            subtitle: sshConfigSubtitle(),
+                            icon: "terminal.fill",
+                            color: .tmCyan,
+                            destination: SSHSettingsView()
+                        )
+                        SettingRow(
+                            title: "内置智能搜索",
+                            subtitle: "Bing Web · 用法说明",
+                            icon: "magnifyingglass.circle.fill",
+                            color: .tmCyan,
+                            destination: SmartSearchView()
+                        )
+                    }
+                }
                     // v2.9.39：内置浏览器改为悬浮窗（可缩小到右侧边缘，AI 操作自动浮现）
                     SettingRowButton(
                         title: "内置浏览器",
@@ -174,7 +189,7 @@ struct SettingsView: View {
                         color: .orange,
                         destination: NetworkDebugView()
                     )
-                    LabeledRow(label: "版本", value: "2.9.71")
+                    LabeledRow(label: "版本", value: "2.9.72")
                     // v2.9.68：自动更新检查
                     SettingRowButton(
                         title: "检查更新",

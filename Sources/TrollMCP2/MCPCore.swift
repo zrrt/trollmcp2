@@ -297,17 +297,21 @@ public final class ToolRegistry: ObservableObject {
             let start = CFAbsoluteTimeGetCurrent()
             let perm = Self.permissionLabel(originalName)
             do {
+                // v2.9.72：工作流可视化
+                WorkflowManager.shared.addStep(name: originalName, tool: originalName)
                 let result = try t.invoke(params)
                 let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
                 let bytes = Self.resultBytes(result)
                 AuditLog.shared.logTool(originalName, status: .success,
                                         elapsedMs: elapsedMs, dataBytes: bytes, permission: perm)
+                WorkflowManager.shared.updateStep(tool: originalName, detail: "\(elapsedMs)ms", success: true)
                 return result
             } catch {
                 let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
                 AuditLog.shared.logTool(originalName, status: .failure,
                                         elapsedMs: elapsedMs, dataBytes: 0, permission: perm,
                                         detail: (error as? MCPError)?.description ?? error.localizedDescription)
+                WorkflowManager.shared.updateStep(tool: originalName, detail: error.localizedDescription, success: false)
                 throw error
             }
         }
@@ -393,6 +397,14 @@ public final class ToolRegistry: ObservableObject {
         register(ServerStartTool())
         register(ServerStopTool())
         register(ServerStatusTool())
+
+        // v2.9.72：知识库 + 清理 + 符号 + 插件 + 兼容矩阵 + 崩溃复现
+        register(KnowledgeBaseTool())
+        register(WorkspaceCleanupTool())
+        register(BinarySymbolsTool())
+        register(PluginTool())
+        register(CompatibilityTool())
+        register(CrashReproTool())
 
         // M4 Gateway + 自动化（含原版命名）
         register(GatewayStatusTool())
