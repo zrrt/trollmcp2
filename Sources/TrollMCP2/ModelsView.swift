@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit   // v2.9.85：UIPasteboard 复制推荐链接
 
 struct ModelsView: View {
     @ObservedObject private var store = ModelStore.shared
@@ -7,6 +8,11 @@ struct ModelsView: View {
 
     var body: some View {
         List {
+            // v2.9.85：推荐中转站卡片（作者自用 · 可复制链接）
+            Section {
+                RelayRecommendCard()
+            }
+
             if store.configs.isEmpty {
                 Section {
                     HStack {
@@ -98,6 +104,56 @@ struct ModelRow: View {
                 .foregroundColor(.secondary)
         }
         .padding(.vertical, 2)
+    }
+}
+
+// MARK: - v2.9.85 推荐中转站卡片（作者自用 · 链接可复制）
+
+struct RelayRecommendCard: View {
+    @State private var copied = false
+    private let link = "https://china.botcf.com/register?aff=bJMk"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                Text(L10n.t("relay_card_title"))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.white)
+            }
+            Text(L10n.t("relay_card_body"))
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.92))
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                Text(link)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                Spacer()
+                Button(action: {
+                    UIPasteboard.general.string = link
+                    copied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
+                }) {
+                    Label(copied ? L10n.t("relay_card_copied") : L10n.t("relay_card_copy"),
+                          systemImage: copied ? "checkmark" : "doc.on.doc")
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(copied ? .white : Color(red: 0.82, green: 0.95, blue: 1.0))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(14)
+        .background(
+            LinearGradient(colors: [Color(red: 0.16, green: 0.44, blue: 0.92), Color(red: 0.0, green: 0.74, blue: 0.95)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+        )
+        .cornerRadius(14)
     }
 }
 

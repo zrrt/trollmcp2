@@ -61,6 +61,11 @@ enum L10n {
             // v2.9.82：任务完成通知
             "task_notify": ["zh": "任务完成通知", "en": "Task Notification"],
             "task_notify_sub": ["zh": "AI 执行完成/失败时，后台发本地通知", "en": "Notify when AI finishes or fails in background"],
+            // v2.9.85：推荐中转站卡片
+            "relay_card_title": ["zh": "推荐中转站 · 作者自用", "en": "Recommended Relay · Author's Pick"],
+            "relay_card_body": ["zh": "价格极低，作者本人就在用。这不是合作广告——通过链接注册会为作者增加 Token 额度，用于持续开发与更新更多功能。感谢支持！", "en": "Extremely low pricing, and it's the relay the author personally uses. This is not a sponsored ad — registering via the link adds tokens for the author to keep developing and shipping new features. Thanks for your support!"],
+            "relay_card_copy": ["zh": "复制链接", "en": "Copy Link"],
+            "relay_card_copied": ["zh": "已复制", "en": "Copied"],
 
             // ===== 首页 =====
             "home_greeting": ["zh": "你好，我是 TrollAgent", "en": "Hi, I'm TrollAgent"],
