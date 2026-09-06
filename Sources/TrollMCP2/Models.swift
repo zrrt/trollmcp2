@@ -778,8 +778,8 @@ final class ConversationStore: ObservableObject {
                 if m.role == "tool" { continue }
                 if let calls = m.toolCalls, !calls.isEmpty {
                     for c in calls {
-                        if let n = c["function"] as? [String: Any], let name = n["name"] as? String {
-                            toolNames.insert(name)
+                        if !c.name.isEmpty {
+                            toolNames.insert(c.name)
                         }
                     }
                     if topics.count < 8, idx % 4 == 0 { topics.append("工具调用") }

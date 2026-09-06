@@ -158,7 +158,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
             "url": currentURL,
             "title": pageTitle,
             "loaded": ready,
-            "error": lastError.isEmpty ? nil : lastError
+            "error": (lastError.isEmpty ? nil : lastError) as Any
         ]
         // 顺带返回页面正文长度，方便 AI 判断内容是否就位
         let textLen = evalSync("(document.body && document.body.innerText || '').length")
