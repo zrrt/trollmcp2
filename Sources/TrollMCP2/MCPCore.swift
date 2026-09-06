@@ -359,6 +359,13 @@ public final class ToolRegistry: ObservableObject {
         register(AppDecryptTool())
         register(AppEncryptInfoTool())
 
+        // v2.9.69：质量与诊断工具
+        register(IPAInspectTool())
+        register(DylibInspectTool())
+        register(InjectionDiagnoseTool())
+        register(LogCollectTool())
+        register(NetworkCaptureTool())
+
         // M4 Gateway + 自动化（含原版命名）
         register(GatewayStatusTool())
         register(GatewayConnectTool())
