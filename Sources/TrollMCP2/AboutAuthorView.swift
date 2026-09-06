@@ -110,7 +110,7 @@ struct AboutAuthorView: View {
             }
 
             // 赞助
-            CardSectionHeader(icon: "cup.and.saucer.fill", title: L10n.t("about_sponsor"), color: .brown)
+            CardSectionHeader(icon: "cup.and.saucer.fill", title: L10n.t("about_sponsor"), color: .tmBrown)
             CardBox {
                 VStack(spacing: 10) {
                     Text(L10n.t("about_sponsor_body"))
