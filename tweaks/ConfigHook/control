@@ -1,9 +1,8 @@
-﻿Package: com.trollagent.ConfigHook
+Package: com.trollagent.confighook
 Name: ConfigHook
 Version: 1.0
 Architecture: iphoneos-arm64
-Description: Runtime ObjC class probe dylib for TrollAgent. Inject into any app to enumerate classes/methods/properties/UserDefaults via localhost HTTP.
+Description: Config-driven UIKit hook engine for TrollAgent. Reads hook_config.json from Workspace and applies navBarColor/tint/alert/methodLog without rebuilding.
 Maintainer: TrollAgent
 Author: TrollAgent
 Section: Tweaks
-

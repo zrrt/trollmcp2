@@ -380,6 +380,12 @@ public final class ToolRegistry: ObservableObject {
         register(RescueScanTool())
         register(RescueRecoverAllTool())
         register(RescueCleanupTool())
+        // v2.9.90：高级工具组（内存注入/类探测/配置化 Hook/设备伪装）
+        register(InjectionMemTool())
+        register(ProbeInspectTool())
+        register(HookApplyTool())
+        register(DeviceFakeTool())
+        register(DeviceRestoreTool())
         register(ContainerWriteTextTool())
         register(ContainerDeleteTool())
 
