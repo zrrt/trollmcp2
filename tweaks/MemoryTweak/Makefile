@@ -1,3 +1,7 @@
+ARCHS = arm64
+TARGET = iphone:clang:17.5:15.0
+INSTALL_TARGET_PROCESSES = SpringBoard
+
 include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = MemoryTweak
