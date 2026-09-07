@@ -17,7 +17,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.9.89</string>
+	<string>2.9.90</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>CFBundleIcons</key>
@@ -32,6 +32,45 @@
 			</array>
 			<key>CFBundleIconName</key>
 			<string>AppIcon</string>
+		</dict>
+		<key>CFBundleAlternateIcons</key>
+		<dict>
+			<key>blueIcon</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array>
+					<string>blueIcon-60x60@2x</string>
+					<string>blueIcon-60x60@3x</string>
+					<string>blueIcon-1024x1024</string>
+				</array>
+			</dict>
+			<key>originalIcon</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array>
+					<string>originalIcon-60x60@2x</string>
+					<string>originalIcon-60x60@3x</string>
+					<string>originalIcon-1024x1024</string>
+				</array>
+			</dict>
+			<key>whiteIcon</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array>
+					<string>whiteIcon-60x60@2x</string>
+					<string>whiteIcon-60x60@3x</string>
+					<string>whiteIcon-1024x1024</string>
+				</array>
+			</dict>
+			<key>outsetIcon</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array>
+					<string>outsetIcon-60x60@2x</string>
+					<string>outsetIcon-60x60@3x</string>
+					<string>outsetIcon-1024x1024</string>
+				</array>
+			</dict>
 		</dict>
 	</dict>
 	<key>MinimumOSVersion</key>

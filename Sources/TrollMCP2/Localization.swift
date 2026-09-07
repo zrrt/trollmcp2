@@ -168,6 +168,8 @@ enum L10n {
             "row_kb": ["zh": "本机知识库", "en": "Knowledge Base"],
             "row_webhooks": ["zh": "Webhooks", "en": "Webhooks"],
             "row_guide": ["zh": "应用指南", "en": "App Guide"],
+            "row_icon_theme": ["zh": "图标主题", "en": "Icon Theme"],
+            "row_device_fake": ["zh": "设备伪装", "en": "Device Spoof"],
             "row_audit": ["zh": "本机工具审计", "en": "Tool Audit"],
             "row_apikeys": ["zh": "API Key 管理", "en": "API Keys"],
             "row_env": ["zh": "本机环境检测", "en": "Environment Check"],

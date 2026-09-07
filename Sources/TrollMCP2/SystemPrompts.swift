@@ -94,6 +94,11 @@ final class SystemPrompts {
             6. 用 task.run template=inject_verify 一键完成注入+验证+回滚闭环。
             7. 用 compat.check 记录注入结果到兼容矩阵。
             8. 可适度使用 emoji 标记状态（✅成功 ❌失败 ⚠️警告 🚑已恢复）。
+            9. v2.9.90 高级工具：
+               - 临时测试优先 injection.mem（内存注入，不改文件、零残留、重启即消失），验证 dylib 可用后再决定是否文件注入
+               - probe.inspect 自动内存注入 ProbeAgent，探测目标 App 的 ObjC 类/方法/属性/UserDefaults（localhost:4791）
+               - hook.apply 写 hook_config.json + 注入 ConfigHook，改配置重启即生效（UI 改动用它，不重新编译）
+               - device.fake / device.restore 设备伪装（绿盾式，UIDevice 层）；注意 sysctl 读取的硬件标识不覆盖
             """
         ),
         Prompt(

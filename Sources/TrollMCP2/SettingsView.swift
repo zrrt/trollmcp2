@@ -136,6 +136,22 @@ struct SettingsView: View {
                             color: .tmCyan,
                             destination: GuideView()
                         )
+                        // v2.9.90：图标主题（4 套切换）
+                        SettingRow(
+                            title: L10n.t("row_icon_theme"),
+                            subtitle: "巨魔蓝 · 蓝紫 · 浅白 · 深青",
+                            icon: "app.badge.fill",
+                            color: .tmCyan,
+                            destination: IconThemeView()
+                        )
+                        // v2.9.90：设备伪装（绿盾式）
+                        SettingRow(
+                            title: L10n.t("row_device_fake"),
+                            subtitle: "伪装机型 · 注入生效",
+                            icon: "iphone.gen3.radiowaves.left.and.right",
+                            color: .tmCyan,
+                            destination: FakeDeviceView()
+                        )
                         SettingRow(
                             title: L10n.t("row_dev_instructions"),
                             subtitle: devInstructionsSubtitle(),
@@ -288,7 +304,7 @@ struct SettingsView: View {
                         color: .orange,
                         destination: NetworkDebugView()
                     )
-                    LabeledRow(label: L10n.t("version"), value: "2.9.89")
+                    LabeledRow(label: L10n.t("version"), value: "2.9.90")
                     // v2.9.68：自动更新检查
                     SettingRowButton(
                         title: L10n.t("row_check_update"),

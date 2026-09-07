@@ -1,0 +1,434 @@
+{
+ "iPhone10,1": {
+  "battery": "1821 mAh",
+  "cpu": "A11 Bionic",
+  "freq": "2.39 GHz",
+  "inch": "4.7英寸",
+  "name": "iPhone 8",
+  "ppi": "326 PPI",
+  "resolution": "1334×750"
+ },
+ "iPhone10,2": {
+  "battery": "2691 mAh",
+  "cpu": "A11 Bionic",
+  "freq": "2.39 GHz",
+  "inch": "5.5英寸",
+  "name": "iPhone 8 Plus",
+  "ppi": "401 PPI",
+  "resolution": "1920×1080"
+ },
+ "iPhone10,3": {
+  "battery": "2716 mAh",
+  "cpu": "A11 Bionic",
+  "freq": "2.39 GHz",
+  "inch": "5.8英寸",
+  "name": "iPhone X",
+  "ppi": "458 PPI",
+  "resolution": "2436×1125"
+ },
+ "iPhone10,4": {
+  "battery": "1821 mAh",
+  "cpu": "A11 Bionic",
+  "freq": "2.39 GHz",
+  "inch": "4.7英寸",
+  "name": "iPhone 8",
+  "ppi": "326 PPI",
+  "resolution": "1334×750"
+ },
+ "iPhone10,5": {
+  "battery": "2691 mAh",
+  "cpu": "A11 Bionic",
+  "freq": "2.39 GHz",
+  "inch": "5.5英寸",
+  "name": "iPhone 8 Plus",
+  "ppi": "401 PPI",
+  "resolution": "1920×1080"
+ },
+ "iPhone10,6": {
+  "battery": "2716 mAh",
+  "cpu": "A11 Bionic",
+  "freq": "2.39 GHz",
+  "inch": "5.8英寸",
+  "name": "iPhone X",
+  "ppi": "458 PPI",
+  "resolution": "2436×1125"
+ },
+ "iPhone11,2": {
+  "battery": "2658 mAh",
+  "cpu": "A12 Bionic",
+  "freq": "2.49 GHz",
+  "inch": "5.8英寸",
+  "name": "iPhone XS",
+  "ppi": "458 PPI",
+  "resolution": "2436×1125"
+ },
+ "iPhone11,4": {
+  "battery": "3174 mAh",
+  "cpu": "A12 Bionic",
+  "freq": "2.49 GHz",
+  "inch": "6.5英寸",
+  "name": "iPhone XS Max",
+  "ppi": "458 PPI",
+  "resolution": "2688×1242"
+ },
+ "iPhone11,6": {
+  "battery": "3174 mAh",
+  "cpu": "A12 Bionic",
+  "freq": "2.49 GHz",
+  "inch": "6.5英寸",
+  "name": "iPhone XS Max",
+  "ppi": "458 PPI",
+  "resolution": "2688×1242"
+ },
+ "iPhone11,8": {
+  "battery": "2942 mAh",
+  "cpu": "A12 Bionic",
+  "freq": "2.49 GHz",
+  "inch": "6.1英寸",
+  "name": "iPhone XR",
+  "ppi": "326 PPI",
+  "resolution": "1792×828"
+ },
+ "iPhone12,1": {
+  "battery": "3110 mAh",
+  "cpu": "A13 Bionic",
+  "freq": "2.65 GHz",
+  "inch": "6.1英寸",
+  "name": "iPhone 11",
+  "ppi": "326 PPI",
+  "resolution": "1792×828"
+ },
+ "iPhone12,3": {
+  "battery": "3046 mAh",
+  "cpu": "A13 Bionic",
+  "freq": "2.65 GHz",
+  "inch": "5.8英寸",
+  "name": "iPhone 11 Pro",
+  "ppi": "458 PPI",
+  "resolution": "2436×1125"
+ },
+ "iPhone12,5": {
+  "battery": "3969 mAh",
+  "cpu": "A13 Bionic",
+  "freq": "2.65 GHz",
+  "inch": "6.5英寸",
+  "name": "iPhone 11 Pro Max",
+  "ppi": "458 PPI",
+  "resolution": "2688×1242"
+ },
+ "iPhone12,8": {
+  "battery": "1821 mAh",
+  "cpu": "A13 Bionic",
+  "freq": "2.65 GHz",
+  "inch": "4.7英寸",
+  "name": "iPhone SE (2nd Gen)",
+  "ppi": "326 PPI",
+  "resolution": "1334×750"
+ },
+ "iPhone13,1": {
+  "battery": "2227 mAh",
+  "cpu": "A14 Bionic",
+  "freq": "2.99 GHz",
+  "inch": "5.4英寸",
+  "name": "iPhone 12 Mini",
+  "ppi": "476 PPI",
+  "resolution": "2340×1080"
+ },
+ "iPhone13,2": {
+  "battery": "2815 mAh",
+  "cpu": "A14 Bionic",
+  "freq": "2.99 GHz",
+  "inch": "6.1英寸",
+  "name": "iPhone 12",
+  "ppi": "460 PPI",
+  "resolution": "2532×1170"
+ },
+ "iPhone13,3": {
+  "battery": "2815 mAh",
+  "cpu": "A14 Bionic",
+  "freq": "2.99 GHz",
+  "inch": "6.1英寸",
+  "name": "iPhone 12 Pro",
+  "ppi": "460 PPI",
+  "resolution": "2532×1170"
+ },
+ "iPhone13,4": {
+  "battery": "3687 mAh",
+  "cpu": "A14 Bionic",
+  "freq": "2.99 GHz",
+  "inch": "6.7英寸",
+  "name": "iPhone 12 Pro Max",
+  "ppi": "458 PPI",
+  "resolution": "2778×1284"
+ },
+ "iPhone14,2": {
+  "battery": "3095 mAh",
+  "cpu": "A15 Bionic",
+  "freq": "3.23 GHz",
+  "inch": "6.1英寸",
+  "name": "iPhone 13 Pro",
+  "ppi": "460 PPI",
+  "resolution": "2532×1170"
+ },
+ "iPhone14,3": {
+  "battery": "4352 mAh",
+  "cpu": "A15 Bionic",
+  "freq": "3.23 GHz",
+  "inch": "6.7英寸",
+  "name": "iPhone 13 Pro Max",
+  "ppi": "458 PPI",
+  "resolution": "2778×1284"
+ },
+ "iPhone14,4": {
+  "battery": "2406 mAh",
+  "cpu": "A15 Bionic",
+  "freq": "3.23 GHz",
+  "inch": "5.4英寸",
+  "name": "iPhone 13 Mini",
+  "ppi": "476 PPI",
+  "resolution": "2340×1080"
+ },
+ "iPhone14,5": {
+  "battery": "3227 mAh",
+  "cpu": "A15 Bionic",
+  "freq": "3.23 GHz",
+  "inch": "6.1英寸",
+  "name": "iPhone 13",
+  "ppi": "460 PPI",
+  "resolution": "2532×1170"
+ },
+ "iPhone14,6": {
+  "battery": "2018 mAh",
+  "cpu": "A15 Bionic",
+  "freq": "3.23 GHz",
+  "inch": "4.7英寸",
+  "name": "iPhone SE (3rd Gen)",
+  "ppi": "326 PPI",
+  "resolution": "1334×750"
+ },
+ "iPhone14,7": {
+  "battery": "3279 mAh",
+  "cpu": "A15 Bionic",
+  "freq": "3.23 GHz",
+  "inch": "6.1英寸",
+  "name": "iPhone 14",
+  "ppi": "460 PPI",
+  "resolution": "2532×1170"
+ },
+ "iPhone14,8": {
+  "battery": "4325 mAh",
+  "cpu": "A15 Bionic",
+  "freq": "3.23 GHz",
+  "inch": "6.7英寸",
+  "name": "iPhone 14 Plus",
+  "ppi": "458 PPI",
+  "resolution": "2778×1284"
+ },
+ "iPhone15,2": {
+  "battery": "3200 mAh",
+  "cpu": "A16 Bionic",
+  "freq": "3.46 GHz",
+  "inch": "6.1英寸",
+  "name": "iPhone 14 Pro",
+  "ppi": "461 PPI",
+  "resolution": "2556×1179"
+ },
+ "iPhone15,3": {
+  "battery": "4323 mAh",
+  "cpu": "A16 Bionic",
+  "freq": "3.46 GHz",
+  "inch": "6.7英寸",
+  "name": "iPhone 14 Pro Max",
+  "ppi": "460 PPI",
+  "resolution": "2796×1290"
+ },
+ "iPhone15,4": {
+  "battery": "3349 mAh",
+  "cpu": "A16 Bionic",
+  "freq": "3.46 GHz",
+  "inch": "6.1英寸",
+  "name": "iPhone 15",
+  "ppi": "461 PPI",
+  "resolution": "2556×1179"
+ },
+ "iPhone15,5": {
+  "battery": "4383 mAh",
+  "cpu": "A16 Bionic",
+  "freq": "3.46 GHz",
+  "inch": "6.7英寸",
+  "name": "iPhone 15 Plus",
+  "ppi": "460 PPI",
+  "resolution": "2796×1290"
+ },
+ "iPhone16,1": {
+  "battery": "3274 mAh",
+  "cpu": "A17 Pro",
+  "freq": "3.78 GHz",
+  "inch": "6.1英寸",
+  "name": "iPhone 15 Pro",
+  "ppi": "461 PPI",
+  "resolution": "2556×1179"
+ },
+ "iPhone16,2": {
+  "battery": "4422 mAh",
+  "cpu": "A17 Pro",
+  "freq": "3.78 GHz",
+  "inch": "6.7英寸",
+  "name": "iPhone 15 Pro Max",
+  "ppi": "460 PPI",
+  "resolution": "2796×1290"
+ },
+ "iPhone16,3": {
+  "battery": "3349 mAh",
+  "cpu": "A16 Bionic",
+  "freq": "3.46 GHz",
+  "inch": "6.1英寸",
+  "name": "iPhone 15",
+  "ppi": "461 PPI",
+  "resolution": "2556×1179"
+ },
+ "iPhone16,4": {
+  "battery": "4383 mAh",
+  "cpu": "A16 Bionic",
+  "freq": "3.46 GHz",
+  "inch": "6.7英寸",
+  "name": "iPhone 15 Plus",
+  "ppi": "460 PPI",
+  "resolution": "2796×1290"
+ },
+ "iPhone17,1": {
+  "battery": "3582 mAh",
+  "cpu": "A18 Pro",
+  "freq": "4.04 GHz",
+  "inch": "6.3英寸",
+  "name": "iPhone 16 Pro",
+  "ppi": "462 PPI",
+  "resolution": "2622×1206"
+ },
+ "iPhone17,2": {
+  "battery": "4685 mAh",
+  "cpu": "A18 Pro",
+  "freq": "4.04 GHz",
+  "inch": "6.9英寸",
+  "name": "iPhone 16 Pro Max",
+  "ppi": "458 PPI",
+  "resolution": "2868×1320"
+ },
+ "iPhone17,3": {
+  "battery": "3561 mAh",
+  "cpu": "A18",
+  "freq": "3.78 GHz",
+  "inch": "6.1英寸",
+  "name": "iPhone 16",
+  "ppi": "461 PPI",
+  "resolution": "2556×1179"
+ },
+ "iPhone17,4": {
+  "battery": "4674 mAh",
+  "cpu": "A18",
+  "freq": "3.78 GHz",
+  "inch": "6.7英寸",
+  "name": "iPhone 16 Plus",
+  "ppi": "460 PPI",
+  "resolution": "2796×1290"
+ },
+ "iPhone6,1": {
+  "battery": "1560 mAh",
+  "cpu": "A7",
+  "freq": "1.3 GHz",
+  "inch": "4.0英寸",
+  "name": "iPhone 5S",
+  "ppi": "326 PPI",
+  "resolution": "1136×640"
+ },
+ "iPhone6,2": {
+  "battery": "1560 mAh",
+  "cpu": "A7",
+  "freq": "1.3 GHz",
+  "inch": "4.0英寸",
+  "name": "iPhone 5S",
+  "ppi": "326 PPI",
+  "resolution": "1136×640"
+ },
+ "iPhone7,1": {
+  "battery": "2915 mAh",
+  "cpu": "A8",
+  "freq": "1.4 GHz",
+  "inch": "5.5英寸",
+  "name": "iPhone 6 Plus",
+  "ppi": "401 PPI",
+  "resolution": "1920×1080"
+ },
+ "iPhone7,2": {
+  "battery": "1810 mAh",
+  "cpu": "A8",
+  "freq": "1.4 GHz",
+  "inch": "4.7英寸",
+  "name": "iPhone 6",
+  "ppi": "326 PPI",
+  "resolution": "1334×750"
+ },
+ "iPhone8,1": {
+  "battery": "1715 mAh",
+  "cpu": "A9",
+  "freq": "1.85 GHz",
+  "inch": "4.7英寸",
+  "name": "iPhone 6S",
+  "ppi": "326 PPI",
+  "resolution": "1334×750"
+ },
+ "iPhone8,2": {
+  "battery": "2750 mAh",
+  "cpu": "A9",
+  "freq": "1.85 GHz",
+  "inch": "5.5英寸",
+  "name": "iPhone 6S Plus",
+  "ppi": "401 PPI",
+  "resolution": "1920×1080"
+ },
+ "iPhone8,4": {
+  "battery": "1624 mAh",
+  "cpu": "A9",
+  "freq": "1.85 GHz",
+  "inch": "4.0英寸",
+  "name": "iPhone SE (1st Gen)",
+  "ppi": "326 PPI",
+  "resolution": "1136×640"
+ },
+ "iPhone9,1": {
+  "battery": "1960 mAh",
+  "cpu": "A10 Fusion",
+  "freq": "2.34 GHz",
+  "inch": "4.7英寸",
+  "name": "iPhone 7",
+  "ppi": "326 PPI",
+  "resolution": "1334×750"
+ },
+ "iPhone9,2": {
+  "battery": "2900 mAh",
+  "cpu": "A10 Fusion",
+  "freq": "2.34 GHz",
+  "inch": "5.5英寸",
+  "name": "iPhone 7 Plus",
+  "ppi": "401 PPI",
+  "resolution": "1920×1080"
+ },
+ "iPhone9,3": {
+  "battery": "1960 mAh",
+  "cpu": "A10 Fusion",
+  "freq": "2.34 GHz",
+  "inch": "4.7英寸",
+  "name": "iPhone 7",
+  "ppi": "326 PPI",
+  "resolution": "1334×750"
+ },
+ "iPhone9,4": {
+  "battery": "2900 mAh",
+  "cpu": "A10 Fusion",
+  "freq": "2.34 GHz",
+  "inch": "5.5英寸",
+  "name": "iPhone 7 Plus",
+  "ppi": "401 PPI",
+  "resolution": "1920×1080"
+ }
+}

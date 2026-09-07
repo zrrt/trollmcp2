@@ -10,7 +10,7 @@
 - 项目：TrollAgent（原名 TrollMCP2，TrollStore 环境，无越狱）
 - 目标：AI 驱动的移动端实验与 QA 工作台——一句话描述目标，AI 自动完成诊断、操作、验证和报告
 - 构建：SwiftPM + GitHub Actions（私有仓库 origina47487lhe-droid/trollmcp2）
-- 版本：2.9.89
+- 版本：2.9.90
 - 环境：iOS 14+，TrollStore 安装，纯 TrollStore 无越狱
 
 ## 2. 核心设计原则
@@ -140,6 +140,7 @@ tweaks/<Name>/
 |---|---|
 | 设备 | device.info, device.probe, app.start/stop/restart/status/stats |
 | 注入 | injection.enable/disable/remove/inspect/list/status, injection.diagnose, **injection.restore, rescue.scan, rescue.recover_all, rescue.cleanup**（v2.9.89 紧急恢复） |
+| 高级探测（v2.9.90） | **injection.mem**（opainject 内存注入：不改文件、零残留、重启即消失，临时测试首选）, **probe.inspect**（ProbeAgent 运行时类探测：类/方法/属性/UserDefaults，localhost:4791）, **hook.apply**（ConfigHook 配置化 Hook：hook_config.json 驱动导航栏颜色/全局 tint/弹窗/方法日志，改配置重启即生效）, **device.fake / device.restore**（FakeDevice 设备伪装：fake_device.json 驱动 UIDevice 机型伪装，绿盾式） |
 | 工件 | artifact.list/find/read_text, ipa.inspect, dylib.inspect, binary.symbols |
 | 诊断 | diagnose.startup, diagnose.crash, kb.query, crash.repro_template |
 | 网络 | network.capture（需 NetworkTweak.dylib）, server.start/stop/status |
@@ -148,6 +149,16 @@ tweaks/<Name>/
 | 浏览器 | browser.open/wait/snapshot/click/type/submit/text/scroll/eval/navigate/status（v2.9.88 起标准流程：open → wait → snapshot → 操作 → text 验证结果） |
 | 内存 | memory.search/read/write（需 MemoryTweak.dylib 注入） |
 | 远程控制 | control.inject/status/ui_tree/screenshot/tap/swipe/type/key（需 ControlAgent.dylib 注入，AI 可控制任意 App UI） |
+
+## 13. v2.9.90 高级工具使用建议
+
+1. **注入失败排障**：先用 `injection.diagnose`（会检查 Bundle 目录真实可写性）→ `injection.mem` 内存注入验证 dylib 本身可用 → 再决定是否文件注入。
+2. **临时测试优先内存注入**：`injection.mem` 不改任何文件、无备份、App 重启自动消失，绝无"注入后打不开 App"风险；文件注入（enable）才需要备份与恢复。
+3. **探测目标 App 结构**：`probe.inspect`（自动内存注入 ProbeAgent）→ 查类/方法/UserDefaults，适合逆向前摸底与确认 hook 目标存在。
+4. **UI 改动用配置化 Hook**：`hook.apply` 写 hook_config.json + 注入 ConfigHook；改配置只需重启 App，无需重新编译注入。
+5. **设备伪装**：`device.fake` 伪装 UIDevice 返回的机型/名称/系统版本（绿盾式）；`device.restore` 一键还原。注意部分 App 用 sysctl 读硬件标识，UIDevice 层伪装不覆盖。
+6. **注入前检查目标 App 是否在运行**：内存注入要求进程存活；文件注入（enable）会自动 kill 并建议重启。
+7. **安全边界**：对微信/支付宝等敏感 App 注入前必须说明风险并给出恢复方案（rescue.*）；内存注入不会破坏 App，仍要谨慎操作。
 
 ---
 
