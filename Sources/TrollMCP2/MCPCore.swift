@@ -397,6 +397,8 @@ public final class ToolRegistry: ObservableObject {
         register(ContainerDeleteTool())
         // v2.9.99：一键新机（绿盾式组合）
         register(NewDeviceTool())
+        // v2.9.100：AI 分析引擎
+        register(AiAnalyzeTool())
 
         // v2.9.68：SSH 远程连接 + 应用解密
         register(SSHTool())
