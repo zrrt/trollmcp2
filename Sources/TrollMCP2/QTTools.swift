@@ -323,9 +323,8 @@ final class InjectionDiagnoseTool: MCPTool {
             }
         }
 
-        // 6. 检查 Mach-O 完整性（主二进制存在 + 备份）
+        // 6. 检查 Mach-O 完整性（主二进制存在 + 备份，兼容新旧格式）
         let mainBinary = target.path.appending("/\((NSDictionary(contentsOfFile: target.path.appending("/Info.plist"))?["CFBundleExecutable"] as? String) ?? "")")
-        let backupPath = mainBinary.appending(".bak_macho")
         let mainExists = FileManager.default.fileExists(atPath: mainBinary)
         diagnosis["main_binary"] = mainBinary
         diagnosis["main_binary_exists"] = mainExists
@@ -347,7 +346,34 @@ final class InjectionDiagnoseTool: MCPTool {
                 fixes.append("重新编译匹配架构的 dylib，或用 lipo 合并两种架构")
             }
         }
-        diagnosis["backup_exists"] = FileManager.default.fileExists(atPath: backupPath)
+        // v2.9.89：备份检查兼容 .troll-fools.bak（TrollFools 同款）与旧 .bak_macho
+        let backupNew = mainBinary + ".troll-fools.bak"
+        let backupLegacy = mainBinary + ".bak_macho"
+        let hasBackup = FileManager.default.fileExists(atPath: backupNew) || FileManager.default.fileExists(atPath: backupLegacy)
+        diagnosis["backup_exists"] = hasBackup
+        diagnosis["backup_format"] = FileManager.default.fileExists(atPath: backupNew) ? "troll-fools.bak" : (FileManager.default.fileExists(atPath: backupLegacy) ? "bak_macho(旧)" : "无")
+
+        // 6b. v2.9.89：可注入目标 Mach-O 列表（对齐 TrollFools 策略——Frameworks 内未加密优先）
+        let injectable = InjectionManager.shared.collectInjectableMachOs(target)
+        let allMachOs = [mainBinary] + (try? FileManager.default.contentsOfDirectory(atPath: target.path + "/Frameworks").map { target.path + "/Frameworks/\($0)" }) ?? []
+        var protectedCount = 0
+        var totalMachOs = 0
+        for m in allMachOs {
+            if MachOAnalyzer.analyze(m)?.valid == true {
+                totalMachOs += 1
+                if MachOAnalyzer.isProtected(m) { protectedCount += 1 }
+            }
+        }
+        diagnosis["injectable_targets"] = injectable
+        diagnosis["injectable_targets_count"] = injectable.count
+        diagnosis["macho_scan"] = ["total": totalMachOs, "encrypted": protectedCount, "skipped": allMachOs.count - totalMachOs]
+        if injectable.isEmpty {
+            issues.append("没有可注入的 Mach-O（\(protectedCount)/\(totalMachOs) 个加密或不可读）")
+            fixes.append("App Store 加密 App 无法直接注入；用 app.decrypt 解密后再试，或换用支持的目标 App")
+        }
+        if protectedCount > 0 {
+            diagnosis["note"] = "⚠️ \(protectedCount) 个 Mach-O 带加密段（cryptid=1），注入会破坏它们，已自动跳过；注入目标固定为未加密的 \(injectable.first.map { ($0 as NSString).lastPathComponent } ?? "无")"
+        }
 
         // 7. 检查注入工具链
         let binaries = ["ldid", "optool", "insert_dylib", "ct_bypass"]

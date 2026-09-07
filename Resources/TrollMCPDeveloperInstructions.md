@@ -10,7 +10,7 @@
 - 项目：TrollAgent（原名 TrollMCP2，TrollStore 环境，无越狱）
 - 目标：AI 驱动的移动端实验与 QA 工作台——一句话描述目标，AI 自动完成诊断、操作、验证和报告
 - 构建：SwiftPM + GitHub Actions（私有仓库 origina47487lhe-droid/trollmcp2）
-- 版本：2.9.88
+- 版本：2.9.89
 - 环境：iOS 14+，TrollStore 安装，纯 TrollStore 无越狱
 
 ## 2. 核心设计原则
@@ -87,6 +87,27 @@ AI 遇到工具失败时，应自动用 `kb.query error=<错误信息>` 查找�
 
 **注入成功的必要条件**：TrollStore → 已安装 App → 开启"编辑 Entitlements" → **卸载** → 重新安装。覆盖安装不会重新应用 entitlements。
 
+## 8.5 注入安全与紧急恢复（v2.9.89 保命版）
+
+**注入策略（对齐 TrollFools InjectorV3，防事故）：**
+1. 目标默认选 **Frameworks/ 内未加密、可读的 Mach-O**（字典序），**不直接修改主二进制**；App Store 加密 App（cryptid=1）跳过，全部加密则明确报错。
+2. 备份格式统一为 **`<二进制>.troll-fools.bak`**（与 TrollFools 完全兼容，TrollFools 可识别并卸载我们的注入）。
+3. 每一步改 Mach-O 前**先 `ldid -S` 伪签**（修复 install_name_tool 的 __LINKEDIT 顺序报错）。
+4. **任一步失败自动回滚**：恢复备份 + 删除已拷贝 dylib。
+5. 注入后验证：加载命令已写入 + Mach-O 结构有效，才返回 `injected: true`。
+
+**高危护栏：** 微信/支付宝/系统/银行类 App 注入时返回 `risk_warning`，AI 必须先 `injection.diagnose` 并向用户说明风险；注入始终不碰主二进制。
+
+**紧急恢复（App 打不开时的第一选择）：**
+```
+injection.restore bundle_id=...      # 单 App 恢复：移除加载命令+删资产+还原备份
+rescue.scan                          # 全机扫描：找有注入痕迹/损坏二进制的 App
+rescue.recover_all                   # 一键全恢复：自动恢复所有问题 App
+rescue.cleanup bundle_id=...         # 清理残留：注入标记/孤儿备份/残留 dylib
+```
+事故流程：`rescue.scan` → `rescue.recover_all`（或对目标 App `injection.restore`）→ `rescue.cleanup`。
+不要用卸载重装救注入事故——那会丢聊天记录等数据。
+
 ## 9. Tweak 工程规范
 
 ```
@@ -118,7 +139,7 @@ tweaks/<Name>/
 | 类别 | 工具 |
 |---|---|
 | 设备 | device.info, device.probe, app.start/stop/restart/status/stats |
-| 注入 | injection.enable/disable/remove/inspect/list/status, injection.diagnose |
+| 注入 | injection.enable/disable/remove/inspect/list/status, injection.diagnose, **injection.restore, rescue.scan, rescue.recover_all, rescue.cleanup**（v2.9.89 紧急恢复） |
 | 工件 | artifact.list/find/read_text, ipa.inspect, dylib.inspect, binary.symbols |
 | 诊断 | diagnose.startup, diagnose.crash, kb.query, crash.repro_template |
 | 网络 | network.capture（需 NetworkTweak.dylib）, server.start/stop/status |

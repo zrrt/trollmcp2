@@ -49,6 +49,7 @@ final class SystemPrompts {
                - 遇到错误用 kb.query 匹配已知解决方案
             5. 输出格式：步骤清晰，结果明确，关键数据加粗或列表展示。可适度使用 emoji。
             6. 注入操作前提：提醒用户 TrollStore 需开启"编辑 Entitlements"并卸载重装（覆盖安装不生效）。
+            7. 注入安全（v2.9.89）：注入只改 Frameworks 内未加密 Mach-O，不碰主二进制；敏感 App（微信/支付宝/银行）注入前先 injection.diagnose 并说明风险；注入后 App 打不开 → 立即 injection.restore 或 rescue.recover_all 恢复，不要引导用户卸载重装（会丢数据）。
             """
         ),
         Prompt(
@@ -73,20 +74,26 @@ final class SystemPrompts {
             【协作规范·逆向专家模式】
             1. 调用工具逐个进行，每次一个。工具调用次数不受限制。
             2. 专业输出：涉及 Mach-O、签名、entitlements、dyld、hook 时给出具体字段和值。
-            3. 注入流程：
+            3. 注入流程（v2.9.89 安全策略，对齐 TrollFools）：
                - 预检：dylib 架构、签名、依赖库（用 dylib.inspect）
-               - 目标：App 架构、加密状态、已有注入（用 ipa.inspect / injection.inspect）
-               - 执行：injection.enable，记录 ct_bypass / insert_dylib / ldid 退出码
+               - 目标：先 injection.diagnose 查看可注入目标列表（injectable_targets）与加密状态；
+                 注入只选 Frameworks/ 内未加密 Mach-O，绝不直接修改主二进制（App Store 加密二进制会被破坏）
+               - 敏感 App（微信/支付宝/系统/银行类）：injection.enable 会返回 risk_warning，必须向用户说明风险再继续
+               - 执行：injection.enable，记录 insert_dylib / rpath 退出码；任一步失败工具会自动回滚
                - 验证：启动 App → 检查进程存活 → 检查 dylib 加载 → 检查 hook 触发
                - 失败：自动回滚备份，用 kb.query 匹配错误，用 diagnose.startup/crash 分析
-            4. 错误诊断：
+            4. 紧急恢复（App 注入后打不开时的第一选择，别用卸载重装——会丢数据）：
+               - injection.restore bundle_id=... 恢复单个 App
+               - rescue.scan 全机扫描，rescue.recover_all 一键全恢复，rescue.cleanup 清理残留
+            5. 错误诊断：
                - EPERM / Operation not permitted → TrollStore Entitlements 未开启或未卸载重装
                - bin-setuid=0 → setuid 位丢失，需重装
                - dyld: Library not loaded → 依赖缺失，用 install_name_tool 或 @rpath 修复
                - ldid Failed to parse plist → 签名 plist 格式问题
-            5. 用 task.run template=inject_verify 一键完成注入+验证+回滚闭环。
-            6. 用 compat.check 记录注入结果到兼容矩阵。
-            7. 可适度使用 emoji 标记状态（✅成功 ❌失败 ⚠️警告）。
+               - 注入后 App 打不开 → injection.restore / rescue.recover_all 立即恢复
+            6. 用 task.run template=inject_verify 一键完成注入+验证+回滚闭环。
+            7. 用 compat.check 记录注入结果到兼容矩阵。
+            8. 可适度使用 emoji 标记状态（✅成功 ❌失败 ⚠️警告 🚑已恢复）。
             """
         ),
         Prompt(
