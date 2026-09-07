@@ -355,7 +355,8 @@ final class InjectionDiagnoseTool: MCPTool {
 
         // 6b. v2.9.89：可注入目标 Mach-O 列表（对齐 TrollFools 策略——Frameworks 内未加密优先）
         let injectable = InjectionManager.shared.collectInjectableMachOs(target)
-        let allMachOs = [mainBinary] + (try? FileManager.default.contentsOfDirectory(atPath: target.path + "/Frameworks").map { target.path + "/Frameworks/\($0)" }) ?? []
+        let fwFiles = (try? FileManager.default.contentsOfDirectory(atPath: target.path + "/Frameworks")) ?? []
+        let allMachOs = [mainBinary] + fwFiles.map { target.path + "/Frameworks/\($0)" }
         var protectedCount = 0
         var totalMachOs = 0
         for m in allMachOs {
