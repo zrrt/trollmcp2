@@ -10,7 +10,7 @@
 - 项目：TrollAgent（原名 TrollMCP2，TrollStore 环境，无越狱）
 - 目标：AI 驱动的移动端实验与 QA 工作台——一句话描述目标，AI 自动完成诊断、操作、验证和报告
 - 构建：SwiftPM + GitHub Actions（私有仓库 origina47487lhe-droid/trollmcp2）
-- 版本：2.9.100
+- 版本：2.9.101
 - 环境：iOS 14+，TrollStore 安装，纯 TrollStore 无越狱
 
 ## 2. 核心设计原则
