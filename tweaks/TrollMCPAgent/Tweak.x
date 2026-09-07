@@ -18,6 +18,11 @@
 #define kResV1Name @"TROLLMCP_RESULT_V1"
 #define kMaxUITreeNodes 500
 
+// iOS 15+ 的 -[UIApplication windows] 已废弃，编译期 -Werror 会拦截；此处用于 iOS 14 兜底，显式忽略
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#pragma clang diagnostic pop
+
 static NSString *safeStr(id v) {
     return v && [v isKindOfClass:[NSString class]] ? v : @"";
 }
@@ -110,7 +115,6 @@ static NSMutableDictionary *agentUITree(UIView *view, NSInteger depth, NSInteger
 static NSDictionary *actionStatus(void) {
     NSBundle *b = [NSBundle mainBundle];
     NSDictionary *info = b.infoDictionary;
-    UIApplication *app = [UIApplication sharedApplication];
     return @{
         @"app": safeStr(info[@"CFBundleDisplayName"]).length ? safeStr(info[@"CFBundleDisplayName"]) : safeStr(info[@"CFBundleName"]),
         @"bundle_id": safeStr(b.bundleIdentifier),
