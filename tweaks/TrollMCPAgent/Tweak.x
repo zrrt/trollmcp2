@@ -29,17 +29,12 @@ static NSString *safeStr(id v) {
 
 // ---------- UI 辅助（与 ControlAgent 同源，已修正窗口兜底死递归） ----------
 static NSArray<UIWindow *> *agentAllWindows(void) {
+    // 部署目标 iOS 14+，connectedScenes 一定可用（iOS 13+ API）
     NSMutableArray *windows = [NSMutableArray array];
-    if (@available(iOS 13.0, *)) {
-        for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
-            if ([scene isKindOfClass:[UIWindowScene class]]) {
-                [windows addObjectsFromArray:((UIWindowScene *)scene).windows];
-            }
+    for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+        if ([scene isKindOfClass:[UIWindowScene class]]) {
+            [windows addObjectsFromArray:((UIWindowScene *)scene).windows];
         }
-    }
-    if (windows.count == 0) {
-        // fallback：iOS 14 兼容（iOS 15+ 该方法已废弃但可用）
-        [windows addObjectsFromArray:[[UIApplication sharedApplication] windows]];
     }
     return windows;
 }
