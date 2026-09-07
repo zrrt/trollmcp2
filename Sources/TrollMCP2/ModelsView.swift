@@ -159,7 +159,7 @@ struct ModelsView: View {
         for i in offsets {
             let list = configs(in: group)
             if i < list.count, let idx = store.configs.firstIndex(where: { $0.id == list[i].id }) {
-                store.delete(at: idx)
+                store.delete(at: IndexSet(integer: idx))
             }
         }
     }

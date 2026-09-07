@@ -1144,7 +1144,7 @@ final class UsageRecorder {
               let s = String(data: data, encoding: .utf8) else { return [] }
         var out: [[String: Any]] = []
         for line in s.split(separator: "\n").suffix(500) {
-            if let obj = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any] {
+            if let obj = try? JSONSerialization.jsonObject(with: Data(String(line).utf8)) as? [String: Any] {
                 out.append(obj)
             }
         }
