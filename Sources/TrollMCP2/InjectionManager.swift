@@ -555,6 +555,14 @@ final class InjectionManager {
             for item in items {
                 let full = (frameworksDir as NSString).appendingPathComponent(item)
                 if item.hasSuffix(".troll-fools.bak") || item.hasSuffix(".bak_macho") { continue }
+                var isDir: ObjCBool = false
+                FileManager.default.fileExists(atPath: full, isDirectory: &isDir)
+                if isDir.boolValue, item.lowercased().hasSuffix(".framework") {
+                    let exeName = (item as NSString).deletingPathExtension
+                    let exe = (full as NSString).appendingPathComponent(exeName)
+                    if hasAlternate(exe) { modified.append(exe) }
+                    continue
+                }
                 if hasAlternate(full) { modified.append(full) }
             }
         }
@@ -899,23 +907,36 @@ final class InjectionManager {
         return r
     }
 
-    /// 检查指定 App 是否已注入（兼容新旧备份格式 + 加载命令检测）
+    /// 检查指定 App 是否已注入（全 Mach-O 扫描：主二进制 + Frameworks 内全部可注入 Mach-O）
     func inspect(_ bundleId: String) -> [String: Any] {
         guard let app = AppCatalog.find(bundleId) else {
             return ["error": "app not found: \(bundleId)"]
         }
         let mainBinary = executablePath(app)
-        let backup = alternateURL(for: mainBinary)
-        let legacyBackup = mainBinary + ".bak_macho"
-        let dylibs = MachOAnalyzer.analyze(mainBinary)?.dylibs ?? []
-        let injected = isInjected(mainBinary) || dylibs.contains(where: { $0.contains("TrollMCPAgent") })
+        let machos = collectInjectableMachOs(app)
+        var injected = false
+        var targetInfo: [[String: Any]] = []
+        for m in machos {
+            let dylibs = MachOAnalyzer.analyze(m)?.dylibs ?? []
+            let hit = hasAlternate(m) || isInjected(m) ||
+                dylibs.contains(where: { $0.contains("TrollMCPAgent") })
+            if hit {
+                injected = true
+                targetInfo.append([
+                    "macho": m,
+                    "isMain": m == mainBinary,
+                    "hasBackup": hasAlternate(m)
+                ])
+            }
+        }
         let modified = collectModifiedMachOs(app)
         return [
             "app": app.name,
             "bundleId": bundleId,
             "mainBinary": mainBinary,
             "injected": injected,
-            "hasBackup": FileManager.default.fileExists(atPath: backup) || FileManager.default.fileExists(atPath: legacyBackup),
+            "hasBackup": !modified.isEmpty,
+            "target_machos": targetInfo,
             "modified_machos": modified,
             "injected_assets": injectedAssets(in: app),
             "sensitive": Self.isSensitive(bundleId),
@@ -950,13 +971,13 @@ final class InjectionManager {
         let apps = AppCatalog.list()
         var injectedApps: [[String: Any]] = []
         for app in apps {
-            let mainBinary = executablePath(app)
-            if hasAlternate(mainBinary) || !injectedAssets(in: app).isEmpty {
+            let modified = collectModifiedMachOs(app)
+            if !modified.isEmpty || !injectedAssets(in: app).isEmpty {
                 injectedApps.append([
                     "bundleId": app.bundleId,
                     "name": app.name,
-                    "injected": isInjected(mainBinary),
-                    "hasBackup": hasAlternate(mainBinary)
+                    "injected": !modified.isEmpty,
+                    "hasBackup": !modified.isEmpty
                 ])
             }
         }
