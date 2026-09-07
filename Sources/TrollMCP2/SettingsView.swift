@@ -130,6 +130,13 @@ struct SettingsView: View {
                         .accentColor(.tmCyan)
                         // v2.9.76：开发者指令移到开发者模式下面
                         SettingRow(
+                            title: L10n.t("row_guide"),
+                            subtitle: "7 步流程 · 新手引导",
+                            icon: "book.fill",
+                            color: .tmCyan,
+                            destination: GuideView()
+                        )
+                        SettingRow(
                             title: L10n.t("row_dev_instructions"),
                             subtitle: devInstructionsSubtitle(),
                             icon: "doc.text.magnifyingglass",
