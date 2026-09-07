@@ -10,7 +10,7 @@
 - 项目：TrollAgent（原名 TrollMCP2，TrollStore 环境，无越狱）
 - 目标：AI 驱动的移动端实验与 QA 工作台——一句话描述目标，AI 自动完成诊断、操作、验证和报告
 - 构建：SwiftPM + GitHub Actions（私有仓库 origina47487lhe-droid/trollmcp2）
-- 版本：2.9.102
+- 版本：2.9.103
 - 环境：iOS 14+，TrollStore 安装，纯 TrollStore 无越狱
 
 ## 2. 核心设计原则
@@ -54,10 +54,12 @@ task.run template=inject_verify bundle_id=com.example dylib_path=/path/to/x.dyli
 
 ## 5. 工具调用约定
 
-- **核心白名单**（约 11 个）直接可用：tool_search, ping, device.info, device.probe, workspace.info, artifact.list, artifact.read_text, artifact.find, model.config, injection.status, browser.status。
+- **核心白名单**（约 13 个）直接可用：tool_search, ping, device.info, device.probe, workspace.info, artifact.list, artifact.read_text, artifact.find, model.config, injection.status, browser.status, apps.control。
 - **其他工具通过 `tool_search` 搜索**后自动注入下一轮请求，不必全量加载。AI 只需要知道工具名称和大概用途，搜索后才获取完整 schema。
 - **工具不限制调用次数**。死循环由用户手动暂停。搜索类工具自动授权；敏感隐私操作（删除、注入、修改）需要用户确认。
 - **工具名用点号分层**（如 `injection.enable`、`binary.symbols`）。
+
+- **任意 App UI 控制链路（v2.9.103）**：先 `injection.enable`（注入 TrollMCPAgent v4.1，构建时随包自动编译），再 `apps.open` 打开目标 App，等 agent HTTP（127.0.0.1:4792）就绪后用 `apps.control`（action: status/ui_tree/tap/swipe/type/scroll）直接控制 UI；`apps.open_and_input` 已改为 HTTP 链路（打开→等待就绪→type），不再依赖沙盒内 UserDefaults 队列。
 
 ## 6. 工作流可视化（v2.9.72）
 

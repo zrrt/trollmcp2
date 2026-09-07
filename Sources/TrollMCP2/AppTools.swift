@@ -171,14 +171,55 @@ final class AppOpenTool: MCPTool {
 
 // MARK: - 启动并输入（依赖注入代理，这里做状态上报）
 
+// MARK: - Agent HTTP 通道（v2.9.103：TrollMCPAgent v4.1 本地 HTTP 127.0.0.1:4792）
+// v3/v4 时代用 NSNotification/UserDefaults 跨进程——沙盒隔离根本不通；v4.1 agent 内置
+// loopback HTTP server，主 App 直连目标 App 的 agent，链路真实可用。
+
+private let kAgentPort = 4792
+
+private func agentHTTP(_ method: String, _ path: String, body: [String: Any]? = nil, timeout: TimeInterval = 6) -> [String: Any]? {
+    guard let url = URL(string: "http://127.0.0.1:\(kAgentPort)\(path)") else { return nil }
+    var req = URLRequest(url: url)
+    req.httpMethod = method
+    req.timeoutInterval = timeout
+    if let body {
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+    }
+    let sem = DispatchSemaphore(value: 0)
+    var result: [String: Any]?
+    let task = URLSession.shared.dataTask(with: req) { data, _, _ in
+        if let data, let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            result = obj
+        }
+        sem.signal()
+    }
+    task.resume()
+    _ = sem.wait(timeout: .now() + timeout + 1)
+    return result
+}
+
+private func waitAgentReady(timeout: TimeInterval = 8) -> Bool {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if let st = agentHTTP("GET", "/status"),
+           (st["agent"] as? String) == "TrollMCPAgent" {
+            return true
+        }
+        Thread.sleep(forTimeInterval: 0.4)
+    }
+    return false
+}
+
 final class AppOpenAndInputTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.open_and_input",
-        summary: "打开指定 App 并提交输入命令（需目标已注入 TrollMCPAgent）",
+        summary: "打开指定 App，等待 TrollMCPAgent 就绪后输入文本（v4.1 HTTP 链路）",
         parameters: [
             "bundle_id": "目标 App Bundle ID",
             "text": "要输入的文本",
-            "submit": "是否提交（默认 false）"
+            "submit": "是否提交（默认 false）",
+            "wait": "等待 agent 就绪秒数，默认 8"
         ]
     )
 
@@ -191,10 +232,6 @@ final class AppOpenAndInputTool: MCPTool {
             throw MCPError.failed("app not found: \(bid)")
         }
 
-        let submit = (params["submit"] as? Bool) ?? false
-        let status = InjectionManager.shared.inspect(bid)
-        let injected = (status["injected"] as? Bool) ?? false
-
         var opened = false
         if let url = URL(string: "\(bid)://") {
             opened = openURLSync(url)
@@ -203,21 +240,66 @@ final class AppOpenAndInputTool: MCPTool {
             opened = LSAppWorkspaceOpen(bundleId: bid)
         }
 
-        // 将命令写入共享队列，供注入代理读取
-        if injected {
-            var queue = UserDefaults.standard.array(forKey: "trollmcp2.input_queue_\(bid)") as? [[String: Any]] ?? []
-            queue.append(["text": text, "submit": submit, "ts": Date().timeIntervalSince1970])
-            UserDefaults.standard.set(queue, forKey: "trollmcp2.input_queue_\(bid)")
+        // 等待注入的 agent HTTP 就绪（目标 App 启动后 ~1s 起服务）
+        let wait = (params["wait"] as? Double) ?? 8
+        let ready = waitAgentReady(timeout: wait)
+        var agentStatus = "no_agent"
+        var agentResult: [String: Any]?
+        if ready {
+            let r = agentHTTP("POST", "/type", body: ["text": text])
+            agentResult = r
+            let ok = (r?["success"] as? Bool) ?? false
+            let typed = ((r?["data"] as? [String: Any])?["typed"] as? Bool) ?? false
+            agentStatus = ok && typed ? "filled" : "agent_error"
         }
 
-        AuditLog.shared.log("apps.open_and_input", detail: "\(bid) injected=\(injected)")
+        AuditLog.shared.log("apps.open_and_input", detail: "\(bid) opened=\(opened) status=\(agentStatus)")
         return [
             "bundle_id": bid,
             "opened": opened,
-            "injected": injected,
-            "agentStatus": injected ? (submit ? "filled" : "pending") : "no_agent",
+            "agentStatus": agentStatus,
+            "agentResult": agentResult ?? [:],
             "text": text
         ]
+    }
+}
+
+// MARK: - 通用 App 控制（v2.9.103：直连 TrollMCPAgent v4.1 HTTP 4792）
+
+final class AppsControlTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "apps.control",
+        summary: "控制已注入 TrollMCPAgent 的 App（HTTP 直连）：status/ui_tree/tap/swipe/type/scroll",
+        parameters: [
+            "bundle_id": "目标 App Bundle ID（提示用）",
+            "action": "status | ui_tree | tap | swipe | type | scroll",
+            "x": "tap 坐标 x",
+            "y": "tap 坐标 y",
+            "x1": "swipe 起点 x",
+            "y1": "swipe 起点 y",
+            "x2": "swipe 终点 x",
+            "y2": "swipe 终点 y",
+            "duration": "swipe 时长秒",
+            "text": "type 文本",
+            "direction": "scroll 方向 up/down/left/right"
+        ]
+    )
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let action = params["action"] as? String else {
+            throw MCPError.invalidParams("action required (status/ui_tree/tap/swipe/type/scroll)")
+        }
+        var body: [String: Any] = [:]
+        for (k, v) in params where k != "bundle_id" && k != "action" {
+            body[k] = v
+        }
+        body["action"] = action
+        guard let r = agentHTTP("POST", "/command", body: body) else {
+            return ["success": false, "error": "agent HTTP 不可达：目标 App 未注入 TrollMCPAgent v4.1 或未在前台运行"]
+        }
+        var out = r
+        if let bid = params["bundle_id"] as? String { out["bundle_id"] = bid }
+        return out
     }
 }
 

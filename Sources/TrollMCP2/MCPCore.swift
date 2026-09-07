@@ -367,6 +367,7 @@ public final class ToolRegistry: ObservableObject {
         register(AppCacheClearTool())
         register(AppOpenTool())
         register(AppOpenAndInputTool())
+        register(AppsControlTool())
         register(WeChatPrepareMessageTool())
 
         // M3 注入管理 + 容器
