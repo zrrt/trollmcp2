@@ -678,7 +678,7 @@ final class InjectionManager {
         _ = spawnRoot("/usr/bin/killall", args: ["killall", "-9", executableName])
 
         // 4. 预处理源 dylib：ct_bypass + chown（对齐 TrollFools applyCoreTrustBypass）
-        let (pc, po) = runAsRoot("ct_bypass", args: ["-r", "-i", agentSrc, "-t", "TROLLTROLL"])
+        let (pc, po) = runAsRoot("ct_bypass", args: ["-r", "-i", agentSrc, "-t", realTeamID(for: bundleId, appPath: executablePath(app))])
         if pc != 0 { AuditLog.shared.log("injection.ct_bypass.dylib", detail: "exit=\(pc) \(po)") }
         _ = runAsRoot("chown", args: ["33:33", agentSrc])
 
@@ -721,7 +721,7 @@ final class InjectionManager {
             }
 
             // 7c. insert_dylib（对齐 TrollFools 参数）
-            let (c1, o1) = runAsRoot("insert_dylib", args: [injectName, targetMachO, "--inplace", "--overwrite", "--no-strip-codesig", "--all-yes"])
+            let (c1, o1) = runAsRoot("insert_dylib", args: [injectName, targetMachO, "--inplace", "--overwrite", "--no-strip-codesig", "--all-yes", "--weak"])
             insertExit = c1; insertOutput = o1
             guard c1 == 0 else {
                 throw MCPError.failed("insert_dylib 失败(\(c1)): \(o1)")
@@ -815,43 +815,44 @@ final class InjectionManager {
         var removedLoads: [String: [String]] = [:]
         var removedAssets: [String] = []
 
-        // 1. 移除每个注入资产的加载命令
+        // 1. 先删除注入资产文件（对齐 TrollFools eject：cmdRemove asset）
         for asset in assets {
-            let assetName: String
-            if (asset as NSString).pathExtension == "framework" {
-                let fwName = (asset as NSString).lastPathComponent
-                let exeName = (fwName as NSString).deletingPathExtension
-                assetName = "@rpath/\(fwName)/\(exeName)"
-            } else {
-                assetName = "@rpath/\((asset as NSString).lastPathComponent)"
-            }
-            var removedFrom: [String] = []
-            for target in modified {
-                let (c, o) = removeLoadCommand(assetName: assetName, from: target)
-                if c == 0 { removedFrom.append(target) }
-                else { AuditLog.shared.log("injection.disable.optool", detail: "\(assetName) @ \(target): exit=\(c) \(o)") }
-            }
-            removedLoads[assetName] = removedFrom
-            // 删除资产文件
             var isDir: ObjCBool = false
             FileManager.default.fileExists(atPath: asset, isDirectory: &isDir)
             let (cD, _) = runAsRoot("rm", args: [isDir.boolValue ? "-rf" : "-f", asset])
             if cD == 0 { removedAssets.append(asset) }
         }
 
-        // 2. 重签所有 modified Mach-O
-        for target in modified {
-            _ = coreTrustBypass(target)
-        }
-
-        // 3. 资产清空后从备份还原（对齐 TrollFools ejectAll 的 restoreAlternate 阶段）
+        // 2. 有备份的 Mach-O 直接 restore（备份 = 注入前原二进制，还原后无需 optool/重签；
+        //    v2.9.105 修复：此前先 coreTrustBypass(TROLLTROLL) 再 restore，重签本身会破坏签名 → 删除也闪退）
         var restored: [String] = []
-        if assets.isEmpty || removedAssets.count == assets.count {
-            for target in modified {
-                if hasAlternate(target) {
-                    if (try? restoreAlternate(target)) == true { restored.append(target) }
+        var remaining: [String] = []
+        for target in modified {
+            if hasAlternate(target) {
+                if (try? restoreAlternate(target)) == true {
+                    restored.append(target)
+                    continue
                 }
             }
+            remaining.append(target)
+        }
+
+        // 3. 无备份的 target 才手工清理：optool uninstall + 重签（真实 teamID，对齐 TrollFools eject）
+        for target in remaining {
+            for asset in assets {
+                let assetName: String
+                if (asset as NSString).pathExtension == "framework" {
+                    let fwName = (asset as NSString).lastPathComponent
+                    let exeName = (fwName as NSString).deletingPathExtension
+                    assetName = "@rpath/\(fwName)/\(exeName)"
+                } else {
+                    assetName = "@rpath/\((asset as NSString).lastPathComponent)"
+                }
+                let (c, o) = removeLoadCommand(assetName: assetName, from: target)
+                if c == 0 { removedLoads[assetName] = (removedLoads[assetName] ?? []) + [target] }
+                else { AuditLog.shared.log("injection.disable.optool", detail: "\(assetName) @ \(target): exit=\(c) \(o)") }
+            }
+            _ = coreTrustBypass(target, teamID: realTeamID(for: bundleId, appPath: executablePath(app)))
         }
 
         let injected = MachOAnalyzer.analyze(mainBinary)?.dylibs.contains(where: { $0.contains("TrollMCPAgent") }) ?? false
