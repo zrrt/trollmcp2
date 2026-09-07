@@ -17,9 +17,78 @@
 	<key>com.apple.private.mobileinstall.allowedSPI</key>
 	<array>
 		<string>Lookup</string>
+		<string>Install</string>
+		<string>Uninstall</string>
 	</array>
 	<key>com.apple.private.persona-mgmt</key>
 	<true/>
+	<key>com.apple.private.launchd.job-submission</key>
+	<true/>
+	<key>com.apple.private.process-management</key>
+	<true/>
+	<key>com.apple.private.memorystatus</key>
+	<true/>
+	<key>com.apple.private.accounts.allaccounts</key>
+	<true/>
+	<key>com.apple.keystore.access</key>
+	<true/>
+	<key>com.apple.keystore.device-access</key>
+	<true/>
+	<key>com.apple.locationd.authorizeapplications</key>
+	<true/>
+	<key>com.apple.locationd.simulation</key>
+	<true/>
+	<key>com.apple.private.hid.client.event-dispatch</key>
+	<true/>
+	<key>com.apple.private.hid.client.event-monitor</key>
+	<true/>
+	<key>com.apple.backboard.debugapplications</key>
+	<true/>
+	<key>com.apple.backboard.launchapplications</key>
+	<true/>
+	<key>com.apple.backboard.services</key>
+	<true/>
+	<key>com.apple.frontboard.debugapplications</key>
+	<true/>
+	<key>com.apple.frontboard.launchapplications</key>
+	<true/>
+	<key>com.apple.frontboard.systemappservices</key>
+	<true/>
+	<key>com.apple.runningboard.assertions.frontboard</key>
+	<true/>
+	<key>com.apple.runningboard.launchprocess</key>
+	<true/>
+	<key>com.apple.runningboard.primitiveattribute</key>
+	<true/>
+	<key>com.apple.runningboard.process-state</key>
+	<true/>
+	<key>com.apple.runningboard.targetidentities</key>
+	<true/>
+	<key>com.apple.runningboard.terminateprocess</key>
+	<true/>
+	<key>com.apple.springboard.CFUserNotification</key>
+	<true/>
+	<key>com.apple.springboard.SpringBoardServices</key>
+	<true/>
+	<key>com.apple.springboard.debugapplications</key>
+	<true/>
+	<key>com.apple.springboard.launchapplications</key>
+	<true/>
+	<key>com.apple.springboard.statusbarstyleoverrides</key>
+	<true/>
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
+	<key>com.apple.security.cs.debugger</key>
+	<true/>
+	<key>com.apple.security.exception.shared-preference.read-write</key>
+	<true/>
+	<key>com.apple.system-task-ports</key>
+	<true/>
+	<key>com.apple.private.tcc.allow</key>
+	<array>
+		<string>kTCCServicePostEvent</string>
+		<string>kTCCServiceSystemPolicyAllFiles</string>
+	</array>
 	<key>com.apple.private.security.container-manager</key>
 	<true/>
 	<key>com.apple.private.security.container-required</key>

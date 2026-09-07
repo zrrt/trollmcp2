@@ -1,0 +1,8 @@
+Package: com.trollagent.probeagent
+Name: ProbeAgent
+Version: 1.0
+Architecture: iphoneos-arm64
+Description: Runtime ObjC class probe dylib for TrollAgent. Inject into any app to enumerate classes/methods/properties/UserDefaults via localhost HTTP.
+Maintainer: TrollAgent
+Author: TrollAgent
+Section: Tweaks
