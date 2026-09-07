@@ -14,8 +14,16 @@ final class UpdateManager: ObservableObject {
     @Published var errorMessage: String?
     @Published var downloadedIPAURL: URL?
 
-    private let repo = "origina47487lhe-droid/trollmcp2"
-    private let workflow = "build-trollmcp2"
+    // v2.9.108：仓库与工作流改为动态读取（对齐 GitHub 账号页配置），
+    // 不再硬编码旧私有仓库——自动更新曾因仓库指向错误导致检查/下载失败
+    private var repo: String {
+        let owner = UserDefaults.standard.string(forKey: "trollmcp2.github_repo_owner") ?? "zrrt"
+        let name = UserDefaults.standard.string(forKey: "trollmcp2.github_repo_name") ?? "trollmcp2"
+        return "\(owner)/\(name)"
+    }
+    private var workflow: String {
+        UserDefaults.standard.string(forKey: "trollmcp2.github_workflow_id") ?? "build-trollmcp2.yml"
+    }
 
     private init() {}
 

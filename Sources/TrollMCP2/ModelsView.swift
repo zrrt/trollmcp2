@@ -70,6 +70,11 @@ struct ModelsView: View {
                     Image(systemName: "square.and.arrow.down")
                 }
                 .help("导入配置")
+                // v2.9.108：从剪贴板粘贴导入（借鉴 cc-switch ccswitch:// 一键导入思路，零 URL Scheme 风险）
+                Button(action: importFromClipboard) {
+                    Image(systemName: "doc.on.clipboard")
+                }
+                .help("从剪贴板导入")
                 Button(action: { exportDoc = ConfigDoc(text: store.exportJSON()); showingExporter = true }) {
                     Image(systemName: "square.and.arrow.up")
                 }
@@ -133,6 +138,20 @@ struct ModelsView: View {
         .alert(isPresented: $showImportMessage) {
             Alert(title: Text("模型配置导入"), message: Text(importMessage), dismissButton: .default(Text("好")))
         }
+    }
+
+    /// v2.9.108：从剪贴板粘贴 JSON 导入（分享链接/文本一键导入）
+    private func importFromClipboard() {
+        guard let text = UIPasteboard.general.string, !text.isEmpty else {
+            importMessage = "剪贴板为空，请先复制模型配置 JSON"
+            showImportMessage = true
+            return
+        }
+        let r = store.importJSON(text)
+        importMessage = r.failed > 0
+            ? "导入完成：成功 \(r.ok) 个，失败 \(r.failed) 个"
+            : "导入完成：成功 \(r.ok) 个"
+        showImportMessage = true
     }
 
     // MARK: v2.9.107 分组辅助
@@ -228,6 +247,13 @@ struct ModelRow: View {
             }
             .buttonStyle(.plain)
             .disabled(testing)
+            // v2.9.108：复制为副本（借鉴 cc-switch provider duplicate）
+            Button(action: duplicate) {
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.purple)
+            }
+            .buttonStyle(.plain)
             if !config.isDefault {
                 Button(action: activate) {
                     Image(systemName: "checkmark.circle")
@@ -258,6 +284,16 @@ struct ModelRow: View {
         ModelStore.shared.update(c)
         ModelStore.shared.markUsed(config.id.uuidString)
         ModelStore.shared.breaker(for: config.id).reset()
+    }
+
+    /// v2.9.108：复制为副本（快速起一个新配置改参数，借鉴 cc-switch duplicate）
+    private func duplicate() {
+        var c = config
+        c.id = UUID()
+        c.name = config.name + " 副本"
+        c.isDefault = false
+        ModelStore.shared.add(c)
+        AuditLog.shared.log("model.duplicate", detail: config.name)
     }
 
     /// v2.9.107：供应商测速（GET /models，8s 超时）

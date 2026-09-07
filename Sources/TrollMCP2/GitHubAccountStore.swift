@@ -74,7 +74,7 @@ final class GitHubAccountStore: ObservableObject {
 
     init() {
         let def = UserDefaults.standard
-        repoOwner = def.string(forKey: ownerKey) ?? "origina47487lhe-droid"
+        repoOwner = def.string(forKey: ownerKey) ?? "zrrt"
         repoName = def.string(forKey: repoKey) ?? "trollmcp2"
         workflowId = def.string(forKey: workflowKey) ?? "build-tweak"
         branch = def.string(forKey: branchKey) ?? "main"

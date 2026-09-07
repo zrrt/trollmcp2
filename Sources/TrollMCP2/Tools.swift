@@ -288,3 +288,37 @@ final class MemoryTweakTool: MCPTool {
         return json
     }
 }
+
+
+// MARK: - v2.9.108 剪贴板工具（借鉴 ios-mcp 能力）
+// AI 读取/写入系统剪贴板：读验证码/链接/token、把结果复制给用户粘贴
+
+final class ClipboardReadTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "clipboard.read",
+        summary: "读取系统剪贴板文本（用户复制的验证码、链接、token 等最近一次复制内容）",
+        parameters: [:]
+    )
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        let text = UIPasteboard.general.string ?? ""
+        if text.isEmpty {
+            return ["text": "", "empty": true, "hint": "剪贴板为空（无可读文本）"]
+        }
+        return ["text": text, "empty": false, "length": text.count]
+    }
+}
+
+final class ClipboardWriteTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "clipboard.write",
+        summary: "写入系统剪贴板：把一段文本复制到剪贴板，供用户粘贴到其他 App",
+        parameters: ["text": "要复制到剪贴板的文本（必填）"]
+    )
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let text = params["text"] as? String, !text.isEmpty else {
+            throw MCPError.invalidParams("text required")
+        }
+        UIPasteboard.general.string = text
+        return ["ok": true, "length": text.count]
+    }
+}

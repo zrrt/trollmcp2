@@ -518,6 +518,8 @@ public final class ToolRegistry: ObservableObject {
         register(SkillsListTool())    // v2.9.17：技能可被 AI 发现
         register(SkillsReadTool())    // v2.9.17：技能可被 AI 读取
         register(ToolSearchTool())   // v2.9.16：渐进式披露元工具
+        register(ClipboardReadTool())   // v2.9.108：剪贴板读取（ios-mcp 借鉴）
+        register(ClipboardWriteTool())  // v2.9.108：剪贴板写入（ios-mcp 借鉴）
 
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
     }
