@@ -13,10 +13,26 @@ final class FloatingBrowser: ObservableObject {
 
     private var dragStart: CGPoint = .zero
     private var lastExpandedCenter: CGPoint = .zero
+    // v2.9.98：悬浮窗位置记忆（重启后恢复到上次位置）
+    private let posKey = "floating_browser_center"
 
     private init() {
         let s = UIScreen.main.bounds
-        center = CGPoint(x: s.width * 0.55, y: s.height * 0.40)
+        var x = s.width * 0.55
+        var y = s.height * 0.40
+        if let saved = UserDefaults.standard.string(forKey: posKey) {
+            let parts = saved.split(separator: ",")
+            if parts.count == 2, let px = Double(parts[0]), let py = Double(parts[1]) {
+                x = CGFloat(px); y = CGFloat(py)
+                x = min(max(x, s.width * 0.10), s.width * 0.90)
+                y = min(max(y, s.height * 0.15), s.height * 0.85)
+            }
+        }
+        center = CGPoint(x: x, y: y)
+    }
+
+    private func persistCenter() {
+        UserDefaults.standard.set("\(center.x),\(center.y)", forKey: posKey)
     }
 
     private var screen: CGSize { UIScreen.main.bounds.size }
@@ -77,6 +93,7 @@ final class FloatingBrowser: ObservableObject {
             // 缩小态：贴右缘，y 夹在屏幕内
             center.x = capsuleX
             center.y = min(max(center.y, 60), screen.height - 60)
+            persistCenter()
         } else {
             // 展开态：拖到屏幕右侧边缘附近 → 自动缩成胶囊；否则夹在屏幕内
             if center.x > screen.width * 0.82 {
@@ -88,6 +105,7 @@ final class FloatingBrowser: ObservableObject {
                 let halfH = screen.height * 0.30
                 center.x = min(max(center.x, halfW), screen.width - halfW)
                 center.y = min(max(center.y, halfH), screen.height - halfH)
+                persistCenter()
             }
         }
     }
