@@ -1009,8 +1009,15 @@ struct MessageBubble: View {
                 .padding(.vertical, 10)
                 // v2.9.93：用户气泡改巨魔蓝渐变（浅青→蓝，品牌化），助手保持系统色
                 .background(
-                    isUser ? AnyShapeStyle(LinearGradient(colors: [.tmCyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        : AnyShapeStyle(message.isError ? Color.red.opacity(0.15) : Color(.secondarySystemBackground))
+                    Group {
+                            if isUser {
+                                LinearGradient(colors: [.tmCyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+                            } else if message.isError {
+                                Color.red.opacity(0.15)
+                            } else {
+                                Color(.secondarySystemBackground)
+                            }
+                        }
                 )
                 .foregroundColor(isUser ? .white : .primary)
                 .cornerRadius(18)
