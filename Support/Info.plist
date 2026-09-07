@@ -89,6 +89,7 @@
 		<string>bin/ct_bypass</string>
 		<string>bin/install_name_tool</string>
 		<string>bin/optool</string>
+		<string>bin/opainject</string>
 	</array>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
