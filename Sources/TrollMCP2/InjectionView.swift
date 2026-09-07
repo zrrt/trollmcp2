@@ -420,7 +420,7 @@ struct AppDetailView: View {
                         HStack(spacing: 8) {
                             if busy { ProgressView() }
                             Image(systemName: "syringe")
-                            Text("注入 TrollMCPAgent")
+                            Text("注入 TrollMCPAgent v4（安全版）")
                         }
                     }
                     .disabled(busy || injected)

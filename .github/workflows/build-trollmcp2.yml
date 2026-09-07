@@ -33,11 +33,14 @@ jobs:
         run: |
           export THEOS="$THEOS"
           export THEOS_PACKAGE_SCHEME=rootless
-          for t in ProbeAgent ConfigHook FakeDevice NetworkTweak MemoryTweak ControlAgent; do
+          for t in ProbeAgent ConfigHook FakeDevice NetworkTweak MemoryTweak ControlAgent TrollMCPAgent; do
             echo ">>> building $t"
             (cd "tweaks/$t" && make package) || { echo "FAILED: $t"; exit 1; }
             cp "tweaks/$t/.theos/obj/debug/$t.dylib" "Resources/tweaks/$t.dylib" || { echo "NO DYLIB: $t"; exit 1; }
           done
+          # v2.9.102: TrollMCPAgent v4（源码重写，通知驱动安全版）覆盖 bin 老成品，
+          # 使 injection.enable 默认注入的 agent dylib 为最新稳定版
+          cp "Resources/tweaks/TrollMCPAgent.dylib" "Resources/bin/TrollMCPAgent.dylib"
           ls -lh Resources/tweaks/
 
       - name: Build sqlite_wipe (iOS arm64 root tool)

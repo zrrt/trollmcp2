@@ -1,0 +1,9 @@
+Package: com.trollagent.trollmcpagent
+Name: TrollMCPAgent
+Version: 4.0
+Architecture: iphoneos-arm64
+Description: Generic agent dylib (notification-driven, v4). Inject into any app to enable AI control via NSNotification protocol.
+Maintainer: TrollAgent
+Author: TrollAgent
+Section: Tweaks
+Depends: mobilesubstrate
