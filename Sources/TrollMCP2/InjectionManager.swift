@@ -77,6 +77,7 @@ enum MachOAnalyzer {
         guard data.count >= offset + headerSize else { return nil }
 
         let fileType = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: offset + 12, as: UInt32.self) }
+        var hasCodeSignature = false
         let ncmds = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: offset + 16, as: UInt32.self) }
         let sizeofcmds = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: offset + 20, as: UInt32.self) }
 
@@ -606,10 +607,21 @@ final class InjectionManager {
         return (c, o)
     }
 
-    /// 目标 App 真实 TeamID（对齐 TrollFools AppListModel：LSApplicationProxy.teamID()）
-    private func realTeamID(for bundleId: String) -> String {
-        if let proxy = LSApplicationProxy(forIdentifier: bundleId), let tid = proxy.teamID(), !tid.isEmpty {
-            return tid
+    /// 目标 App 真实 TeamID：从主二进制既有签名的 entitlements（application-identifier = TEAMID.bundleId）
+    /// 提取前缀——零外部依赖（不用 LSApplicationProxy），对齐 TrollFools teamID() 的效果
+    private func realTeamID(for bundleId: String, appPath: String?) -> String {
+        guard let main = appPath else { return "TROLLTROLL" }
+        let (c, o) = runAsRoot("ldid", args: ["-e", main])
+        guard c == 0, let r = o.range(of: "application-identifier"), o.contains(bundleId) else {
+            return "TROLLTROLL"
+        }
+        let tail = o[r.upperBound...]
+        if let open = tail.range(of: "<string>"), let close = tail.range(of: "</string>") {
+            let val = String(tail[open.upperBound..<close.lowerBound])
+            if val.hasSuffix(bundleId) {
+                let team = String(val.dropLast(bundleId.count))
+                if !team.isEmpty { return team }
+            }
         }
         return "TROLLTROLL"
     }
@@ -716,7 +728,7 @@ final class InjectionManager {
             }
 
             // 7d. 重签：条件伪签（保留 entitlements）+ ct_bypass（真实 teamID）+ chown
-            _ = coreTrustBypass(targetMachO, teamID: realTeamID(for: bundleId))
+            _ = coreTrustBypass(targetMachO, teamID: realTeamID(for: bundleId, appPath: executablePath(app)))
 
             // 7e. 验证：加载命令已写入 + Mach-O 结构有效
             let verifyInfo = MachOAnalyzer.analyze(targetMachO)
