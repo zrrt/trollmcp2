@@ -1,4 +1,4 @@
-# v2.9.93 合并版主构建：内置 tweaks 编译（theos）+ IPA 打包一条龙
+﻿# v2.9.93 合并版主构建：内置 tweaks 编译（theos）+ IPA 打包一条龙
 # 不再依赖单独 build-tweak workflow（其 runner 启动不稳定）；改 Tweak.x 后直接跑本 workflow 即全量更新。
 name: build-trollmcp2
 
@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-13-intel
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
