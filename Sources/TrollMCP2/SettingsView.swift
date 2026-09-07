@@ -304,7 +304,7 @@ struct SettingsView: View {
                         color: .orange,
                         destination: NetworkDebugView()
                     )
-                    LabeledRow(label: L10n.t("version"), value: "2.9.94")
+                    LabeledRow(label: L10n.t("version"), value: "2.9.95")
                     // v2.9.68：自动更新检查
                     SettingRowButton(
                         title: L10n.t("row_check_update"),
