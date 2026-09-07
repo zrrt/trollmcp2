@@ -1,16 +1,19 @@
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 
-// NetworkTweak v1.0 — HTTP/HTTPS 抓包 dylib
-// 注入目标 App 后，所有 NSURLSession 请求记录到 /var/mobile/Documents/Workspace/network_capture/
-// 支持请求/响应记录、状态码、耗时、Header、Body 大小
-
-@interface NSURLSession (NetworkTweak)
-@end
+// NetworkTweak v1.1 — HTTP/HTTPS 抓包 dylib（零依赖版）
+// v1.0 用 Logos %hook → 链接 CydiaSubstrate → TrollStore 无 substrate → 注入必闪退。
+// v1.1 改为 method swizzling（method_setImplementation），纯 ObjC runtime，零外部依赖，
+// 注入任何 App 都不会因缺依赖闪退。功能不变：记录到 /var/mobile/Documents/Workspace/network_capture/。
 
 static NSString *kCaptureDir = @"/var/mobile/Documents/Workspace/network_capture";
 static NSMutableArray *g_requests = nil;
 static NSInteger g_maxRecords = 500;
+
+// 原实现保存
+static IMP g_orig_dataTaskWithCompletion = NULL;
+static IMP g_orig_dataTaskWithoutCompletion = NULL;
+static IMP g_orig_connectionWithRequest = NULL;
 
 static void ensureCaptureDir() {
     static dispatch_once_t onceToken;
@@ -35,7 +38,6 @@ static void saveRecord(NSDictionary *record) {
         if (g_requests.count > g_maxRecords) {
             [g_requests removeObjectsInRange:NSMakeRange(0, g_requests.count - g_maxRecords)];
         }
-        // 每 10 条写一次盘
         if (g_requests.count % 10 == 0) {
             NSString *path = [kCaptureDir stringByAppendingPathComponent:@"capture_latest.json"];
             NSData *data = [NSJSONSerialization dataWithJSONObject:g_requests options:NSJSONWritingPrettyPrinted error:nil];
@@ -44,18 +46,9 @@ static void saveRecord(NSDictionary *record) {
     }
 }
 
-// hook NSURLSession dataTaskWithRequest:completionHandler:
-%hook NSURLSession
-
-- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request completionHandler:(void (^)(NSData *data, NSURLResponse *response, NSError *error))completionHandler {
-    ensureCaptureDir();
-
-    NSDate *startTime = [NSDate date];
-    NSString *requestId = [[NSUUID UUID] UUIDString];
-
-    // 记录请求
+static NSDictionary *buildRequestRecord(NSURLRequest *request, NSString *api) {
     NSMutableDictionary *reqRecord = [NSMutableDictionary dictionary];
-    reqRecord[@"id"] = requestId;
+    reqRecord[@"id"] = [[NSUUID UUID] UUIDString];
     reqRecord[@"timestamp"] = timestamp();
     reqRecord[@"method"] = request.HTTPMethod ?: @"GET";
     reqRecord[@"url"] = request.URL.absoluteString ?: @"";
@@ -63,12 +56,19 @@ static void saveRecord(NSDictionary *record) {
     reqRecord[@"request_body_size"] = @(request.HTTPBody.length);
     if (request.URL.host) reqRecord[@"host"] = request.URL.host;
     if (request.URL.scheme) reqRecord[@"scheme"] = request.URL.scheme;
+    if (api) reqRecord[@"api"] = api;
+    return reqRecord;
+}
 
-    // 包装 completionHandler
+// hook: -dataTaskWithRequest:completionHandler:
+static NSURLSessionDataTask *hook_dataTaskWithCompletion(id self, SEL _cmd, NSURLRequest *request, id completionHandler) {
+    ensureCaptureDir();
+    NSDate *startTime = [NSDate date];
+    NSMutableDictionary *reqRecord = buildRequestRecord(request, @"NSURLSession");
+
     void (^wrappedHandler)(NSData *, NSURLResponse *, NSError *) = ^(NSData *data, NSURLResponse *response, NSError *error) {
         NSTimeInterval elapsed = [[NSDate date] timeIntervalSinceDate:startTime] * 1000;
         reqRecord[@"elapsed_ms"] = @((NSInteger)elapsed);
-
         if (error) {
             reqRecord[@"error"] = error.localizedDescription ?: @"unknown";
             reqRecord[@"status"] = @(-1);
@@ -77,65 +77,84 @@ static void saveRecord(NSDictionary *record) {
             reqRecord[@"status"] = @(httpResp.statusCode);
             reqRecord[@"response_headers"] = httpResp.allHeaderFields ?: @{};
             reqRecord[@"response_body_size"] = @(data.length);
-            // 尝试解析 JSON
             if (data.length > 0 && data.length < 65536) {
                 @try {
                     id json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-                    if (json) {
-                        reqRecord[@"response_json_preview"] = json;
-                    }
+                    if (json) reqRecord[@"response_json_preview"] = json;
                 } @catch (id e) {}
             }
         }
-
         saveRecord(reqRecord);
-
         if (completionHandler) {
-            completionHandler(data, response, error);
+            void (^origHandler)(NSData *, NSURLResponse *, NSError *) = completionHandler;
+            origHandler(data, response, error);
         }
     };
 
-    return %orig(request, wrappedHandler);
+    if (g_orig_dataTaskWithCompletion) {
+        return ((NSURLSessionDataTask *(*)(id, SEL, NSURLRequest *, id))g_orig_dataTaskWithCompletion)(self, _cmd, request, wrappedHandler);
+    }
+    return [NSURLSession dataTaskWithRequest:request completionHandler:wrappedHandler];
 }
 
-// hook dataTaskWithRequest: (无 completionHandler 的版本)
-- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request {
+// hook: -dataTaskWithRequest:（无 completionHandler）
+static NSURLSessionDataTask *hook_dataTaskWithoutCompletion(id self, SEL _cmd, NSURLRequest *request) {
     ensureCaptureDir();
-    NSMutableDictionary *reqRecord = [NSMutableDictionary dictionary];
-    reqRecord[@"id"] = [[NSUUID UUID] UUIDString];
-    reqRecord[@"timestamp"] = timestamp();
-    reqRecord[@"method"] = request.HTTPMethod ?: @"GET";
-    reqRecord[@"url"] = request.URL.absoluteString ?: @"";
-    reqRecord[@"host"] = request.URL.host ?: @"";
+    NSMutableDictionary *reqRecord = buildRequestRecord(request, @"NSURLSession");
     reqRecord[@"note"] = @"no_completion_handler";
     saveRecord(reqRecord);
-    return %orig(request);
+    if (g_orig_dataTaskWithoutCompletion) {
+        return ((NSURLSessionDataTask *(*)(id, SEL, NSURLRequest *))g_orig_dataTaskWithoutCompletion)(self, _cmd, request);
+    }
+    return nil;
 }
 
-%end
-
-// hook NSURLConnection（旧 API）
-%hook NSURLConnection
-
-+ (NSURLConnection *)connectionWithRequest:(NSURLRequest *)request delegate:(id)delegate {
+// hook: +connectionWithRequest:delegate:（旧 API）
+static NSURLConnection *hook_connectionWithRequest(id self, SEL _cmd, NSURLRequest *request, id delegate) {
     ensureCaptureDir();
-    NSMutableDictionary *reqRecord = [NSMutableDictionary dictionary];
-    reqRecord[@"id"] = [[NSUUID UUID] UUIDString];
-    reqRecord[@"timestamp"] = timestamp();
-    reqRecord[@"method"] = request.HTTPMethod ?: @"GET";
-    reqRecord[@"url"] = request.URL.absoluteString ?: @"";
-    reqRecord[@"api"] = @"NSURLConnection";
+    NSMutableDictionary *reqRecord = buildRequestRecord(request, @"NSURLConnection");
     saveRecord(reqRecord);
-    return %orig(request, delegate);
+    if (g_orig_connectionWithRequest) {
+        return ((NSURLConnection *(*)(id, SEL, NSURLRequest *, id))g_orig_connectionWithRequest)(self, _cmd, request, delegate);
+    }
+    return nil;
 }
 
-%end
+static void swizzle(Class cls, SEL sel, IMP newImp, IMP *origOut) {
+    Method m = class_getInstanceMethod(cls, sel);
+    if (!m) {
+        // 类方法
+        m = class_getClassMethod(cls, sel);
+        if (!m) return;
+        *origOut = method_getImplementation(m);
+        method_setImplementation(m, newImp);
+        return;
+    }
+    *origOut = method_getImplementation(m);
+    method_setImplementation(m, newImp);
+}
 
-// 构造函数：启动时写一个标记文件
 __attribute__((constructor))
-static void initialize() {
+static void networkTweakInit(void) {
     ensureCaptureDir();
+    // 纯 runtime swizzle，不依赖任何第三方库
+    Class sessionCls = NSClassFromString(@"NSURLSession");
+    if (sessionCls) {
+        swizzle(sessionCls, @selector(dataTaskWithRequest:completionHandler:),
+                (IMP)hook_dataTaskWithCompletion, &g_orig_dataTaskWithCompletion);
+        swizzle(sessionCls, @selector(dataTaskWithRequest:),
+                (IMP)hook_dataTaskWithoutCompletion, &g_orig_dataTaskWithoutCompletion);
+    }
+    Class connCls = NSClassFromString(@"NSURLConnection");
+    if (connCls) {
+        Method m = class_getClassMethod(connCls, @selector(connectionWithRequest:delegate:));
+        if (m) {
+            g_orig_connectionWithRequest = method_getImplementation(m);
+            method_setImplementation(m, (IMP)hook_connectionWithRequest);
+        }
+    }
+
     NSString *marker = [kCaptureDir stringByAppendingPathComponent:@"NetworkTweak_loaded.txt"];
-    NSString *info = [NSString stringWithFormat:@"NetworkTweak loaded at %@\nPID: %d\n", timestamp(), getpid()];
+    NSString *info = [NSString stringWithFormat:@"NetworkTweak v1.1 loaded at %@\nPID: %d\n", timestamp(), getpid()];
     [info writeToFile:marker atomically:YES encoding:NSUTF8StringEncoding error:nil];
 }

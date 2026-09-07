@@ -24,6 +24,8 @@ enum MachOAnalyzer {
         var cryptID: UInt32
         var dylibs: [String]
         var valid: Bool
+        var fileType: UInt32 = 0
+        var hasCodeSignature: Bool = false
     }
 
     static let lcLoadDylib: UInt32 = 0x0C
@@ -74,6 +76,7 @@ enum MachOAnalyzer {
         let headerSize = is64 ? 32 : 28
         guard data.count >= offset + headerSize else { return nil }
 
+        let fileType = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: offset + 12, as: UInt32.self) }
         let ncmds = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: offset + 16, as: UInt32.self) }
         let sizeofcmds = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: offset + 20, as: UInt32.self) }
 
@@ -108,13 +111,16 @@ enum MachOAnalyzer {
                 if cursor + 20 <= data.count {
                     cryptID = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: cursor + 16, as: UInt32.self) }
                 }
+            case 0x1D:   // LC_CODE_SIGNATURE
+                hasCodeSignature = true
             default:
                 break
             }
             cursor += cmdsize
             remain -= 1
         }
-        return Info(arch: is64 ? "arm64" : "arm32", cryptID: cryptID, dylibs: dylibs, valid: true)
+        return Info(arch: is64 ? "arm64" : "arm32", cryptID: cryptID, dylibs: dylibs, valid: true,
+                    fileType: fileType, hasCodeSignature: hasCodeSignature)
     }
 
     /// 是否已加密（App Store 加密二进制 cryptid=1，注入会破坏它 → 必须跳过）
@@ -559,18 +565,53 @@ final class InjectionManager {
         runAsRoot("optool", args: ["uninstall", "-p", assetName, "-t", target])
     }
 
-    /// 伪签（对齐 TrollFools cmdPseudoSign：改 Mach-O 前必须 ldid -S，否则 __LINKEDIT 顺序问题）
+    /// 伪签（对齐 TrollFools cmdPseudoSign）：
+    /// - 已有代码签名且非 force → 跳过，避免二次签名破坏原签名（v2.9.104 修复：此前无条件 ldid -S
+    ///   会把主二进制的 entitlements 抹掉 → App 启动被 amfid 拒 → 注入后闪退）
+    /// - 主二进制（MH_EXECUTE=0x2）→ 保留 entitlements：ldid -e 提取 → -S<xml> 重签
+    /// - 无签名 → ldid -S
     @discardableResult
-    private func pseudoSign(_ target: String) -> (Int32, String) {
-        runAsRoot("ldid", args: ["-S", target])
+    private func pseudoSign(_ target: String, force: Bool = false) -> (Int32, String) {
+        guard let info = MachOAnalyzer.analyze(target), info.valid else {
+            return runAsRoot("ldid", args: ["-S", target])
+        }
+        guard force || !info.hasCodeSignature else {
+            return (0, "skip: already signed")
+        }
+        if info.fileType == 0x2 {
+            let (c1, o1) = runAsRoot("ldid", args: ["-e", target])
+            if c1 == 0 {
+                let trimmed = o1.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    let xmlPath = (NSTemporaryDirectory() as NSString).appendingPathComponent("ent_\(UUID().uuidString).xml")
+                    do {
+                        try trimmed.write(toFile: xmlPath, atomically: true, encoding: .utf8)
+                        return runAsRoot("ldid", args: ["-S\(xmlPath)", target])
+                    } catch {}
+                }
+            }
+            return (c1, o1)
+        }
+        return runAsRoot("ldid", args: ["-S", target])
     }
 
     /// CoreTrust 重签 + 属主（对齐 TrollFools cmdCoreTrustBypass + cmdChangeOwnerToInstalld）
+    /// v2.9.104：teamID 用目标 App 真实 TeamID（TrollFools 用 LSApplicationProxy.teamID()），
+    /// fallback TROLLTROLL——部分 App 对签名 TeamID 有校验，固定 TROLLTROLL 会被拒启动
     @discardableResult
-    private func coreTrustBypass(_ target: String) -> (Int32, String) {
-        let (c, o) = runAsRoot("ct_bypass", args: ["-r", "-i", target, "-t", "TROLLTROLL"])
+    private func coreTrustBypass(_ target: String, teamID: String = "TROLLTROLL") -> (Int32, String) {
+        _ = pseudoSign(target)
+        let (c, o) = runAsRoot("ct_bypass", args: ["-r", "-i", target, "-t", teamID])
         _ = runAsRoot("chown", args: ["33:33", target])
         return (c, o)
+    }
+
+    /// 目标 App 真实 TeamID（对齐 TrollFools AppListModel：LSApplicationProxy.teamID()）
+    private func realTeamID(for bundleId: String) -> String {
+        if let proxy = LSApplicationProxy(forIdentifier: bundleId), let tid = proxy.teamID(), !tid.isEmpty {
+            return tid
+        }
+        return "TROLLTROLL"
     }
 
     /// 注入 dylib 到指定 App
@@ -653,7 +694,7 @@ final class InjectionManager {
         var insertOutput = ""
         do {
             // 7a. 改前伪签（对齐 TrollFools cmdPseudoSign force）——修掉 install_name_tool LINKEDIT 报错
-            let (ps, pso) = pseudoSign(targetMachO)
+            let (ps, pso) = pseudoSign(targetMachO, force: true)
             if ps != 0 { AuditLog.shared.log("injection.presign", detail: "exit=\(ps) \(pso)") }
 
             // 7b. LC_RPATH：对齐 TrollFools cmdInsertLoadCommandRuntimePath——
@@ -674,9 +715,8 @@ final class InjectionManager {
                 throw MCPError.failed("insert_dylib 失败(\(c1)): \(o1)")
             }
 
-            // 7d. 重签：ldid -S + ct_bypass + chown
-            _ = pseudoSign(targetMachO)
-            _ = coreTrustBypass(targetMachO)
+            // 7d. 重签：条件伪签（保留 entitlements）+ ct_bypass（真实 teamID）+ chown
+            _ = coreTrustBypass(targetMachO, teamID: realTeamID(for: bundleId))
 
             // 7e. 验证：加载命令已写入 + Mach-O 结构有效
             let verifyInfo = MachOAnalyzer.analyze(targetMachO)
