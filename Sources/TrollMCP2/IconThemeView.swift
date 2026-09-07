@@ -4,6 +4,7 @@ import SwiftUI
 // blueIcon（巨魔蓝默认）/ originalIcon（蓝紫）/ whiteIcon（浅白）/ outsetIcon（深青）
 
 struct IconThemeView: View {
+    @Environment(\.colorScheme) private var colorScheme
     private let themes: [(id: String, name: String, file: String)] = [
         ("blueIcon", "巨魔蓝", "blueIcon-1024x1024"),
         ("originalIcon", "蓝紫", "originalIcon-1024x1024"),
@@ -24,7 +25,9 @@ struct IconThemeView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [Color(red: 0.90, green: 0.94, blue: 1.0), .white],
+            LinearGradient(colors: colorScheme == .dark
+                           ? [Color(red: 0.09, green: 0.11, blue: 0.16), Color(red: 0.12, green: 0.14, blue: 0.20)]
+                           : [Color(red: 0.90, green: 0.94, blue: 1.0), .white],
                            startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
             ScrollView {
@@ -65,8 +68,8 @@ struct IconThemeView: View {
                             .padding(14)
                             .background(
                                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .fill(Color.white.opacity(0.9))
-                                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.blue.opacity(0.12), lineWidth: 1))
+                                    .fill(colorScheme == .dark ? Color.white.opacity(0.09) : Color.white.opacity(0.9))
+                                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.blue.opacity(colorScheme == .dark ? 0.25 : 0.12), lineWidth: 1))
                             )
                         }
                         .buttonStyle(.plain)

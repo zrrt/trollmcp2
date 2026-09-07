@@ -4,6 +4,7 @@ import SwiftUI
 // 7 步：前置准备 → 选择应用 → AI 分析 → 应用建议 → 编辑 Hook → 注入生效 → 验证效果
 
 struct GuideView: View {
+    @Environment(\.colorScheme) private var colorScheme
     private let steps: [(icon: String, title: String, desc: String)] = [
         ("checkmark.shield.fill", "前置准备",
          "TrollStore 开启「编辑 Entitlements」后卸载重装本 App；在「模型 API」配置好可用模型；用 device.probe 确认环境就绪。"),
@@ -30,7 +31,9 @@ struct GuideView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [Color(red: 0.90, green: 0.94, blue: 1.0), .white],
+            LinearGradient(colors: colorScheme == .dark
+                           ? [Color(red: 0.09, green: 0.11, blue: 0.16), Color(red: 0.12, green: 0.14, blue: 0.20)]
+                           : [Color(red: 0.90, green: 0.94, blue: 1.0), .white],
                            startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
             ScrollView {
@@ -86,8 +89,8 @@ struct GuideView: View {
                         .padding(14)
                         .background(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(Color.white.opacity(0.85))
-                                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.blue.opacity(0.12), lineWidth: 1))
+                                .fill(colorScheme == .dark ? Color.white.opacity(0.09) : Color.white.opacity(0.85))
+                                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.blue.opacity(colorScheme == .dark ? 0.25 : 0.12), lineWidth: 1))
                         )
                     }
 

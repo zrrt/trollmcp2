@@ -29,6 +29,7 @@ final class DeviceDatabase {
 }
 
 struct FakeDeviceView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @State private var apps: [AppCatalog.AppEntry] = AppCatalog.list()
     @State private var selectedAppId: String = ""
     @State private var selectedModel: String = ""
@@ -44,7 +45,9 @@ struct FakeDeviceView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [Color(red: 0.90, green: 0.94, blue: 1.0), .white],
+            LinearGradient(colors: colorScheme == .dark
+                           ? [Color(red: 0.09, green: 0.11, blue: 0.16), Color(red: 0.12, green: 0.14, blue: 0.20)]
+                           : [Color(red: 0.90, green: 0.94, blue: 1.0), .white],
                            startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
             ScrollView {
@@ -62,7 +65,7 @@ struct FakeDeviceView: View {
                         .pickerStyle(.menu)
                         .frame(maxWidth: .infinity)
                         .padding(10)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.9)))
+                        .background(RoundedRectangle(cornerRadius: 10).fill(colorScheme == .dark ? Color.white.opacity(0.10) : Color.white.opacity(0.9)))
                     }
 
                     // 机型
@@ -78,7 +81,7 @@ struct FakeDeviceView: View {
                         .pickerStyle(.menu)
                         .frame(maxWidth: .infinity)
                         .padding(10)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.9)))
+                        .background(RoundedRectangle(cornerRadius: 10).fill(colorScheme == .dark ? Color.white.opacity(0.10) : Color.white.opacity(0.9)))
 
                         if let spec = selectedSpec {
                             VStack(alignment: .leading, spacing: 6) {
