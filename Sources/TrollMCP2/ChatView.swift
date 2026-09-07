@@ -494,20 +494,22 @@ struct ChatView: View {
     private var currentModelBar: some View {
         // v2.9.36：点击"当前模型"弹出模型选择 sheet（不再跳设置），直接切换上游模型
         // v2.9.79：美化——渐变图标 + 胶囊卡片 + 上游模型名
-        Button(action: { showModelPicker = true }) {
+        // v2.9.93：按上游模型供应商换图标
+        let currentCfg = modelStore.defaultConfig
+        return Button(action: { showModelPicker = true }) {
             HStack(spacing: 8) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(LinearGradient(colors: [.tmCyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
                         .frame(width: 26, height: 26)
-                    Image(systemName: "cpu")
+                    Image(systemName: modelIcon(for: currentCfg?.model ?? ""))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.white)
                 }
                 Text(L10n.t("current_model"))
                     .font(.caption)
                     .foregroundColor(.secondary)
-                if let cfg = modelStore.defaultConfig {
+                if let cfg = currentCfg {
                     Text(cfg.name)
                         .font(.caption)
                         .fontWeight(.semibold)
@@ -624,6 +626,17 @@ struct ChatView: View {
 
     private func reasoningLabel() -> String {
         ["低", "中", "高"][reasoning]
+    }
+
+    /// v2.9.93：按模型名识别供应商图标
+    private func modelIcon(for model: String) -> String {
+        let m = model.lowercased()
+        if m.contains("deepseek") { return "d.circle.fill" }
+        if m.contains("claude") { return "c.circle.fill" }
+        if m.contains("gpt") || m.contains("o1") || m.contains("o3") || m.contains("o4") { return "sparkles" }
+        if m.contains("glm") || m.contains("qwen") || m.contains("kimi") { return "brain" }
+        if m.contains("gemini") { return "sparkle.magnifyingglass" }
+        return "cpu"
     }
 
     private func send() {
@@ -994,7 +1007,12 @@ struct MessageBubble: View {
                 .font(.body)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(isUser ? Color.blue : (message.isError ? Color.red.opacity(0.15) : Color(.secondarySystemBackground)))
+                // v2.9.93：用户气泡改巨魔蓝渐变（浅青→蓝，品牌化），助手保持系统色
+                .background(
+                    isUser
+                        ? LinearGradient(colors: [.tmCyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        : (message.isError ? Color.red.opacity(0.15) : Color(.secondarySystemBackground))
+                )
                 .foregroundColor(isUser ? .white : .primary)
                 .cornerRadius(18)
                 .overlay(

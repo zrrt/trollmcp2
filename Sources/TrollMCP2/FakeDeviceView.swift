@@ -148,7 +148,7 @@ struct FakeDeviceView: View {
                             .background(RoundedRectangle(cornerRadius: 12).fill((resultOK ? Color.green : Color.red).opacity(0.08)))
                     }
 
-                    Text("原理：注入 FakeDevice.dylib，App 启动时读取 /var/mobile/Documents/Workspace/fake_device.json，运行时替换 UIDevice 返回的机型/名称/系统版本。部分 App 通过 sysctl 读硬件标识，无法被 UIDevice 层伪装覆盖。")
+                    Text("原理（v2.9.93）：默认内存注入——App 运行时用 opainject 加载 FakeDevice.dylib，读取 fake_device.json 替换 UIDevice 返回的机型/名称/系统版本。不改任何文件、零残留，App 重启即还原；恢复 = 点还原（杀进程重启）。部分 App 通过 sysctl 读硬件标识，无法被 UIDevice 层覆盖。")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
