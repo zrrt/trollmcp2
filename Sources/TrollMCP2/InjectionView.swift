@@ -5,6 +5,12 @@ struct InjectionView: View {
     @State private var searchText = ""
     @State private var selectedApp: AppCatalog.AppEntry?
     @State private var inspectResult: [String: Any]?
+    // v2.9.92：紧急恢复区块
+    @State private var showRescue = false
+    @State private var rescueBusy = false
+    @State private var rescueMessage: String?
+    @State private var rescueAlert = false
+    @State private var pendingRescue: String?
 
     private var filtered: [AppCatalog.AppEntry] {
         if searchText.isEmpty { return apps }
@@ -41,6 +47,10 @@ struct InjectionView: View {
             .cornerRadius(12)
             .padding(.horizontal, 16)
             .padding(.bottom, 4)
+
+            // v2.9.92：🚑 紧急恢复（Residue 式）——注入把 App 搞坏后的第一选择
+            rescueSection
+                .padding(.bottom, 6)
 
             Group {
                 if apps.isEmpty {
@@ -99,6 +109,131 @@ struct InjectionView: View {
             }
         }
         .listStyle(.insetGrouped)
+    }
+
+    // MARK: - v2.9.92 紧急恢复（Residue 式）
+    private var rescueSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showRescue.toggle() } }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "cross.case.fill")
+                        .font(.system(size: 15))
+                        .foregroundColor(.orange)
+                    Text("🚑 紧急恢复（Residue 式）")
+                        .font(.subheadline.bold())
+                        .foregroundColor(.orange)
+                    Spacer()
+                    if rescueBusy {
+                        ProgressView()
+                    }
+                    Image(systemName: "chevron.down")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .rotationEffect(.degrees(showRescue ? 180 : 0))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.orange.opacity(0.12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.orange.opacity(0.25), lineWidth: 1))
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
+
+            if showRescue {
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        rescueButton(title: "全机扫描", icon: "magnifyingglass", color: .blue, action: { runRescue("scan") })
+                        rescueButton(title: "一键全恢复", icon: "arrow.uturn.backward.circle", color: .orange, action: { confirmRescue("recover_all") })
+                        rescueButton(title: "清理残留", icon: "sparkles", color: .red, action: { confirmRescue("cleanup") })
+                    }
+                    if let msg = rescueMessage {
+                        Text(msg)
+                            .font(.caption)
+                            .foregroundColor(msg.hasPrefix("✅") ? .green : (msg.hasPrefix("❌") ? .red : .secondary))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(10)
+                            .background(RoundedRectangle(cornerRadius: 10).fill(Color(.secondarySystemBackground)))
+                    }
+                    Text("App 注入后打不开 → 先「一键全恢复」；仍不行再「清理残留」。不要卸载重装（会丢数据）。")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color(.tertiarySystemBackground)))
+            }
+        }
+        .padding(.horizontal, 16)
+        .alert("确认执行", isPresented: $rescueAlert) {
+            Button("执行", role: .destructive) { if let p = pendingRescue { runRescue(p) } }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text(pendingRescue == "recover_all"
+                 ? "将扫描并自动恢复所有存在注入痕迹/损坏二进制的 App（还原到注入前状态）。确定继续？"
+                 : "将删除注入标记、孤儿备份与 Frameworks 内非系统 dylib。确定继续？")
+        }
+    }
+
+    private func rescueButton(title: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 15))
+                Text(title)
+                    .font(.caption.bold())
+            }
+            .foregroundColor(color)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 9)
+            .background(RoundedRectangle(cornerRadius: 10).fill(color.opacity(0.10)))
+        }
+        .buttonStyle(PlainButtonStyle())
+        .disabled(rescueBusy)
+    }
+
+    private func confirmRescue(_ kind: String) {
+        pendingRescue = kind
+        rescueAlert = true
+    }
+
+    private func runRescue(_ kind: String) {
+        rescueBusy = true
+        rescueMessage = nil
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result: [String: Any]
+            do {
+                switch kind {
+                case "scan": result = try RescueScanTool().invoke([:])
+                case "recover_all": result = try RescueRecoverAllTool().invoke([:])
+                default: result = try RescueCleanupTool().invoke([:])
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    rescueMessage = "❌ 失败：\(error.localizedDescription)"
+                    rescueBusy = false
+                }
+                return
+            }
+            DispatchQueue.main.async {
+                switch kind {
+                case "scan":
+                    let count = result["count"] as? Int ?? 0
+                    rescueMessage = "🔍 扫描完成：发现 \(count) 个需恢复的 App（已注入/损坏/有备份）"
+                case "recover_all":
+                    let restored = result["restored_count"] as? Int ?? 0
+                    let failed = result["failed_count"] as? Int ?? 0
+                    rescueMessage = failed == 0 ? "✅ 一键恢复完成：还原 \(restored) 个 App" : "⚠️ 还原 \(restored) 个，\(failed) 个失败：\(result["failed"] ?? "")"
+                default:
+                    let cleaned = result["cleaned_count"] as? Int ?? 0
+                    let errors = result["errors"] as? [String] ?? []
+                    rescueMessage = errors.isEmpty ? "✅ 清理完成：\(cleaned) 项残留已清理" : "⚠️ 清理 \(cleaned) 项，\(errors.count) 个错误：\(errors.joined(separator: "; "))"
+                }
+                AuditLog.shared.log("rescue.ui", detail: "\(kind) \(rescueMessage ?? "")")
+                rescueBusy = false
+            }
+        }
     }
 
 
@@ -177,6 +312,14 @@ struct AppDetailView: View {
                         }
                     }
                     .disabled(busy || !injected)
+                    // v2.9.92：从 .troll-fools.bak 恢复备份（App 打不开时的强恢复）
+                    Button(action: { doRestore() }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "cross.case.fill")
+                            Text("恢复备份（.troll-fools.bak）")
+                        }
+                    }
+                    .disabled(busy)
                 }
                 Section(header: SettingSectionHeader(title: "注入工具链")) {
                     ForEach(InjectionManager.shared.availableBinaries(), id: \.self) { bin in
@@ -254,6 +397,31 @@ struct AppDetailView: View {
             DispatchQueue.main.async {
                 let ok = ((result["injected"] as? Bool) ?? true) == false
                 actionMessage = ok ? "✅ 已还原" : "⚠️ 还原未确认"
+                inspectResult = InjectionManager.shared.inspect(app.bundleId)
+                busy = false
+            }
+        }
+    }
+
+    /// v2.9.92：从 .troll-fools.bak 恢复备份（App 打不开时强恢复）
+    private func doRestore() {
+        busy = true
+        actionMessage = nil
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result: [String: Any]
+            do {
+                result = try InjectionRestoreTool().invoke(["bundle_id": app.bundleId])
+            } catch {
+                let msg = (error as? MCPError)?.description ?? error.localizedDescription
+                DispatchQueue.main.async {
+                    actionMessage = "❌ 恢复失败：\(msg)"
+                    busy = false
+                }
+                return
+            }
+            DispatchQueue.main.async {
+                let restored = ((result["status"] as? String) == "reverted") || !((result["restored_from_backup"] as? [String]) ?? []).isEmpty
+                actionMessage = restored ? "✅ 已从备份恢复" : "⚠️ 未发现可用备份（可能本来就未注入）"
                 inspectResult = InjectionManager.shared.inspect(app.bundleId)
                 busy = false
             }
