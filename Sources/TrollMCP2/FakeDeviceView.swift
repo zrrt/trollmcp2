@@ -97,7 +97,7 @@ struct FakeDeviceView: View {
                         }
                     }
 
-                    // 操作
+                    // 操作（iOS 14 兼容样式：不用 borderedProminent/bordered）
                     HStack(spacing: 12) {
                         Button {
                             apply()
@@ -106,7 +106,11 @@ struct FakeDeviceView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
                         }
-                        .buttonStyle(.borderedProminent)
+                        .foregroundColor(.white)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill((busy || selectedAppId.isEmpty || selectedModel.isEmpty) ? Color.blue.opacity(0.4) : Color.blue)
+                        )
                         .disabled(busy || selectedAppId.isEmpty || selectedModel.isEmpty)
 
                         Button {
@@ -116,7 +120,11 @@ struct FakeDeviceView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
                         }
-                        .buttonStyle(.bordered)
+                        .foregroundColor(.blue)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color.blue.opacity(busy || selectedAppId.isEmpty ? 0.12 : 0.15))
+                        )
                         .disabled(busy || selectedAppId.isEmpty)
                     }
 
