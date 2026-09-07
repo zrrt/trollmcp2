@@ -40,6 +40,13 @@ jobs:
           done
           ls -lh Resources/tweaks/
 
+      - name: Build sqlite_wipe (iOS arm64 root tool)
+        run: |
+          mkdir -p Resources/bin
+          xcrun -sdk iphoneos clang -arch arm64 -mios-version-min=14.0 \
+            tools/sqlite_wipe.c -lsqlite3 -o Resources/bin/sqlite_wipe || { echo "SQLITE_WIPE FAILED"; exit 1; }
+          ls -lh Resources/bin/sqlite_wipe
+
       - name: Build unsigned IPA
         run: bash scripts/build-ipa.sh
 

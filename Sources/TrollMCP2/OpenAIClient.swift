@@ -63,9 +63,9 @@ final class OpenAIClient {
     /// v2.9.15：本轮请求起始时间（用于耗时统计，写入网络兼容日志）
     private var requestStart = Date()
     /// v2.9.87：多级降级总预算——全链串行最坏 7 分钟+，用户感知"一直请求中"。
-    /// 单次 send() 从创建到最终成功/失败不超过该秒数，超时直接失败并给出明确提示。
+    /// v2.9.96：试探级（L0-L4）超时已压到 25s，预算放宽到 220s 给 L5 流式留足时间。
     private var overallDeadline = Date.distantFuture
-    private let overallBudget: TimeInterval = 150
+    private let overallBudget: TimeInterval = 220
     /// v2.9.20：本轮推理强度（0=低 1=中 2=高），由 ChatView 传入并真实作用于请求。
     var currentReasoningLevel = 0  // v2.9.49：默认 low（medium/high 推理显著增加延迟，对标 Codex CLI 默认 low）
 
@@ -168,7 +168,9 @@ final class OpenAIClient {
         // v2.8.6：首次请求 45s；降级重试 30s。
         // 中转对完整载荷（tools + reasoning_effort）处理极慢/卡死，尽早超时并降级。
         // v2.9.12：长会话请求体大，放宽超时——首次 90s / 降级重试 60s（配合 session 90s）
-        var request = URLRequest(url: url, timeoutInterval: isFirst ? 90 : 60)
+        // v2.9.96：试探级统一 25s——正常中转 5s 内响应，卡死就是永远卡死，
+        // 25s 判定足够，把时间预算留给 L5 Responses 流式（Codex 同款端点）。
+        var request = URLRequest(url: url, timeoutInterval: 25)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         applyAuth(to: &request)
@@ -633,7 +635,7 @@ final class OpenAIClient {
             completion(.failure(NSError(domain: "OpenAIClient", code: 0, userInfo: [NSLocalizedDescriptionKey: "无效的 baseURL"])))
             return
         }
-        var request = URLRequest(url: url, timeoutInterval: 60)
+        var request = URLRequest(url: url, timeoutInterval: 30)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         applyAuth(to: &request)
