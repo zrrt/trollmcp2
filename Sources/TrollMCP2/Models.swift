@@ -108,8 +108,19 @@ final class ModelStore: ObservableObject {
 
     @Published var configs: [ModelConfig] = []
     private let key = "trollmcp2.model_configs"
+    // v2.9.97：记住最近一次使用的模型，顶栏立即显示用户上次用的配置，不再回退到第一个（旧 gpt4o）
+    private let lastUsedKey = "trollmcp2.last_used_config_id"
 
     init() { load() }
+
+    var lastUsedConfigId: String? {
+        get { UserDefaults.standard.string(forKey: lastUsedKey) }
+        set { UserDefaults.standard.set(newValue, forKey: lastUsedKey) }
+    }
+
+    func markUsed(_ id: String) {
+        lastUsedConfigId = id
+    }
 
     func load() {
         guard let data = UserDefaults.standard.data(forKey: key),
@@ -124,7 +135,12 @@ final class ModelStore: ObservableObject {
     }
 
     var defaultConfig: ModelConfig? {
-        configs.first(where: { $0.isDefault }) ?? configs.first
+        if let d = configs.first(where: { $0.isDefault }) { return d }
+        // v2.9.97：其次取最近使用，最后回退第一个
+        if let last = lastUsedConfigId, let m = configs.first(where: { $0.id.uuidString == last }) {
+            return m
+        }
+        return configs.first
     }
 
     func add(_ config: ModelConfig) {
@@ -432,6 +448,8 @@ final class ConversationStore: ObservableObject {
 
     func send(_ text: String, using config: ModelConfig, imageDataURLs: [String]? = nil,
               reasoningLevel: Int = 0, smartSearch: Bool = true) {
+        // v2.9.97：记住最近使用的模型，顶栏/下次启动立即恢复
+        ModelStore.shared.markUsed(config.id.uuidString)
         // v2.9.82：请求开始——首次要通知权限 + 开启后台任务延长
         TaskNotify.shared.requestPermissionIfNeeded()
         TaskNotify.shared.beginBackground()
@@ -506,7 +524,7 @@ final class ConversationStore: ObservableObject {
             runningTool = nil
             // v2.9.82：后台时通知
             TaskNotify.shared.endBackground()
-            TaskNotify.shared.notifyIfBackground(title: "任务已停止", body: "达到极端安全上限（60 轮），已停止。可点「停止」中断。")
+            TaskNotify.shared.notifyIfBackground(title: "⏹ 任务已停止", body: "达到极端安全上限（60 轮），已停止。可点「停止」中断。")
             appendToCurrent(ChatMessage(role: "assistant", content: "已达到极端安全上限（60 轮），已停止。若 AI 仍在循环，请点输入框旁的「停止」按钮中断。", isError: true))
             return
         }
@@ -583,7 +601,7 @@ final class ConversationStore: ObservableObject {
                     self.runningTool = nil
                     // v2.9.82：完成通知（后台时）
                     TaskNotify.shared.endBackground()
-                    TaskNotify.shared.notifyIfBackground(title: "AI 已回复", body: String(text.prefix(60)))
+                    TaskNotify.shared.notifyIfBackground(title: "✅ AI 已回复", body: String(text.prefix(60)))
                     if let sid = self.streamingMessageId {
                         // 流式已显示，更新最终文本 + thinking
                         self.updateMessageContent(id: sid, content: text)
@@ -632,7 +650,7 @@ final class ConversationStore: ObservableObject {
                     }
                     // v2.9.82：失败通知（后台时）
                     TaskNotify.shared.endBackground()
-                    TaskNotify.shared.notifyIfBackground(title: "任务出错", body: String(error.localizedDescription.prefix(60)))
+                    TaskNotify.shared.notifyIfBackground(title: "⚠️ 任务出错", body: String(error.localizedDescription.prefix(60)))
                     // 流式失败时保留已输出的部分文本，追加错误提示
                     if self.streamingMessageId != nil {
                         self.streamingMessageId = nil

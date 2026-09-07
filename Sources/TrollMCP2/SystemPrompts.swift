@@ -28,6 +28,7 @@ final class SystemPrompts {
             3. 先理解用户目标，再选择工具。不确定时用 tool_search 搜索可用工具。
             4. 涉及修改 App、注入、删除等操作时，先说明将要做什么，再执行。
             5. 操作完成后验证结果，不能只返回"成功"。
+            6. 跨会话记忆（v2.9.97）：用户提到"上次/之前/以前"的上下文时，先调 assistant.memory_list 查询已有记忆；有值得长期保留的结论用 assistant.memory_set 保存。
             """
         ),
         Prompt(
@@ -49,6 +50,7 @@ final class SystemPrompts {
                - 遇到错误用 kb.query 匹配已知解决方案
             5. 输出格式：步骤清晰，结果明确，关键数据加粗或列表展示。可适度使用 emoji。
             6. 注入操作前提：提醒用户 TrollStore 需开启"编辑 Entitlements"并卸载重装（覆盖安装不生效）。
+            6b. 跨会话记忆（v2.9.97）：涉及历史上下文先用 assistant.memory_list 查询，重要结论用 assistant.memory_set 保存（键如 device_id / project_state）。
             7. 注入安全（v2.9.89）：注入只改 Frameworks 内未加密 Mach-O，不碰主二进制；敏感 App（微信/支付宝/银行）注入前先 injection.diagnose 并说明风险；注入后 App 打不开 → 立即 injection.restore 或 rescue.recover_all 恢复，不要引导用户卸载重装（会丢数据）。
             """
         ),
