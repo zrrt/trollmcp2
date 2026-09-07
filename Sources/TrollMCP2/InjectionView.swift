@@ -166,13 +166,15 @@ struct InjectionView: View {
             }
         }
         .padding(.horizontal, 16)
-        .alert("确认执行", isPresented: $rescueAlert) {
-            Button("执行", role: .destructive) { if let p = pendingRescue { runRescue(p) } }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text(pendingRescue == "recover_all"
-                 ? "将扫描并自动恢复所有存在注入痕迹/损坏二进制的 App（还原到注入前状态）。确定继续？"
-                 : "将删除注入标记、孤儿备份与 Frameworks 内非系统 dylib。确定继续？")
+        .alert(isPresented: $rescueAlert) {
+            Alert(title: Text("确认执行"),
+                  message: Text(pendingRescue == "recover_all"
+                                ? "将扫描并自动恢复所有存在注入痕迹/损坏二进制的 App（还原到注入前状态）。确定继续？"
+                                : "将删除注入标记、孤儿备份与 Frameworks 内非系统 dylib。确定继续？"),
+                  primaryButton: .destructive(Text("执行")) {
+                      if let p = pendingRescue { runRescue(p) }
+                  },
+                  secondaryButton: .cancel(Text("取消")))
         }
     }
 
