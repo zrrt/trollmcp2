@@ -46,7 +46,7 @@ static void saveRecord(NSDictionary *record) {
     }
 }
 
-static NSDictionary *buildRequestRecord(NSURLRequest *request, NSString *api) {
+static NSMutableDictionary *buildRequestRecord(NSURLRequest *request, NSString *api) {
     NSMutableDictionary *reqRecord = [NSMutableDictionary dictionary];
     reqRecord[@"id"] = [[NSUUID UUID] UUIDString];
     reqRecord[@"timestamp"] = timestamp();
@@ -94,7 +94,7 @@ static NSURLSessionDataTask *hook_dataTaskWithCompletion(id self, SEL _cmd, NSUR
     if (g_orig_dataTaskWithCompletion) {
         return ((NSURLSessionDataTask *(*)(id, SEL, NSURLRequest *, id))g_orig_dataTaskWithCompletion)(self, _cmd, request, wrappedHandler);
     }
-    return [NSURLSession dataTaskWithRequest:request completionHandler:wrappedHandler];
+    return nil;
 }
 
 // hook: -dataTaskWithRequest:（无 completionHandler）
