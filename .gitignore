@@ -4,3 +4,6 @@ Payload/
 TrollMCP2.app/
 .DS_Store
 __MACOSX/
+dl_*
+artifacts
+

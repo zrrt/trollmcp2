@@ -62,6 +62,8 @@ final class OpenAIClient {
     private weak var activeTask: URLSessionDataTask?
     /// v2.9.15：本轮请求起始时间（用于耗时统计，写入网络兼容日志）
     private var requestStart = Date()
+    /// v2.9.107：本轮是否占用 HalfOpen 探测名额（熔断记录时释放）
+    private var usedHalfOpenPermit = false
     /// v2.9.87：多级降级总预算——全链串行最坏 7 分钟+，用户感知"一直请求中"。
     /// v2.9.96：试探级（L0-L4）超时已压到 25s，预算放宽到 220s 给 L5 流式留足时间。
     private var overallDeadline = Date.distantFuture
@@ -85,6 +87,18 @@ final class OpenAIClient {
         cancelled = false
         requestStart = Date()
         overallDeadline = Date().addingTimeInterval(overallBudget)
+        // v2.9.107：熔断检查（对齐 cc-switch circuit_breaker）——供应商连续失败过多时直接拒绝，
+        // 不再傻等超时（用户痛点"一直请求中"）
+        let gate = ModelStore.shared.breaker(for: config.id).allowRequest()
+        usedHalfOpenPermit = gate.usedHalfOpenPermit
+        if !gate.allowed {
+            let el = Int(Date().timeIntervalSince(requestStart) * 1000)
+            NetworkLog.shared.log("\(config.name) 已熔断，请求被拒绝（\(el)ms）")
+            completion(.failure(NSError(domain: "OpenAIClient", code: -503,
+                userInfo: [NSLocalizedDescriptionKey: "供应商「\(config.name)」已熔断（连续失败过多，已暂停请求以免卡死）。可在模型管理页点击该模型重置，或约 60 秒后自动恢复探测。"])))
+            return
+        }
+        UsageRecorder.shared.begin(messages: messages)
         // v2.9.0：级别 5 = Responses API + 工具调用（Codex 走的端点，GPT-5.6 家族
         // 在 chat/completions 上无法用 function tools，但 /v1/responses 可以）
         var start = min(max(config.compatLevel, 0), maxLevel)
@@ -110,8 +124,12 @@ final class OpenAIClient {
                 let secs = String(format: "%.1f", Double(el) / 1000.0)
                 NetworkLog.shared.log("\(self.config.name) 请求完成（\(el)ms）")
                 onStatus?("响应完成 · 总耗时 \(secs)s（含降级重试）")
+                ModelStore.shared.breaker(for: self.config.id).recordSuccess(usedHalfOpenPermit: self.usedHalfOpenPermit)
+                UsageRecorder.shared.end(config: self.config, ok: true, elapsedMs: el)
             case .failure(let e):
                 NetworkLog.shared.log("\(self.config.name) 请求失败（\(el)ms）: \(e.localizedDescription)")
+                ModelStore.shared.breaker(for: self.config.id).recordFailure(usedHalfOpenPermit: self.usedHalfOpenPermit)
+                UsageRecorder.shared.end(config: self.config, ok: false, elapsedMs: el, error: e.localizedDescription)
             }
         }
         attempt(level: start, isFirst: true, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, completion: wrappedCompletion)
@@ -640,11 +658,31 @@ final class OpenAIClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         applyAuth(to: &request)
 
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "model": config.model,
             "max_tokens": config.maxTokens,
             "messages": messages.map { messageDict($0) }
         ]
+        // v2.9.107：Anthropic 标准协议 system 提至顶层（此前 role=system 混在 messages 里，
+        // 部分严格中转会拒；同时为 cache_control 断点注入提供 system 块）
+        if var msgs = body["messages"] as? [[String: Any]] {
+            let systemMsgs = msgs.filter { ($0["role"] as? String) == "system" }
+            if !systemMsgs.isEmpty {
+                var systemBlocks: [[String: Any]] = []
+                for sm in systemMsgs {
+                    if let text = sm["content"] as? String, !text.isEmpty {
+                        systemBlocks.append(["type": "text", "text": text])
+                    }
+                }
+                if !systemBlocks.isEmpty {
+                    body["system"] = systemBlocks
+                    msgs.removeAll { ($0["role"] as? String) == "system" }
+                    body["messages"] = msgs
+                }
+            }
+            // v2.9.107：cache_control 断点注入（对齐 cc-switch cache_injector 4 断点策略）
+            CacheInjector.injectAnthropic(body: &body)
+        }
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         let task = session.dataTask(with: request) { data, response, error in
@@ -980,5 +1018,140 @@ final class OpenAIClient {
         let task = streamSession.dataTask(with: request)
         activeTask = task
         task.resume()
+    }
+}
+
+// MARK: - Anthropic cache_control 断点注入（v2.9.107，对齐 cc-switch cache_injector 4 断点策略）
+// Anthropic 缓存上限 4 个断点；已存在的标记保留（caller-owned），budget = 4 - existing。
+
+enum CacheInjector {
+    static func injectAnthropic(body: inout [String: Any]) {
+        var budget = 4
+        // (a) tools 数组最后一个元素
+        if budget > 0, var tools = body["tools"] as? [[String: Any]], var last = tools.last, last["cache_control"] == nil {
+            last["cache_control"] = ["type": "ephemeral"]
+            tools[tools.count - 1] = last
+            body["tools"] = tools
+            budget -= 1
+        }
+        // (b) system 顶层数组末尾
+        if budget > 0, var system = body["system"] as? [[String: Any]], var last = system.last, last["cache_control"] == nil {
+            last["cache_control"] = ["type": "ephemeral"]
+            system[system.count - 1] = last
+            body["system"] = system
+            budget -= 1
+        }
+        // (c) 最新一条消息的非 thinking block
+        if budget > 0, var messages = body["messages"] as? [[String: Any]] {
+            for i in stride(from: messages.count - 1, through: 0, by: -1) {
+                if injectMessage(&messages[i]) {
+                    body["messages"] = messages
+                    budget -= 1
+                    break
+                }
+            }
+            // (d) 更早的第 2 个 user 锚点（应对长工具循环超出 20-block lookback）
+            if budget > 0, messages.count >= 4 {
+                var userCount = 0
+                for i in stride(from: messages.count - 1, through: 0, by: -1) {
+                    if messages[i]["role"] as? String == "user" {
+                        userCount += 1
+                        if userCount == 2 {
+                            var m = messages[i]
+                            if injectMessage(&m) {
+                                messages[i] = m
+                                body["messages"] = messages
+                                budget -= 1
+                            }
+                            break
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static func injectMessage(_ message: inout [String: Any]) -> Bool {
+        guard var content = message["content"] as? [Any] else { return false }
+        for i in stride(from: content.count - 1, through: 0, by: -1) {
+            guard var block = content[i] as? [String: Any] else { continue }
+            let type = block["type"] as? String
+            if type == "thinking" || type == "redacted_thinking" { continue }
+            if block["cache_control"] != nil { return false }
+            block["cache_control"] = ["type": "ephemeral"]
+            content[i] = block
+            message["content"] = content
+            return true
+        }
+        return false
+    }
+}
+
+// MARK: - 用量记录（v2.9.107，本地 JSONL，供「用量统计」页聚合）
+
+final class UsageRecorder {
+    static let shared = UsageRecorder()
+
+    private let fileURL: URL
+    private let lock = NSLock()
+    private var lastStart = Date()
+    private var lastInputEst = 0
+
+    init() {
+        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        fileURL = dir.appendingPathComponent("trollagent_usage.jsonl")
+    }
+
+    func begin(messages: [ChatMessage]) {
+        lastStart = Date()
+        var est = 0
+        for m in messages {
+            let ch = m.content.count
+            let imgs = (m.imageDataURLs?.count ?? 0) * 1000
+            est += ch / 3 + imgs + 8
+        }
+        lastInputEst = est
+    }
+
+    func end(config: ModelConfig, ok: Bool, elapsedMs: Int, error: String = "") {
+        lock.lock(); defer { lock.unlock() }
+        let rec: [String: Any] = [
+            "ts": Date().timeIntervalSince1970,
+            "name": config.name,
+            "provider": config.provider,
+            "baseURL": config.baseURL,
+            "model": config.model,
+            "ok": ok,
+            "elapsedMs": elapsedMs,
+            "error": error,
+            "estInputTokens": lastInputEst
+        ]
+        guard let d = try? JSONSerialization.data(withJSONObject: rec) else { return }
+        if let fh = try? FileHandle(forWritingTo: fileURL) {
+            fh.seekToEndOfFile()
+            fh.write(d)
+            fh.write(Data("\n".utf8))
+            try? fh.close()
+        } else {
+            try? d.write(to: fileURL)
+        }
+    }
+
+    var records: [[String: Any]] {
+        lock.lock(); defer { lock.unlock() }
+        guard let data = try? Data(contentsOf: fileURL),
+              let s = String(data: data, encoding: .utf8) else { return [] }
+        var out: [[String: Any]] = []
+        for line in s.split(separator: "\n").suffix(500) {
+            if let obj = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any] {
+                out.append(obj)
+            }
+        }
+        return out
+    }
+
+    func clear() {
+        try? FileManager.default.removeItem(at: fileURL)
     }
 }

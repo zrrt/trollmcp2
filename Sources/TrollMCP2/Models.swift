@@ -21,11 +21,13 @@ struct ModelConfig: Codable, Identifiable, Hashable {
     /// v2.8.4：中转站兼容级别（由 OpenAIClient 自适应降级时写入并持久化）
     /// 0=完整载荷 1=互换token参数名 2=去掉tool_choice 3=去掉tools纯对话 4=最小载荷
     var compatLevel: Int = 0
+    /// v2.9.107：分组名（供应商分组管理，对齐 cc-switch provider groups）
+    var group: String = "默认"
 
     init(id: UUID = UUID(), name: String, provider: String, apiProtocol: String = "OpenAI Chat Completions",
          baseURL: String, apiKey: String, model: String, authMethod: String = "Bearer",
          isDefault: Bool = false, temperature: Double = 0.7, maxTokens: Int = 2048, compatLevel: Int = 0,
-         contextTokens: Int = 16000) {
+         contextTokens: Int = 16000, group: String = "默认") {
         self.id = id
         self.name = name
         self.provider = provider
@@ -39,6 +41,7 @@ struct ModelConfig: Codable, Identifiable, Hashable {
         self.maxTokens = maxTokens
         self.compatLevel = compatLevel
         self.contextTokens = contextTokens
+        self.group = group
     }
 
     init(from decoder: Decoder) throws {
@@ -59,6 +62,7 @@ struct ModelConfig: Codable, Identifiable, Hashable {
         maxTokens = (try? c.decode(Int.self, forKey: .maxTokens)) ?? 2048
         contextTokens = (try? c.decode(Int.self, forKey: .contextTokens)) ?? 16000
         compatLevel = (try? c.decode(Int.self, forKey: .compatLevel)) ?? 0
+        group = (try? c.decode(String.self, forKey: .group)) ?? "默认"
     }
 }
 
@@ -123,15 +127,94 @@ final class ModelStore: ObservableObject {
     }
 
     func load() {
-        guard let data = UserDefaults.standard.data(forKey: key),
-              let decoded = try? JSONDecoder().decode([ModelConfig].self, from: data) else { return }
+        let ud = UserDefaults.standard
+        guard let data = ud.data(forKey: key),
+              let decoded = try? JSONDecoder().decode([ModelConfig].self, from: data) else {
+            // v2.9.107：主数据损坏时从备份恢复（最多试 4 份）
+            for i in 0...3 {
+                if let bak = ud.data(forKey: "\(key).bak.\(i)"),
+                   let decoded = try? JSONDecoder().decode([ModelConfig].self, from: bak) {
+                    configs = decoded
+                    break
+                }
+            }
+            return
+        }
         configs = decoded
+    }
+
+    /// v2.9.107：原子写前备份轮换（保留最近 4 份）
+    private func rotateBackup() {
+        let ud = UserDefaults.standard
+        guard let current = ud.data(forKey: key) else { return }
+        for i in stride(from: 2, through: 0, by: -1) {
+            if let old = ud.data(forKey: "\(key).bak.\(i)") {
+                ud.set(old, forKey: "\(key).bak.\(i + 1)")
+            }
+        }
+        ud.set(current, forKey: "\(key).bak.0")
     }
 
     func save() {
         if let data = try? JSONEncoder().encode(configs) {
+            rotateBackup()
             UserDefaults.standard.set(data, forKey: key)
         }
+    }
+
+    // MARK: v2.9.107 —— 熔断器注册表（运行时，不持久化；对齐 cc-switch circuit_breaker）
+
+    private(set) var breakers: [UUID: CircuitBreaker] = [:]
+
+    func breaker(for id: UUID) -> CircuitBreaker {
+        if let b = breakers[id] { return b }
+        let b = CircuitBreaker(name: configs.first { $0.id == id }?.name ?? "model")
+        breakers[id] = b
+        return b
+    }
+
+    // MARK: v2.9.107 —— 配置导入 / 导出（对齐 cc-switch import/export）
+
+    func exportJSON() -> String {
+        var items: [Any] = []
+        for c in configs {
+            if let d = try? JSONEncoder().encode(c),
+               let obj = try? JSONSerialization.jsonObject(with: d) {
+                items.append(obj)
+            }
+        }
+        let payload: [String: Any] = [
+            "app": "TrollAgent", "type": "model_configs", "version": 1,
+            "exportedAt": Int(Date().timeIntervalSince1970),
+            "configs": items
+        ]
+        if let d = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]),
+           let s = String(data: d, encoding: .utf8) {
+            return s
+        }
+        return ""
+    }
+
+    @discardableResult
+    func importJSON(_ text: String) -> (ok: Int, failed: Int) {
+        guard let data = text.data(using: .utf8) else { return (0, 0) }
+        if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let arr = obj["configs"] as? [[String: Any]] {
+            var ok = 0, failed = 0
+            for item in arr {
+                if let d = try? JSONSerialization.data(withJSONObject: item),
+                   let c = try? JSONDecoder().decode(ModelConfig.self, from: d) {
+                    add(c); ok += 1
+                } else { failed += 1 }
+            }
+            return (ok, failed)
+        }
+        // 兼容纯数组
+        if let arr = try? JSONDecoder().decode([ModelConfig].self, from: data) {
+            for c in arr { add(c) }
+            return (arr.count, 0)
+        }
+        return (0, 0)
     }
 
     var defaultConfig: ModelConfig? {
@@ -974,7 +1057,13 @@ final class ConversationStore: ObservableObject {
 
     private func save() {
         if let data = try? JSONEncoder().encode(conversations) {
-            UserDefaults.standard.set(data, forKey: key)
+            // v2.9.107：原子写前备份轮换（保留最近 2 份，防会话数据损坏丢失）
+            let ud = UserDefaults.standard
+            if let cur = ud.data(forKey: key) {
+                if let old = ud.data(forKey: key + ".bak.1") { ud.set(old, forKey: key + ".bak.2") }
+                ud.set(cur, forKey: key + ".bak.1")
+            }
+            ud.set(data, forKey: key)
         }
     }
 
@@ -985,6 +1074,16 @@ final class ConversationStore: ObservableObject {
             conversations = decoded.sorted { $0.updatedAt > $1.updatedAt }
             selectedId = conversations.first?.id
             return
+        }
+        // v2.9.107：主数据损坏时从备份恢复
+        for i in 1...2 {
+            if let bak = UserDefaults.standard.data(forKey: key + ".bak.\(i)"),
+               let decoded = try? JSONDecoder().decode([ChatConversation].self, from: bak),
+               !decoded.isEmpty {
+                conversations = decoded.sorted { $0.updatedAt > $1.updatedAt }
+                selectedId = conversations.first?.id
+                return
+            }
         }
 
         // 从旧版单一会话记录迁移
@@ -1005,6 +1104,148 @@ final class ConversationStore: ObservableObject {
             UserDefaults.standard.removeObject(forKey: "trollmcp2.transcript")
         } else {
             newConversation()
+        }
+    }
+}
+
+// MARK: - 熔断器（v2.9.107，对齐 cc-switch circuit_breaker 三态机）
+
+enum CircuitState: String {
+    case closed = "closed", open = "open", halfOpen = "half_open"
+    var label: String {
+        switch self {
+        case .closed: return "正常"
+        case .open: return "已熔断"
+        case .halfOpen: return "探测中"
+        }
+    }
+}
+
+final class CircuitBreaker {
+    private let lock = NSLock()
+    private var state: CircuitState = .closed
+    private var consecutiveFailures = 0
+    private var consecutiveSuccesses = 0
+    private var totalRequests = 0
+    private var failedRequests = 0
+    private var lastOpenedAt: Date?
+    private var halfOpenRequests = 0
+
+    var failureThreshold = 4          // 连续失败阈值 → Open
+    var successThreshold = 2          // HalfOpen 成功次数 → Closed
+    var timeoutSeconds: TimeInterval = 60  // Open 后多久尝试 HalfOpen
+    var errorRateThreshold = 0.6      // 错误率阈值 → Open
+    var minRequests = 10              // 计算错误率前最少请求数
+
+    let name: String
+    init(name: String) { self.name = name }
+
+    var stateInfo: (state: CircuitState, failures: Int, total: Int, failRate: Double) {
+        lock.lock(); defer { lock.unlock() }
+        let rate = totalRequests > 0 ? Double(failedRequests) / Double(totalRequests) : 0
+        return (state, consecutiveFailures, totalRequests, rate)
+    }
+
+    func reset() {
+        lock.lock(); defer { lock.unlock() }
+        state = .closed
+        consecutiveFailures = 0
+        consecutiveSuccesses = 0
+        totalRequests = 0
+        failedRequests = 0
+        halfOpenRequests = 0
+        lastOpenedAt = nil
+    }
+
+    /// 路由可用性判断（不占 HalfOpen 探测名额）
+    func isAvailable() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        switch state {
+        case .closed, .halfOpen:
+            return true
+        case .open:
+            if let opened = lastOpenedAt, Date().timeIntervalSince(opened) >= timeoutSeconds {
+                state = .halfOpen
+                consecutiveSuccesses = 0
+                halfOpenRequests = 0
+                return true
+            }
+            return false
+        }
+    }
+
+    /// 请求前调用：是否放行（HalfOpen 限流 1 个探测请求）
+    func allowRequest() -> (allowed: Bool, usedHalfOpenPermit: Bool) {
+        lock.lock(); defer { lock.unlock() }
+        switch state {
+        case .closed:
+            return (true, false)
+        case .open:
+            if let opened = lastOpenedAt, Date().timeIntervalSince(opened) >= timeoutSeconds {
+                state = .halfOpen
+                consecutiveSuccesses = 0
+                halfOpenRequests = 0
+            } else {
+                return (false, false)
+            }
+            if halfOpenRequests < 1 {
+                halfOpenRequests += 1
+                return (true, true)
+            }
+            return (false, false)
+        case .halfOpen:
+            if halfOpenRequests < 1 {
+                halfOpenRequests += 1
+                return (true, true)
+            }
+            return (false, false)
+        }
+    }
+
+    func recordSuccess(usedHalfOpenPermit: Bool) {
+        lock.lock(); defer { lock.unlock() }
+        if usedHalfOpenPermit, halfOpenRequests > 0 { halfOpenRequests -= 1 }
+        consecutiveFailures = 0
+        totalRequests += 1
+        if state == .halfOpen {
+            consecutiveSuccesses += 1
+            if consecutiveSuccesses >= successThreshold {
+                state = .closed
+                consecutiveSuccesses = 0
+                totalRequests = 0
+                failedRequests = 0
+                halfOpenRequests = 0
+            }
+        }
+    }
+
+    func recordFailure(usedHalfOpenPermit: Bool) {
+        lock.lock(); defer { lock.unlock() }
+        if usedHalfOpenPermit, halfOpenRequests > 0 { halfOpenRequests -= 1 }
+        consecutiveFailures += 1
+        consecutiveSuccesses = 0
+        totalRequests += 1
+        failedRequests += 1
+        switch state {
+        case .halfOpen:
+            state = .open
+            lastOpenedAt = Date()
+            consecutiveFailures = 0
+        case .closed:
+            if consecutiveFailures >= failureThreshold {
+                state = .open
+                lastOpenedAt = Date()
+                consecutiveFailures = 0
+            } else if totalRequests >= minRequests {
+                let rate = Double(failedRequests) / Double(totalRequests)
+                if rate >= errorRateThreshold {
+                    state = .open
+                    lastOpenedAt = Date()
+                    consecutiveFailures = 0
+                }
+            }
+        case .open:
+            break
         }
     }
 }
