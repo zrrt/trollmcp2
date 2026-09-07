@@ -11,6 +11,20 @@ struct InjectionView: View {
     @State private var rescueMessage: String?
     @State private var rescueAlert = false
     @State private var pendingRescue: String?
+    // v2.9.94：扫描结果按 App 展示 + 单 App 恢复/清理
+    @State private var scanFindings: [ScanFinding] = []
+    @State private var pendingFinding: ScanFinding?
+
+    /// v2.9.94：扫描结果条目（对齐 TrollFools 判定：备份/注入资产/真损坏）
+    struct ScanFinding: Identifiable {
+        let bundleId: String
+        let name: String
+        let hasBackup: Bool
+        let assetCount: Int
+        let modifiedCount: Int
+        let damaged: Bool
+        var id: String { bundleId }
+    }
 
     private var filtered: [AppCatalog.AppEntry] {
         if searchText.isEmpty { return apps }
@@ -157,6 +171,40 @@ struct InjectionView: View {
                             .padding(10)
                             .background(RoundedRectangle(cornerRadius: 10).fill(Color(.secondarySystemBackground)))
                     }
+                    // v2.9.94：扫描结果 App 级列表——点击可单独恢复/清理（不再只能全机一锅端）
+                    if !scanFindings.isEmpty {
+                        VStack(spacing: 6) {
+                            ForEach(scanFindings) { f in
+                                Button(action: { pendingFinding = f }) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: f.damaged ? "exclamationmark.triangle.fill" : (f.hasBackup ? "arrow.uturn.backward.circle.fill" : "syringe.fill"))
+                                            .font(.system(size: 14))
+                                            .foregroundColor(f.damaged ? .red : (f.hasBackup ? .orange : .blue))
+                                        VStack(alignment: .leading, spacing: 1) {
+                                            Text(f.name)
+                                                .font(.caption.bold())
+                                                .foregroundColor(.primary)
+                                            Text(f.bundleId)
+                                                .font(.caption2)
+                                                .foregroundColor(.secondary)
+                                                .lineLimit(1)
+                                        }
+                                        Spacer()
+                                        Text(badgeText(f))
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                        Image(systemName: "ellipsis.circle")
+                                            .font(.system(size: 13))
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .padding(.vertical, 5)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                        }
+                        .padding(8)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color(.tertiarySystemBackground)))
+                    }
                     Text("App 注入后打不开 → 先「一键全恢复」；仍不行再「清理残留」。不要卸载重装（会丢数据）。")
                         .font(.caption2)
                         .foregroundColor(.secondary)
@@ -175,6 +223,58 @@ struct InjectionView: View {
                       if let p = pendingRescue { runRescue(p) }
                   },
                   secondaryButton: .cancel(Text("取消")))
+        }
+        // v2.9.94：单个 App 的恢复/清理操作
+        .actionSheet(isPresented: .init(get: { pendingFinding != nil }, set: { if !$0 { pendingFinding = nil } })) {
+            ActionSheet(
+                title: Text(pendingFinding?.name ?? ""),
+                message: Text(badgeText(pendingFinding)),
+                buttons: [
+                    .default(Text("单独恢复（还原注入前）")) { if let f = pendingFinding { runSingle("restore", f) } },
+                    .default(Text("单独清理残留")) { if let f = pendingFinding { runSingle("cleanup", f) } },
+                    .cancel(Text("取消"))
+                ]
+            )
+        }
+    }
+
+    private func badgeText(_ f: ScanFinding?) -> String {
+        guard let f = f else { return "" }
+        var parts: [String] = []
+        if f.damaged { parts.append("⚠️ 损坏") }
+        if f.hasBackup { parts.append("有备份") }
+        if f.assetCount > 0 { parts.append("\(f.assetCount) 注入资产") }
+        if f.modifiedCount > 0 { parts.append("\(f.modifiedCount) 改动") }
+        return parts.isEmpty ? f.bundleId : parts.joined(separator: " · ")
+    }
+
+    private func runSingle(_ kind: String, _ f: ScanFinding) {
+        rescueBusy = true
+        rescueMessage = nil
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let r = kind == "restore"
+                    ? try InjectionRestoreTool().invoke(["bundle_id": f.bundleId])
+                    : try RescueCleanupTool().invoke(["bundle_id": f.bundleId])
+                DispatchQueue.main.async {
+                    rescueBusy = false
+                    let restored = kind == "restore"
+                        && (((r["status"] as? String) == "reverted") || !((r["restored_from_backup"] as? [String]) ?? []).isEmpty)
+                    if kind == "restore" {
+                        rescueMessage = restored ? "✅ \(f.name) 已恢复" : "⚠️ \(f.name)：\(r["hint"] ?? "未确认恢复")"
+                    } else {
+                        let cleaned = r["cleaned_count"] as? Int ?? 0
+                        let errors = r["errors"] as? [String] ?? []
+                        rescueMessage = errors.isEmpty ? "✅ \(f.name) 已清理 \(cleaned) 项" : "⚠️ \(f.name) 清理 \(cleaned) 项，\(errors.count) 个错误"
+                    }
+                    scanFindings.removeAll { $0.bundleId == f.bundleId }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    rescueBusy = false
+                    rescueMessage = "❌ \(f.name) 失败：\(error.localizedDescription)"
+                }
+            }
         }
     }
 
@@ -203,6 +303,7 @@ struct InjectionView: View {
     private func runRescue(_ kind: String) {
         rescueBusy = true
         rescueMessage = nil
+        scanFindings.removeAll()
         DispatchQueue.global(qos: .userInitiated).async {
             let result: [String: Any]
             do {
@@ -222,7 +323,23 @@ struct InjectionView: View {
                 switch kind {
                 case "scan":
                     let count = result["count"] as? Int ?? 0
-                    rescueMessage = "🔍 扫描完成：发现 \(count) 个需恢复的 App（已注入/损坏/有备份）"
+                    // v2.9.94：解析 findings 为 App 级列表（只列硬证据条目）
+                    var list: [ScanFinding] = []
+                    if let findings = result["findings"] as? [[String: Any]] {
+                        for item in findings {
+                            guard let bid = item["bundle_id"] as? String else { continue }
+                            list.append(ScanFinding(
+                                bundleId: bid,
+                                name: item["name"] as? String ?? bid,
+                                hasBackup: (item["has_backup"] as? Bool) ?? false,
+                                assetCount: (item["injected_assets"] as? [String])?.count ?? 0,
+                                modifiedCount: (item["modified_machos"] as? [String])?.count ?? 0,
+                                damaged: (item["damaged"] as? Bool) ?? false
+                            ))
+                        }
+                    }
+                    scanFindings = list
+                    rescueMessage = "🔍 扫描完成：\(count) 个需恢复的 App（点击列表可单独恢复/清理）"
                 case "recover_all":
                     let restored = result["restored_count"] as? Int ?? 0
                     let failed = result["failed_count"] as? Int ?? 0

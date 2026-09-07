@@ -40,14 +40,21 @@ final class RescueScanTool: MCPTool {
             let hasAlt = FileManager.default.fileExists(atPath: alt) || FileManager.default.fileExists(atPath: legacy)
             let assets = InjectionManager.shared.injectedAssets(in: app)
             let modified = InjectionManager.shared.collectModifiedMachOs(app)
-            // 损坏检测：文件存在但不是合法 Mach-O
+            // v2.9.94 损坏检测收紧（对齐 TrollFools：只认硬证据）：
+            // 只有「文件能读到且 magic 不是 Mach-O」才算真损坏；
+            // 读不到（加密 App / 权限不足 / 系统 App）一律不算损坏，避免 149 个全量误报
             var damaged = false
             var damagedReason = ""
+            var unreadable = false
             if FileManager.default.fileExists(atPath: main) {
                 let info = MachOAnalyzer.analyze(main)
-                if info == nil || !(info?.valid ?? false) {
-                    damaged = true
-                    damagedReason = info?.arch == "not-macho" ? "主二进制不是合法 Mach-O（可能被损坏）" : "主二进制读取失败"
+                if let info = info {
+                    if !info.valid && info.arch == "not-macho" {
+                        damaged = true
+                        damagedReason = "主二进制不是合法 Mach-O（可能被损坏）"
+                    }
+                } else {
+                    unreadable = true   // 加密/权限读不到：不算损坏
                 }
             }
             guard hasAlt || !assets.isEmpty || !modified.isEmpty || damaged else { continue }
@@ -59,7 +66,8 @@ final class RescueScanTool: MCPTool {
                 "injected_assets": assets,
                 "modified_machos": modified,
                 "damaged": damaged,
-                "damaged_reason": damagedReason
+                "damaged_reason": damagedReason,
+                "unreadable": unreadable
             ])
         }
         AuditLog.shared.log("rescue.scan", detail: "found=\(findings.count)")
