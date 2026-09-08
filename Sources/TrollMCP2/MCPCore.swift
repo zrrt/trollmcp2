@@ -96,6 +96,7 @@ public final class ToolRegistry: ObservableObject {
         "artifact.read_text", "artifact.write_text", "artifact.list",
         "artifact.find",   // v2.9.33/34：递归查找下载产物（与 coreToolNames 保持一致，否则报"未加载"）
         "web.search", "web.fetch", "knowledge.search",
+        "fs.tree", "fs.read", "fs.hexdump",   // v2.9.111：Filza 式文件浏览/二进制分析
         "github.account_status", "github.trigger_build", "github.fetch_runs", "github.download_artifact",
         "model.config", "model.authentication", "model.selected_profile_id",
         "skills.list", "skills.read",   // v2.9.17：技能发现/读取
@@ -520,6 +521,9 @@ public final class ToolRegistry: ObservableObject {
         register(ToolSearchTool())   // v2.9.16：渐进式披露元工具
         register(ClipboardReadTool())   // v2.9.108：剪贴板读取（ios-mcp 借鉴）
         register(ClipboardWriteTool())  // v2.9.108：剪贴板写入（ios-mcp 借鉴）
+    register(FSTreeTool())      // v2.9.111：Filza 式目录浏览
+    register(FSReadTool())      // v2.9.111：文件读取（文本/plist/SQLite/二进制识别）
+    register(FSHexdumpTool())   // v2.9.111：二进制十六进制查看
 
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
     }
