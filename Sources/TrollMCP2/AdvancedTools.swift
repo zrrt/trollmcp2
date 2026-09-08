@@ -1309,7 +1309,7 @@ final class AppEntitlementsTool: MCPTool {
         let (c, o) = InjectionManager.shared.runAsRoot("ldid", args: ["-e", main])
         if c != 0 {
             var out: [String: Any] = ["error": "ldid -e 失败(\(c))", "output": String(o.prefix(500)), "bundle_id": bundleId]
-            out["parse_error"] = cryptID > 0 ? "目标 App 已加密（cryptid=\(cryptID)），entitlements 被加密掩盖，非"没有权限"" : "Mach-O 解析失败（可能混淆/特殊头），非"没有权限""
+            out["parse_error"] = cryptID > 0 ? "目标 App 已加密（cryptid=\(cryptID)），entitlements 被加密掩盖，非“没有权限”" : "Mach-O 解析失败（可能混淆/特殊头），非“没有权限”"
             out["next_step"] = cryptID > 0 ? "先执行 app.decrypt 砸壳后重试" : "用 fs.hexdump 查看主二进制头部确认格式"
             return out
         }

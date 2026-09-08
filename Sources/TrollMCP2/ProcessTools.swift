@@ -23,7 +23,7 @@ final class AppStartTool: MCPTool {
         let wait = max((params["wait_seconds"] as? Int) ?? 3, 1)
         let start = Date()
         var errors: [[String: Any]] = []
-        func find() -> Int { findPid(by: bundleId) }
+        func find() -> Int32 { findPid(by: bundleId) }
 
         // 方法 1：open -b（正确带 -b 标志；旧版漏了 -b 导致 exit 2 误报 Bundle ID 错误）
         let (c1, o1) = InjectionManager.shared.spawnRoot("/usr/bin/open", args: ["-b", bundleId])
