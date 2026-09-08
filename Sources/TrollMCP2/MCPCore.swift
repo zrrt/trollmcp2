@@ -99,6 +99,7 @@ public final class ToolRegistry: ObservableObject {
         "fs.tree", "fs.read", "fs.hexdump",   // v2.9.111：Filza 式文件浏览/二进制分析
         "fs.zip", "fs.sql", "fs.grep",        // v2.9.112：ZIP 浏览 / SQLite 查询 / 文本搜索
         "fs.write", "fs.edit", "fs.diff", "fs.hash", "fs.find", "fs.download",  // v2.9.113：读写/对比/校验/搜索/下载
+        "fs.plist", "fs.container", "fs.crash", "fs.image_info",  // v2.9.115：plist 键值 / 容器定位 / 崩溃解析 / 图片元数据
         "github.account_status", "github.trigger_build", "github.fetch_runs", "github.download_artifact",
         "model.config", "model.authentication", "model.selected_profile_id",
         "skills.list", "skills.read",   // v2.9.17：技能发现/读取
@@ -535,6 +536,10 @@ public final class ToolRegistry: ObservableObject {
     register(FSHashTool())      // v2.9.113：文件哈希与元数据
     register(FSFindTool())      // v2.9.113：文件名搜索
     register(FSDownloadTool())  // v2.9.113：下载到工作区
+    register(FSPropertyListTool()) // v2.9.115：plist 键值读写（Filza 属性表编辑器）
+    register(FSContainerTool())    // v2.9.115：App 容器路径四件套
+    register(FSCrashTool())        // v2.9.115：崩溃日志解析
+    register(FSImageInfoTool())    // v2.9.115：图片元数据
 
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
     }

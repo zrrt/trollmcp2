@@ -1071,3 +1071,402 @@ final class FSDownloadTool: MCPTool {
         return result
     }
 }
+
+
+// MARK: - plist 键值编辑（Filza 属性表编辑器写能力）
+
+final class FSPropertyListTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "fs.plist",
+        summary: "plist 键值读写（支持二进制 plist）：get 读值、set 改值、delete 删键。key 用点路径如 Root.NSAppTransportSecurity.NSAllowsArbitraryLoads。自动备份 .bak。Filza 属性表编辑器写能力。",
+        parameters: [
+            "bundle_id": "目标 App Bundle ID（与 path 二选一）",
+            "relative": "容器内相对路径（bundle_id 模式下用）",
+            "path": "plist 绝对路径（与 bundle_id 二选一）",
+            "action": "get（默认）/ set / delete",
+            "key": "键路径，点号分隔，如 Root.Foo.Bar",
+            "value": "set 时的值（自动识别 true/false/数字/JSON/字符串）",
+            "backup": "写操作前是否备份 .bak（默认 true）"
+        ]
+    )
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        let bundleId = params["bundle_id"] as? String
+        let rel = params["relative"] as? String
+        let path = params["path"] as? String
+        guard let p = FSPolicy.resolve(bundleId: bundleId, relative: rel, path: path) else {
+            throw MCPError.invalidParams("需要 bundle_id+relative 或 path")
+        }
+        let action = (params["action"] as? String) ?? "get"
+        let key = (params["key"] as? String) ?? ""
+        let isWrite = action != "get"
+        if isWrite {
+            guard FSPolicy.isWritable(p) else {
+                throw MCPError.failed("不可写：仅限工作区与 App 数据容器: \(p)")
+            }
+            guard !key.isEmpty else { throw MCPError.invalidParams("写操作需要 key") }
+        } else {
+            guard FSPolicy.isAllowed(p) else { throw MCPError.failed("路径不在可访问范围: \(p)") }
+        }
+        let fm = FileManager.default
+        guard let data = fm.contents(atPath: p) else { return ["error": "读取失败: \(p)"] }
+        let isBinary = data.count >= 8 && data.prefix(8) == Data("bplist00".utf8)
+        guard let obj = try? PropertyListSerialization.propertyList(from: data, options: [.mutableContainersAndLeaves], format: nil) else {
+            return ["error": "不是合法 plist: \(p)"]
+        }
+        let keys = key.split(separator: ".").map(String.init)
+
+        if action == "get" {
+            guard !keys.isEmpty else {
+                return ["path": p, "format": isBinary ? "binary" : "xml", "root_type": Self.typeName(obj), "root": obj]
+            }
+            if let v = Self.lookup(obj, keys) {
+                return ["path": p, "key": key, "value": v, "type": Self.typeName(v)]
+            }
+            return ["path": p, "key": key, "found": false]
+        }
+
+        // 写操作：备份
+        if params["backup"] as? Bool ?? true {
+            try? fm.removeItem(atPath: p + ".bak")
+            try? fm.copyItem(atPath: p, toPath: p + ".bak")
+        }
+
+        do {
+            guard var root = obj as AnyObject? else { throw MCPError.failed("plist 根不是容器") }
+            if action == "set" {
+                let val = Self.coerce(params["value"] as? String ?? "")
+                try Self.set(&root, keys: keys, value: val)
+            } else { // delete
+                try Self.delete(&root, keys: keys)
+            }
+            let fmt: PropertyListSerialization.PropertyListFormat = isBinary ? .binary : .xml
+            guard let out = try? PropertyListSerialization.data(fromPropertyList: root, format: fmt, options: 0) else {
+                return ["error": "序列化失败（可能有不支持的根类型）"]
+            }
+            try out.write(to: URL(fileURLWithPath: p))
+            return ["path": p, "action": action, "key": key, "format": isBinary ? "binary" : "xml", "bytes": out.count, "backup_path": p + ".bak"]
+        } catch let e as MCPError {
+            throw e
+        } catch {
+            return ["error": "操作失败: \(error.localizedDescription)"]
+        }
+    }
+
+    private static func typeName(_ v: Any) -> String {
+        if v is NSNull { return "null" }
+        if v is Bool { return "bool" }
+        if v is NSNumber { return "number" }
+        if v is String { return "string" }
+        if v is Data { return "data" }
+        if v is Date { return "date" }
+        if v is [Any] { return "array" }
+        if v is [String: Any] { return "dict" }
+        return String(describing: type(of: v))
+    }
+
+    private static func lookup(_ obj: Any, _ keys: [String]) -> Any? {
+        var node: Any = obj
+        for (i, k) in keys.enumerated() {
+            if let d = node as? [String: Any] {
+                guard let v = d[k] else { return nil }
+                node = v
+            } else if let a = node as? [Any], let idx = Int(k), idx >= 0, idx < a.count {
+                node = a[idx]
+            } else { return nil }
+            if i == keys.count - 1 { return node }
+        }
+        return node
+    }
+
+    private static func coerce(_ raw: String) -> Any {
+        let t = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch t.lowercased() {
+        case "true": return true
+        case "false": return false
+        case "null", "nil": return NSNull()
+        default: break
+        }
+        if let n = Int64(t) { return NSNumber(value: n) }
+        if let d = Double(t) { return NSNumber(value: d) }
+        if let j = try? JSONSerialization.jsonObject(with: Data(raw.utf8), options: [.mutableContainers]) {
+            return j
+        }
+        return raw
+    }
+
+    private static func set(_ root: inout AnyObject, keys: [String], value: Any) throws {
+        var node: AnyObject = root
+        for k in keys.dropLast() {
+            if let d = node as? NSMutableDictionary {
+                if let next = d[k] {
+                    node = next as AnyObject
+                } else {
+                    let created = NSMutableDictionary()
+                    d[k] = created
+                    node = created
+                }
+            } else if let a = node as? NSMutableArray, let idx = Int(k) {
+                while a.count <= idx { a.add(NSMutableDictionary()) }
+                node = a[idx] as AnyObject
+            } else {
+                throw MCPError.failed("键路径中间节点不是字典/数组: \(k)")
+            }
+        }
+        guard let last = keys.last else { throw MCPError.invalidParams("key 不能为空") }
+        if let d = node as? NSMutableDictionary {
+            d[last] = value
+        } else if let a = node as? NSMutableArray, let idx = Int(last) {
+            while a.count <= idx { a.add(NSNull()) }
+            a[idx] = value
+        } else {
+            throw MCPError.failed("键路径末端不是字典/数组: \(last)")
+        }
+    }
+
+    private static func delete(_ root: inout AnyObject, keys: [String]) throws {
+        var node: AnyObject = root
+        for k in keys.dropLast() {
+            if let d = node as? NSMutableDictionary {
+                guard let next = d[k] else { throw MCPError.failed("键不存在: \(k)") }
+                node = next as AnyObject
+            } else if let a = node as? NSMutableArray, let idx = Int(k), idx < a.count {
+                node = a[idx] as AnyObject
+            } else {
+                throw MCPError.failed("键路径中间节点不是字典/数组: \(k)")
+            }
+        }
+        guard let last = keys.last else { throw MCPError.invalidParams("key 不能为空") }
+        if let d = node as? NSMutableDictionary {
+            guard d[last] != nil else { throw MCPError.failed("键不存在: \(last)") }
+            d.removeObject(forKey: last)
+        } else if let a = node as? NSMutableArray, let idx = Int(last), idx < a.count {
+            a.removeObject(at: idx)
+        } else {
+            throw MCPError.failed("键路径末端不是字典/数组: \(last)")
+        }
+    }
+}
+
+// MARK: - App 容器路径定位
+
+final class FSContainerTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "fs.container",
+        summary: "按 bundle_id 返回 App 的完整路径四件套：数据容器、Bundle 目录、Documents、Library、Caches、tmp。AI 定位文件先调它，替代盲目 fs.find。",
+        parameters: [
+            "bundle_id": "目标 App Bundle ID（必填）"
+        ]
+    )
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
+            throw MCPError.invalidParams("bundle_id required")
+        }
+        guard let app = AppCatalog.find(bid) else {
+            return ["error": "未找到 App: \(bid)"]
+        }
+        var out: [String: Any] = [
+            "bundle_id": app.bundleId,
+            "name": app.name
+        ]
+        if !app.path.isEmpty { out["bundle_path"] = app.path }
+        if let c = app.containerPath {
+            out["container_path"] = c
+            out["documents"] = c + "/Documents"
+            out["library"] = c + "/Library"
+            out["library_caches"] = c + "/Library/Caches"
+            out["library_preferences"] = c + "/Library/Preferences"
+            out["tmp"] = c + "/tmp"
+        }
+        out["hint"] = "读取用 fs.tree/fs.read；修改用 fs.write/fs.edit/fs.plist（仅容器内可写）"
+        return out
+    }
+}
+
+// MARK: - 崩溃日志解析
+
+final class FSCrashTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "fs.crash",
+        summary: "读取设备崩溃日志（/var/mobile/Library/Logs/CrashReporter）并解析摘要：异常类型/终止原因/触发线程/栈顶帧。可按 bundle_id 过滤最近崩溃，用于诊断启动闪退。",
+        parameters: [
+            "bundle_id": "按进程名或 Bundle ID 过滤（可选）",
+            "limit": "返回最近崩溃条数（默认 3，最大 10）",
+            "dir": "崩溃日志目录（默认系统 CrashReporter）"
+        ]
+    )
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        let dir = (params["dir"] as? String) ?? "/var/mobile/Library/Logs/CrashReporter"
+        guard FSPolicy.isAllowed(dir) else { throw MCPError.failed("路径不在可访问范围: \(dir)") }
+        let limit = min(max((params["limit"] as? Int) ?? 3, 1), 10)
+        let filter = (params["bundle_id"] as? String)?.lowercased() ?? ""
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(atPath: dir) else {
+            return ["error": "无法读取崩溃目录（TrollStore 环境可能无系统日志权限）: \(dir)"]
+        }
+        var candidates: [(path: String, mtime: Date)] = []
+        for f in files {
+            let ext = (f as NSString).pathExtension.lowercased()
+            guard ext == "ips" || ext == "crash" else { continue }
+            let full = (dir as NSString).appendingPathComponent(f)
+            if let attrs = try? fm.attributesOfItem(atPath: full),
+               let m = attrs[.modificationDate] as? Date {
+                candidates.append((full, m))
+            }
+        }
+        candidates.sort { $0.mtime > $1.mtime }
+        var results: [[String: Any]] = []
+        for c in candidates.prefix(limit) {
+            guard let text = try? String(contentsOfFile: c.path, encoding: .utf8) else { continue }
+            let parsed = Self.parse(text, path: c.path)
+            if !filter.isEmpty {
+                let hay = (parsed["process"] as? String ?? "").lowercased() + " " + (parsed["bundle_id"] as? String ?? "").lowercased()
+                guard hay.contains(filter) else { continue }
+            }
+            results.append(parsed)
+        }
+        return ["dir": dir, "found": files.count, "crashes": results, "crash_count": results.count]
+    }
+
+    private static func parse(_ text: String, path: String) -> [String: Any] {
+        var out: [String: Any] = ["file": path]
+        let lines = text.components(separatedBy: "
+")
+        // .ips：第一行元数据 JSON，第二行 body JSON
+        if lines.count >= 2,
+           let meta = Self.json(lines[0]),
+           let body = Self.json(lines[1]) {
+            out["format"] = "ips"
+            if let pn = meta["procName"] as? String { out["process"] = pn }
+            if let bid = meta["bundleID"] as? String { out["bundle_id"] = bid }
+            if let ct = meta["captureTime"] as? String { out["capture_time"] = ct }
+            if let ver = meta["appVersion"] as? String { out["app_version"] = ver }
+            if let ex = body["exception"] as? [String: Any] {
+                if let t = ex["type"] as? String { out["exception_type"] = t }
+                if let s = ex["signal"] as? String { out["signal"] = s }
+            }
+            if let term = body["termination"] as? [String: Any] {
+                if let r = term["reason"] as? String { out["termination_reason"] = r }
+                if let i = term["indicator"] as? String { out["indicator"] = i }
+            }
+            if let ft = body["faultingThread"] as? Int,
+               let threads = body["threads"] as? [[String: Any]],
+               ft >= 0, ft < threads.count,
+               let frames = threads[ft]["frames"] as? [[String: Any]] {
+                out["faulting_thread"] = ft
+                var top: [String] = []
+                for f in frames.prefix(6) {
+                    if let sym = f["symbol"] as? String { top.append(sym) }
+                    else if let img = f["imageIndex"] { top.append("image\(img)") }
+                }
+                if !top.isEmpty { out["stack_top"] = top }
+            }
+            return out
+        }
+        // 老 .crash 文本格式
+        out["format"] = "crash"
+        let pairs: [(String, String)] = [
+            ("Process:", "process"), ("Bundle Identifier:", "bundle_id"),
+            ("Exception Type:", "exception_type"), ("Exception Codes:", "exception_codes"),
+            ("Termination Reason:", "termination_reason"), ("Triggered by Thread:", "triggered_by_thread"),
+            ("Version:", "app_version")
+        ]
+        for (needle, key) in pairs {
+            if let l = lines.first(where: { $0.hasPrefix(needle) }) {
+                out[key] = l.replacingOccurrences(of: needle, with: "").trimmingCharacters(in: .whitespaces)
+            }
+        }
+        var stack: [String] = []
+        var inThread = false
+        for l in lines {
+            if l.hasPrefix("Thread ") { inThread = true }
+            if l.hasPrefix("Thread ") && l.contains("Crashed") { inThread = true }
+            if inThread {
+                if l.hasPrefix("Thread ") && !l.contains("Crashed") && !stack.isEmpty { break }
+                if l.contains("frame #") {
+                    let parts = l.components(separatedBy: "  ").filter { !$0.isEmpty }
+                    if parts.count >= 3 { stack.append(parts[2].trimmingCharacters(in: .whitespaces)) }
+                }
+                if stack.count >= 6 { break }
+            }
+        }
+        if !stack.isEmpty { out["stack_top"] = stack }
+        return out
+    }
+
+    private static func json(_ s: String) -> [String: Any]? {
+        guard let d = s.data(using: .utf8),
+              let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return nil }
+        return o
+    }
+}
+
+// MARK: - 图片元数据
+
+final class FSImageInfoTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "fs.image_info",
+        summary: "图片元数据：格式/宽高/大小（PNG/JPEG/GIF/WebP）。识别后如需查看内容，用模型的视觉能力或截图工具。",
+        parameters: [
+            "path": "图片绝对路径（或工作区相对路径）",
+            "bundle_id": "目标 App Bundle ID（填了则读该 App 数据容器）",
+            "relative": "容器内相对路径（bundle_id 模式下用）"
+        ]
+    )
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        let bundleId = params["bundle_id"] as? String
+        let rel = params["relative"] as? String
+        let path = params["path"] as? String
+        var target: String? = nil
+        if let p = FSPolicy.resolve(bundleId: bundleId, relative: rel, path: path) {
+            target = p
+        } else if let p = path, !p.isEmpty {
+            target = p.hasPrefix("/") ? p : FSPolicy.workspace() + "/" + p
+        }
+        guard let p = target else { throw MCPError.invalidParams("需要 path 或 bundle_id+relative") }
+        guard FSPolicy.isAllowed(p) else { throw MCPError.failed("路径不在可访问范围: \(p)") }
+        let fm = FileManager.default
+        guard let data = fm.contents(atPath: p) else { return ["error": "读取失败: \(p)"] }
+        var out: [String: Any] = ["path": p, "size": data.count]
+        let b = [UInt8](data.prefix(64))
+        func be16(_ o: Int) -> Int { Int(b[o]) << 8 | Int(b[o+1]) }
+        func be32(_ o: Int) -> Int { (Int(b[o]) << 24) | (Int(b[o+1]) << 16) | (Int(b[o+2]) << 8) | Int(b[o+3]) }
+        if b.count >= 24, b[0] == 0x89, b[1] == 0x50, b[2] == 0x4E, b[3] == 0x47 {
+            out["format"] = "png"; out["width"] = be32(16); out["height"] = be32(20)
+        } else if b.count >= 4, b[0] == 0xFF, b[1] == 0xD8 {
+            out["format"] = "jpeg"
+            var o = 2
+            while o + 9 < b.count {
+                if b[o] == 0xFF, (b[o+1] & 0xF0) == 0xC0, (b[o+1] & 0x0F) >= 0x01, (b[o+1] & 0x0F) <= 0x03 {
+                    out["height"] = be16(o + 5); out["width"] = be16(o + 7); break
+                }
+                if b[o] == 0xFF { o += 2 + Int(b[o+1]) << 8 | Int(b[o+2]) } else { o += 1 }
+            }
+        } else if b.count >= 10, b[0] == 0x47, b[1] == 0x49, b[2] == 0x46 {
+            out["format"] = "gif"
+            out["width"] = Int(b[6]) | Int(b[7]) << 8
+            out["height"] = Int(b[8]) | Int(b[9]) << 8
+        } else if b.count >= 12, b[0] == 0x52, b[1] == 0x49, b[2] == 0x46, b[3] == 0x46, b[8] == 0x57, b[9] == 0x45, b[10] == 0x42, b[11] == 0x50 {
+            out["format"] = "webp"
+            let fourcc = String(bytes: b[12...15], encoding: .ascii) ?? ""
+            if fourcc == "VP8X", b.count >= 30 {
+                let w = Int(b[24]) | Int(b[25]) << 8 | Int(b[26]) << 16
+                let h = Int(b[27]) | Int(b[28]) << 8 | Int(b[29]) << 16
+                out["width"] = w + 1; out["height"] = h + 1
+            } else if fourcc == "VP8L", b.count >= 25 {
+                let bits = Int(b[21]) | Int(b[22]) << 8 | Int(b[23]) << 16 | Int(b[24]) << 24
+                out["width"] = (bits & 0x3FFF) + 1; out["height"] = ((bits >> 14) & 0x3FFF) + 1
+            } else if fourcc == "VP8 ", b.count >= 30 {
+                out["width"] = be16(26) & 0x3FFF; out["height"] = be16(28) & 0x3FFF
+            }
+        } else {
+            out["format"] = "unknown"
+            out["hint"] = "不是常见图片格式（PNG/JPEG/GIF/WebP），用 fs.hexdump 查看 magic"
+        }
+        out["hint"] = "需要看图内容时用模型的视觉能力查看"
+        return out
+    }
+}
