@@ -227,11 +227,11 @@ tweaks/<Name>/
 - **幂等**：注入目标已含同名 load command 时跳过 insert_dylib（对齐 cmdInsertLoadCommandDylib 的 dylibs.contains 检查）。
 - **framework 注入**：源为 .framework 包时 load command 用 `@rpath/XXX.framework/XXX`（对齐 loadCommandNameOfAsset）。
 - **standardize**：注入后把目标 Mach-O 里指向同资产的其他路径 load command 统一为 @rpath/name（对齐 standardizeLoadCommandDylib）。
-- **substrate 依赖检测**：注入源依赖 CydiaSubstrate/ElleKit/libsubstrate 等运行时 → 拒绝注入并提示用 TrollFools（未内置 substrate，直接注入必闪退）。
+- **substrate 依赖处理**：v2.9.121 起不再拒绝——内置 CydiaSubstrate.framework.zip，注入用户插件时自动解压、标记、ct_bypass、chown 33:33 并拷入目标 Frameworks/（对齐 prepareSubstrate + copyfiles），插件内 substrate 系 load command 重定向到内置路径（对齐 standardizeLoadCommandDylibToSubstrate）。根治艾玛/京东/微信等 substrate 插件注入闪退。
 - **.troll-fools 标记**：注入 .framework/.bundle 时写入 .troll-fools 标记文件（对齐 markBundlesAsInjected）。
 - **持久化**：注入资产备份到 /var/mobile/Library/TrollFools/PersistentPlugins/<bid>/（owner 501），App 重装/更新后可恢复；disable 时同步清理（对齐 persist/persistIfNecessary/desist）。
 - **恢复**：restoreAlternate 改用 mv 覆盖（对齐 cmdMove overwrite）。
-- **未复刻（已知差异）**：zip/deb 包自动解压注入（preprocessAssets 需引入 ZIP/deb 解析库，后续版本做）；内置 CydiaSubstrate.framework 并重定向依赖（依赖 substrate 的插件请用 TrollFools 注入）。
+- **未复刻（已知差异）**：已全部闭环（见第 18 节）——zip/deb 自动解压（ArchiveTools.swift：ZIP local header + libz raw deflate；DEB ar + USTAR + gzip）、内置 CydiaSubstrate 自动注入均已实现。
 
 
 ## 17. 注入规则双态与剩余机制对齐（v2.9.120）
@@ -243,3 +243,16 @@ tweaks/<Name>/
 - **injection.restore**：新工具，从持久化区把已关闭插件重新注入（启用开关）。
 - **iTunesMetadata 分离**：注入成功后把 .app 容器旁的 iTunesMetadata.plist 移为 .bak（对齐 setMetadataDetached，防 App Store 更新/校验异常）；disable 后移回。
 - 执行环境 DISABLE_TWEAKS=1 已确认存在（spawnRoot 继承环境 + PATH 覆盖），与 TrollFools rootSpawn 一致。
+
+
+## 18. TrollFools 规则/配置/工具策略全量对齐（v2.9.121）
+
+继续对齐 TrollFools 4.3 Build 253 剩余规则，注入引擎与 TrollFools 完全同源行为：
+
+- **内置 CydiaSubstrate 自动注入**（根治 substrate 插件闪退）：Resources/CydiaSubstrate.framework.zip 内置（205KB，TrollFools 同源）；`injection.enable` 注入用户插件（dylib_path 非空）时自动执行 prepareSubstrate 流程——解压 → 写 .troll-fools 标记 → ct_bypass → chown 33:33 → 拷入目标 App Frameworks/；插件内 cydiasubstrate/ellekit/libsubstrate/libsubstitute/libellekit 引用统一重定向到 `@executable_path/Frameworks/CydiaSubstrate.framework/CydiaSubstrate`（对齐 standardizeLoadCommandDylibToSubstrate）。注入内置 agent 不带 substrate（agent 无依赖）。
+- **zip/deb 插件包注入**：dylib_path 支持 .zip/.deb——新增 ArchiveTools.swift（纯系统库：ZIP local-file-header 遍历 + libz raw deflate/store；DEB = ar 外壳 + USTAR tar + gzip）。解压提取 dylib/framework/bundle，过滤系统运行时名单后多资产逐个注入（对齐 preprocessAssets allowedPathExtensions + extractDebianPackage）。deb 的 bz2/xz/lzma/zst/lz4 压缩暂不支持，明确报错。
+- **三层防御防二次注入误选**（对齐 Build 246）：① collectInjectableMachOs 对每个候选做 当前 load commands vs .troll-fools.bak 备份 差分，差集 = 已注入资产 → 从候选排除；② 枚举跳过 .troll-fools.bak/.bak_macho；③ enable 幂等跳过已存在 load command。防止把"已注入的 dylib 再当目标注入一次"。
+- **注入策略 inject_strategy**：injection.enable 新增 inject_strategy 参数——lexicographic（默认）/fast（文件小优先）/preorder/postorder，对齐 TrollFools Strategy（fast = 按文件大小升序）。
+- **多资产注入**：preparedAssets 逐个 insert_load_command + standardizeLoadCommandDylib + 统一验证 + 失败批量回滚（恢复备份 + 删全部资产 + 删 substrate）；disable/remove 时同步清理注入的 CydiaSubstrate.framework（对齐 ejectDylibsAndFrameworks 尾部）。
+- **entitlements 对齐补全**：补 TrollFools 全部功能权限（Photos/Mail/MobileDocuments/CloudDocsDB/CloudKit/iCloudDrive/DocumentRevisions/ciconia 存储系列、kernel.jetsam、network.socket-delegate、SystemConfiguration 写、backboardd.launchapplications、frontboard.shutdown、springboard iconState/launchapplicationswithoptions、usernotification 系列、mach-lookup.global-name 等 40 项）。
+- **工具链对齐确认**：bin/ 已含 TrollFools 全部工具（chown/cp/cp-15/ct_bypass/insert_dylib/install_name_tool/ldid/mkdir/mv/mv-15/optool/rm + libcrypto/libintl/libiosexec/libxar）+ 额外 opainject 等，无缺件。

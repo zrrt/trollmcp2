@@ -8,7 +8,8 @@ let package = Package(
         .executableTarget(
             name: "TrollMCP2",
             path: "Sources/TrollMCP2",
-            exclude: ["Resources"]
+            exclude: ["Resources"],
+            linkerSettings: [.linkedLibrary("z")]
         )
     ]
 )

@@ -479,6 +479,61 @@ final class InjectionManager {
         return ["action": "restore", "bundleId": bundleId, "restored": restored]
     }
 
+    // MARK: - CydiaSubstrate（对齐 TrollFools prepareSubstrate / standardizeLoadCommandDylibToSubstrate）
+    // v2.9.121：根治 substrate 插件闪退——不再拒绝，而是内置 CydiaSubstrate.framework.zip，
+    // 注入用户插件时自动准备并拷入目标 App，插件对 substrate 的引用重定向到内置路径。
+
+    private static let substrateFwkName = "CydiaSubstrate.framework"
+    private static let substrateName = "CydiaSubstrate"
+    static let ignoredRuntimeNames: Set<String> = [
+        "cydiasubstrate", "cydiasubstrate.framework", "ellekit", "ellekit.framework",
+        "libsubstrate.dylib", "libsubstitute.dylib", "libellekit.dylib",
+    ]
+
+    /// 解压内置 CydiaSubstrate.framework.zip → 临时目录，标记 .troll-fools + ct_bypass + chown 33:33（对齐 prepareSubstrate）
+    private func prepareSubstrate() throws -> String {
+        let tmpRoot = NSTemporaryDirectory() + "TrollAgentSubstrate-" + UUID().uuidString
+        try? FileManager.default.createDirectory(atPath: tmpRoot, withIntermediateDirectories: true)
+        let zipPath = Bundle.main.path(forResource: "CydiaSubstrate.framework", ofType: "zip")
+            ?? (binDir.deletingLastPathComponent().appendingPathComponent("CydiaSubstrate.framework.zip").path)
+        guard FileManager.default.fileExists(atPath: zipPath) else {
+            throw MCPError.failed("CydiaSubstrate.framework.zip 未内置")
+        }
+        let data = try Data(contentsOf: URL(fileURLWithPath: zipPath))
+        let entries = try ZIPReader.extractEntries(from: data)
+        for e in entries {
+            let dest = tmpRoot + "/" + e.name
+            try? FileManager.default.createDirectory(atPath: (dest as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+            try e.data.write(to: URL(fileURLWithPath: dest))
+        }
+        let fwk = tmpRoot + "/" + Self.substrateFwkName
+        guard FileManager.default.fileExists(atPath: fwk) else { throw MCPError.failed("substrate 解压失败") }
+        _ = runAsRoot("touch", args: [fwk + "/.troll-fools"])
+        let machO = fwk + "/" + Self.substrateName
+        let (pc, po) = runAsRoot("ct_bypass", args: ["-r", "-i", machO, "-t", "TROLLTROLL"])
+        if pc != 0 { AuditLog.shared.log("injection.substrate.ct", detail: "exit=\(pc) \(po)") }
+        _ = runAsRoot("chown", args: ["33:33", fwk])
+        return fwk
+    }
+
+    /// 插件内 substrate 系 load command → 内置 substrate 路径（对齐 standardizeLoadCommandDylibToSubstrate）
+    private func standardizeLoadCommandDylibToSubstrate(_ asset: String) {
+        let machO: String
+        if asset.hasSuffix(".framework") {
+            machO = (asset as NSString).appendingPathComponent((asset as NSString).deletingPathExtension)
+        } else {
+            machO = asset
+        }
+        guard let info = MachOAnalyzer.analyze(machO) else { return }
+        for dylib in info.dylibs {
+            let lower = dylib.lowercased()
+            if Self.ignoredRuntimeNames.contains(where: { lower.hasSuffix("/" + $0) || lower == $0 }) {
+                _ = runAsRoot("install_name_tool", args: ["-change", dylib,
+                    "@executable_path/Frameworks/" + Self.substrateFwkName + "/" + Self.substrateName, machO])
+            }
+        }
+    }
+
     // MARK: - iTunesMetadata 分离（对齐 TrollFools setMetadataDetached：注入期间移开 metadata，
     // 避免 App Store 更新/校验把注入痕迹当异常）
 
@@ -559,7 +614,7 @@ final class InjectionManager {
 
     /// 收集可注入 Mach-O：Frameworks/ 下未加密 dylib（字典序），主二进制垫底。
     /// 跳过：非 Mach-O、加密段（cryptid!=0）、忽略名单、备份文件、已注入资产文件。
-    func collectInjectableMachOs(_ app: AppCatalog.AppEntry) -> [String] {
+    func collectInjectableMachOs(_ app: AppCatalog.AppEntry, strategy: String = "lexicographic") -> [String] {
         var candidates: [String] = []
         let frameworksDir = (app.path as NSString).appendingPathComponent("Frameworks")
         if FileManager.default.fileExists(atPath: frameworksDir),
@@ -590,6 +645,41 @@ final class InjectionManager {
         // 主二进制垫底（TrollFools 默认 preferMainExecutable=false）
         let main = executablePath(app)
         if MachOAnalyzer.isInjectiveMachO(main) { candidates.append(main) }
+
+        // 备份差分（对齐 TrollFools Build 246 三层防御第三层）：当前 load commands 与
+        // .troll-fools.bak 备份的差集 = 注入添加的 → 排除已注入 Mach-O，防止二次注入误选
+        var injectedNames = Set<String>()
+        for m in (candidates + [main]) {
+            let alt = alternateURL(for: m)
+            if FileManager.default.fileExists(atPath: alt),
+               let cur = MachOAnalyzer.analyze(m)?.dylibs,
+               let orig = MachOAnalyzer.analyze(alt)?.dylibs {
+                for n in cur where !orig.contains(n) {
+                    injectedNames.insert((n as NSString).lastPathComponent)
+                }
+            }
+        }
+        if !injectedNames.isEmpty {
+            let before = candidates.count
+            candidates = candidates.filter { !injectedNames.contains(($0 as NSString).lastPathComponent) }
+            AuditLog.shared.log("injection.backupdiff", detail: "excluded=\(before - candidates.count) \(injectedNames.sorted())")
+        }
+
+        // 注入策略排序（对齐 TrollFools Strategy：lexicographic 默认 / fast 大小升序 / preorder / postorder）
+        switch strategy {
+        case "fast":
+            candidates = candidates.sorted { a, b in
+                let s1 = (try? (FileManager.default.attributesOfItem(atPath: a)[.size] as? Int)) ?? 0
+                let s2 = (try? (FileManager.default.attributesOfItem(atPath: b)[.size] as? Int)) ?? 0
+                return s1 == s2 ? a.lastPathComponent < b.lastPathComponent : s1 < s2
+            }
+        case "postorder":
+            candidates = candidates.reversed()
+        case "preorder":
+            break
+        default:
+            candidates = candidates.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        }
         return candidates
     }
 
@@ -714,7 +804,8 @@ final class InjectionManager {
     /// 目标默认选 Frameworks/ 内未加密可注入 Mach-O（不直接改主二进制），
     /// 备份 .troll-fools.bak（TrollFools 可识别），每步改前 ldid 伪签，任一步失败自动回滚。
     func enable(bundleId: String, dylibName: String = "@executable_path/TrollMCPAgent.dylib",
-                dylibSourcePath: String? = nil, weakReference: Bool = false) throws -> [String: Any] {
+                dylibSourcePath: String? = nil, weakReference: Bool = false,
+                injectStrategy: String = "lexicographic") throws -> [String: Any] {
         _ = dylibName
         guard let app = AppCatalog.find(bundleId) else {
             throw MCPError.failed("app not found: \(bundleId)")
@@ -731,21 +822,53 @@ final class InjectionManager {
         // 0. 高危护栏：敏感 App 注入前强制提醒（不阻断，AI 需看到风险并先 diagnose）
         let sensitive = Self.isSensitive(bundleId)
 
-        // 1. 决定注入源 dylib 与目标 load name
+        // 1. 决定注入源资产列表（对齐 TrollFools preprocessAssets：支持 .zip/.deb 解压提取 dylib/framework/bundle）
         let agentSrc: String
         let sourceFileName: String
+        var preparedAssets: [String] = []
+        let assetTmpRoot = NSTemporaryDirectory() + "TrollAgentAssets-" + UUID().uuidString
         if let src = dylibSourcePath, !src.isEmpty {
             guard FileManager.default.fileExists(atPath: src) else {
-                throw MCPError.failed("指定的 dylib 文件不存在: \(src)")
+                throw MCPError.failed("指定的插件文件不存在: \(src)")
             }
-            agentSrc = src
-            sourceFileName = (src as NSString).lastPathComponent
+            let ext = (src as NSString).pathExtension.lowercased()
+            if ext == "zip" || ext == "deb" {
+                try? FileManager.default.createDirectory(atPath: assetTmpRoot, withIntermediateDirectories: true)
+                let tmpURL = URL(fileURLWithPath: assetTmpRoot)
+                if ext == "zip" {
+                    let entries = try ZIPReader.extractEntries(from: Data(contentsOf: URL(fileURLWithPath: src)))
+                    for e in entries {
+                        let lower = e.name.lowercased()
+                        guard lower.hasSuffix(".dylib") || lower.hasSuffix(".framework") || lower.hasSuffix(".bundle") else { continue }
+                        let dest = tmpURL.appendingPathComponent(e.name)
+                        try? FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+                        try e.data.write(to: dest)
+                        preparedAssets.append(dest.path)
+                    }
+                } else {
+                    try DebReader.extractDylibAndBundles(at: URL(fileURLWithPath: src), to: tmpURL)
+                    if let items = try? FileManager.default.contentsOfDirectory(atPath: assetTmpRoot) {
+                        preparedAssets = items.map { (assetTmpRoot as NSString).appendingPathComponent($0) }
+                    }
+                }
+                preparedAssets = preparedAssets.filter { !Self.ignoredRuntimeNames.contains(($0 as NSString).lastPathComponent.lowercased()) }
+                guard !preparedAssets.isEmpty else {
+                    throw MCPError.failed("zip/deb 中没有有效的插件（dylib/framework/bundle），已过滤系统运行时")
+                }
+                sourceFileName = (preparedAssets[0] as NSString).lastPathComponent
+                agentSrc = preparedAssets[0]
+            } else {
+                agentSrc = src
+                sourceFileName = (src as NSString).lastPathComponent
+                preparedAssets = [src]
+            }
         } else {
             agentSrc = binDir.appendingPathComponent("TrollMCPAgent.dylib").path
             guard FileManager.default.fileExists(atPath: agentSrc) else {
                 throw MCPError.failed("TrollMCPAgent.dylib 未内置（\(agentSrc)）")
             }
             sourceFileName = "TrollMCPAgent.dylib"
+            preparedAssets = [agentSrc]
         }
 
         // 2. 选注入目标 Mach-O：对齐 TrollFools——有 Frameworks 时只注入 Frameworks/ 内的 Mach-O
@@ -753,7 +876,7 @@ final class InjectionManager {
         //  注入主二进制 TrollFools 无法识别也无法关闭，用户会被卡死，故有 Frameworks 时强制拒绝主二进制）
         let frameworksDirPath = (app.path as NSString).appendingPathComponent("Frameworks")
         let hasFrameworks = FileManager.default.fileExists(atPath: frameworksDirPath)
-        let allCandidates = collectInjectableMachOs(app)
+        let allCandidates = collectInjectableMachOs(app, strategy: injectStrategy)
         let fwCandidates = hasFrameworks ? allCandidates.filter { $0.hasPrefix(frameworksDirPath + "/") } : []
         let targetMachO: String
         if hasFrameworks {
@@ -785,46 +908,65 @@ final class InjectionManager {
         let executableName = (executablePath(app) as NSString).lastPathComponent
         _ = spawnRoot("/usr/bin/killall", args: ["killall", "-9", executableName])
 
-        // 4. 预处理源 dylib：ct_bypass + chown（对齐 TrollFools applyCoreTrustBypass）
-        let (pc, po) = runAsRoot("ct_bypass", args: ["-r", "-i", agentSrc, "-t", realTeamID(for: bundleId, appPath: executablePath(app))])
-        if pc != 0 { AuditLog.shared.log("injection.ct_bypass.dylib", detail: "exit=\(pc) \(po)") }
-        _ = runAsRoot("chown", args: ["33:33", agentSrc])
-
         // 5. 拷贝 dylib 到 Frameworks/（无 Frameworks 才放 app 根）
-        let frameworksDir = (app.path as NSString).appendingPathComponent("Frameworks")
-        let useFramework = FileManager.default.fileExists(atPath: frameworksDir)
-        let agentDst = useFramework
-            ? (frameworksDir as NSString).appendingPathComponent(sourceFileName)
-            : (app.path as NSString).appendingPathComponent(sourceFileName)
-        var injectName = useFramework ? "@rpath/\(sourceFileName)" : "@executable_path/\(sourceFileName)"
-        var isSrcDir: ObjCBool = false
-        FileManager.default.fileExists(atPath: agentSrc, isDirectory: &isSrcDir)
-        if isSrcDir.boolValue, sourceFileName.hasSuffix(".framework") {
-            let fwExe = (sourceFileName as NSString).deletingPathExtension
-            injectName = "@rpath/\(sourceFileName)/\(fwExe)"
+        // A3 资产预处理（对齐 TrollFools injectDylibsAndFrameworks 前置）：
+        // 用户插件 → standardizeLoadCommandDylibToSubstrate（substrate 引用重定向内置）+ ct_bypass + chown；
+        // 内置 agent → ct_bypass + chown（agent 无 substrate 依赖）
+        let isUserPlugin = !(dylibSourcePath?.isEmpty ?? true)
+        var injectNameMap: [String: String] = [:]
+        for asset in preparedAssets {
+            let name = (asset as NSString).lastPathComponent
+            var iname = useFramework ? "@rpath/\(name)" : "@executable_path/\(name)"
+            var isDir: ObjCBool = false
+            FileManager.default.fileExists(atPath: asset, isDirectory: &isDir)
+            if isDir.boolValue, name.hasSuffix(".framework") {
+                let fwExe = (name as NSString).deletingPathExtension
+                iname = "@rpath/\(name)/\(fwExe)"
+            }
+            injectNameMap[asset] = iname
+            if isUserPlugin {
+                standardizeLoadCommandDylibToSubstrate(asset)
+            }
+            let (pc2, po2) = runAsRoot("ct_bypass", args: ["-r", "-i", asset, "-t", realTeamID(for: bundleId, appPath: executablePath(app))])
+            if pc2 != 0 { AuditLog.shared.log("injection.ct_bypass.asset", detail: "exit=\(pc2) \(po2)") }
+            _ = runAsRoot("chown", args: ["33:33", asset])
         }
+        let firstInjectName = injectNameMap[preparedAssets[0]] ?? "@rpath/\(sourceFileName)"
 
-        // A3 substrate 依赖检测（防闪退）：注入源依赖 CydiaSubstrate/ElleKit 等运行时则拒绝
-        let probeSrc = isSrcDir.boolValue
-            ? (agentSrc as NSString).appendingPathComponent((sourceFileName as NSString).deletingPathExtension)
-            : agentSrc
-        let srcLoads = MachOAnalyzer.analyze(probeSrc)?.dylibs ?? []
-        let runtimeNames = ["cydiasubstrate", "ellekit", "libsubstrate", "libsubstitute", "libellekit", "libhooker", "libjailbreak"]
-        if srcLoads.contains(where: { n in runtimeNames.contains(where: { n.lowercased().contains($0) }) }) {
-            throw MCPError.failed("注入源依赖 CydiaSubstrate/ElleKit 等注入运行时（TrollAgent 未内置 substrate），直接注入会导致 App 闪退且无法用 TrollFools 管理。请改用 TrollFools 注入此类插件。")
+        // A4 拷贝资产到 Frameworks/ + substrate 自动注入（对齐 TrollFools copyfiles + prepareSubstrate）
+        var copiedAssets: [String] = []
+        if isUserPlugin {
+            let sf = try prepareSubstrate()
+            let subName = Self.substrateFwkName
+            let subDst = useFramework
+                ? (frameworksDir as NSString).appendingPathComponent(subName)
+                : (app.path as NSString).appendingPathComponent(subName)
+            if FileManager.default.fileExists(atPath: subDst) {
+                _ = runAsRoot("rm", args: ["-rf", subDst])
+            }
+            let (c3, o3) = runAsRoot("cp", args: ["--reflink=auto", "-rfp", sf, subDst])
+            if c3 != 0 { throw MCPError.failed("root cp substrate 失败(\(c3)): \(o3)") }
+            _ = runAsRoot("chown", args: ["33:33", subDst])
+            copiedAssets.append(subDst)
+            AuditLog.shared.log("injection.substrate", detail: "\(bundleId) substrate=ready")
         }
-        if FileManager.default.fileExists(atPath: agentDst) {
-            _ = runAsRoot("rm", args: ["-rf", agentDst])
-        }
-        let (c0, o0) = runAsRoot("cp", args: ["--reflink=auto", "-rfp", agentSrc, agentDst])
-        if c0 != 0 { throw MCPError.failed("root cp agent 失败(\(c0)): \(o0)") }
-        _ = runAsRoot("chown", args: ["33:33", agentDst])
-
-        // 5.5 .troll-fools 标记（对齐 TrollFools markBundlesAsInjected）：.framework/.bundle 资产写入标记
-        if isSrcDir.boolValue, sourceFileName.hasSuffix(".framework") || sourceFileName.hasSuffix(".bundle") {
-            let marker = (agentDst as NSString).appendingPathComponent(".troll-fools")
-            _ = runAsRoot("touch", args: [marker])
-            _ = runAsRoot("chown", args: ["33:33", marker])
+        for asset in preparedAssets {
+            let name = (asset as NSString).lastPathComponent
+            let dst = useFramework
+                ? (frameworksDir as NSString).appendingPathComponent(name)
+                : (app.path as NSString).appendingPathComponent(name)
+            if FileManager.default.fileExists(atPath: dst) {
+                _ = runAsRoot("rm", args: ["-rf", dst])
+            }
+            let (c0, o0) = runAsRoot("cp", args: ["--reflink=auto", "-rfp", asset, dst])
+            if c0 != 0 { throw MCPError.failed("root cp 资产失败(\(c0)): \(o0)") }
+            _ = runAsRoot("chown", args: ["33:33", dst])
+            var isDir2: ObjCBool = false
+            FileManager.default.fileExists(atPath: asset, isDirectory: &isDir2)
+            if isDir2.boolValue, name.hasSuffix(".framework") || name.hasSuffix(".bundle") {
+                _ = runAsRoot("touch", args: [(dst as NSString).appendingPathComponent(".troll-fools")])
+            }
+            copiedAssets.append(dst)
         }
 
         // 6. 备份目标 Mach-O（对齐 TrollFools makeAlternate：.troll-fools.bak）
@@ -851,36 +993,44 @@ final class InjectionManager {
                 }
             }
 
-            // 7c. insert_dylib（对齐 TrollFools 参数 + 幂等：目标已含同名 load command 则跳过）
-            let preLoads = MachOAnalyzer.analyze(targetMachO)?.dylibs ?? []
-            if preLoads.contains(injectName) {
-                insertExit = 0; insertOutput = "already present, idempotent skip"
-            } else {
-                var insArgs = [injectName, targetMachO, "--inplace", "--overwrite", "--no-strip-codesig", "--all-yes"]
-                if weakReference { insArgs.append("--weak") }
-                let (c1, o1) = runAsRoot("insert_dylib", args: insArgs)
-                insertExit = c1; insertOutput = o1
-                guard c1 == 0 else {
-                    throw MCPError.failed("insert_dylib 失败(\(c1)): \(o1)")
+            // 7c. insert_dylib（对齐 TrollFools 参数 + 幂等：目标已含同名 load command 则跳过）—— 多资产逐个注入
+            var insertedNames: [String] = []
+            for asset in preparedAssets {
+                let iname = injectNameMap[asset] ?? firstInjectName
+                let preLoads = MachOAnalyzer.analyze(targetMachO)?.dylibs ?? []
+                if preLoads.contains(iname) {
+                    insertExit = 0; insertOutput = "already present, idempotent skip"
+                } else {
+                    var insArgs = [iname, targetMachO, "--inplace", "--overwrite", "--no-strip-codesig", "--all-yes"]
+                    if weakReference { insArgs.append("--weak") }
+                    let (c1, o1) = runAsRoot("insert_dylib", args: insArgs)
+                    insertExit = c1; insertOutput = o1
+                    guard c1 == 0 else {
+                        throw MCPError.failed("insert_dylib 失败(\(c1)): \(o1)")
+                    }
                 }
-            }
+                insertedNames.append(iname)
 
-            // 7c2. standardizeLoadCommandDylib（对齐 TrollFools）：目标里指向同资产的其他路径统一为 @rpath/name
-            let itemName = injectName.hasPrefix("@rpath/") ? String(injectName.dropFirst(7)) : (injectName as NSString).lastPathComponent
-            let postLoads = MachOAnalyzer.analyze(targetMachO)?.dylibs ?? []
-            for d in postLoads where d != injectName && d.hasSuffix("/" + itemName) {
-                _ = runAsRoot("install_name_tool", args: ["-change", d, injectName, targetMachO])
+                // 7c2. standardizeLoadCommandDylib（对齐 TrollFools）：目标里指向同资产的其他路径统一为 @rpath/name
+                let itemName = iname.hasPrefix("@rpath/") ? String(iname.dropFirst(7)) : (iname as NSString).lastPathComponent
+                let postLoads = MachOAnalyzer.analyze(targetMachO)?.dylibs ?? []
+                for d in postLoads where d != iname && d.hasSuffix("/" + itemName) {
+                    _ = runAsRoot("install_name_tool", args: ["-change", d, iname, targetMachO])
+                }
             }
 
             // 7d. 重签：条件伪签（保留 entitlements）+ ct_bypass（真实 teamID）+ chown
             _ = coreTrustBypass(targetMachO, teamID: realTeamID(for: bundleId, appPath: executablePath(app)))
 
-            // 7e. 验证：加载命令已写入 + Mach-O 结构有效
+            // 7e. 验证：每个资产加载命令已写入 + Mach-O 结构有效
             let verifyInfo = MachOAnalyzer.analyze(targetMachO)
-            let loadOK = verifyInfo?.dylibs.contains(injectName) ?? false
             let structOK = verifyInfo?.valid ?? false
+            var loadOK = !insertedNames.isEmpty
+            if let vd = verifyInfo?.dylibs {
+                for n in insertedNames where !vd.contains(n) { loadOK = false }
+            }
             if !loadOK || !structOK {
-                throw MCPError.failed("注入后验证失败: loadCommand=\(loadOK) macho=\(structOK)")
+                throw MCPError.failed("注入后验证失败: loadCommand=\(loadOK) macho=\(structOK) names=\(insertedNames)")
             }
         } catch {
             // 失败自动回滚：恢复目标 Mach-O + 删掉已拷贝 dylib（对齐 TrollFools restoreAlternate + batchRemove）
@@ -890,9 +1040,9 @@ final class InjectionManager {
             } catch {
                 rollbackLog["restore_error"] = "\(error)"
             }
-            if FileManager.default.fileExists(atPath: agentDst) {
-                _ = runAsRoot("rm", args: ["-rf", agentDst])
-                rollbackLog["dylib_removed"] = true
+            for dst in copiedAssets where FileManager.default.fileExists(atPath: dst) {
+                _ = runAsRoot("rm", args: ["-rf", dst])
+                rollbackLog["asset_removed"] = (dst as NSString).lastPathComponent
             }
             let wrapped = NSError(domain: "InjectionManager", code: -1,
                 userInfo: [NSLocalizedDescriptionKey: "\(error.localizedDescription)（已自动回滚）"])
@@ -900,7 +1050,7 @@ final class InjectionManager {
             throw wrapped
         }
 
-        let injected = MachOAnalyzer.analyze(targetMachO)?.dylibs.contains(injectName) ?? false
+        let injected = MachOAnalyzer.analyze(targetMachO)?.dylibs.contains(firstInjectName) ?? false
         AuditLog.shared.log("injection.enable", detail: "\(bundleId) → \(targetMachO) injected=\(injected)")
 
         // 8. 启动自检（防"注入必闪退 + TrollFools 关不掉"死局）：注入成功后拉起目标 App，
@@ -911,8 +1061,8 @@ final class InjectionManager {
             selfcheckAlive = launchAndProbe(bundleId: bundleId, execName: executableName, executable: executablePath(app))
             if !selfcheckAlive {
                 do { _ = try restoreAlternate(targetMachO) } catch {}
-                if FileManager.default.fileExists(atPath: agentDst) {
-                    _ = runAsRoot("rm", args: ["-rf", agentDst])
+                for dst in copiedAssets where FileManager.default.fileExists(atPath: dst) {
+                    _ = runAsRoot("rm", args: ["-rf", dst])
                 }
                 selfcheckNote = "app failed to launch after injection; rolled back automatically"
                 AuditLog.shared.log("injection.enable.selfcheck_rollback", detail: "\(bundleId) → \(targetMachO)")
@@ -923,7 +1073,9 @@ final class InjectionManager {
         }
         var persisted = false
         if injected {
-            persistAsset(name: sourceFileName, src: agentSrc, bid: bundleId)
+            for asset in preparedAssets {
+                persistAsset(name: (asset as NSString).lastPathComponent, src: asset, bid: bundleId)
+            }
             persisted = true
             detachMetadata(bundleId: bundleId)
         }
@@ -935,9 +1087,11 @@ final class InjectionManager {
             "target_macho": targetMachO,
             "target_is_main": targetIsMain,
             "mainBinary": executablePath(app),
-            "dylib": injectName,
+            "dylib": firstInjectName,
             "dylibSource": agentSrc,
-            "dylibDst": agentDst,
+            "dylibDst": copiedAssets.first ?? "",
+            "assets": preparedAssets.map { ($0 as NSString).lastPathComponent },
+            "substrate": isUserPlugin ? Self.substrateFwkName : nil,
             "backup": backup,
             "root": true,
             "killed_process": executableName,
@@ -1039,6 +1193,13 @@ final class InjectionManager {
                 _ = runAsRoot("rm", args: ["-rf", pDst])
             }
         }
+        }
+
+        // 2.6 清理注入的 CydiaSubstrate.framework（对齐 TrollFools eject：注入的 substrate 一并移除，防残留）
+        let subDst = (app.path as NSString).appendingPathComponent("Frameworks/" + Self.substrateFwkName)
+        if FileManager.default.fileExists(atPath: subDst) {
+            _ = runAsRoot("rm", args: ["-rf", subDst])
+            AuditLog.shared.log("injection.disable.substrate", detail: "\(bundleId) removed \(Self.substrateFwkName)")
         }
 
         attachMetadata(bundleId: bundleId)

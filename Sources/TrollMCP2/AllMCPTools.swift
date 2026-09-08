@@ -9,12 +9,13 @@ import Vision
 // MARK: - M3 注入工具
 
 final class InjectionEnableTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.enable", summary: "向指定 App 注入 dylib（支持注入 GitHub 下载的本地 dylib 文件路径）",
-        parameters: ["bundle_id": "目标 App Bundle ID", "dylib_path": "dylib 本地文件路径（如 Workspace/downloads/.../CompileProbe.dylib），缺省注入内置 TrollMCPAgent.dylib", "weak_reference": "可选 Bool：是否弱引用注入（默认 false 强引用，对齐 TrollFools；弱引用下 dylib 缺失不闪退）"])
+    let definition = ToolDefinition(name: "injection.enable", summary: "向指定 App 注入插件（dylib/framework/zip/deb，对齐 TrollFools：自动内置 CydiaSubstrate + 多资产 + 注入策略）",
+        parameters: ["bundle_id": "目标 App Bundle ID", "dylib_path": "插件本地路径（.dylib/.framework/.zip/.deb，如 Workspace/downloads/.../xxx.deb），缺省注入内置 TrollMCPAgent.dylib", "weak_reference": "可选 Bool：是否弱引用注入（默认 false 强引用，对齐 TrollFools）", "inject_strategy": "可选 String：注入目标选择策略 lexicographic（默认）/fast（文件小优先）/preorder/postorder，对齐 TrollFools Strategy"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
         let dylibPath = params["dylib_path"] as? String
         let weakRef = (params["weak_reference"] as? Bool) ?? false
+        let strategy = (params["inject_strategy"] as? String) ?? "lexicographic"
         // v2.9.32：dylib_path 为本地文件路径 → 作为注入源（root 拷贝进目标 App）；
         // 为 @executable_path/@loader_path 前缀 → 作为 load name；空 → 内置 agent。
         var source: String?
@@ -27,7 +28,7 @@ final class InjectionEnableTool: MCPTool {
                 loadName = "@executable_path/\((p as NSString).lastPathComponent)"
             }
         }
-        let result = try InjectionManager.shared.enable(bundleId: bid, dylibName: loadName, dylibSourcePath: source, weakReference: weakRef)
+        let result = try InjectionManager.shared.enable(bundleId: bid, dylibName: loadName, dylibSourcePath: source, weakReference: weakRef, injectStrategy: strategy)
         AuditLog.shared.log("injection.enable", detail: "\(bid) → \(dylibPath ?? "内置agent")")
         // v2.9.68：截断冗长日志，只保留 exit code + 关键错误行，避免上下文爆炸
         var slim = result
