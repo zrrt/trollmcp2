@@ -1332,6 +1332,7 @@ final class AppEntitlementsTool: MCPTool {
             "parse_error": parseError,
             "hint": parseError.isEmpty ? "keychain_groups 可直接传给 device.keychain_wipe 精确清理目标 App 钥匙串" : parseError + "（空值不代表没有权限）"
         ]
+        return out
     }
 }
 

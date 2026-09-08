@@ -85,7 +85,7 @@ final class IPAInspectTool: MCPTool {
             result["binary"] = [
                 "path": binaryPath,
                 "arch": macho?.arch ?? "unknown",
-                "cryptid": macho?.cryptID ?? -1,
+                "cryptid": macho.map { Int($0.cryptID) } ?? -1,
                 "arch_parse_error": macho == nil ? "Mach-O 解析失败（可能加密/特殊头），不能据此判定不可注入" : "",
                 "arch_note": macho?.cryptID ?? 0 > 0 ? "已加密（cryptid>0），符号/类结构需先 app.decrypt 砸壳" : "",
                 "entitlements": detail == "full" ? String(entOutput.prefix(3000)) : "已签名（用 detail=full 查看全文）",
