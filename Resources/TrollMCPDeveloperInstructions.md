@@ -232,3 +232,14 @@ tweaks/<Name>/
 - **持久化**：注入资产备份到 /var/mobile/Library/TrollFools/PersistentPlugins/<bid>/（owner 501），App 重装/更新后可恢复；disable 时同步清理（对齐 persist/persistIfNecessary/desist）。
 - **恢复**：restoreAlternate 改用 mv 覆盖（对齐 cmdMove overwrite）。
 - **未复刻（已知差异）**：zip/deb 包自动解压注入（preprocessAssets 需引入 ZIP/deb 解析库，后续版本做）；内置 CydiaSubstrate.framework 并重定向依赖（依赖 substrate 的插件请用 TrollFools 注入）。
+
+
+## 17. 注入规则双态与剩余机制对齐（v2.9.120）
+
+继续对齐 TrollFools 剩余注入规则：
+
+- **weak 引用参数化**：injection.enable 新增 weak_reference（默认 false 强引用，对齐 TrollFools CLI/UI 默认；弱引用下 dylib 缺失不闪退）。内置 agent 仍建议强引用。
+- **关闭 vs 彻底移除双态**：injection.disable 新增 desist 参数——`desist=true`（默认）= 彻底移除（删持久化）；`desist=false` = 仅关闭插件、保留 PersistentPlugins 副本，之后可用 **injection.restore** 重新启用（对齐 TrollFools eject(shouldDesist:)/插件开关语义）。
+- **injection.restore**：新工具，从持久化区把已关闭插件重新注入（启用开关）。
+- **iTunesMetadata 分离**：注入成功后把 .app 容器旁的 iTunesMetadata.plist 移为 .bak（对齐 setMetadataDetached，防 App Store 更新/校验异常）；disable 后移回。
+- 执行环境 DISABLE_TWEAKS=1 已确认存在（spawnRoot 继承环境 + PATH 覆盖），与 TrollFools rootSpawn 一致。

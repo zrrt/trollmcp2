@@ -10,10 +10,11 @@ import Vision
 
 final class InjectionEnableTool: MCPTool {
     let definition = ToolDefinition(name: "injection.enable", summary: "向指定 App 注入 dylib（支持注入 GitHub 下载的本地 dylib 文件路径）",
-        parameters: ["bundle_id": "目标 App Bundle ID", "dylib_path": "dylib 本地文件路径（如 Workspace/downloads/.../CompileProbe.dylib），缺省注入内置 TrollMCPAgent.dylib"])
+        parameters: ["bundle_id": "目标 App Bundle ID", "dylib_path": "dylib 本地文件路径（如 Workspace/downloads/.../CompileProbe.dylib），缺省注入内置 TrollMCPAgent.dylib", "weak_reference": "可选 Bool：是否弱引用注入（默认 false 强引用，对齐 TrollFools；弱引用下 dylib 缺失不闪退）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
         let dylibPath = params["dylib_path"] as? String
+        let weakRef = (params["weak_reference"] as? Bool) ?? false
         // v2.9.32：dylib_path 为本地文件路径 → 作为注入源（root 拷贝进目标 App）；
         // 为 @executable_path/@loader_path 前缀 → 作为 load name；空 → 内置 agent。
         var source: String?
@@ -26,7 +27,7 @@ final class InjectionEnableTool: MCPTool {
                 loadName = "@executable_path/\((p as NSString).lastPathComponent)"
             }
         }
-        let result = try InjectionManager.shared.enable(bundleId: bid, dylibName: loadName, dylibSourcePath: source)
+        let result = try InjectionManager.shared.enable(bundleId: bid, dylibName: loadName, dylibSourcePath: source, weakReference: weakRef)
         AuditLog.shared.log("injection.enable", detail: "\(bid) → \(dylibPath ?? "内置agent")")
         // v2.9.68：截断冗长日志，只保留 exit code + 关键错误行，避免上下文爆炸
         var slim = result
@@ -51,12 +52,24 @@ final class InjectionEnableTool: MCPTool {
 }
 
 final class InjectionDisableTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.disable", summary: "移除指定 App 的 dylib 注入",
+    let definition = ToolDefinition(name: "injection.disable", summary: "移除指定 App 的 dylib 注入（desist=false 时仅关闭、保留持久化副本，可再启用）",
+        parameters: ["bundle_id": "目标 App Bundle ID", "desist": "可选 Bool：是否彻底移除（默认 true；false=关闭插件保留持久化，之后可 injection.restore 重新启用）"])
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
+        let desist = (params["desist"] as? Bool) ?? true
+        let result = try InjectionManager.shared.disable(bundleId: bid, desist: desist)
+        AuditLog.shared.log("injection.disable", detail: bid)
+        return result
+    }
+}
+
+final class InjectionRestoreTool: MCPTool {
+    let definition = ToolDefinition(name: "injection.restore", summary: "从持久化区重新启用已关闭的插件（对齐 TrollFools 启用开关：先 injection.disable desist=false 关闭，再本工具启用）",
         parameters: ["bundle_id": "目标 App Bundle ID"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
-        let result = try InjectionManager.shared.disable(bundleId: bid)
-        AuditLog.shared.log("injection.disable", detail: bid)
+        let result = try InjectionManager.shared.restore(bundleId: bid)
+        AuditLog.shared.log("injection.restore", detail: bid)
         return result
     }
 }

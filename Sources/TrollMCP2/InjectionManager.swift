@@ -464,6 +464,45 @@ final class InjectionManager {
         }
     }
 
+    /// 从持久化区启用插件（对齐 TrollFools：启用 = 从 PersistentPlugins 副本重新注入）
+    func restore(bundleId: String) throws -> [String: Any] {
+        let base = Self.persistentPluginsRoot + "/" + bundleId
+        guard let items = try? FileManager.default.contentsOfDirectory(atPath: base) else {
+            throw MCPError.failed("该 App 没有持久化插件可启用（先注入才会持久化）")
+        }
+        var restored: [String: String] = [:]
+        for item in items.sorted() where item.hasSuffix(".dylib") || item.hasSuffix(".framework") || item.hasSuffix(".bundle") {
+            let src = (base as NSString).appendingPathComponent(item)
+            let r = try enable(bundleId: bundleId, dylibName: "@rpath/" + item, dylibSourcePath: src)
+            restored[item] = (r["injected"] as? Bool == true) ? "enabled" : "skipped"
+        }
+        return ["action": "restore", "bundleId": bundleId, "restored": restored]
+    }
+
+    // MARK: - iTunesMetadata 分离（对齐 TrollFools setMetadataDetached：注入期间移开 metadata，
+    // 避免 App Store 更新/校验把注入痕迹当异常）
+
+    private func metadataURLs(bundleId: String) -> (meta: String, bak: String) {
+        let appPath = AppCatalog.find(bundleId)?.path ?? ""
+        let container = (appPath as NSString).deletingLastPathComponent()
+        return ((container as NSString).appendingPathComponent("iTunesMetadata.plist"),
+                (container as NSString).appendingPathComponent("iTunesMetadata.plist.bak"))
+    }
+
+    func detachMetadata(bundleId: String) {
+        let m = metadataURLs(bundleId: bundleId)
+        if FileManager.default.fileExists(atPath: m.meta), !FileManager.default.fileExists(atPath: m.bak) {
+            _ = runAsRoot("mv", args: ["-f", m.meta, m.bak])
+        }
+    }
+
+    func attachMetadata(bundleId: String) {
+        let m = metadataURLs(bundleId: bundleId)
+        if FileManager.default.fileExists(atPath: m.bak), !FileManager.default.fileExists(atPath: m.meta) {
+            _ = runAsRoot("mv", args: ["-f", m.bak, m.meta])
+        }
+    }
+
     /// 启动自检：open -b 兜底直接执行主二进制；两次探测进程均不在 → 判定闪退
     private func launchAndProbe(bundleId: String, execName: String, executable: String) -> Bool {
         _ = spawnRoot("/usr/bin/open", args: ["-b", bundleId])
@@ -672,7 +711,7 @@ final class InjectionManager {
     /// 目标默认选 Frameworks/ 内未加密可注入 Mach-O（不直接改主二进制），
     /// 备份 .troll-fools.bak（TrollFools 可识别），每步改前 ldid 伪签，任一步失败自动回滚。
     func enable(bundleId: String, dylibName: String = "@executable_path/TrollMCPAgent.dylib",
-                dylibSourcePath: String? = nil) throws -> [String: Any] {
+                dylibSourcePath: String? = nil, weakReference: Bool = false) throws -> [String: Any] {
         _ = dylibName
         guard let app = AppCatalog.find(bundleId) else {
             throw MCPError.failed("app not found: \(bundleId)")
@@ -814,7 +853,9 @@ final class InjectionManager {
             if preLoads.contains(injectName) {
                 insertExit = 0; insertOutput = "already present, idempotent skip"
             } else {
-                let (c1, o1) = runAsRoot("insert_dylib", args: [injectName, targetMachO, "--inplace", "--overwrite", "--no-strip-codesig", "--all-yes", "--weak"])
+                var insArgs = [injectName, targetMachO, "--inplace", "--overwrite", "--no-strip-codesig", "--all-yes"]
+                if weakReference { insArgs.append("--weak") }
+                let (c1, o1) = runAsRoot("insert_dylib", args: insArgs)
                 insertExit = c1; insertOutput = o1
                 guard c1 == 0 else {
                     throw MCPError.failed("insert_dylib 失败(\(c1)): \(o1)")
@@ -881,6 +922,7 @@ final class InjectionManager {
         if injected {
             persistAsset(name: sourceFileName, src: agentSrc, bid: bundleId)
             persisted = true
+            detachMetadata(bundleId: bundleId)
         }
         let trollfoolsCompatible = hasFrameworks
         return [
@@ -904,6 +946,7 @@ final class InjectionManager {
             "injected": injected,
             "trollfools_compatible": trollfoolsCompatible,
             "persisted": persisted,
+            "weak_reference": weakReference,
             "selfcheck": ["app_alive": selfcheckAlive, "note": selfcheckNote],
             "risk_warning": sensitive ? "⚠️ 目标 App 为敏感应用（微信/支付宝/系统/银行类）。已自动选择 Frameworks 内未加密 Mach-O 注入，未修改主二进制；如有异常立即调用 injection.restore 或 rescue.recover_all 恢复。" : nil,
             "hint": "注入目标为 Frameworks 内未加密 Mach-O（对齐 TrollFools 策略），不直接修改主二进制。备份位于 \(backup)，可用 injection.restore 随时恢复。",
@@ -914,7 +957,7 @@ final class InjectionManager {
     /// 还原注入（v2.9.89：对齐 TrollFools eject 流程）
     /// 1) 收集有备份的 Mach-O（modified）；2) 移除每个注入资产的加载命令并删文件；
     /// 3) 重签；4) 全部清空后从备份还原并删备份。兼容 TrollFools 注入的 App。
-    func disable(bundleId: String) throws -> [String: Any] {
+    func disable(bundleId: String, desist: Bool = true) throws -> [String: Any] {
         guard let app = AppCatalog.find(bundleId) else {
             throw MCPError.failed("app not found: \(bundleId)")
         }
@@ -984,7 +1027,8 @@ final class InjectionManager {
             _ = coreTrustBypass(target, teamID: realTeamID(for: bundleId, appPath: executablePath(app)))
         }
 
-        // 2.5 desist：清理持久化资产（对齐 TrollFools desist）
+        // 2.5 desist：desist=false 时保留持久化资产（对齐 TrollFools 关闭插件语义，可再启用）
+        if desist {
         for asset in assets {
             let pName = (asset as NSString).lastPathComponent
             let pDst = Self.persistentPluginsRoot + "/" + bundleId + "/" + pName
@@ -992,6 +1036,9 @@ final class InjectionManager {
                 _ = runAsRoot("rm", args: ["-rf", pDst])
             }
         }
+        }
+
+        attachMetadata(bundleId: bundleId)
 
         let injected = MachOAnalyzer.analyze(mainBinary)?.dylibs.contains(where: { $0.contains("TrollMCPAgent") }) ?? false
         AuditLog.shared.log("injection.disable", detail: "\(bundleId) removed=\(removedAssets.count) restored=\(restored.count)")
@@ -1004,6 +1051,7 @@ final class InjectionManager {
             "assets_removed": removedAssets,
             "load_commands_removed": removedLoads,
             "restored_from_backup": restored,
+            "desisted": desist,
             "injected": injected,
             "status": injected ? "still_injected" : "reverted",
             "hint": restored.isEmpty ? "未找到可还原的备份；若 App 仍无法启动，用 rescue.cleanup 清理残留" : "已从备份还原原始二进制"
