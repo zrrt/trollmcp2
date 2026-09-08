@@ -620,7 +620,7 @@ final class FSGrepTool: MCPTool {
             return ["error": "目录不存在: \(dir)"]
         }
         let exts = (params["ext"] as? String)?
-            .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() } ?? []
+            .split(separator: ",").map { $0.trimmingCharacters(in: CharacterSet.whitespaces).lowercased() } ?? []
         let limit = min(max((params["limit"] as? Int) ?? 60, 1), 300)
         let needle = pattern.lowercased()
 
@@ -990,7 +990,7 @@ final class FSFindTool: MCPTool {
         guard FSPolicy.isAllowed(dir) else { throw MCPError.failed("路径不在可访问范围: \(dir)") }
         let needle = name.lowercased()
         let exts = (params["ext"] as? String)?
-            .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() } ?? []
+            .split(separator: ",").map { $0.trimmingCharacters(in: CharacterSet.whitespaces).lowercased() } ?? []
         let limit = min(max((params["limit"] as? Int) ?? 60, 1), 300)
         var hits: [[String: Any]] = []
         let fm = FileManager.default
@@ -1332,8 +1332,7 @@ final class FSCrashTool: MCPTool {
 
     private static func parse(_ text: String, path: String) -> [String: Any] {
         var out: [String: Any] = ["file": path]
-        let lines = text.components(separatedBy: "
-")
+        let lines = text.components(separatedBy: "\n")
         // .ips：第一行元数据 JSON，第二行 body JSON
         if lines.count >= 2,
            let meta = Self.json(lines[0]),
@@ -1375,7 +1374,7 @@ final class FSCrashTool: MCPTool {
         ]
         for (needle, key) in pairs {
             if let l = lines.first(where: { $0.hasPrefix(needle) }) {
-                out[key] = l.replacingOccurrences(of: needle, with: "").trimmingCharacters(in: .whitespaces)
+                out[key] = l.replacingOccurrences(of: needle, with: "").trimmingCharacters(in: CharacterSet.whitespaces)
             }
         }
         var stack: [String] = []
@@ -1387,7 +1386,7 @@ final class FSCrashTool: MCPTool {
                 if l.hasPrefix("Thread ") && !l.contains("Crashed") && !stack.isEmpty { break }
                 if l.contains("frame #") {
                     let parts = l.components(separatedBy: "  ").filter { !$0.isEmpty }
-                    if parts.count >= 3 { stack.append(parts[2].trimmingCharacters(in: .whitespaces)) }
+                    if parts.count >= 3 { stack.append(parts[2].trimmingCharacters(in: CharacterSet.whitespaces)) }
                 }
                 if stack.count >= 6 { break }
             }
