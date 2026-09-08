@@ -71,12 +71,17 @@ final class ControlAgentTools {
                 dylibName: "@executable_path/ControlAgent.dylib",
                 dylibSourcePath: dylibPath
             )
+            // v2.9.109：注入成功自动开启真后台保活（目标 App + TrollAgent 自身），
+            // 防止目标 App 切后台被系统挂起导致 4789 断连
+            postKeepAliveNotification(true)
+            BackgroundKeepAlive.shared.start()
             return [
                 "injected": true,
                 "bundle_id": bundleId,
                 "dylib": dylibPath,
                 "detail": result,
-                "next_step": "启动目标 App 后调用 control.status 确认连接，然后用 control.ui_tree / control.tap 等控制"
+                "keepalive": true,
+                "next_step": "启动目标 App 后调用 control.status 确认连接，然后用 control.ui_tree / control.tap 等控制；真后台保活已开启，目标 App 切后台不挂起"
             ]
         } catch {
             return ["error": "注入失败: \(error.localizedDescription)", "bundle_id": bundleId]

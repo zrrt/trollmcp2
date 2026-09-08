@@ -1,6 +1,7 @@
 ﻿import Foundation
 import UIKit
 import ObjectiveC
+import AVFoundation
 
 // v2.9.87：UIApplication.openURL 已弃用（iOS10+），统一走 open(_:options:)。
 // 工具在后台线程执行，这里用信号量同步等待结果，保持 invoke 的同步语义。
@@ -347,4 +348,57 @@ private func LSAppWorkspaceOpen(bundleId: String) -> Bool {
     typealias OpenFn = @convention(c) (AnyObject, Selector, NSString) -> Bool
     let openFn = unsafeBitCast(imp, to: OpenFn.self)
     return openFn(ws, sel, bundleId as NSString)
+}
+
+// MARK: - v2.9.109 TrollAgent 自身后台保活（音频静音引擎）
+// 远程控制/长任务期间自动启动：AVAudioSession playback + 静音源持续输出，
+// TrollAgent 切后台不被系统挂起，AI 可继续调用目标 App 的 4789。
+final class BackgroundKeepAlive {
+    static let shared = BackgroundKeepAlive()
+    private var engine: AVAudioEngine?
+    private(set) var running = false
+
+    func start() {
+        guard !running else { return }
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try session.setActive(true)
+            let engine = AVAudioEngine()
+            let src = AVAudioSourceNode { _, _, frameCount, audioBufferList -> OSStatus in
+                let abl = UnsafeMutableAudioBufferListPointer(audioBufferList)
+                for buffer in abl {
+                    if let data = buffer.mData {
+                        memset(data, 0, Int(buffer.mDataByteSize))
+                    }
+                }
+                return noErr
+            }
+            let fmt = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)
+            engine.attach(src)
+            engine.connect(src, to: engine.mainMixerNode, format: fmt)
+            engine.prepare()
+            try engine.start()
+            self.engine = engine
+            running = true
+        } catch {
+            NSLog("[TrollAgent] BackgroundKeepAlive start failed: %@", error.localizedDescription)
+        }
+    }
+
+    func stop() {
+        guard running else { return }
+        engine?.stop()
+        engine = nil
+        running = false
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+}
+
+// 跨进程切换目标 App 的真后台保活（ControlAgent 监听同名字 Darwin 通知）
+func postKeepAliveNotification(_ on: Bool) {
+    UserDefaults.standard.set(on, forKey: "trollagent.keepalive")
+    CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(),
+                                         CFNotificationName("com.trollagent.keepalive" as CFString),
+                                         nil, nil, true)
 }

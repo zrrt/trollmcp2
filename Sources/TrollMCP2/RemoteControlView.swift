@@ -8,6 +8,7 @@ struct RemoteControlView: View {
     @State private var connectionStatus: String = L10n.t("status_disconnected")
     @State private var isChecking = false
     @State private var appInfo: String = ""
+    @State private var keepAliveOn = UserDefaults.standard.bool(forKey: "trollagent.keepalive")""
 
     var body: some View {
         PageContainer {
@@ -73,6 +74,35 @@ struct RemoteControlView: View {
                     }
                     Divider()
                     Text("127.0.0.1:4789 · localhost only")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            // v2.9.109：真后台保活卡（借鉴 ImmortalizerJailed 机制）
+            CardBox {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 10) {
+                        Image(systemName: keepAliveOn ? "bolt.heart.fill" : "bolt.heart")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(keepAliveOn ? .tmCyan : .secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("真后台保活")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            Text(keepAliveOn ? "目标 App 切后台不挂起，4789 持续在线" : "远程控制时建议开启，防止目标 App 被系统挂起")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                        Toggle("", isOn: $keepAliveOn)
+                            .labelsHidden()
+                            .onChange(of: keepAliveOn) { on in
+                                toggleKeepAlive(on)
+                            }
+                    }
+                    Text("TrollAgent 自身也会同步保活，切后台继续执行远程控制任务")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -189,6 +219,16 @@ struct RemoteControlView: View {
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer()
+        }
+    }
+
+    /// v2.9.109：切换真后台保活（目标 App + TrollAgent 自身）
+    private func toggleKeepAlive(_ on: Bool) {
+        postKeepAliveNotification(on)
+        if on {
+            BackgroundKeepAlive.shared.start()
+        } else {
+            BackgroundKeepAlive.shared.stop()
         }
     }
 

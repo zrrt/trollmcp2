@@ -555,10 +555,73 @@ static void startHTTPServer(void) {
     NSLog(@"[ControlAgent] HTTP server started on 127.0.0.1:%d", kControlAgentPort);
 }
 
+#pragma mark - 真后台保活（v2.9.109，借鉴 ImmortalizerJailed 机制）
+// 机制：hook FBSWorkspaceScenesClient 的 scene 设置回调，当系统要把目标 App 的
+// scene 切后台（foreground=No 且非用户手势）时拦截转发，骗过 FrontBoard，
+// 让目标 App 保持"前台"状态、进程永不挂起 → 4789 远程控制持续在线。
+// 开关：TrollAgent 跨进程发 Darwin 通知 com.trollagent.keepalive 切换。
+
+static BOOL g_keepAlive = NO;
+
+static void (*orig_sceneUpdate)(id, SEL, id, id, id, id);
+
+static void keepAliveChanged(void) {
+    g_keepAlive = [[NSUserDefaults standardUserDefaults] boolForKey:@"trollagent.keepalive"];
+}
+
+static void onDarwinKeepAlive(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
+    keepAliveChanged();
+    NSLog(@"[ControlAgent] keepalive=%@", g_keepAlive ? @"ON" : @"OFF");
+}
+
+static void hookSceneUpdate(id self, SEL _cmd, id sceneID, id settingsDiff, id transitionContext, id completion) {
+    if (!g_keepAlive) {
+        orig_sceneUpdate(self, _cmd, sceneID, settingsDiff, transitionContext, completion);
+        return;
+    }
+    NSString *diff = [settingsDiff description];
+    BOOL goingBackground = ([diff containsString:@"foreground = No"] ||
+                            [diff containsString:@"foreground = NO"] ||
+                            [diff containsString:@"foreground = NotSet"] ||
+                            [diff containsString:@"foreground = BSSettingFlagNo"]);
+    if (goingBackground) {
+        BOOL userGesture = ([diff containsString:@"systemGesture"] ||
+                            [diff containsString:@"systemAnimation"]);
+        if (!userGesture) {
+            // 拦截：不让 FrontBoard 把 scene 标记为后台 → 进程不被挂起
+            return;
+        }
+    }
+    orig_sceneUpdate(self, _cmd, sceneID, settingsDiff, transitionContext, completion);
+}
+
+static void setupKeepAlive(void) {
+    Class cls = objc_getClass("FBSWorkspaceScenesClient");
+    if (!cls) {
+        NSLog(@"[ControlAgent] FBSWorkspaceScenesClient not found, keepalive disabled");
+        return;
+    }
+    SEL sel = @selector(sceneID:updateWithSettingsDiff:transitionContext:completion:);
+    Method m = class_getInstanceMethod(cls, sel);
+    if (!m) {
+        NSLog(@"[ControlAgent] scene update selector not found, keepalive disabled");
+        return;
+    }
+    orig_sceneUpdate = (void (*)(id, SEL, id, id, id, id))method_getImplementation(m);
+    method_setImplementation(m, (IMP)hookSceneUpdate);
+    keepAliveChanged();
+    CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), NULL,
+                                    onDarwinKeepAlive,
+                                    CFSTR("com.trollagent.keepalive"),
+                                    NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
+    NSLog(@"[ControlAgent] keepalive hook installed (initial=%@)", g_keepAlive ? @"ON" : @"OFF");
+}
+
 #pragma mark - 构造函数
 
 __attribute__((constructor))
 static void controlAgentInitialize(void) {
+    setupKeepAlive();
     // 延迟到主线程 runloop 启动后再启动服务器
     dispatch_async(dispatch_get_main_queue(), ^{
         // 再延迟一点，等 App 完全启动
