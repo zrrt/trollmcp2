@@ -296,10 +296,10 @@ struct AddGitHubAccountView: View {
                     SafariWebView(url: url)
                 }
             }
-            .onChange(of: store.isDevicePolling) { polling in
-                if !polling, deviceStep == 1, store.activeAccount != nil {
+            .onChange(of: store.activeAccount?.login) { _ in
+                // v2.9.110：兜底——轮询成功落库（activeAccount 变化）时若还停在等待页，补一次成功反馈
+                if deviceStep == 1, store.activeAccount != nil {
                     deviceStep = 2
-                    // 授权成功：自动关掉内置 Safari，自动返回（无需手动点"完成"）
                     showSafari = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                         presentationMode.wrappedValue.dismiss()
@@ -386,7 +386,14 @@ struct AddGitHubAccountView: View {
                 // 自动开始轮询 + 打开授权页
                 self.openVerification(code.verification_uri)
                 store.pollDeviceToken(deviceCode: code) { ok, msg in
-                    if !ok {
+                    if ok {
+                        // v2.9.110：授权成功必须反馈——显示成功、自动关浏览器、返回账号页
+                        deviceStep = 2
+                        showSafari = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                            presentationMode.wrappedValue.dismiss()
+                        }
+                    } else {
                         errorMsg = msg ?? "授权失败"
                         deviceStep = 0
                         showSafari = false   // 失败也自动关掉浏览器

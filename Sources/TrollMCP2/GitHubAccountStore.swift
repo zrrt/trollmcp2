@@ -76,7 +76,7 @@ final class GitHubAccountStore: ObservableObject {
         let def = UserDefaults.standard
         repoOwner = def.string(forKey: ownerKey) ?? "zrrt"
         repoName = def.string(forKey: repoKey) ?? "trollmcp2"
-        workflowId = def.string(forKey: workflowKey) ?? "build-tweak"
+        workflowId = def.string(forKey: workflowKey) ?? "build-trollmcp2.yml"
         branch = def.string(forKey: branchKey) ?? "main"
         clientID = def.string(forKey: clientIDKey) ?? "Ov23li890n3hM15edlcw"
         load()
@@ -98,6 +98,16 @@ final class GitHubAccountStore: ObservableObject {
     // MARK: - 持久化
 
     private func load() {
+        // v2.9.110：旧配置自动迁移——早期默认指向 origina47487lhe-droid（Actions 配额已耗尽）与
+        // build-tweak workflow（已更名 build-trollmcp2.yml）。覆盖安装会保留旧 UserDefaults，
+        // 这里检测到旧值自动纠正，避免线上编译 404 / 触发到错误仓库。
+        let def = UserDefaults.standard
+        if def.string(forKey: ownerKey) == "origina47487lhe-droid" {
+            repoOwner = "zrrt"
+        }
+        if def.string(forKey: workflowKey) == "build-tweak" {
+            workflowId = "build-trollmcp2.yml"
+        }
         if let data = UserDefaults.standard.data(forKey: accountsKey),
            let saved = try? JSONDecoder().decode([GitHubAccount].self, from: data) {
             accounts = saved
@@ -106,6 +116,7 @@ final class GitHubAccountStore: ObservableObject {
         if let l = activeLogin, !accounts.contains(where: { $0.login == l }) {
             activeLogin = accounts.first?.login
         }
+        persist()   // v2.9.110：迁移后的值落盘，一次性纠正旧配置
     }
 
     private func persist() {
