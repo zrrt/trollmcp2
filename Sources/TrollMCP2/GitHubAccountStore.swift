@@ -78,7 +78,9 @@ final class GitHubAccountStore: ObservableObject {
         repoName = def.string(forKey: repoKey) ?? "trollmcp2"
         workflowId = def.string(forKey: workflowKey) ?? "build-trollmcp2.yml"
         branch = def.string(forKey: branchKey) ?? "main"
-        clientID = def.string(forKey: clientIDKey) ?? "Ov23li890n3hM15edlcw"
+        // v2.9.117：空字符串也回退内置默认（旧版删空保存会覆盖默认值，导致"未设置 Client ID"）
+        let savedCID = def.string(forKey: clientIDKey) ?? ""
+        clientID = savedCID.isEmpty ? "Ov23li890n3hM15edlcw" : savedCID
         load()
     }
 
@@ -129,7 +131,10 @@ final class GitHubAccountStore: ObservableObject {
         def.set(repoName, forKey: repoKey)
         def.set(workflowId, forKey: workflowKey)
         def.set(branch, forKey: branchKey)
-        def.set(clientID, forKey: clientIDKey)
+        // v2.9.117：留空 = 使用内置默认，不写入空值
+        if !clientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            def.set(clientID, forKey: clientIDKey)
+        }
     }
 
     // MARK: - Device Flow（内置浏览器登录，gh CLI 同款）
@@ -286,6 +291,12 @@ final class GitHubAccountStore: ObservableObject {
                                          name: json["name"] as? String,
                                          avatarURL: json["avatar_url"] as? String,
                                          token: token)
+                // v2.9.117：全新账号授权成功后，若 Owner 仍是内置默认值 → 自动填入当前登录账号
+                let isDefaultOwner = (self.repoOwner == "zrrt" || self.repoOwner == "origina47487lhe-droid")
+                if isDefaultOwner && self.repoOwner != login {
+                    self.repoOwner = login
+                    self.persist()
+                }
                 if let idx = self.accounts.firstIndex(where: { $0.login == login }) {
                     self.accounts[idx] = acct
                 } else {
@@ -335,6 +346,12 @@ final class GitHubAccountStore: ObservableObject {
                 let name = json["name"] as? String
                 let avatar = json["avatar_url"] as? String
                 let acct = GitHubAccount(login: login, name: name, avatarURL: avatar, token: token)
+                // v2.9.117：全新账号授权成功后，若 Owner 仍是内置默认值 → 自动填入当前登录账号
+                let isDefaultOwner = (self.repoOwner == "zrrt" || self.repoOwner == "origina47487lhe-droid")
+                if isDefaultOwner && self.repoOwner != login {
+                    self.repoOwner = login
+                    self.persist()
+                }
                 if let idx = self.accounts.firstIndex(where: { $0.login == login }) {
                     self.accounts[idx] = acct
                 } else {

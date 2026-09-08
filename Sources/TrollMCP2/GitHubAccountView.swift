@@ -452,7 +452,7 @@ struct GitHubRepoSettingsView: View {
     var body: some View {
         Form {
             Section(header: SettingSectionHeader(title: "OAuth App（网页登录用）"),
-                    footer: Text("已内置默认 Client ID，新手无需改动。高级用户可覆盖为自己注册的 OAuth App：github.com → Settings → Developer settings → OAuth Apps → New OAuth App（勾选 Enable Device Flow），复制 Client ID 填入。")) {
+                    footer: Text("已内置默认 Client ID，新手无需改动（留空 = 使用内置默认，删空保存也会自动恢复）。高级用户可覆盖为自己注册的 OAuth App：github.com → Settings → Developer settings → OAuth Apps → New OAuth App（勾选 Enable Device Flow），复制 Client ID 填入。")) {
                 TextField("OAuth App Client ID", text: $store.clientID)
                     .autocapitalization(.none)
                     .disableAutocorrection(true)
@@ -460,7 +460,7 @@ struct GitHubRepoSettingsView: View {
             }
 
             Section(header: SettingSectionHeader(title: "目标仓库"),
-                    footer: Text("线上编译在指定仓库的 Actions 中运行。仓库须包含 build-tweak workflow，且当前账号对该仓库有写权限。")) {
+                    footer: Text("线上编译在指定仓库的 Actions 中运行。仓库须包含 build-tweak workflow，且当前账号对该仓库有写权限。授权新账号成功后，Owner 会自动填入该账号（若此前仍是默认值）。")) {
                 TextField("仓库 Owner（用户名）", text: $store.repoOwner)
                     .autocapitalization(.none)
                     .disableAutocorrection(true)
@@ -484,7 +484,8 @@ struct GitHubRepoSettingsView: View {
                     }
                 }
                 if saved {
-                    Text("已保存 ✓").font(.footnote).foregroundColor(.green)
+                    Text(store.clientID.isEmpty ? "已保存 ✓（Client ID 留空，使用内置默认）" : "已保存 ✓")
+                        .font(.footnote).foregroundColor(.green)
                 }
             }
         }
