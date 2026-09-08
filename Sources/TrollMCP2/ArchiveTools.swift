@@ -9,7 +9,11 @@ import zlib
 
 enum ArchiveError: Error, CustomStringConvertible {
     case format(String)
-    var description: String { "ArchiveError: " + format }
+    var description: String {
+        switch self {
+        case .format(let msg): return "ArchiveError: " + msg
+        }
+    }
 }
 
 /// ZIP 读取器（local file header 顺序遍历，支持 store/deflate）
@@ -178,7 +182,6 @@ enum DebReader {
     static func extractDylibAndBundles(at url: URL, to targetDir: URL) throws {
         let data = try Data(contentsOf: url)
         guard let ar = ArReader.member(data, name: "data.tar.gz") else {
-            let supported = ["data.tar.gz"]
             for alt in ["data.tar.bz2", "data.tar.xz", "data.tar.lzma", "data.tar.zst", "data.tar.lz4"] {
                 if ArReader.member(data, name: alt) != nil {
                     throw ArchiveError.format("deb 含 \(alt)，当前仅支持 gzip 压缩（data.tar.gz）。请用 gzip 重新打包 deb。")
@@ -186,7 +189,6 @@ enum DebReader {
             }
             throw ArchiveError.format("deb 中找不到 data.tar.gz")
         }
-        _ = supported
         let tarData = try Gzip.decompress(ar)
         let entries = TarReader.entries(tarData)
         var processedBundles = Set<String>()

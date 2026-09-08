@@ -671,14 +671,14 @@ final class InjectionManager {
             candidates = candidates.sorted { a, b in
                 let s1 = (try? (FileManager.default.attributesOfItem(atPath: a)[.size] as? Int)) ?? 0
                 let s2 = (try? (FileManager.default.attributesOfItem(atPath: b)[.size] as? Int)) ?? 0
-                return s1 == s2 ? a.lastPathComponent < b.lastPathComponent : s1 < s2
+                return s1 == s2 ? (a as NSString).lastPathComponent < (b as NSString).lastPathComponent : s1 < s2
             }
         case "postorder":
             candidates = candidates.reversed()
         case "preorder":
             break
         default:
-            candidates = candidates.sorted { $0.lastPathComponent < $1.lastPathComponent }
+            candidates = candidates.sorted { ($0 as NSString).lastPathComponent < ($1 as NSString).lastPathComponent }
         }
         return candidates
     }
@@ -912,6 +912,8 @@ final class InjectionManager {
         // A3 资产预处理（对齐 TrollFools injectDylibsAndFrameworks 前置）：
         // 用户插件 → standardizeLoadCommandDylibToSubstrate（substrate 引用重定向内置）+ ct_bypass + chown；
         // 内置 agent → ct_bypass + chown（agent 无 substrate 依赖）
+        let frameworksDir = (app.path as NSString).appendingPathComponent("Frameworks")
+        let useFramework = FileManager.default.fileExists(atPath: frameworksDir)
         let isUserPlugin = !(dylibSourcePath?.isEmpty ?? true)
         var injectNameMap: [String: String] = [:]
         for asset in preparedAssets {
