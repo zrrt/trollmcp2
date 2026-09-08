@@ -218,3 +218,17 @@ tweaks/<Name>/
 - **注入后启动自检**：注入成功自动拉起目标 App，两次探测进程不存活 → 判定闪退 → **自动恢复 `.troll-fools.bak` 备份并删除 dylib**，返回错误"已自动恢复注入前状态"，避免"注入必闪退 + TrollFools 关不掉"死局。
 - 返回字段新增：`trollfools_compatible`（TrollFools 是否可管理该注入）、`selfcheck`（app_alive / note）。
 - 恢复路径：`injection.restore` / `injection.disable` 始终可用（优先 `.troll-fools.bak`，兼容旧 `.bak_macho`）；紧急用 `rescue.recover_all`。
+
+
+## 16. TrollFools 注入体系全量对齐（v2.9.119）
+
+已逐文件审计 TrollFools 源码（InjectorV3+Inject/Command/Backup/MachO/Bundle/Metadata/Persistent/Preprocess/Eject），对齐以下行为：
+
+- **幂等**：注入目标已含同名 load command 时跳过 insert_dylib（对齐 cmdInsertLoadCommandDylib 的 dylibs.contains 检查）。
+- **framework 注入**：源为 .framework 包时 load command 用 `@rpath/XXX.framework/XXX`（对齐 loadCommandNameOfAsset）。
+- **standardize**：注入后把目标 Mach-O 里指向同资产的其他路径 load command 统一为 @rpath/name（对齐 standardizeLoadCommandDylib）。
+- **substrate 依赖检测**：注入源依赖 CydiaSubstrate/ElleKit/libsubstrate 等运行时 → 拒绝注入并提示用 TrollFools（未内置 substrate，直接注入必闪退）。
+- **.troll-fools 标记**：注入 .framework/.bundle 时写入 .troll-fools 标记文件（对齐 markBundlesAsInjected）。
+- **持久化**：注入资产备份到 /var/mobile/Library/TrollFools/PersistentPlugins/<bid>/（owner 501），App 重装/更新后可恢复；disable 时同步清理（对齐 persist/persistIfNecessary/desist）。
+- **恢复**：restoreAlternate 改用 mv 覆盖（对齐 cmdMove overwrite）。
+- **未复刻（已知差异）**：zip/deb 包自动解压注入（preprocessAssets 需引入 ZIP/deb 解析库，后续版本做）；内置 CydiaSubstrate.framework 并重定向依赖（依赖 substrate 的插件请用 TrollFools 注入）。
