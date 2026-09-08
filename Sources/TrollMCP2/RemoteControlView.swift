@@ -8,7 +8,7 @@ struct RemoteControlView: View {
     @State private var connectionStatus: String = L10n.t("status_disconnected")
     @State private var isChecking = false
     @State private var appInfo: String = ""
-    @State private var keepAliveOn = UserDefaults.standard.bool(forKey: "trollagent.keepalive")""
+    @State private var keepAliveOn = UserDefaults.standard.bool(forKey: "trollagent.keepalive")
 
     var body: some View {
         PageContainer {
