@@ -449,6 +449,25 @@ final class InjectionManager {
         FileManager.default.fileExists(atPath: target + ".bak_macho")   // 旧格式兼容
     }
 
+    /// 启动自检：open -b 兜底直接执行主二进制；两次探测进程均不在 → 判定闪退
+    private func launchAndProbe(bundleId: String, execName: String, executable: String) -> Bool {
+        _ = spawnRoot("/usr/bin/open", args: ["-b", bundleId])
+        Thread.sleep(forTimeInterval: 1.2)
+        if appProcessAlive(execName) { return true }
+        // open -b 对部分 App 不生效（TrollStore/Flutter 壳），直接执行主二进制兜底
+        _ = spawnRoot(executable, args: [executable])
+        Thread.sleep(forTimeInterval: 2.0)
+        return appProcessAlive(execName)
+    }
+
+    private func appProcessAlive(_ execName: String) -> Bool {
+        let (_, out) = spawnRoot("/bin/ps", args: ["-ax"])
+        for line in out.components(separatedBy: .newlines) {
+            if line.contains(execName) { return true }
+        }
+        return false
+    }
+
     @discardableResult
     private func makeAlternate(_ target: String) throws -> String {
         let alt = alternateURL(for: target)
@@ -673,13 +692,38 @@ final class InjectionManager {
             sourceFileName = "TrollMCPAgent.dylib"
         }
 
-        // 2. 选注入目标 Mach-O：Frameworks 内未加密优先，主二进制垫底（对齐 TrollFools）
-        let candidates = collectInjectableMachOs(app)
-        guard !candidates.isEmpty else {
-            throw MCPError.failed("没有可注入的 Mach-O：目标 App 的二进制全部加密或不可读（App Store 加密 App 无法注入）")
+        // 2. 选注入目标 Mach-O：对齐 TrollFools——有 Frameworks 时只注入 Frameworks/ 内的 Mach-O
+        //（TrollFools 的 modified 判定 = Frameworks/ 内带 .troll-fools.bak 的 Mach-O；
+        //  注入主二进制 TrollFools 无法识别也无法关闭，用户会被卡死，故有 Frameworks 时强制拒绝主二进制）
+        let frameworksDirPath = (app.path as NSString).appendingPathComponent("Frameworks")
+        let hasFrameworks = FileManager.default.fileExists(atPath: frameworksDirPath)
+        let allCandidates = collectInjectableMachOs(app)
+        let fwCandidates = hasFrameworks ? allCandidates.filter { $0.hasPrefix(frameworksDirPath + "/") } : []
+        let targetMachO: String
+        if hasFrameworks {
+            guard !fwCandidates.isEmpty else {
+                throw MCPError.failed("Frameworks 内没有可注入的 Mach-O（全部加密或不可读）。为避免 TrollFools 无法识别和关闭的注入，已拒绝注入主二进制；请先处理加密/重签后重试。")
+            }
+            targetMachO = fwCandidates[0]
+        } else {
+            guard !allCandidates.isEmpty else {
+                throw MCPError.failed("没有可注入的 Mach-O：目标 App 的二进制全部加密或不可读（App Store 加密 App 无法注入）")
+            }
+            targetMachO = allCandidates[0]
         }
-        let targetMachO = candidates[0]
         let targetIsMain = targetMachO == executablePath(app)
+
+        // 2.5 dylib 架构预检（防注入后闪退）：源 dylib 与目标 Mach-O 均须可解析
+        let dylibInfo2 = MachOAnalyzer.analyze(agentSrc)
+        let targetInfo2 = MachOAnalyzer.analyze(targetMachO)
+        if let d2 = dylibInfo2, let t2 = targetInfo2 {
+            let dArchOk = d2.valid && (d2.arch == "arm64" || d2.arch == "arm32" || d2.arch.hasPrefix("fat"))
+            if !dArchOk || !t2.valid {
+                throw MCPError.failed("架构预检失败，已拒绝注入（防闪退）：dylib=\(d2.arch) valid=\(d2.valid) target=\(t2.arch) valid=\(t2.valid)")
+            }
+        } else {
+            throw MCPError.failed("无法解析 dylib 或目标 Mach-O 架构，已拒绝注入（防闪退）")
+        }
 
         // 3. 杀目标进程（对齐 TrollFools terminateApp）
         let executableName = (executablePath(app) as NSString).lastPathComponent
@@ -765,6 +809,26 @@ final class InjectionManager {
 
         let injected = MachOAnalyzer.analyze(targetMachO)?.dylibs.contains(injectName) ?? false
         AuditLog.shared.log("injection.enable", detail: "\(bundleId) → \(targetMachO) injected=\(injected)")
+
+        // 8. 启动自检（防"注入必闪退 + TrollFools 关不掉"死局）：注入成功后拉起目标 App，
+        //    两次探测进程均不在 → 判定闪退 → 自动恢复备份并删 dylib
+        var selfcheckAlive = false
+        var selfcheckNote = "skipped"
+        if injected {
+            selfcheckAlive = launchAndProbe(bundleId: bundleId, execName: executableName, executable: executablePath(app))
+            if !selfcheckAlive {
+                do { _ = try restoreAlternate(targetMachO) } catch {}
+                if FileManager.default.fileExists(atPath: agentDst) {
+                    _ = runAsRoot("rm", args: ["-rf", agentDst])
+                }
+                selfcheckNote = "app failed to launch after injection; rolled back automatically"
+                AuditLog.shared.log("injection.enable.selfcheck_rollback", detail: "\(bundleId) → \(targetMachO)")
+                throw MCPError.failed("注入后目标 App 无法启动（疑似闪退），已自动恢复注入前状态并删除 dylib。若仍需注入，请检查 dylib 与目标 App 的兼容性（架构/依赖/注入代码）。")
+            } else {
+                selfcheckNote = "app launched and alive"
+            }
+        }
+        let trollfoolsCompatible = hasFrameworks
         return [
             "action": "inject",
             "app": app.name,
@@ -784,6 +848,8 @@ final class InjectionManager {
             "insert_output": insertOutput,
             "verified": true,
             "injected": injected,
+            "trollfools_compatible": trollfoolsCompatible,
+            "selfcheck": ["app_alive": selfcheckAlive, "note": selfcheckNote],
             "risk_warning": sensitive ? "⚠️ 目标 App 为敏感应用（微信/支付宝/系统/银行类）。已自动选择 Frameworks 内未加密 Mach-O 注入，未修改主二进制；如有异常立即调用 injection.restore 或 rescue.recover_all 恢复。" : nil,
             "hint": "注入目标为 Frameworks 内未加密 Mach-O（对齐 TrollFools 策略），不直接修改主二进制。备份位于 \(backup)，可用 injection.restore 随时恢复。",
             "status": injected ? "injected" : "injection_failed"

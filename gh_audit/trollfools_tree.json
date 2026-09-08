@@ -1,0 +1,1165 @@
+{
+  "sha": "1a4d4a301e096092f20c760fb2903c8f4db37240",
+  "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/1a4d4a301e096092f20c760fb2903c8f4db37240",
+  "tree": [
+    {
+      "path": ".bartycrouch.toml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b86bb81e2b4af391cd38d67d571f44f559de3b61",
+      "size": 745,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/b86bb81e2b4af391cd38d67d571f44f559de3b61"
+    },
+    {
+      "path": ".github",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "e6deba3f3c5951dd6c4db9b8b8bc0935c88d2f62",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/e6deba3f3c5951dd6c4db9b8b8bc0935c88d2f62"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "d682436ace602a852a4b76dbcecf010de3720c7f",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/d682436ace602a852a4b76dbcecf010de3720c7f"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/BugReport.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "19294bd48c747c74c6722d05f967e078d4766a5d",
+      "size": 599,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/19294bd48c747c74c6722d05f967e078d4766a5d"
+    },
+    {
+      "path": ".github/workflows",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "d77bf280bbb2e9e8771653b075ec316f4d1b8afd",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/d77bf280bbb2e9e8771653b075ec316f4d1b8afd"
+    },
+    {
+      "path": ".github/workflows/compile.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "05b7ae98cf114b7e0549d169c621ac583b226cb9",
+      "size": 1904,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/05b7ae98cf114b7e0549d169c621ac583b226cb9"
+    },
+    {
+      "path": ".github/workflows/release.yml",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ed8c8e1261947d0555a657ef66fa25b00692ba6d",
+      "size": 2376,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/ed8c8e1261947d0555a657ef66fa25b00692ba6d"
+    },
+    {
+      "path": ".gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "476ff1a0a0f2c4235e2a5f88c5459314c41a0e44",
+      "size": 3175,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/476ff1a0a0f2c4235e2a5f88c5459314c41a0e44"
+    },
+    {
+      "path": "Artworks",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "e4a603c4fa8c861d06837822c8ee91d13f003fd5",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/e4a603c4fa8c861d06837822c8ee91d13f003fd5"
+    },
+    {
+      "path": "Artworks/AppIconMarketing-240.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b180b87734e59b64db4ce03f4e8c0fc59e449750",
+      "size": 49685,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/b180b87734e59b64db4ce03f4e8c0fc59e449750"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "316891349f04d5cbcc0787c1fc445b746853bdd1",
+      "size": 4394,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/316891349f04d5cbcc0787c1fc445b746853bdd1"
+    },
+    {
+      "path": "LICENSE",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cb0e8c7a2bb55ad932e8a4ea0880f03585ab7607",
+      "size": 1112,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/cb0e8c7a2bb55ad932e8a4ea0880f03585ab7607"
+    },
+    {
+      "path": "Makefile",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e95e214c459cd5e4270ddc2df2bffc3288c4ee02",
+      "size": 747,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/e95e214c459cd5e4270ddc2df2bffc3288c4ee02"
+    },
+    {
+      "path": "README.md",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c10a02bfcae38d11070c13a8b4a9afc2cfeb825e",
+      "size": 1353,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/c10a02bfcae38d11070c13a8b4a9afc2cfeb825e"
+    },
+    {
+      "path": "TrollFools.xcodeproj",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "50a9f5223b861e0d23d825ab28ba7eab08fd4d95",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/50a9f5223b861e0d23d825ab28ba7eab08fd4d95"
+    },
+    {
+      "path": "TrollFools.xcodeproj/project.pbxproj",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "eff0f899436ebc1e56ec1c8c33aa5a1227d2d4bd",
+      "size": 75141,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/eff0f899436ebc1e56ec1c8c33aa5a1227d2d4bd"
+    },
+    {
+      "path": "TrollFools.xcodeproj/project.xcworkspace",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "cc1459bec2478b6782d4323c225d17869ffb3be1",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/cc1459bec2478b6782d4323c225d17869ffb3be1"
+    },
+    {
+      "path": "TrollFools.xcodeproj/project.xcworkspace/contents.xcworkspacedata",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "919434a6254f0e9651f402737811be6634a03e9c",
+      "size": 135,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/919434a6254f0e9651f402737811be6634a03e9c"
+    },
+    {
+      "path": "TrollFools.xcodeproj/project.xcworkspace/xcshareddata",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "709d33cd4bce88f74a2119a8a9d59971b3604708",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/709d33cd4bce88f74a2119a8a9d59971b3604708"
+    },
+    {
+      "path": "TrollFools.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "18d981003d68d0546c4804ac2ff47dd97c6e7921",
+      "size": 238,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/18d981003d68d0546c4804ac2ff47dd97c6e7921"
+    },
+    {
+      "path": "TrollFools.xcodeproj/project.xcworkspace/xcshareddata/swiftpm",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "f1162d3175f11ba4244916d63ea3f12dae9b4d36",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/f1162d3175f11ba4244916d63ea3f12dae9b4d36"
+    },
+    {
+      "path": "TrollFools.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c2813a81b864249099a424faf917c3d503e52a9c",
+      "size": 3394,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/c2813a81b864249099a424faf917c3d503e52a9c"
+    },
+    {
+      "path": "TrollFools.xcodeproj/xcshareddata",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "d23bd5638fba0c025c2859beb72b3e60eb710036",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/d23bd5638fba0c025c2859beb72b3e60eb710036"
+    },
+    {
+      "path": "TrollFools.xcodeproj/xcshareddata/xcschemes",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "7de5fb02e6c2155d1ea34fe93691baa03393341c",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/7de5fb02e6c2155d1ea34fe93691baa03393341c"
+    },
+    {
+      "path": "TrollFools.xcodeproj/xcshareddata/xcschemes/trollfoolscli.xcscheme",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3d0de3a46bb8b7fa7db30d8d0a03430b1880b444",
+      "size": 2948,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/3d0de3a46bb8b7fa7db30d8d0a03430b1880b444"
+    },
+    {
+      "path": "TrollFools",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "e0d344e2ee990503a947d7b640497819e6862ced",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/e0d344e2ee990503a947d7b640497819e6862ced"
+    },
+    {
+      "path": "TrollFools/App+Ads.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c7d6df24c9e1317b01826d9110a38f2db4f9e8c5",
+      "size": 2038,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/c7d6df24c9e1317b01826d9110a38f2db4f9e8c5"
+    },
+    {
+      "path": "TrollFools/App.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9588300c0b355675622f6a747a8687d025d6c28a",
+      "size": 2947,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/9588300c0b355675622f6a747a8687d025d6c28a"
+    },
+    {
+      "path": "TrollFools/AppListCell.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4abe2aefa931f3908cec2a7c22d5651dec60faed",
+      "size": 7041,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/4abe2aefa931f3908cec2a7c22d5651dec60faed"
+    },
+    {
+      "path": "TrollFools/AppListModel.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ca63d6a457bbc784518bd1bd97c3f68a83353e3c",
+      "size": 9244,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/ca63d6a457bbc784518bd1bd97c3f68a83353e3c"
+    },
+    {
+      "path": "TrollFools/AppListSearchModel.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a4ccc23fd2010ec576a6f513fde18011ae86651f",
+      "size": 2494,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/a4ccc23fd2010ec576a6f513fde18011ae86651f"
+    },
+    {
+      "path": "TrollFools/AppListView.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5ad5aff57156a9ad335ce331abcc64cb7d7bebc8",
+      "size": 19095,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/5ad5aff57156a9ad335ce331abcc64cb7d7bebc8"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "09abe913917107623685faa3a3c11a136618bec9",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/09abe913917107623685faa3a3c11a136618bec9"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/AccentColor.colorset",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "986bd324c26d854187559f27f8194c8afd1795ac",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/986bd324c26d854187559f27f8194c8afd1795ac"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/AccentColor.colorset/Contents.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "eb8789700816459c1e1480e0b34781d9fb78a1ca",
+      "size": 123,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/eb8789700816459c1e1480e0b34781d9fb78a1ca"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/AppIcon.appiconset",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "117a90c0cc61df772f2fcff14dcb7732a1e49d07",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/117a90c0cc61df772f2fcff14dcb7732a1e49d07"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "20015fc9b5637625d48a9eb8818e3b337407c92a",
+      "size": 166805,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/20015fc9b5637625d48a9eb8818e3b337407c92a"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/AppIcon.appiconset/Contents.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "cefcc878e08455cb63e46f6f8f78dbc6f45332d6",
+      "size": 211,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/cefcc878e08455cb63e46f6f8f78dbc6f45332d6"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/Contents.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "73c00596a7fca3f3d4bdd64053b69d86745f9e10",
+      "size": 63,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/73c00596a7fca3f3d4bdd64053b69d86745f9e10"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/badge-ad.imageset",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "ab761bb6d5a4502e28d8bbd34fe4fbb9c0addafe",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/ab761bb6d5a4502e28d8bbd34fe4fbb9c0addafe"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/badge-ad.imageset/Contents.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "089dc3581263532dcdc8d187f4588b5b76a8fe6b",
+      "size": 227,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/089dc3581263532dcdc8d187f4588b5b76a8fe6b"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/badge-ad.imageset/badge-ad.svg",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "616ad74d4263bd7f199b3239d8e0c0133011cd35",
+      "size": 695,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/616ad74d4263bd7f199b3239d8e0c0133011cd35"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/elite-default.imageset",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "b1e13ef60bfcad1c688c5e1a4a9ad50accfd0766",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/b1e13ef60bfcad1c688c5e1a4a9ad50accfd0766"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/elite-default.imageset/Contents.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e577b3799f4b5e91cda321165b10bd94ecdf27b1",
+      "size": 162,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/e577b3799f4b5e91cda321165b10bd94ecdf27b1"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/elite-default.imageset/icon_128x128.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "22357f02f4525b249770a990b73bec8a2804f586",
+      "size": 10207,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/22357f02f4525b249770a990b73bec8a2804f586"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/reveil-default.imageset",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "5b4acc1aa2e3111bf26c80f2a220358aa254c9e9",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/5b4acc1aa2e3111bf26c80f2a220358aa254c9e9"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/reveil-default.imageset/Contents.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e577b3799f4b5e91cda321165b10bd94ecdf27b1",
+      "size": 162,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/e577b3799f4b5e91cda321165b10bd94ecdf27b1"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/reveil-default.imageset/icon_128x128.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b5d7f8d24775d64adf22116d0a5c58a82a7c077d",
+      "size": 17511,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/b5d7f8d24775d64adf22116d0a5c58a82a7c077d"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/tricon-default.imageset",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "f5487530a2b14d93cd80f702a122a7acd1b532af",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/f5487530a2b14d93cd80f702a122a7acd1b532af"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/tricon-default.imageset/Contents.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e577b3799f4b5e91cda321165b10bd94ecdf27b1",
+      "size": 162,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/e577b3799f4b5e91cda321165b10bd94ecdf27b1"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/tricon-default.imageset/icon_128x128.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d5fac1efa466291b03e8e7c5347bb54615d325e9",
+      "size": 8650,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/d5fac1efa466291b03e8e7c5347bb54615d325e9"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/vnc-default.imageset",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "a6f6a65c1dc104514034eeda7c3ba3fc78883387",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/a6f6a65c1dc104514034eeda7c3ba3fc78883387"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/vnc-default.imageset/Contents.json",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e577b3799f4b5e91cda321165b10bd94ecdf27b1",
+      "size": 162,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/e577b3799f4b5e91cda321165b10bd94ecdf27b1"
+    },
+    {
+      "path": "TrollFools/Assets.xcassets/vnc-default.imageset/icon_128x128.png",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b5a9863174ebb9b8086c5dea6065c57f5917d2c0",
+      "size": 8777,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/b5a9863174ebb9b8086c5dea6065c57f5917d2c0"
+    },
+    {
+      "path": "TrollFools/AuxiliaryExecute+Spawn.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7f6b3e4bdb3cfa142d32923df0902da327632fba",
+      "size": 15009,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/7f6b3e4bdb3cfa142d32923df0902da327632fba"
+    },
+    {
+      "path": "TrollFools/AuxiliaryExecute.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1d518fa75637d31125d8afd4945d7a94a6b0a1cc",
+      "size": 5240,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/1d518fa75637d31125d8afd4945d7a94a6b0a1cc"
+    },
+    {
+      "path": "TrollFools/BartyCrouch.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "16ef789d839b66998d1ae10dd2a87221892be44e",
+      "size": 1026,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/16ef789d839b66998d1ae10dd2a87221892be44e"
+    },
+    {
+      "path": "TrollFools/CLI",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "9e499cf9f7622b8fca43045c39509fba6df3d22e",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/9e499cf9f7622b8fca43045c39509fba6df3d22e"
+    },
+    {
+      "path": "TrollFools/CLI/CmdEject.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a9ebc088395a5690266a1e02c5da4c3a18f96718",
+      "size": 1923,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/a9ebc088395a5690266a1e02c5da4c3a18f96718"
+    },
+    {
+      "path": "TrollFools/CLI/CmdInject.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "aaf9baded88b0fba289ae38b4506da971da25d99",
+      "size": 1956,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/aaf9baded88b0fba289ae38b4506da971da25d99"
+    },
+    {
+      "path": "TrollFools/CLI/CmdList.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "051dff612dd6e5aa11a365f56488e087250577dc",
+      "size": 1241,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/051dff612dd6e5aa11a365f56488e087250577dc"
+    },
+    {
+      "path": "TrollFools/CLI/CmdView.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a76f354c9a7071b3f22faf5fef8f63603ed5e63d",
+      "size": 1270,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/a76f354c9a7071b3f22faf5fef8f63603ed5e63d"
+    },
+    {
+      "path": "TrollFools/CLI/Entry.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9d3cd480213919f78e59ad0a66c4a56e02c9910b",
+      "size": 510,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/9d3cd480213919f78e59ad0a66c4a56e02c9910b"
+    },
+    {
+      "path": "TrollFools/CheckUpdateManager.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "2ef01dee31272078f51fa985d376ef5aab43c863",
+      "size": 11678,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/2ef01dee31272078f51fa985d376ef5aab43c863"
+    },
+    {
+      "path": "TrollFools/CodableStorage.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "63676aaf86cf4243f38732bbf030f36d4f91926d",
+      "size": 2769,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/63676aaf86cf4243f38732bbf030f36d4f91926d"
+    },
+    {
+      "path": "TrollFools/Constants.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f1c3bb17dfd4869fc6d097f7515075b800cf8d77",
+      "size": 2007,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/f1c3bb17dfd4869fc6d097f7515075b800cf8d77"
+    },
+    {
+      "path": "TrollFools/CydiaSubstrate.framework.zip",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fd6228e414ff382f895cf267bc1f17447e404299",
+      "size": 205210,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/fd6228e414ff382f895cf267bc1f17447e404299"
+    },
+    {
+      "path": "TrollFools/DisclaimerView.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5590c62ea7852b93f9525e0f48842b93b5fde781",
+      "size": 2824,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/5590c62ea7852b93f9525e0f48842b93b5fde781"
+    },
+    {
+      "path": "TrollFools/EjectListModel.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c1e7479ad76fde6eb829a85948fb0e18ede5cb5d",
+      "size": 2157,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/c1e7479ad76fde6eb829a85948fb0e18ede5cb5d"
+    },
+    {
+      "path": "TrollFools/EjectListSearchModel.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5b72c886bdfd1e911bb049ce868ddb51e0a924a0",
+      "size": 459,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/5b72c886bdfd1e911bb049ce868ddb51e0a924a0"
+    },
+    {
+      "path": "TrollFools/EjectListView.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ae0c54c88d37a004913df2702463a3badb04c986",
+      "size": 23363,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/ae0c54c88d37a004913df2702463a3badb04c986"
+    },
+    {
+      "path": "TrollFools/Execute.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ed1717b69f2d7608089ea2ef6c6769539645c277",
+      "size": 1882,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/ed1717b69f2d7608089ea2ef6c6769539645c277"
+    },
+    {
+      "path": "TrollFools/FailureView.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "4c1b79513c2ba1b391c6b6f8c352048352d06d89",
+      "size": 1306,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/4c1b79513c2ba1b391c6b6f8c352048352d06d89"
+    },
+    {
+      "path": "TrollFools/FilterOptions.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "37ba3a74fdc6b58ba49737efceec6cff5bea9362",
+      "size": 347,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/37ba3a74fdc6b58ba49737efceec6cff5bea9362"
+    },
+    {
+      "path": "TrollFools/Hashable+Combines.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "076b30bac5ad798749252e545e04762bb888dfea",
+      "size": 265,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/076b30bac5ad798749252e545e04762bb888dfea"
+    },
+    {
+      "path": "TrollFools/IndexableScroller.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "19e9d00cbfd0be97c90e9c350d6804b53a54c0c3",
+      "size": 2137,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/19e9d00cbfd0be97c90e9c350d6804b53a54c0c3"
+    },
+    {
+      "path": "TrollFools/Info.plist",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7105c7995bc1abb8b73cfb1c1cce9fe1ffc4e285",
+      "size": 1827,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/7105c7995bc1abb8b73cfb1c1cce9fe1ffc4e285"
+    },
+    {
+      "path": "TrollFools/InjectView.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7e3a3e20f7e69dc74c7d5ef8fba6a7ed0bc72a46",
+      "size": 5582,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/7e3a3e20f7e69dc74c7d5ef8fba6a7ed0bc72a46"
+    },
+    {
+      "path": "TrollFools/InjectedPlugIn.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5e8a8d9c514e92d6310cc6d2a54c53bb9aa65087",
+      "size": 494,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/5e8a8d9c514e92d6310cc6d2a54c53bb9aa65087"
+    },
+    {
+      "path": "TrollFools/InjectorV3+Backup.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "943171db6ca8e9e579fe2eed672cdbd3ae6be728",
+      "size": 1260,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/943171db6ca8e9e579fe2eed672cdbd3ae6be728"
+    },
+    {
+      "path": "TrollFools/InjectorV3+Bundle.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fa6682106712afe141a22234b4531754615aee0f",
+      "size": 15186,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/fa6682106712afe141a22234b4531754615aee0f"
+    },
+    {
+      "path": "TrollFools/InjectorV3+Command.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c2aced392ac206a4083c412ca204e4dcb76ac11f",
+      "size": 13743,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/c2aced392ac206a4083c412ca204e4dcb76ac11f"
+    },
+    {
+      "path": "TrollFools/InjectorV3+Eject.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "36522cecf65b9a57b38ccfcafbf0280c13a758f4",
+      "size": 3132,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/36522cecf65b9a57b38ccfcafbf0280c13a758f4"
+    },
+    {
+      "path": "TrollFools/InjectorV3+Error.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bf8b8e3a4181aa73d357927d565492b9909e875d",
+      "size": 337,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/bf8b8e3a4181aa73d357927d565492b9909e875d"
+    },
+    {
+      "path": "TrollFools/InjectorV3+Inject.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "645db9a7b230a777a795e6157025cf1747c00656",
+      "size": 10212,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/645db9a7b230a777a795e6157025cf1747c00656"
+    },
+    {
+      "path": "TrollFools/InjectorV3+MachO.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e5ff2fb60e2701d4bd8d5d5ebef459d2bcafb030",
+      "size": 6462,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/e5ff2fb60e2701d4bd8d5d5ebef459d2bcafb030"
+    },
+    {
+      "path": "TrollFools/InjectorV3+Metadata.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f619093eda4a743b6a7f2c7d88d24c2c2a7b485a",
+      "size": 1906,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/f619093eda4a743b6a7f2c7d88d24c2c2a7b485a"
+    },
+    {
+      "path": "TrollFools/InjectorV3+Persistent.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "8eba5ff558974b2d4d0fe95a9560e717449b3982",
+      "size": 2431,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/8eba5ff558974b2d4d0fe95a9560e717449b3982"
+    },
+    {
+      "path": "TrollFools/InjectorV3+Preprocess.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b463c93742786725ee3a3cfbf6b26c2b1135e44a",
+      "size": 9470,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/b463c93742786725ee3a3cfbf6b26c2b1135e44a"
+    },
+    {
+      "path": "TrollFools/InjectorV3.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "effca380d34af2be27313e34a73904235e6304d3",
+      "size": 4451,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/effca380d34af2be27313e34a73904235e6304d3"
+    },
+    {
+      "path": "TrollFools/LSApplicationProxy.h",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c749b147c17053c472a7c78a699cb580cf2273b0",
+      "size": 768,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/c749b147c17053c472a7c78a699cb580cf2273b0"
+    },
+    {
+      "path": "TrollFools/LSApplicationWorkspace.h",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "de9bef29a7b72c2ac655609826343f73a23dcfa4",
+      "size": 1111,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/de9bef29a7b72c2ac655609826343f73a23dcfa4"
+    },
+    {
+      "path": "TrollFools/LogsView.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "98e4e03fe2b5300bab2b0fda4a7795f3b5015157",
+      "size": 1416,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/98e4e03fe2b5300bab2b0fda4a7795f3b5015157"
+    },
+    {
+      "path": "TrollFools/Option.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "93e03bc2577fe6c2e578f7582a3d93c65c40b83d",
+      "size": 127,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/93e03bc2577fe6c2e578f7582a3d93c65c40b83d"
+    },
+    {
+      "path": "TrollFools/OptionCell.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e4f90ba64dc61e3152386850c95d7fcedca4ba9f",
+      "size": 2086,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/e4f90ba64dc61e3152386850c95d7fcedca4ba9f"
+    },
+    {
+      "path": "TrollFools/OptionView.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7a2fb9efeaa627817848c89c7b326243775fbf2b",
+      "size": 6734,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/7a2fb9efeaa627817848c89c7b326243775fbf2b"
+    },
+    {
+      "path": "TrollFools/PlaceholderView.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3fc9419eb68c5ba40087cb16d60995bab98bbd54",
+      "size": 391,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/3fc9419eb68c5ba40087cb16d60995bab98bbd54"
+    },
+    {
+      "path": "TrollFools/PlugInCell.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "afff401323825784f77d19a38329b2afe0d18529",
+      "size": 3867,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/afff401323825784f77d19a38329b2afe0d18529"
+    },
+    {
+      "path": "TrollFools/SettingsView.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "84fdbc0c463dd81bc727e4fe8f197cae647d1bde",
+      "size": 3642,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/84fdbc0c463dd81bc727e4fe8f197cae647d1bde"
+    },
+    {
+      "path": "TrollFools/StripedTextTableViewController.h",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "56c4e77f8d2e14a6777f03abd266fa92f92ee4d6",
+      "size": 1757,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/56c4e77f8d2e14a6777f03abd266fa92f92ee4d6"
+    },
+    {
+      "path": "TrollFools/StripedTextTableViewController.m",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fc640b5893b2fcd2ee05935881e45a12eb35eb05",
+      "size": 19555,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/fc640b5893b2fcd2ee05935881e45a12eb35eb05"
+    },
+    {
+      "path": "TrollFools/SuccessView.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "47a4080ebb821a0e734b9036ee9c7db6d377a37c",
+      "size": 1259,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/47a4080ebb821a0e734b9036ee9c7db6d377a37c"
+    },
+    {
+      "path": "TrollFools/TrollFools-Bridging-Header.h",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "55ae8fd810c5fc4455c309b70ced2f8fbdaca788",
+      "size": 715,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/55ae8fd810c5fc4455c309b70ced2f8fbdaca788"
+    },
+    {
+      "path": "TrollFools/TrollFools.entitlements",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3eb8e31bb9aef3296d6560458f4d84bf9bcd0cd5",
+      "size": 6107,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/3eb8e31bb9aef3296d6560458f4d84bf9bcd0cd5"
+    },
+    {
+      "path": "TrollFools/TrollFoolsApp.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b2641d0fb4d567afe1b49785f8e6ddcf4c820d45",
+      "size": 829,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/b2641d0fb4d567afe1b49785f8e6ddcf4c820d45"
+    },
+    {
+      "path": "TrollFools/TrollFoolsStub.m",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5269fc7fe063de0b6f789cceb554880edb212eaa",
+      "size": 4673,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/5269fc7fe063de0b6f789cceb554880edb212eaa"
+    },
+    {
+      "path": "TrollFools/Version.Debug.xcconfig",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "3c114b291430ef79256326905dd5a9cc0534bf5f",
+      "size": 251,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/3c114b291430ef79256326905dd5a9cc0534bf5f"
+    },
+    {
+      "path": "TrollFools/Version.xcconfig",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "7d67b0e35f979e7d09a01f56d573da090e2d5df7",
+      "size": 228,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/7d67b0e35f979e7d09a01f56d573da090e2d5df7"
+    },
+    {
+      "path": "TrollFools/ViewControllerHost.swift",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "83870ea0186227856a86bf53b58067e9f5f1a370",
+      "size": 1480,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/83870ea0186227856a86bf53b58067e9f5f1a370"
+    },
+    {
+      "path": "TrollFools/chown",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "3663a2519e9adbb99810906c66bd0eeb4701b2fe",
+      "size": 127456,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/3663a2519e9adbb99810906c66bd0eeb4701b2fe"
+    },
+    {
+      "path": "TrollFools/cp",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "90659c97e8c90d8d04d6eba4f8166b1a1655ac8e",
+      "size": 182640,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/90659c97e8c90d8d04d6eba4f8166b1a1655ac8e"
+    },
+    {
+      "path": "TrollFools/cp-15",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "610a9cf2d5c2227b897dda539e6fe4c5e7f9fc18",
+      "size": 182720,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/610a9cf2d5c2227b897dda539e6fe4c5e7f9fc18"
+    },
+    {
+      "path": "TrollFools/ct_bypass",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "77d2243f400f447c39c5dc53b0df7a8e1370d277",
+      "size": 204800,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/77d2243f400f447c39c5dc53b0df7a8e1370d277"
+    },
+    {
+      "path": "TrollFools/en.lproj",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "bd9c4e6efaa164e91f9654d6bf1bddfcb72faa61",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/bd9c4e6efaa164e91f9654d6bf1bddfcb72faa61"
+    },
+    {
+      "path": "TrollFools/en.lproj/InfoPlist.strings",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "da682519435a7932f303de126fd6b3e5c4d0155d",
+      "size": 38,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/da682519435a7932f303de126fd6b3e5c4d0155d"
+    },
+    {
+      "path": "TrollFools/en.lproj/Localizable.strings",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f319547f55a36e58d0591802de28100308437a0d",
+      "size": 11609,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/f319547f55a36e58d0591802de28100308437a0d"
+    },
+    {
+      "path": "TrollFools/insert_dylib",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "22daf186f17d5b710d9c2eb65caa9bdae40bdb54",
+      "size": 70256,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/22daf186f17d5b710d9c2eb65caa9bdae40bdb54"
+    },
+    {
+      "path": "TrollFools/install_name_tool",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "fe01c5549502eb850a95ab46f66f90b7eb01aaab",
+      "size": 171184,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/fe01c5549502eb850a95ab46f66f90b7eb01aaab"
+    },
+    {
+      "path": "TrollFools/it.lproj",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "7328a04f29818af48a1627b7792add6b4306ee56",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/7328a04f29818af48a1627b7792add6b4306ee56"
+    },
+    {
+      "path": "TrollFools/it.lproj/InfoPlist.strings",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "da682519435a7932f303de126fd6b3e5c4d0155d",
+      "size": 38,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/da682519435a7932f303de126fd6b3e5c4d0155d"
+    },
+    {
+      "path": "TrollFools/it.lproj/Localizable.strings",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "96c477b0bb60125f167d8baf6f0875c67f103a7c",
+      "size": 10791,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/96c477b0bb60125f167d8baf6f0875c67f103a7c"
+    },
+    {
+      "path": "TrollFools/ldid",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "073e62bdef9037dddb7004fb881541d16cd1d210",
+      "size": 2351280,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/073e62bdef9037dddb7004fb881541d16cd1d210"
+    },
+    {
+      "path": "TrollFools/libcrypto.3.dylib",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "bc844acab4872db4bae47369e8e71df923c6a3a6",
+      "size": 4063344,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/bc844acab4872db4bae47369e8e71df923c6a3a6"
+    },
+    {
+      "path": "TrollFools/libintl.8.dylib",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "39f21e64823e86ce6a011e2bee892e060c9e6d4f",
+      "size": 137232,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/39f21e64823e86ce6a011e2bee892e060c9e6d4f"
+    },
+    {
+      "path": "TrollFools/libiosexec.1.dylib",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "016cdfabde658e966b94c89b78947f5f7974f7ea",
+      "size": 69936,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/016cdfabde658e966b94c89b78947f5f7974f7ea"
+    },
+    {
+      "path": "TrollFools/libxar.1.dylib",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "5703b283548fe00fe7f9fe76c2cc326dc8af6736",
+      "size": 134416,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/5703b283548fe00fe7f9fe76c2cc326dc8af6736"
+    },
+    {
+      "path": "TrollFools/mkdir",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "70ddb63e6a61b5ccdb30c2e568869c9323219215",
+      "size": 108784,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/70ddb63e6a61b5ccdb30c2e568869c9323219215"
+    },
+    {
+      "path": "TrollFools/mv",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "025d33cd9c4c4047890cd3c754a9354a35bfe819",
+      "size": 182816,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/025d33cd9c4c4047890cd3c754a9354a35bfe819"
+    },
+    {
+      "path": "TrollFools/mv-15",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "191e1d95109db5de8d0df033acb330fc92bcb404",
+      "size": 199424,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/191e1d95109db5de8d0df033acb330fc92bcb404"
+    },
+    {
+      "path": "TrollFools/optool",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "9cd5f2724c3fb6f987718011627ebcd84ce48720",
+      "size": 124496,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/9cd5f2724c3fb6f987718011627ebcd84ce48720"
+    },
+    {
+      "path": "TrollFools/rm",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "7db1098bd63afb59fceb38f8a0355f1d75361707",
+      "size": 126576,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/7db1098bd63afb59fceb38f8a0355f1d75361707"
+    },
+    {
+      "path": "TrollFools/vi.lproj",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "0f4dfa4c0faab70d0a4106c09eb7edab091547b5",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/0f4dfa4c0faab70d0a4106c09eb7edab091547b5"
+    },
+    {
+      "path": "TrollFools/vi.lproj/InfoPlist.strings",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "da682519435a7932f303de126fd6b3e5c4d0155d",
+      "size": 38,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/da682519435a7932f303de126fd6b3e5c4d0155d"
+    },
+    {
+      "path": "TrollFools/vi.lproj/Localizable.strings",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "1545e7d6b94fb2b8642f5b849a3128d051701a9d",
+      "size": 13008,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/1545e7d6b94fb2b8642f5b849a3128d051701a9d"
+    },
+    {
+      "path": "TrollFools/zh-Hans.lproj",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "f9071c56f5dab12fb28525c6273cb8d6e9bc1486",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/f9071c56f5dab12fb28525c6273cb8d6e9bc1486"
+    },
+    {
+      "path": "TrollFools/zh-Hans.lproj/InfoPlist.strings",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "773cdbf06c37dece9a07f3d5c51079917a64b8d7",
+      "size": 43,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/773cdbf06c37dece9a07f3d5c51079917a64b8d7"
+    },
+    {
+      "path": "TrollFools/zh-Hans.lproj/Localizable.strings",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0d8c05b35619243b3b295c29e4ca9eab2788009e",
+      "size": 11728,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/0d8c05b35619243b3b295c29e4ca9eab2788009e"
+    },
+    {
+      "path": "TrollFoolsTweak",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "08dd2fc078b4df6bbe7f77331950b30ed0d0b605",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/08dd2fc078b4df6bbe7f77331950b30ed0d0b605"
+    },
+    {
+      "path": "TrollFoolsTweak/Makefile",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "11b5e035cbdf23ca44959d6837c76be98ccf2035",
+      "size": 242,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/11b5e035cbdf23ca44959d6837c76be98ccf2035"
+    },
+    {
+      "path": "TrollFoolsTweak/TrollFoolsTweak.plist",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "454aa56086d8bef4951e0d97026a29f5d29a62f0",
+      "size": 55,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/454aa56086d8bef4951e0d97026a29f5d29a62f0"
+    },
+    {
+      "path": "TrollFoolsTweak/TrollFoolsTweak.x",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "553569c9c58defc6c77fa196181d41450747a768",
+      "size": 331,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/553569c9c58defc6c77fa196181d41450747a768"
+    },
+    {
+      "path": "control",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f491a136276a1a49872f9bf3451caade46647602",
+      "size": 245,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/f491a136276a1a49872f9bf3451caade46647602"
+    },
+    {
+      "path": "devkit",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "1110659b9e1f51f53e68865e1a50bc73b21981fc",
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/trees/1110659b9e1f51f53e68865e1a50bc73b21981fc"
+    },
+    {
+      "path": "devkit/bump-version.sh",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "2128c75ab0bdf901b2b429edc6abcdfddf8d832a",
+      "size": 2709,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/2128c75ab0bdf901b2b429edc6abcdfddf8d832a"
+    },
+    {
+      "path": "devkit/print-version.sh",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "9e75993029debdae3f93552a9d1be1c39b5312b9",
+      "size": 759,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/9e75993029debdae3f93552a9d1be1c39b5312b9"
+    },
+    {
+      "path": "devkit/rootless.sh",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "a32f09f6fa962dea6721b4c2128eed5a867238eb",
+      "size": 139,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/a32f09f6fa962dea6721b4c2128eed5a867238eb"
+    },
+    {
+      "path": "devkit/standardize-entitlements.sh",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "f76e306e7d23528f3a67889224fa7599dc8097dc",
+      "size": 88,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/f76e306e7d23528f3a67889224fa7599dc8097dc"
+    },
+    {
+      "path": "devkit/tipa.sh",
+      "mode": "100755",
+      "type": "blob",
+      "sha": "e150705ba436533944e36eeb6cefb205baa757fd",
+      "size": 644,
+      "url": "https://api.github.com/repos/Lessica/TrollFools/git/blobs/e150705ba436533944e36eeb6cefb205baa757fd"
+    }
+  ],
+  "truncated": false
+}

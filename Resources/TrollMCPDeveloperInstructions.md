@@ -208,3 +208,13 @@ tweaks/<Name>/
 - 看 dylib 架构签名依赖符号 → `dylib.inspect`
 - 提取类 / 方法 / 字符串 / 导入导出 → `binary.symbols`
 - 查加壳状态 → `app.encrypt_info`
+
+
+## 15. 注入与 TrollFools 完全对齐（v2.9.118）
+
+- **TrollFools 的注入可见性标准（已确认源码）**：只识别 `Frameworks/` 目录内、且旁边存在 `.troll-fools.bak` 备份文件的 Mach-O（`frameworkMachOsInBundle ∩ hasAlternate`）。**主二进制注入 TrollFools 永远看不见、无法关闭。**
+- **我们的注入策略**：目标 App 有 `Frameworks/` 目录时，只注入 `Frameworks/` 内未加密 Mach-O（与 TrollFools 同源策略），拒绝注入主二进制；无 `Frameworks/` 的 App 才允许主二进制兜底（返回 `trollfools_compatible=false`，明确告知 TrollFools 无法管理）。
+- **注入前架构预检**：源 dylib 与目标 Mach-O 无法解析或架构不匹配 → 直接拒绝注入（防闪退）。
+- **注入后启动自检**：注入成功自动拉起目标 App，两次探测进程不存活 → 判定闪退 → **自动恢复 `.troll-fools.bak` 备份并删除 dylib**，返回错误"已自动恢复注入前状态"，避免"注入必闪退 + TrollFools 关不掉"死局。
+- 返回字段新增：`trollfools_compatible`（TrollFools 是否可管理该注入）、`selfcheck`（app_alive / note）。
+- 恢复路径：`injection.restore` / `injection.disable` 始终可用（优先 `.troll-fools.bak`，兼容旧 `.bak_macho`）；紧急用 `rescue.recover_all`。
