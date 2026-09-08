@@ -483,14 +483,16 @@ final class InjectionManager {
     // 避免 App Store 更新/校验把注入痕迹当异常）
 
     private func metadataURLs(bundleId: String) -> (meta: String, bak: String) {
-        let appPath = AppCatalog.find(bundleId)?.path ?? ""
-        let container = (appPath as NSString).deletingLastPathComponent()
-        return ((container as NSString).appendingPathComponent("iTunesMetadata.plist"),
-                (container as NSString).appendingPathComponent("iTunesMetadata.plist.bak"))
+        guard let appPath = AppCatalog.find(bundleId)?.path else { return ("", "") }
+        let containerURL = URL(fileURLWithPath: appPath).deletingLastPathComponent()
+        let metaURL = containerURL.appendingPathComponent("iTunesMetadata.plist")
+        let bakURL = containerURL.appendingPathComponent("iTunesMetadata.plist.bak")
+        return (metaURL.path, bakURL.path)
     }
 
     func detachMetadata(bundleId: String) {
         let m = metadataURLs(bundleId: bundleId)
+        guard !m.meta.isEmpty else { return }
         if FileManager.default.fileExists(atPath: m.meta), !FileManager.default.fileExists(atPath: m.bak) {
             _ = runAsRoot("mv", args: ["-f", m.meta, m.bak])
         }
@@ -498,6 +500,7 @@ final class InjectionManager {
 
     func attachMetadata(bundleId: String) {
         let m = metadataURLs(bundleId: bundleId)
+        guard !m.bak.isEmpty else { return }
         if FileManager.default.fileExists(atPath: m.bak), !FileManager.default.fileExists(atPath: m.meta) {
             _ = runAsRoot("mv", args: ["-f", m.bak, m.meta])
         }

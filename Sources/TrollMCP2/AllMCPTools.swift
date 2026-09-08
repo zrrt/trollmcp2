@@ -63,13 +63,13 @@ final class InjectionDisableTool: MCPTool {
     }
 }
 
-final class InjectionRestoreTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.restore", summary: "从持久化区重新启用已关闭的插件（对齐 TrollFools 启用开关：先 injection.disable desist=false 关闭，再本工具启用）",
+final class InjectionEnablePersistedTool: MCPTool {
+    let definition = ToolDefinition(name: "injection.enable_persisted", summary: "从持久化区重新启用已关闭的插件（对齐 TrollFools 启用开关：先 injection.disable desist=false 关闭，再本工具启用）",
         parameters: ["bundle_id": "目标 App Bundle ID"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
         let result = try InjectionManager.shared.restore(bundleId: bid)
-        AuditLog.shared.log("injection.restore", detail: bid)
+        AuditLog.shared.log("injection.enable_persisted", detail: bid)
         return result
     }
 }

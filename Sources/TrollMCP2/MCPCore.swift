@@ -382,6 +382,7 @@ public final class ToolRegistry: ObservableObject {
         register(InjectionListTool())
         register(InjectionRemoveTool())
         register(InjectionRestoreTool())
+        register(InjectionEnablePersistedTool())
         register(RescueScanTool())
         register(RescueRecoverAllTool())
         register(RescueCleanupTool())
