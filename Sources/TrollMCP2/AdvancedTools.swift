@@ -1009,7 +1009,10 @@ final class ProbeInspectTool: MCPTool {
             }
         }
         guard probeInjected else {
-            return ["error": "ProbeAgent 注入失败（App 未运行或 opainject 失败）", "hint": "确认 App 在前台运行，或先手动打开"]
+            let running = ProcessHelper.pidOf(executableName: exeName) != nil
+            return ["error": "ProbeAgent 注入失败（\(running ? "opainject 被拒/反调试拦截" : "App 未运行")）",
+                    "next_step": running ? "目标有反注入/反调试检测，改试 injection.mem 内存注入绕过" : "先用 app.start bundle_id 启动目标 App，或手动打开后重试",
+                    "hint": "注入失败≠App 有问题，先按 next_step 处理"]
         }
 
         var ready = false
@@ -1300,14 +1303,25 @@ final class AppEntitlementsTool: MCPTool {
             return ["error": "未找到 App: \(bundleId)"]
         }
         let main = InjectionManager.shared.executablePath(app)
+        // v2.9.116：先查加密——加密二进制 ldid 解不出 entitlements，不能当"没有"
+        var cryptID: UInt32 = 0
+        if let mo = MachOAnalyzer.analyze(main) { cryptID = mo.cryptID }
         let (c, o) = InjectionManager.shared.runAsRoot("ldid", args: ["-e", main])
-        if c != 0 { return ["error": "ldid -e 失败(\(c))", "output": o] }
+        if c != 0 {
+            var out: [String: Any] = ["error": "ldid -e 失败(\(c))", "output": String(o.prefix(500)), "bundle_id": bundleId]
+            out["parse_error"] = cryptID > 0 ? "目标 App 已加密（cryptid=\(cryptID)），entitlements 被加密掩盖，非"没有权限"" : "Mach-O 解析失败（可能混淆/特殊头），非"没有权限""
+            out["next_step"] = cryptID > 0 ? "先执行 app.decrypt 砸壳后重试" : "用 fs.hexdump 查看主二进制头部确认格式"
+            return out
+        }
         var dict: [String: Any] = [:]
+        var parseError = ""
         if let data = o.data(using: .utf8),
            let d = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] {
             dict = d
+        } else {
+            parseError = cryptID > 0 ? "加密 App（cryptid=\(cryptID)）entitlements 无法解析，先砸壳" : "ldid 输出非 plist，解析失败"
         }
-        return [
+        var out: [String: Any] = [
             "bundle_id": bundleId,
             "entitlements": dict,
             "keychain_groups": dict["keychain-access-groups"] ?? [],
@@ -1315,7 +1329,8 @@ final class AppEntitlementsTool: MCPTool {
             "no_sandbox": dict["com.apple.private.security.no-sandbox"] as? Bool ?? false,
             "task_for_pid": dict["task_for_pid-allow"] as? Bool ?? false,
             "get_task_allow": dict["get-task-allow"] as? Bool ?? false,
-            "hint": "keychain_groups 可直接传给 device.keychain_wipe 精确清理目标 App 钥匙串"
+            "parse_error": parseError,
+            "hint": parseError.isEmpty ? "keychain_groups 可直接传给 device.keychain_wipe 精确清理目标 App 钥匙串" : parseError + "（空值不代表没有权限）"
         ]
     }
 }
@@ -1643,6 +1658,14 @@ final class AiAnalyzeTool: MCPTool {
         let prefix = (params["prefix"] as? String) ?? ""
         let exeName = ProcessHelper.executableName(for: app)
 
+        // v2.9.116：前置自检 1——加密 App 直接提示砸壳，不浪费 opainject
+        let mainBin = app.path + "/" + exeName
+        if let mo = MachOAnalyzer.analyze(mainBin), mo.cryptID > 0 {
+            return ["error": "目标 App 已加密（cryptid=\(mo.cryptID)），ProbeAgent 无法注入读取类结构",
+                    "next_step": "先执行 app.decrypt 砸壳，再重试 ai.analyze_app",
+                    "hint": "App Store 正版 App 均为加密，必须先砸壳"]
+        }
+
         // 1) 确保 ProbeAgent 在目标进程里（复用 probe 注入逻辑）
         var probeInjected = false
         if let pid = ProcessHelper.pidOf(executableName: exeName) {
@@ -1673,7 +1696,10 @@ final class AiAnalyzeTool: MCPTool {
             }
         }
         guard probeInjected else {
-            return ["error": "ProbeAgent 注入失败（App 未运行或 opainject 失败）", "hint": "确认 App 在前台运行，或先手动打开"]
+            let running = ProcessHelper.pidOf(executableName: exeName) != nil
+            return ["error": "ProbeAgent 注入失败（\(running ? "opainject 被拒/反调试拦截" : "App 未运行")）",
+                    "next_step": running ? "目标有反注入/反调试检测，改试 injection.mem 内存注入绕过" : "先用 app.start bundle_id 启动目标 App，或手动打开后重试",
+                    "hint": "注入失败≠App 有问题，先按 next_step 处理"]
         }
 
         // 2) 采集类列表

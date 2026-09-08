@@ -76,15 +76,18 @@ final class IPAInspectTool: MCPTool {
         let executable = ((NSDictionary(contentsOfFile: plistPath))?["CFBundleExecutable"] as? String) ?? "App"
         let binaryPath = bundlePath.appending("/\(executable)")
 
-        // 用 ldid 检查签名和 entitlements
+        // v2.9.116：arch 改用 MachOAnalyzer 解析（旧版依赖 /usr/bin/file，iOS 上不存在 → 永远 unknown 误判不可注入）
         let ldidPath = InjectionManager.shared.binaryPath("ldid") ?? ""
         if !ldidPath.isEmpty, FileManager.default.fileExists(atPath: binaryPath) {
             let (_, entOutput) = InjectionManager.shared.spawnRoot(ldidPath, args: ["-e", binaryPath])
-            let (_, archOutput) = InjectionManager.shared.spawnRoot("/usr/bin/file", args: [binaryPath])
+            let macho = MachOAnalyzer.analyze(binaryPath)
 
             result["binary"] = [
                 "path": binaryPath,
-                "arch": archOutput.contains("arm64") ? "arm64" : (archOutput.contains("armv7") ? "armv7" : "unknown"),
+                "arch": macho?.arch ?? "unknown",
+                "cryptid": macho?.cryptID ?? -1,
+                "arch_parse_error": macho == nil ? "Mach-O 解析失败（可能加密/特殊头），不能据此判定不可注入" : "",
+                "arch_note": macho?.cryptID ?? 0 > 0 ? "已加密（cryptid>0），符号/类结构需先 app.decrypt 砸壳" : "",
                 "entitlements": detail == "full" ? String(entOutput.prefix(3000)) : "已签名（用 detail=full 查看全文）",
                 "has_entitlements": !entOutput.isEmpty
             ]
@@ -529,13 +532,28 @@ final class NetworkCaptureTool: MCPTool {
                     "hint": "将在后续版本添加；当前可先用 injection.enable 注入其他抓包 dylib"
                 ]
             }
+            // v2.9.116：注入前查加密 + 注入后自检
+            if let app = AppCatalog.find(bundleId) {
+                let exec = (NSDictionary(contentsOfFile: app.path + "/Info.plist")?["CFBundleExecutable"] as? String) ?? ""
+                if !exec.isEmpty, let mo = MachOAnalyzer.analyze(app.path + "/" + exec), mo.cryptID > 0 {
+                    return ["action": "start", "error": "目标 App 已加密（cryptid=\(mo.cryptID)），NetworkTweak 无法注入",
+                            "next_step": "先 app.decrypt 砸壳，再重试抓包"]
+                }
+            }
             // 注入 NetworkTweak
             let result = try InjectionManager.shared.enable(bundleId: bundleId, dylibName: "@executable_path/NetworkTweak.dylib", dylibSourcePath: tweakPath)
+            let injected = (result["injected"] as? Bool) ?? false
+            if !injected {
+                return ["action": "start", "bundle_id": bundleId, "injection_result": false,
+                        "error": "NetworkTweak 注入未生效（自动回滚可参考 injection.disable）",
+                        "next_step": "检查 app.encrypt_info（加密需砸壳）→ app.status 确认进程存活 → 重试"]
+            }
             return [
                 "action": "start",
                 "bundle_id": bundleId,
-                "injection_result": result["injected"] ?? false,
-                "hint": "注入成功后重启目标 App，所有 HTTP 请求将记录到 \(captureDir)"
+                "injection_result": true,
+                "note": "注入的是目标 App 内的 framework 载体（不碰加密主二进制，符合规范）",
+                "hint": "重启目标 App 后请求将记录到 \(captureDir)。若 0 条：目标可能走 QUIC/私有协议或 TLS 加密，NSURLSession 层 hook 不到，需 TLS hook 方案"
             ]
 
         case "stop":
@@ -556,12 +574,17 @@ final class NetworkCaptureTool: MCPTool {
                 }
             }
             let limited = Array(allRequests.suffix(limit))
-            return [
+            var out: [String: Any] = [
                 "action": "requests",
                 "total": allRequests.count,
                 "returned": limited.count,
                 "requests": limited
             ]
+            if allRequests.isEmpty {
+                out["no_requests_reason"] = "0 条请求可能原因：目标 App 未重启 / 未产生 HTTP 流量 / 走 QUIC 或私有协议 / TLS 加密（NSURLSession hook 不到）"
+                out["next_step"] = "确认 App 已重启并实际产生网络流量；仍为 0 说明需 TLS hook 或协议层方案，非抓包工具故障"
+            }
+            return out
 
         case "analyze":
             // 统计分析

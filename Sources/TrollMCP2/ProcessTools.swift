@@ -9,7 +9,7 @@ import Foundation
 final class AppStartTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.start",
-        summary: "启动指定 App（通过 open 命令或注入后重启）。返回启动是否成功、PID、启动耗时。",
+        summary: "启动指定 App。多级策略：open -b → 注册表路径直接执行主二进制 → URL scheme，每级记录真实错误与 stderr，不再误导归因于 Bundle ID。",
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "wait_seconds": "启动后等待秒数（默认 3，用于确认进程存活）"
@@ -20,24 +20,59 @@ final class AppStartTool: MCPTool {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
         }
-        let wait = (params["wait_seconds"] as? Int) ?? 3
-
+        let wait = max((params["wait_seconds"] as? Int) ?? 3, 1)
         let start = Date()
-        // 用 open 命令启动 App
-        let (exitCode, _) = InjectionManager.shared.spawnRoot("/usr/bin/open", args: [bundleId])
+        var errors: [[String: Any]] = []
+        func find() -> Int { findPid(by: bundleId) }
+
+        // 方法 1：open -b（正确带 -b 标志；旧版漏了 -b 导致 exit 2 误报 Bundle ID 错误）
+        let (c1, o1) = InjectionManager.shared.spawnRoot("/usr/bin/open", args: ["-b", bundleId])
         Thread.sleep(forTimeInterval: TimeInterval(wait))
+        var pid = find()
+        if pid > 0 {
+            return ["bundle_id": bundleId, "started": true, "pid": pid, "method_used": "open -b",
+                    "launch_ms": Int(Date().timeIntervalSince(start) * 1000)]
+        }
+        errors.append(["step": "open -b", "exit": Int(c1), "stderr": String(o1.prefix(400))])
 
-        let pid = findPid(by: bundleId)
-        let elapsed = Int(Date().timeIntervalSince(start) * 1000)
+        // 方法 2：注册表路径 → 直接执行主二进制（绕过 open 依赖）
+        if let app = AppCatalog.find(bundleId) {
+            let plistPath = app.path + "/Info.plist"
+            let plist = NSDictionary(contentsOfFile: plistPath)
+            let exec = (plist?["CFBundleExecutable"] as? String) ?? ""
+            if !app.path.isEmpty, !exec.isEmpty {
+                let bin = app.path + "/" + exec
+                if FileManager.default.fileExists(atPath: bin) {
+                    let (c2, o2) = InjectionManager.shared.spawnRoot(bin, args: [])
+                    Thread.sleep(forTimeInterval: TimeInterval(wait))
+                    pid = find()
+                    if pid > 0 {
+                        return ["bundle_id": bundleId, "started": true, "pid": pid, "method_used": "direct_exec",
+                                "executable": bin, "launch_ms": Int(Date().timeIntervalSince(start) * 1000)]
+                    }
+                    errors.append(["step": "direct_exec", "exit": Int(c2), "stderr": String(o2.prefix(400))])
+                }
+            }
+            // 方法 3：URL scheme
+            if let types = plist?["CFBundleURLTypes"] as? [[String: Any]],
+               let schemes = types.first?["CFBundleURLSchemes"] as? [String],
+               let scheme = schemes.first {
+                let (c3, o3) = InjectionManager.shared.spawnRoot("/usr/bin/open", args: ["\(scheme)://"])
+                Thread.sleep(forTimeInterval: TimeInterval(wait))
+                pid = find()
+                if pid > 0 {
+                    return ["bundle_id": bundleId, "started": true, "pid": pid, "method_used": "url_scheme",
+                            "scheme": scheme, "launch_ms": Int(Date().timeIntervalSince(start) * 1000)]
+                }
+                errors.append(["step": "url_scheme", "exit": Int(c3), "stderr": String(o3.prefix(400))])
+            }
+        }
 
-        return [
-            "bundle_id": bundleId,
-            "started": pid > 0,
-            "pid": pid,
-            "launch_ms": elapsed,
-            "open_exit": exitCode,
-            "hint": pid > 0 ? "App 已启动" : "启动失败，检查 Bundle ID"
-        ]
+        return ["bundle_id": bundleId, "started": false, "pid": 0,
+                "launch_ms": Int(Date().timeIntervalSince(start) * 1000),
+                "errors": errors,
+                "next_step": "先查 app.encrypt_info（已加密需 app.decrypt 砸壳）→ app.status 确认进程；反调试拦截时考虑 injection.mem 内存注入",
+                "hint": "三种启动方式均失败，见 errors 明细（不再是 Bundle ID 误报）"]
     }
 }
 
