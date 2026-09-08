@@ -10,7 +10,7 @@
 - 项目：TrollAgent（原名 TrollMCP2，TrollStore 环境，无越狱）
 - 目标：AI 驱动的移动端实验与 QA 工作台——一句话描述目标，AI 自动完成诊断、操作、验证和报告
 - 构建：SwiftPM + GitHub Actions（私有仓库 origina47487lhe-droid/trollmcp2）
-- 版本：2.9.112
+- 版本：2.9.113
 - 环境：iOS 14+，TrollStore 安装，纯 TrollStore 无越狱
 
 ## 2. 核心设计原则
@@ -61,7 +61,7 @@ task.run template=inject_verify bundle_id=com.example dylib_path=/path/to/x.dyli
 - **工具名用点号分层**（如 `injection.enable`、`binary.symbols`）。
 
 - **任意 App UI 控制链路（v2.9.103）**：先 `injection.enable`（注入 TrollMCPAgent v4.1，构建时随包自动编译），再 `apps.open` 打开目标 App，等 agent HTTP（127.0.0.1:4792）就绪后用 `apps.control`（action: status/ui_tree/tap/swipe/type/scroll）直接控制 UI；`apps.open_and_input` 已改为 HTTP 链路（打开→等待就绪→type），不再依赖沙盒内 UserDefaults 队列。
-- **远程控制链路（v2.9.112 真后台保活）**：`control.inject` 注入 ControlAgent 后**自动开启真后台保活**——TrollAgent 侧静音音频保活、目标 App 侧 FrontBoard scene 拦截（借鉴 ImmortalizerJailed 机制），目标 App 切后台不再被挂起，4789 持续在线。执行远程控制时：注入→`apps.open` 启动目标 App→等 4789 就绪→`control.ui_tree`/`control.tap` 等控制；用户切走 App 也不会断连。远程控制页可手动开关「真后台保活」。
+- **远程控制链路（v2.9.113 真后台保活）**：`control.inject` 注入 ControlAgent 后**自动开启真后台保活**——TrollAgent 侧静音音频保活、目标 App 侧 FrontBoard scene 拦截（借鉴 ImmortalizerJailed 机制），目标 App 切后台不再被挂起，4789 持续在线。执行远程控制时：注入→`apps.open` 启动目标 App→等 4789 就绪→`control.ui_tree`/`control.tap` 等控制；用户切走 App 也不会断连。远程控制页可手动开关「真后台保活」。
 
 ## 6. 工作流可视化（v2.9.72）
 
@@ -168,7 +168,7 @@ tweaks/<Name>/
 
 *本指令随 App 版本迭代维护；如与最新版本不符，以 App 实际功能为准。*
 
-## 14. Filza 式文件浏览与二进制分析（v2.9.112）
+## 14. Filza 式文件浏览与二进制分析（v2.9.113）
 
 工具名与调用方式：
 - `fs.tree` —— 浏览目录树。参数：`bundle_id`（目标 App）+ `relative`（容器内相对路径，如 Documents / Library / Library/Preferences），或 `path`（绝对路径）；`depth` 递归深度（1-3），`limit` 每层条数。默认浏览工作区。
@@ -183,6 +183,11 @@ tweaks/<Name>/
 
 - `fs.zip` —— ZIP/IPA 归档浏览。`action=list` 列条目（名称/大小/压缩方式），`action=read` + `entry` 读 zip 内单个文件（自动识别文本/plist，`as=hex` 看十六进制）。分析 IPA 直接用它。
 - `fs.sql` —— SQLite 只读查询。默认列数据表；`sql` 支持 SELECT/PRAGMA（自动 LIMIT 防爆）。看表结构 `PRAGMA table_info(表名)`。
+- `fs.write` / `fs.edit` —— 写文件 / 行级与片段编辑（自动备份 .bak）。仅限工作区与 App 数据容器，禁止 Bundle 与系统区。
+- `fs.diff` —— 对比两个文件：文本逐行 diff（+/−），二进制比 SHA256 与首个差异偏移。
+- `fs.hash` —— 文件 MD5/SHA1/SHA256/SHA512 + 大小/时间/权限/所有者。
+- `fs.find` —— 按文件名关键词搜索（fs.grep 搜内容，这个搜文件名）。
+- `fs.download` —— 从 URL 下载到工作区 downloads，返回路径与 SHA256，供后续分析。
 - `fs.grep` —— 目录文本搜索。`dir` 或 `bundle_id` + `pattern` 关键词 + `ext` 扩展名过滤，返回 文件:行号:匹配行。
 
 与既有分析工具的分工：

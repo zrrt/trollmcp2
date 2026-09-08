@@ -98,6 +98,7 @@ public final class ToolRegistry: ObservableObject {
         "web.search", "web.fetch", "knowledge.search",
         "fs.tree", "fs.read", "fs.hexdump",   // v2.9.111：Filza 式文件浏览/二进制分析
         "fs.zip", "fs.sql", "fs.grep",        // v2.9.112：ZIP 浏览 / SQLite 查询 / 文本搜索
+        "fs.write", "fs.edit", "fs.diff", "fs.hash", "fs.find", "fs.download",  // v2.9.113：读写/对比/校验/搜索/下载
         "github.account_status", "github.trigger_build", "github.fetch_runs", "github.download_artifact",
         "model.config", "model.authentication", "model.selected_profile_id",
         "skills.list", "skills.read",   // v2.9.17：技能发现/读取
@@ -528,6 +529,12 @@ public final class ToolRegistry: ObservableObject {
     register(FSZipTool())       // v2.9.112：ZIP/IPA 归档浏览与条目读取
     register(FSSQLTool())       // v2.9.112：SQLite 只读查询（Filza SQLite3 编辑器）
     register(FSGrepTool())      // v2.9.112：目录文本关键词搜索
+    register(FSWriteTool())     // v2.9.113：写文件（带 .bak 备份）
+    register(FSEditTool())      // v2.9.113：行级/片段编辑（带 .bak 备份）
+    register(FSDiffTool())      // v2.9.113：文件对比（文本 diff / 二进制哈希）
+    register(FSHashTool())      // v2.9.113：文件哈希与元数据
+    register(FSFindTool())      // v2.9.113：文件名搜索
+    register(FSDownloadTool())  // v2.9.113：下载到工作区
 
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
     }

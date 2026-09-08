@@ -1,5 +1,6 @@
 import Foundation
 import SQLite3
+import CommonCrypto
 
 // v2.9.111：Filza 式文件浏览与二进制分析能力。
 // 提供三个工具：
@@ -51,6 +52,23 @@ private enum FSPolicy {
             if s2.hasPrefix(d) || s.hasPrefix(d) { return false }
         }
         return true
+    }
+
+    /// 是否可写：仅工作区与 App 数据容器（Documents/Library 等），禁止 App Bundle 与系统区。
+    static func isWritable(_ raw: String) -> Bool {
+        guard isAllowed(raw) else { return false }
+        let s = (raw as NSString).standardizingPath
+        let s2 = s.hasPrefix("/private/var") ? String(s.dropFirst("/private".count)) : s
+        let ok = s2.hasPrefix("/var/mobile/Documents/Workspace") || s2.hasPrefix("/var/mobile/Containers/Data/Application")
+        guard ok else { return false }
+        if s2.hasPrefix("/var/mobile/Containers/Bundle") { return false }
+        return true
+    }
+
+    /// 工作区根路径
+    static func workspace() -> String {
+        if let ws = UserDefaults.standard.string(forKey: "trollmcp2.workspace"), !ws.isEmpty { return ws }
+        return "/var/mobile/Documents/Workspace"
     }
 
     static func describe(_ raw: String) -> String {
@@ -638,5 +656,409 @@ final class FSGrepTool: MCPTool {
             "hit_count": hits.count,
             "hint": "搜索到目标后用 fs.read 读取文件（line_start/line_end 定位行）"
         ]
+    }
+}
+
+
+// MARK: - 文件写入（带自动备份）
+
+final class FSWriteTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "fs.write",
+        summary: "写文本/JSON 到文件（工作区或 App 数据容器）。已有文件自动备份 .bak。禁止写 App Bundle 与系统区。Filza 的文本编辑器写能力。",
+        parameters: [
+            "path": "绝对路径（或工作区相对路径）",
+            "bundle_id": "目标 App Bundle ID（填了则写该 App 数据容器）",
+            "relative": "容器内相对路径（bundle_id 模式下用）",
+            "content": "要写入的文本内容（必填）",
+            "backup": "覆盖前是否备份为 .bak（默认 true）"
+        ]
+    )
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let content = params["content"] as? String else {
+            throw MCPError.invalidParams("content required")
+        }
+        let bundleId = params["bundle_id"] as? String
+        let rel = params["relative"] as? String
+        let path = params["path"] as? String
+        let backup = (params["backup"] as? Bool) ?? true
+
+        var target: String? = nil
+        if let p = FSPolicy.resolve(bundleId: bundleId, relative: rel, path: path) {
+            target = p
+        } else if let p = path, !p.hasPrefix("/") {
+            // 工作区相对路径
+            target = FSPolicy.workspace() + "/" + p
+        }
+        guard let p = target else { throw MCPError.invalidParams("需要 path 或 bundle_id+relative") }
+        guard FSPolicy.isWritable(p) else {
+            throw MCPError.failed("不可写：仅限工作区与 App 数据容器（Documents/Library），禁止 Bundle 与系统区: \(p)")
+        }
+        let fm = FileManager.default
+        let parent = (p as NSString).deletingLastPathComponent
+        try? fm.createDirectory(atPath: parent, withIntermediateDirectories: true)
+        var bakCreated = false
+        if fm.fileExists(atPath: p), backup {
+            try? fm.removeItem(atPath: p + ".bak")
+            if (try? fm.copyItem(atPath: p, toPath: p + ".bak")) != nil { bakCreated = true }
+        }
+        do {
+            try Data(content.utf8).write(to: URL(fileURLWithPath: p))
+        } catch {
+            return ["error": "写入失败: \(error.localizedDescription)", "path": p]
+        }
+        var out: [String: Any] = ["path": p, "bytes": content.utf8.count, "backup_created": bakCreated]
+        if bakCreated { out["backup_path"] = p + ".bak" }
+        return out
+    }
+}
+
+// MARK: - 行级编辑（带自动备份）
+
+final class FSEditTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "fs.edit",
+        summary: "编辑文本文件：按行号替换（line + new_text）或按原文替换（old + new）。自动备份 .bak。Filza 属性表/文本编辑器写能力。",
+        parameters: [
+            "path": "绝对路径（或工作区相对路径）",
+            "bundle_id": "目标 App Bundle ID（填了则编辑该 App 数据容器）",
+            "relative": "容器内相对路径（bundle_id 模式下用）",
+            "line": "要替换的行号（1-based，与 new_text 搭配）",
+            "new_text": "替换后的内容（line 模式下）",
+            "old": "原文片段（old/new 模式下）",
+            "new": "替换为（old/new 模式下，可选则删除该片段）"
+        ]
+    )
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        let bundleId = params["bundle_id"] as? String
+        let rel = params["relative"] as? String
+        let path = params["path"] as? String
+        var target: String? = nil
+        if let p = FSPolicy.resolve(bundleId: bundleId, relative: rel, path: path) {
+            target = p
+        } else if let p = path, !p.hasPrefix("/") {
+            target = FSPolicy.workspace() + "/" + p
+        }
+        guard let p = target else { throw MCPError.invalidParams("需要 path 或 bundle_id+relative") }
+        guard FSPolicy.isWritable(p) else {
+            throw MCPError.failed("不可写：仅限工作区与 App 数据容器: \(p)")
+        }
+        let fm = FileManager.default
+        guard let data = fm.contents(atPath: p), var text = String(data: data, encoding: .utf8) else {
+            return ["error": "读取失败或非 UTF-8 文本: \(p)"]
+        }
+        var changed = false
+        var detail = ""
+        if let line = params["line"] as? Int, let newText = params["new_text"] as? String {
+            var lines = text.components(separatedBy: "\n")
+            guard line >= 1, line <= lines.count else {
+                return ["error": "行号越界: \(line)（共 \(lines.count) 行）"]
+            }
+            let oldLine = lines[line - 1]
+            lines[line - 1] = newText
+            text = lines.joined(separator: "\n")
+            changed = true
+            detail = "L\(line): \(String(oldLine.prefix(80))) → \(String(newText.prefix(80)))"
+        } else if let old = params["old"] as? String, !old.isEmpty {
+            let replacement = (params["new"] as? String) ?? ""
+            let count = text.components(separatedBy: old).count - 1
+            guard count > 0 else { return ["error": "未找到原文片段"] }
+            text = text.replacingOccurrences(of: old, with: replacement)
+            changed = true
+            detail = "替换 \(count) 处"
+        }
+        guard changed else { throw MCPError.invalidParams("需要 line+new_text 或 old(+new) 参数") }
+
+        try? fm.removeItem(atPath: p + ".bak")
+        try? fm.copyItem(atPath: p, toPath: p + ".bak")
+        do {
+            try Data(text.utf8).write(to: URL(fileURLWithPath: p))
+        } catch {
+            return ["error": "写入失败: \(error.localizedDescription)"]
+        }
+        return ["path": p, "changed": detail, "backup_path": p + ".bak"]
+    }
+}
+
+// MARK: - 文件对比
+
+final class FSDiffTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "fs.diff",
+        summary: "对比两个文件：文本逐行 diff（+新增/-删除），二进制比大小与 SHA256 与首个差异偏移。用于对比不同版本、备份 vs 当前、配置差异。",
+        parameters: [
+            "path_a": "文件 A（绝对路径或工作区相对路径）",
+            "path_b": "文件 B",
+            "bundle_id_a": "文件 A 的 App Bundle ID（可选）",
+            "relative_a": "文件 A 容器内相对路径（bundle_id_a 模式下用）",
+            "bundle_id_b": "文件 B 的 App Bundle ID（可选）",
+            "relative_b": "文件 B 容器内相对路径（bundle_id_b 模式下用）"
+        ]
+    )
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let pa = Self.resolveOne(params, prefix: "a", key: "path_a") else {
+            throw MCPError.invalidParams("path_a required")
+        }
+        guard let pb = Self.resolveOne(params, prefix: "b", key: "path_b") else {
+            throw MCPError.invalidParams("path_b required")
+        }
+        guard FSPolicy.isAllowed(pa), FSPolicy.isAllowed(pb) else {
+            throw MCPError.failed("路径不在可访问范围")
+        }
+        let fm = FileManager.default
+        guard let da = fm.contents(atPath: pa), let db = fm.contents(atPath: pb) else {
+            return ["error": "读取失败"]
+        }
+        // 二进制哈希对比
+        let hashA = Self.sha256Hex(da)
+        let hashB = Self.sha256Hex(db)
+        if hashA != hashB {
+            var firstDiff = -1
+            let n = min(da.count, db.count)
+            for i in 0..<n {
+                if da[i] != db[i] { firstDiff = i; break }
+            }
+            if firstDiff == -1 { firstDiff = n }
+            // 尝试文本 diff
+            let ta = String(data: da, encoding: .utf8)?.components(separatedBy: "\n")
+            let tb = String(data: db, encoding: .utf8)?.components(separatedBy: "\n")
+            if let la = ta, let lb = tb, la.count <= 1500, lb.count <= 1500 {
+                let d = Self.lcsDiff(la, lb, maxLines: 200)
+                return [
+                    "equal": false,
+                    "kind": "text",
+                    "hash_a": hashA, "hash_b": hashB,
+                    "lines_a": la.count, "lines_b": lb.count,
+                    "diff": d,
+                    "hint": "文本差异 \(d.count) 行"
+                ]
+            }
+            return [
+                "equal": false,
+                "kind": "binary",
+                "size_a": da.count, "size_b": db.count,
+                "hash_a": hashA, "hash_b": hashB,
+                "first_diff_offset": firstDiff,
+                "hint": "二进制不同：用 fs.hexdump offset=\(firstDiff) 查看差异区域"
+            ]
+        }
+        return ["equal": true, "size": da.count, "hash": hashA]
+    }
+
+    private static func resolveOne(_ params: [String: Any], prefix: String, key: String) -> String? {
+        if let p = params[key] as? String, !p.isEmpty {
+            if p.hasPrefix("/") { return p }
+            return FSPolicy.workspace() + "/" + p
+        }
+        if let bid = params["bundle_id_\(prefix)"] as? String {
+            return FSPolicy.resolve(bundleId: bid, relative: params["relative_\(prefix)"] as? String, path: nil)
+        }
+        return nil
+    }
+
+    private static func sha256Hex(_ data: Data) -> String {
+        var digest = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
+        data.withUnsafeBytes { buf in
+            _ = CC_SHA256(buf.baseAddress, CC_LONG(data.count), &digest)
+        }
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// 简单 LCS 行级 diff（限制行数与输出量）
+    private static func lcsDiff(_ a: [String], _ b: [String], maxLines: Int) -> [[String: Any]] {
+        let n = a.count, m = b.count
+        var dp = [[Int]](repeating: [Int](repeating: 0, count: m + 1), count: n + 1)
+        for i in (0..<n).reversed() {
+            for j in (0..<m).reversed() {
+                dp[i][j] = a[i] == b[j] ? dp[i+1][j+1] + 1 : max(dp[i+1][j], dp[i][j+1])
+            }
+        }
+        var out: [[String: Any]] = []
+        var i = 0, j = 0
+        while i < n, j < m, out.count < maxLines {
+            if a[i] == b[j] { i += 1; j += 1 }
+            else if dp[i+1][j] >= dp[i][j+1] {
+                out.append(["op": "-", "line_a": i + 1, "text": String(a[i].prefix(200))]); i += 1
+            } else {
+                out.append(["op": "+", "line_b": j + 1, "text": String(b[j].prefix(200))]); j += 1
+            }
+        }
+        while i < n, out.count < maxLines { out.append(["op": "-", "line_a": i + 1, "text": String(a[i].prefix(200))]); i += 1 }
+        while j < m, out.count < maxLines { out.append(["op": "+", "line_b": j + 1, "text": String(b[j].prefix(200))]); j += 1 }
+        if i < n || j < m { out.append(["op": "...", "text": "差异过长已截断"]) }
+        return out
+    }
+}
+
+// MARK: - 哈希与元数据
+
+final class FSHashTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "fs.hash",
+        summary: "计算文件哈希（MD5/SHA1/SHA256/SHA512）并返回大小/修改时间/权限。用于下载产物完整性校验、文件去重、对比。",
+        parameters: [
+            "path": "绝对路径（或工作区相对路径）",
+            "bundle_id": "目标 App Bundle ID（填了则读该 App 数据容器）",
+            "relative": "容器内相对路径（bundle_id 模式下用）",
+            "algo": "md5 / sha1 / sha256（默认）/ sha512"
+        ]
+    )
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        let bundleId = params["bundle_id"] as? String
+        let rel = params["relative"] as? String
+        let path = params["path"] as? String
+        var target: String? = nil
+        if let p = FSPolicy.resolve(bundleId: bundleId, relative: rel, path: path) {
+            target = p
+        } else if let p = path, !p.isEmpty {
+            target = p.hasPrefix("/") ? p : FSPolicy.workspace() + "/" + p
+        }
+        guard let p = target else { throw MCPError.invalidParams("需要 path 或 bundle_id+relative") }
+        guard FSPolicy.isAllowed(p) else { throw MCPError.failed("路径不在可访问范围: \(p)") }
+        let fm = FileManager.default
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: p, isDirectory: &isDir), !isDir.boolValue else {
+            return ["error": "文件不存在或为目录: \(p)"]
+        }
+        guard let data = fm.contents(atPath: p) else { return ["error": "读取失败: \(p)"] }
+        let algo = (params["algo"] as? String)?.lowercased() ?? "sha256"
+        var hash = ""
+        switch algo {
+        case "md5": hash = Self.digestHex(data, CC_MD5, CC_MD5_DIGEST_LENGTH)
+        case "sha1": hash = Self.digestHex(data, CC_SHA1, CC_SHA1_DIGEST_LENGTH)
+        case "sha512": hash = Self.digestHex(data, CC_SHA512, CC_SHA512_DIGEST_LENGTH)
+        default:
+            var d = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
+            data.withUnsafeBytes { buf in _ = CC_SHA256(buf.baseAddress, CC_LONG(data.count), &d) }
+            hash = d.map { String(format: "%02x", $0) }.joined()
+        }
+        let attrs = try? fm.attributesOfItem(atPath: p)
+        var out: [String: Any] = [
+            "path": p,
+            "algo": algo == "md5" ? "md5" : (algo == "sha1" ? "sha1" : (algo == "sha512" ? "sha512" : "sha256")),
+            "hash": hash,
+            "size": (attrs?[.size] as? NSNumber)?.int64Value ?? Int64(data.count)
+        ]
+        if let m = attrs?[.modificationDate] as? Date { out["modified"] = Int64(m.timeIntervalSince1970) }
+        if let perm = attrs?[.posixPermissions] as? NSNumber { out["permissions"] = String(format: "%o", perm.intValue) }
+        if let owner = attrs?[.ownerAccountName] as? String { out["owner"] = owner }
+        return out
+    }
+
+    private static func digestHex(_ data: Data, _ fn: (UnsafeRawPointer?, CC_LONG, UnsafeMutablePointer<UInt8>?) -> UnsafeMutablePointer<UInt8>?, _ len: Int32) -> String {
+        var d = [UInt8](repeating: 0, count: Int(len))
+        data.withUnsafeBytes { buf in _ = fn(buf.baseAddress, CC_LONG(data.count), &d) }
+        return d.map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+// MARK: - 文件名搜索
+
+final class FSFindTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "fs.find",
+        summary: "按文件名关键词在目录内搜索（fs.grep 是搜内容，这个搜文件名），支持扩展名过滤。适合在 App 容器/工作区里找文件。",
+        parameters: [
+            "dir": "搜索目录（默认工作区）",
+            "bundle_id": "目标 App Bundle ID（填了则在该 App 数据容器内搜索）",
+            "name": "文件名关键词（必填，不区分大小写）",
+            "ext": "扩展名过滤（如 plist/db/dylib，逗号分隔，可选）",
+            "limit": "最多返回条数（默认 60）"
+        ]
+    )
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let name = params["name"] as? String, !name.isEmpty else {
+            throw MCPError.invalidParams("name required")
+        }
+        let bundleId = params["bundle_id"] as? String
+        let dir: String
+        if let p = FSPolicy.resolve(bundleId: bundleId, relative: nil, path: params["dir"] as? String) {
+            dir = p
+        } else {
+            dir = FSPolicy.workspace()
+        }
+        guard FSPolicy.isAllowed(dir) else { throw MCPError.failed("路径不在可访问范围: \(dir)") }
+        let needle = name.lowercased()
+        let exts = (params["ext"] as? String)?
+            .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() } ?? []
+        let limit = min(max((params["limit"] as? Int) ?? 60, 1), 300)
+        var hits: [[String: Any]] = []
+        let fm = FileManager.default
+        guard let en = fm.enumerator(atPath: dir) else { return ["dir": dir, "hits": []] }
+        var scanned = 0
+        for case let n as String in en {
+            if hits.count >= limit { break }
+            scanned += 1
+            if scanned > 6000 { break }
+            let full = (dir as NSString).appendingPathComponent(n)
+            var isD: ObjCBool = false
+            fm.fileExists(atPath: full, isDirectory: &isD)
+            if isD.boolValue { continue }
+            guard n.lowercased().contains(needle) else { continue }
+            let ext = (full as NSString).pathExtension.lowercased()
+            if !exts.isEmpty, !exts.contains(ext) { continue }
+            let size = (try? fm.attributesOfItem(atPath: full)[.size] as? NSNumber)??.int64Value ?? 0
+            hits.append(["name": n, "path": full, "size": size])
+        }
+        return ["dir": dir, "keyword": name, "scanned": scanned, "hits": hits, "hit_count": hits.count]
+    }
+}
+
+// MARK: - 下载到工作区
+
+final class FSDownloadTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "fs.download",
+        summary: "从 URL 下载文件到工作区 downloads 目录（http/https），返回本地路径与哈希，供后续 fs.read / fs.zip / ipa.inspect 分析。",
+        parameters: [
+            "url": "http/https 下载地址（必填）",
+            "filename": "保存的文件名（默认取 URL 最后一段）",
+            "subdir": "工作区下子目录（默认 downloads）",
+            "timeout": "超时秒数（默认 60）"
+        ]
+    )
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let urlStr = params["url"] as? String,
+              let url = URL(string: urlStr),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" else {
+            throw MCPError.invalidParams("需要有效的 http/https URL")
+        }
+        let timeout = max((params["timeout"] as? Int) ?? 60, 5)
+        let subdir = (params["subdir"] as? String) ?? "downloads"
+        let base = FSPolicy.workspace() + "/" + subdir.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let fm = FileManager.default
+        try? fm.createDirectory(atPath: base, withIntermediateDirectories: true)
+        let filename = (params["filename"] as? String) ?? (url.lastPathComponent.isEmpty ? "download" : url.lastPathComponent)
+        let dest = base + "/" + filename
+
+        var req = URLRequest(url: url, timeoutInterval: TimeInterval(timeout))
+        req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
+        let sem = DispatchSemaphore(value: 0)
+        var result: [String: Any] = ["error": "下载失败"]
+        URLSession.shared.dataTask(with: req) { data, resp, err in
+            defer { sem.signal() }
+            if let err = err { result["error"] = "网络错误: \(err.localizedDescription)"; return }
+            guard let data = data else { result["error"] = "无数据"; return }
+            let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+            guard status == 200 else { result["error"] = "HTTP \(status)"; return }
+            do {
+                try data.write(to: URL(fileURLWithPath: dest))
+                var d = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
+                data.withUnsafeBytes { buf in _ = CC_SHA256(buf.baseAddress, CC_LONG(data.count), &d) }
+                let hash = d.map { String(format: "%02x", $0) }.joined()
+                result = ["ok": true, "path": dest, "size": data.count, "sha256": hash]
+            } catch {
+                result["error"] = "写入失败: \(error.localizedDescription)"
+            }
+        }.resume()
+        _ = sem.wait(timeout: .now() + TimeInterval(timeout + 15))
+        return result
     }
 }
