@@ -5,6 +5,16 @@ import Compression
 /// 支持 STORE(0) 与 DEFLATE(8) 两种压缩方式，解析 ZIP 中央目录。
 /// 用于 GitHub Actions artifact 下载后的解压，避免依赖系统 unzip 或第三方库。
 enum ZipExtractor {
+    /// v2.9.112：ZIP 条目元数据（fs.zip 浏览用）
+    struct ZipEntry {
+        let name: String
+        let method: Int
+        let compSize: Int
+        let uncompSize: Int
+        let localOffset: Int
+        var isDir: Bool { name.hasSuffix("/") }
+    }
+
     enum ZipError: Error, CustomStringConvertible {
         case notZip, corrupt(String)
         var description: String {
@@ -19,6 +29,69 @@ enum ZipExtractor {
     static func unzip(_ zipURL: URL, to destURL: URL) throws {
         let data = try Data(contentsOf: zipURL)
         try unzip(data, to: destURL)
+    }
+
+    /// v2.9.112：列出 ZIP 内全部条目（只读中央目录，不写盘）
+    static func entries(_ data: Data) throws -> [ZipEntry] {
+        let bytes = [UInt8](data)
+        guard bytes.count >= 22 else { throw ZipError.notZip }
+        var eocdIdx: Int? = nil
+        let minSearch = max(0, bytes.count - 65557)
+        var i = bytes.count - 22
+        while i >= minSearch {
+            if bytes[i] == 0x50, bytes[i+1] == 0x4b, bytes[i+2] == 0x05, bytes[i+3] == 0x06 {
+                eocdIdx = i
+                break
+            }
+            i -= 1
+        }
+        guard let eocd = eocdIdx else { throw ZipError.notZip }
+        let cdCount = u16(bytes, eocd + 10)
+        let cdOffset = u32(bytes, eocd + 16)
+        var result: [ZipEntry] = []
+        var offset = Int(cdOffset)
+        for _ in 0..<cdCount {
+            guard offset + 46 <= bytes.count,
+                  bytes[offset] == 0x50, bytes[offset+1] == 0x4b,
+                  bytes[offset+2] == 0x01, bytes[offset+3] == 0x02 else {
+                throw ZipError.corrupt("中央目录条目签名错误 @\(offset)")
+            }
+            let method = u16(bytes, offset + 10)
+            let compSize = u32(bytes, offset + 20)
+            let uncompSize = u32(bytes, offset + 24)
+            let nameLen = u16(bytes, offset + 28)
+            let extraLen = u16(bytes, offset + 30)
+            let commentLen = u16(bytes, offset + 32)
+            let localOffset = u32(bytes, offset + 42)
+            let nameStart = offset + 46
+            let nameData = Array(bytes[nameStart..<(nameStart + Int(nameLen))])
+            let name = String(bytes: nameData, encoding: .utf8) ?? String(bytes: nameData, encoding: .isoLatin1) ?? ""
+            result.append(ZipEntry(name: name, method: method, compSize: compSize, uncompSize: uncompSize, localOffset: localOffset))
+            offset = nameStart + Int(nameLen) + Int(extraLen) + Int(commentLen)
+        }
+        return result
+    }
+
+    /// v2.9.112：读取 ZIP 内单个条目内容（解压到内存，不写盘）
+    static func entryData(_ data: Data, name: String) throws -> Data {
+        let bytes = [UInt8](data)
+        guard let e = try entries(data).first(where: { $0.name == name }) else {
+            throw ZipError.corrupt("条目不存在: \(name)")
+        }
+        guard !e.isDir else { return Data() }
+        let dataStart = try localDataOffset(bytes: bytes, localOffset: e.localOffset)
+        let compEnd = dataStart + e.compSize
+        guard compEnd <= bytes.count else { throw ZipError.corrupt("压缩数据越界 @\(name)") }
+        let comp = Array(bytes[dataStart..<compEnd])
+        let out: [UInt8]
+        if e.method == 0 {
+            out = comp
+        } else if e.method == 8 {
+            out = try inflate(comp, expectedSize: e.uncompSize)
+        } else {
+            out = comp
+        }
+        return Data(out)
     }
 
     static func unzip(_ data: Data, to destURL: URL) throws {

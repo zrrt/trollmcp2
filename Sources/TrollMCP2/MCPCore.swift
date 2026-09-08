@@ -97,6 +97,7 @@ public final class ToolRegistry: ObservableObject {
         "artifact.find",   // v2.9.33/34：递归查找下载产物（与 coreToolNames 保持一致，否则报"未加载"）
         "web.search", "web.fetch", "knowledge.search",
         "fs.tree", "fs.read", "fs.hexdump",   // v2.9.111：Filza 式文件浏览/二进制分析
+        "fs.zip", "fs.sql", "fs.grep",        // v2.9.112：ZIP 浏览 / SQLite 查询 / 文本搜索
         "github.account_status", "github.trigger_build", "github.fetch_runs", "github.download_artifact",
         "model.config", "model.authentication", "model.selected_profile_id",
         "skills.list", "skills.read",   // v2.9.17：技能发现/读取
@@ -524,6 +525,9 @@ public final class ToolRegistry: ObservableObject {
     register(FSTreeTool())      // v2.9.111：Filza 式目录浏览
     register(FSReadTool())      // v2.9.111：文件读取（文本/plist/SQLite/二进制识别）
     register(FSHexdumpTool())   // v2.9.111：二进制十六进制查看
+    register(FSZipTool())       // v2.9.112：ZIP/IPA 归档浏览与条目读取
+    register(FSSQLTool())       // v2.9.112：SQLite 只读查询（Filza SQLite3 编辑器）
+    register(FSGrepTool())      // v2.9.112：目录文本关键词搜索
 
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
     }
