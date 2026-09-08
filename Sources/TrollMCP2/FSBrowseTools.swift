@@ -531,10 +531,15 @@ final class FSSQLTool: MCPTool {
         }
         defer { sqlite3_close(d) }
 
-        // 强制 LIMIT（已带 LIMIT 的语句跳过）
+        // v2.9.114：PRAGMA 只放行查询型，拒绝赋值型（journal_mode=WAL 等）
+        if upper.hasPrefix("PRAGMA") && upper.contains("=") {
+            throw MCPError.failed("只允许查询型 PRAGMA（table_info/index_list 等），禁止赋值型")
+        }
+        // 强制 LIMIT（已带 LIMIT 的语句跳过）；先剥尾部分号，避免 LIMIT 被当成第二条语句失效
         var exec = trimmed
+        while exec.hasSuffix(";") { exec = String(exec.dropLast()) }
         if !upper.contains("LIMIT") && upper.hasPrefix("SELECT") {
-            exec = trimmed + " LIMIT \(limit)"
+            exec = exec + " LIMIT \(limit)"
         }
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(d, exec, -1, &stmt, nil) == SQLITE_OK, let s = stmt else {
@@ -1002,7 +1007,7 @@ final class FSFindTool: MCPTool {
             guard n.lowercased().contains(needle) else { continue }
             let ext = (full as NSString).pathExtension.lowercased()
             if !exts.isEmpty, !exts.contains(ext) { continue }
-            let size = (try? fm.attributesOfItem(atPath: full)[.size] as? NSNumber)??.int64Value ?? 0
+            let size = ((try? fm.attributesOfItem(atPath: full))?[.size] as? NSNumber)?.int64Value ?? 0
             hits.append(["name": n, "path": full, "size": size])
         }
         return ["dir": dir, "keyword": name, "scanned": scanned, "hits": hits, "hit_count": hits.count]
@@ -1035,7 +1040,11 @@ final class FSDownloadTool: MCPTool {
         let base = FSPolicy.workspace() + "/" + subdir.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         let fm = FileManager.default
         try? fm.createDirectory(atPath: base, withIntermediateDirectories: true)
-        let filename = (params["filename"] as? String) ?? (url.lastPathComponent.isEmpty ? "download" : url.lastPathComponent)
+        var filename = (params["filename"] as? String) ?? (url.lastPathComponent.isEmpty ? "download" : url.lastPathComponent)
+        // v2.9.114：防路径穿越——文件名剔除路径分隔符与控制字符
+        let bad = CharacterSet(charactersIn: "/\\\0\n\r\t")
+        filename = filename.components(separatedBy: bad).joined(separator: "_")
+        if filename.isEmpty || filename == "." || filename == ".." { filename = "download" }
         let dest = base + "/" + filename
 
         var req = URLRequest(url: url, timeoutInterval: TimeInterval(timeout))
