@@ -316,7 +316,7 @@ struct AddGitHubAccountView: View {
             if deviceStep == 0 {
                 SettingRowButton(
                     title: "在浏览器中登录",
-                    subtitle: store.clientID.isEmpty ? "⚠️ 未设置 Client ID" : "Client ID: \(store.clientID)",
+                    subtitle: store.clientID.isEmpty ? "✅ 使用内置默认 Client ID（可直接登录）" : "Client ID: \(store.clientID)",
                     icon: "safari.fill",
                     color: .black
                 ) {

@@ -255,4 +255,5 @@ tweaks/<Name>/
 - **注入策略 inject_strategy**：injection.enable 新增 inject_strategy 参数——lexicographic（默认）/fast（文件小优先）/preorder/postorder，对齐 TrollFools Strategy（fast = 按文件大小升序）。
 - **多资产注入**：preparedAssets 逐个 insert_load_command + standardizeLoadCommandDylib + 统一验证 + 失败批量回滚（恢复备份 + 删全部资产 + 删 substrate）；disable/remove 时同步清理注入的 CydiaSubstrate.framework（对齐 ejectDylibsAndFrameworks 尾部）。
 - **entitlements 对齐补全**：补 TrollFools 全部功能权限（Photos/Mail/MobileDocuments/CloudDocsDB/CloudKit/iCloudDrive/DocumentRevisions/ciconia 存储系列、kernel.jetsam、network.socket-delegate、SystemConfiguration 写、backboardd.launchapplications、frontboard.shutdown、springboard iconState/launchapplicationswithoptions、usernotification 系列、mach-lookup.global-name 等 40 项）。
+- **GitHub 登录引导修复（v2.9.122）**：内置默认 Client ID 实测有效（origina47487lhe-droid 的 TrollMCP2 OAuth App，Device Flow 正常）；设置页留空=内置默认（删除保存自动回退）。修复误导文案：空值显示"✅ 使用内置默认 Client ID（可直接登录）"而非"未设置"；404 报错附完整引导（清空回退 / 注册自有 OAuth App）。
 - **工具链对齐确认**：bin/ 已含 TrollFools 全部工具（chown/cp/cp-15/ct_bypass/insert_dylib/install_name_tool/ldid/mkdir/mv/mv-15/optool/rm + libcrypto/libintl/libiosexec/libxar）+ 额外 opainject 等，无缺件。
