@@ -457,6 +457,14 @@ struct GitHubRepoSettingsView: View {
                     .autocapitalization(.none)
                     .disableAutocorrection(true)
                     .font(.system(.body, design: .monospaced))
+                Button("恢复默认 Client ID（清空自定义值）") {
+                    store.clientID = ""
+                    store.persistNow()
+                    saved = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                        saved = false
+                    }
+                }
             }
 
             Section(header: SettingSectionHeader(title: "目标仓库"),
@@ -484,7 +492,7 @@ struct GitHubRepoSettingsView: View {
                     }
                 }
                 if saved {
-                    Text(store.clientID.isEmpty ? "已保存 ✓（Client ID 留空，使用内置默认）" : "已保存 ✓")
+                    Text(store.clientID.isEmpty ? "已保存 ✓ 已恢复内置默认 Client ID，可直接登录" : "已保存 ✓")
                         .font(.footnote).foregroundColor(.green)
                 }
             }

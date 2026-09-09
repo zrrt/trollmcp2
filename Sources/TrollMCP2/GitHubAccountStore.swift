@@ -131,9 +131,12 @@ final class GitHubAccountStore: ObservableObject {
         def.set(repoName, forKey: repoKey)
         def.set(workflowId, forKey: workflowKey)
         def.set(branch, forKey: branchKey)
-        // v2.9.117：留空 = 使用内置默认，不写入空值
-        if !clientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            def.set(clientID, forKey: clientIDKey)
+        // v2.9.123：留空 = 使用内置默认，且删除旧的自定义值（根治"清空无效"——旧错误值残留 UserDefaults 导致重启后仍 404）
+        let trimmedCID = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedCID.isEmpty {
+            def.removeObject(forKey: clientIDKey)
+        } else {
+            def.set(trimmedCID, forKey: clientIDKey)
         }
     }
 

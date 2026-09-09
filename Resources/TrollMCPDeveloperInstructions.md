@@ -256,4 +256,5 @@ tweaks/<Name>/
 - **多资产注入**：preparedAssets 逐个 insert_load_command + standardizeLoadCommandDylib + 统一验证 + 失败批量回滚（恢复备份 + 删全部资产 + 删 substrate）；disable/remove 时同步清理注入的 CydiaSubstrate.framework（对齐 ejectDylibsAndFrameworks 尾部）。
 - **entitlements 对齐补全**：补 TrollFools 全部功能权限（Photos/Mail/MobileDocuments/CloudDocsDB/CloudKit/iCloudDrive/DocumentRevisions/ciconia 存储系列、kernel.jetsam、network.socket-delegate、SystemConfiguration 写、backboardd.launchapplications、frontboard.shutdown、springboard iconState/launchapplicationswithoptions、usernotification 系列、mach-lookup.global-name 等 40 项）。
 - **GitHub 登录引导修复（v2.9.122）**：内置默认 Client ID 实测有效（origina47487lhe-droid 的 TrollMCP2 OAuth App，Device Flow 正常）；设置页留空=内置默认（删除保存自动回退）。修复误导文案：空值显示"✅ 使用内置默认 Client ID（可直接登录）"而非"未设置"；404 报错附完整引导（清空回退 / 注册自有 OAuth App）。
+- **GitHub 登录清空根治（v2.9.123）**：修复"清空 Client ID 保存无效"——旧自定义值残留 UserDefaults，重启后仍读回错误值导致 404。现在清空保存会 removeObject 真正删除；设置页新增"恢复默认 Client ID（清空自定义值）"一键按钮。
 - **工具链对齐确认**：bin/ 已含 TrollFools 全部工具（chown/cp/cp-15/ct_bypass/insert_dylib/install_name_tool/ldid/mkdir/mv/mv-15/optool/rm + libcrypto/libintl/libiosexec/libxar）+ 额外 opainject 等，无缺件。
