@@ -69,6 +69,9 @@ final class GitHubAccountStore: ObservableObject {
     private let branchKey = "trollmcp2.github_branch"
     private let clientIDKey = "trollmcp2.github_client_id"
 
+    /// 内置默认 OAuth App Client ID（origina47487lhe-droid 注册的 "TrollMCP2 线上编译"，Device Flow 实测有效）
+    static let defaultClientID = "Ov23li890n3hM15edlcw"
+
     private let apiBase = "https://api.github.com"
     private let loginBase = "https://github.com"
 
@@ -80,7 +83,7 @@ final class GitHubAccountStore: ObservableObject {
         branch = def.string(forKey: branchKey) ?? "main"
         // v2.9.117：空字符串也回退内置默认（旧版删空保存会覆盖默认值，导致"未设置 Client ID"）
         let savedCID = def.string(forKey: clientIDKey) ?? ""
-        clientID = savedCID.isEmpty ? "Ov23li890n3hM15edlcw" : savedCID
+        clientID = savedCID.isEmpty ? Self.defaultClientID : savedCID
         load()
     }
 
@@ -140,6 +143,12 @@ final class GitHubAccountStore: ObservableObject {
         }
     }
 
+    /// v2.9.124：一键恢复内置默认（内存立即生效 + 持久化，避免"恢复后不重启仍报空值"）
+    func restoreDefaultClientID() {
+        clientID = Self.defaultClientID
+        persistNow()
+    }
+
     // MARK: - Device Flow（内置浏览器登录，gh CLI 同款）
 
     /// 设备授权码模型
@@ -153,12 +162,10 @@ final class GitHubAccountStore: ObservableObject {
 
     /// 第一步：请求设备授权码。回调返回验证 URL 与 user_code。
     func startDeviceFlow(completion: @escaping (DeviceCode?, String?) -> Void) {
-        let cid = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cid.isEmpty else {
-            lastError = "请先在仓库设置里填写 OAuth App 的 Client ID"
-            completion(nil, lastError)
-            return
-        }
+        // v2.9.124：空值一律回退内置默认（恢复默认/手动清空后即使不重启 App 也能直接登录）
+        let cid = clientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? Self.defaultClientID
+            : clientID.trimmingCharacters(in: .whitespacesAndNewlines)
         var req = URLRequest(url: URL(string: "\(loginBase)/login/device/code")!, timeoutInterval: 30)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Accept")

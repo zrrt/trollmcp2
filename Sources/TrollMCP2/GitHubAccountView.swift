@@ -458,8 +458,7 @@ struct GitHubRepoSettingsView: View {
                     .disableAutocorrection(true)
                     .font(.system(.body, design: .monospaced))
                 Button("恢复默认 Client ID（清空自定义值）") {
-                    store.clientID = ""
-                    store.persistNow()
+                    store.restoreDefaultClientID()
                     saved = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
                         saved = false
