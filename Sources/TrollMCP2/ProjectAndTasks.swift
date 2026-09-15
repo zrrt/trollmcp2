@@ -655,6 +655,9 @@ final class TaskTool: MCPTool {
         let result = TaskTemplateRunner.shared.run(type, bundleId: bundleId, dylibPath: dylibPath, options: options)
 
         return [
+            "message": result.success
+                ? "任务「\(type.rawValue)」完成（\(result.steps.count) 步，\(result.durationMs)ms）：\(result.summary)"
+                : "任务「\(type.rawValue)」失败：\(result.summary)",
             "template": type.rawValue,
             "bundle_id": bundleId,
             "success": result.success,

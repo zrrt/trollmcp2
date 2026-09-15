@@ -304,7 +304,8 @@ struct SettingsView: View {
                         color: .orange,
                         destination: NetworkDebugView()
                     )
-                    LabeledRow(label: L10n.t("version"), value: "2.9.124")
+                    // v2.9.125：版本号动态读 Info.plist，不再硬编码
+                    LabeledRow(label: L10n.t("version"), value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown")
                     // v2.9.68：自动更新检查
                     SettingRowButton(
                         title: L10n.t("row_check_update"),
@@ -312,7 +313,7 @@ struct SettingsView: View {
                         icon: "arrow.triangle.2.circlepath.circle.fill",
                         color: .tmCyan
                     ) {
-                        UpdateManager.shared.checkForUpdate(currentVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.9.89")
+                        UpdateManager.shared.checkForUpdate(currentVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")
                     }
                     if UpdateManager.shared.updateAvailable, let latest = UpdateManager.shared.latestVersion {
                         SettingRowButton(
@@ -434,7 +435,7 @@ struct SettingsView: View {
         if let error = UpdateManager.shared.errorMessage {
             return "检查失败: \(error.prefix(30))"
         }
-        return "当前 v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.9.89") · 点击检查"
+        return "当前 v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown") · 点击检查"
     }
 }
 

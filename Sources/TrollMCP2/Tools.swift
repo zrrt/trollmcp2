@@ -171,7 +171,17 @@ final class DeviceProbeTool: MCPTool {
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let r = DeviceProbe.shared.run()
+        // v2.9.125：CLI 式一句话结论（dispatch 取 message 放顶层）
+        let failedChecks = r.checks.filter { !$0.passed }
+        let message: String
+        if r.ready {
+            message = "环境就绪（TrollStore✓ 权限✓ 工具链✓）"
+        } else {
+            let labels = failedChecks.prefix(3).map { $0.label }.joined(separator: "、")
+            message = "环境未就绪：\(labels.isEmpty ? "未知原因" : labels)"
+        }
         return [
+            "message": message,
             "device": [
                 "name": r.deviceName,
                 "model": r.model,
@@ -187,6 +197,7 @@ final class DeviceProbeTool: MCPTool {
             "entitlementsOK": r.entitlementsOK,
             "rootDiagnosis": r.rootDiagnosis ?? [:],
             "ready": r.ready,
+            "issues": failedChecks.map { $0.label },
             "checks": r.checks.map { ["label": $0.label, "passed": $0.passed, "detail": $0.detail] },
         ]
     }

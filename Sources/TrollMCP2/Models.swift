@@ -912,13 +912,23 @@ final class ConversationStore: ObservableObject {
             self.processToolCalls(calls, index: index + 1, toolMessages: next, newlyDisclosed: nextDisclosed,
                                   config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
         case .failure(let err as MCPError):
+            // v2.9.125：失败也输出结构化 JSON（对齐 CLI 返回协议），AI 可直接解析分类与下一步
             var next = toolMessages
-            next.append(ChatMessage(role: "tool", content: "error: \(err)", isError: true, toolCallId: call.id, toolName: call.name))
+            let failureBody: [String: Any]
+            if case MCPError.classified(let m, let code, let reason, let nextStep) = err {
+                failureBody = ["ok": false, "message": m,
+                               "error": ["code": code, "reason": reason, "next_step": nextStep]]
+            } else {
+                failureBody = ["ok": false, "message": err.description]
+            }
+            let content = Self.jsonString(failureBody)
+            next.append(ChatMessage(role: "tool", content: content, isError: true, toolCallId: call.id, toolName: call.name))
             self.processToolCalls(calls, index: index + 1, toolMessages: next, newlyDisclosed: newlyDisclosed,
                                   config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
         case .failure(let err):
             var next = toolMessages
-            next.append(ChatMessage(role: "tool", content: "error: \(err)", isError: true, toolCallId: call.id, toolName: call.name))
+            next.append(ChatMessage(role: "tool", content: Self.jsonString(["ok": false, "message": err.localizedDescription]),
+                                    isError: true, toolCallId: call.id, toolName: call.name))
             self.processToolCalls(calls, index: index + 1, toolMessages: next, newlyDisclosed: newlyDisclosed,
                                   config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
         }

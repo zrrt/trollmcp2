@@ -42,11 +42,19 @@ final class DiagnoseStartupTool: MCPTool {
             fixes.append("重新安装 App")
         }
 
-        // 3. 检查架构
+        // 3. 检查架构（v2.9.125：arch unknown = 解析失败（可能加密），不误判"非 arm64"）
         let (_, fileOutput) = InjectionManager.shared.spawnRoot("/usr/bin/file", args: [binaryPath])
         let isArm64 = fileOutput.contains("arm64")
-        diagnosis["arch"] = isArm64 ? "arm64" : "unknown"
-        if !isArm64 {
+        let isOtherArch = fileOutput.contains("x86_64") || fileOutput.contains("armv7") || fileOutput.contains("i386")
+        if isArm64 {
+            diagnosis["arch"] = "arm64"
+        } else if isOtherArch {
+            diagnosis["arch"] = "非arm64"
+        } else {
+            diagnosis["arch"] = "unknown"
+            diagnosis["arch_note"] = "解析失败（可能加密或特殊 Mach-O），不代表不可启动/不可注入；配合 cryptid 判断"
+        }
+        if isOtherArch {
             causes.append("非 arm64 架构")
             fixes.append("确认 IPA 是 arm64 构建")
         }
@@ -113,6 +121,10 @@ final class DiagnoseStartupTool: MCPTool {
         diagnosis["causes"] = causes
         diagnosis["fixes"] = fixes
         diagnosis["verdict"] = causes.isEmpty ? "✅ 启动正常" : "❌ 发现 \(causes.count) 个问题"
+        // v2.9.125：CLI 式一句话结论
+        diagnosis["message"] = causes.isEmpty
+            ? "未发现启动问题（arch=\(diagnosis["arch"] ?? "unknown")）"
+            : "发现 \(causes.count) 个问题：\(causes.prefix(3).joined(separator: "；"))"
 
         return diagnosis
     }
@@ -310,7 +322,9 @@ final class LocalServerManager {
 
         // 路由
         if path == "/health" {
-            responseBody = "{\"status\":\"ok\",\"version\":\"2.9.71\",\"port\":\(port)}"
+            // v2.9.125：动态读 Info.plist，不再硬编码
+            let ver = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+            responseBody = "{\"status\":\"ok\",\"version\":\"\(ver)\",\"port\":\(port)}"
         } else if path == "/tools" {
             let tools = ToolRegistry.shared.allToolNames()
             if let data = try? JSONSerialization.data(withJSONObject: tools),
@@ -334,13 +348,28 @@ final class LocalServerManager {
                 }
                 do {
                     let result = try tool.invoke(params)
-                    if let data = try? JSONSerialization.data(withJSONObject: result, options: .prettyPrinted),
-                       let str = String(data: data, encoding: .utf8) {
+                    // v2.9.125：网关输出与聊天侧统一 CLI 结构（ok/message/data）
+                    var data = result
+                    data.removeValue(forKey: "message")
+                    let msg = (result["message"] as? String)
+                        ?? FailureKind.defaultSuccessMessage(name: toolName, result: result)
+                    if let d = try? JSONSerialization.data(withJSONObject: ["ok": true, "message": msg, "data": data], options: .prettyPrinted),
+                       let str = String(data: d, encoding: .utf8) {
                         responseBody = str
                     }
                 } catch {
                     statusCode = 500
-                    responseBody = "{\"error\":\"\(error)\"}"
+                    // 失败也分类输出
+                    let text = (error as? MCPError)?.description ?? error.localizedDescription
+                    let info = FailureKind.classify(text)
+                    let body: [String: Any] = [
+                        "ok": false, "message": text,
+                        "error": ["code": info.code, "reason": info.reason, "next_step": info.nextStep]
+                    ]
+                    if let d = try? JSONSerialization.data(withJSONObject: body, options: .prettyPrinted),
+                       let str = String(data: d, encoding: .utf8) {
+                        responseBody = str
+                    }
                 }
             } else {
                 statusCode = 404
@@ -371,6 +400,7 @@ final class ServerStartTool: MCPTool {
         let port = (params["port"] as? Int) ?? 8765
         let ok = LocalServerManager.shared.start(port: port)
         return [
+            "message": ok ? "本地 HTTP 服务已启动（127.0.0.1:\(LocalServerManager.shared.port)）" : "启动失败（端口被占用或权限不足）",
             "started": ok,
             "port": LocalServerManager.shared.port,
             "base_url": "http://127.0.0.1:\(LocalServerManager.shared.port)",

@@ -48,6 +48,13 @@ final class InjectionEnableTool: MCPTool {
                 slim["\(key)_truncated"] = lines.count > 5
             }
         }
+        // v2.9.125：CLI 式一句话结论（dispatch 会取 message 放顶层）
+        if let injected = result["injected"] as? Bool {
+            let alive = (result["selfcheck"] as? [String: Any])?["app_alive"] as? Bool ?? false
+            slim["message"] = injected
+                ? "注入成功（injected=true, app存活=\(alive ? "是" : "否")\(slim["risk_warning"] != nil ? ", 敏感App已护栏" : "")）"
+                : "注入未生效（injected=false）"
+        }
         return slim
     }
 }

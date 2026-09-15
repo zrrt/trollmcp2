@@ -259,3 +259,22 @@ tweaks/<Name>/
 - **GitHub 登录清空根治（v2.9.123）**：修复"清空 Client ID 保存无效"——旧自定义值残留 UserDefaults，重启后仍读回错误值导致 404。现在清空保存会 removeObject 真正删除；设置页新增"恢复默认 Client ID（清空自定义值）"一键按钮。
 - **恢复默认即时生效（v2.9.124）**：修复"恢复默认后不重启 App 仍报请先填写 Client ID"——restoreDefaultClientID 内存立即设为内置默认并持久化；startDeviceFlow 空值一律回退内置默认，Device Flow 永不为空失败。
 - **工具链对齐确认**：bin/ 已含 TrollFools 全部工具（chown/cp/cp-15/ct_bypass/insert_dylib/install_name_tool/ldid/mkdir/mv/mv-15/optool/rm + libcrypto/libintl/libiosexec/libxar）+ 额外 opainject 等，无缺件。
+
+
+## 19. 工具调用汇报格式（v2.9.125 强制）
+
+所有工具调用统一返回 CLI 式结构：**顶层 `ok` + `message` + `data`**（失败时 `error`），
+对齐 Linux 指令语义（exit code + stdout/stderr）：
+
+```
+成功：{ "ok": true, "message": "一句话结论", "data": {...细节...} }
+失败：{ "ok": false, "message": "一句话原因",
+        "error": { "code": "...", "reason": "环境/目标/参数/工具自身/未知", "next_step": "下一步建议" } }
+```
+
+**AI 汇报规则（强制，每次工具调用后）：**
+1. 回复必须包含：`✅ 结果`（成功/失败一句话，直接读 message）+ `📋 证据`（关键字段，如 injected=true, app_alive）+ `➡️ 下一步`（失败时给 next_step，成功时给建议或继续）。
+2. **禁止**只贴原始 JSON 或罗列工具返回的全部字段；细节按需引用。
+3. 多步任务主动交叉验证（两个工具读同一件事，如 injection.enable + injection.inspect），最终给结论。
+4. 失败时优先用 `kb.query error=<错误信息>` 匹配已知原因，再给结论；不要重复尝试同一失败操作 3 次以上。
+5. 所有结论用中文一句话先说结果，再给细节。

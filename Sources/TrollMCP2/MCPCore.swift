@@ -35,13 +35,79 @@ public enum MCPError: Error, CustomStringConvertible {
     case unknownTool(String)
     case invalidParams(String)
     case failed(String)
+    /// v2.9.125：CLI 式失败分类——code + 四分类原因 + 下一步建议。
+    /// description 输出为一行：tool failed: [CODE] 原因（分类）下一步：xxx
+    case classified(String, code: String, reason: String, nextStep: String)
 
     public var description: String {
         switch self {
         case .unknownTool(let n): return "unknown tool: \(n)"
         case .invalidParams(let m): return "invalid params: \(m)"
         case .failed(let m): return "tool failed: \(m)"
+        case .classified(let m, let code, let reason, let nextStep):
+            return "tool failed: [\(code)] \(m)（分类：\(reason)）下一步：\(nextStep)"
         }
+    }
+}
+
+// MARK: - CLI 式返回协议（v2.9.125）
+
+/// 失败四分类（对齐 Linux exit code 语义）：环境 / 目标 / 参数 / 工具自身 / 未知。
+/// 放 dispatch 统一分类，工具层无需逐个改 throw 点。
+enum FailureKind {
+    static func classify(_ message: String) -> (code: String, reason: String, nextStep: String) {
+        let m = message.lowercased()
+        // 1) 环境：权限 / Entitlements / setuid / 容器写 / 未开权限
+        if m.contains("operation not permitted") || m.contains("entitlement")
+            || m.contains("setuid") || m.contains("denied") || m.contains("permission")
+            || m.contains("未开启") || m.contains("未生效") {
+            return ("ENV_PERMISSION", "环境",
+                    "TrollStore 开启“编辑 Entitlements”后卸载重装 TrollAgent，再重试")
+        }
+        // 2) 目标：加密 / 架构 / 兼容 / 闪退 / 无法启动 / 不可注入
+        if m.contains("加密") || m.contains("cryptid") || m.contains("encrypted")
+            || m.contains("架构") || m.contains("arch") || m.contains("闪退")
+            || m.contains("兼容") || m.contains("无法启动") || m.contains("不可注入")
+            || m.contains("没有可注入") {
+            return ("TARGET_INCOMPATIBLE", "目标",
+                    "目标 App 与 dylib 不兼容（加密/架构/依赖），换匹配目标、先砸壳或检查插件兼容性")
+        }
+        // 3) 参数：not found / 不存在 / 参数 / bundle_id 等
+        if m.contains("not found") || m.contains("不存在") || m.contains("未找到")
+            || m.contains("参数") || m.contains("invalid") || m.contains("bundle") {
+            return ("PARAM_INVALID", "参数",
+                    "检查参数（bundle_id / 路径 / 名称）是否正确后重试")
+        }
+        // 4) 工具自身：缺组件 / 执行失败 / 超时
+        if m.contains("未内置") || m.contains("missing") || m.contains("超时")
+            || m.contains("timeout") || m.contains("failed") || m.contains("失败") {
+            return ("TOOL_FAILED", "工具自身",
+                    "工具执行失败，查看 detail/日志定位，或重试一次")
+        }
+        return ("UNKNOWN", "未知", "查看完整日志后重试")
+    }
+
+    /// 兜底成功一句话（工具未提供 message 时生成）
+    static func defaultSuccessMessage(name: String, result: [String: Any]) -> String {
+        if let injected = result["injected"] as? Bool {
+            return injected ? "注入成功（injected=true）" : "注入未生效"
+        }
+        if let ready = result["ready"] as? Bool {
+            return ready ? "环境就绪" : "环境未就绪"
+        }
+        if let started = result["started"] as? Bool {
+            return started ? "已启动" : "未启动"
+        }
+        if let running = result["running"] as? Bool {
+            return running ? "运行中" : "未运行"
+        }
+        if let count = result["total"] as? Int {
+            return "共 \(count) 条"
+        }
+        if let ok = result["ok"] as? Bool {
+            return ok ? "执行成功" : "执行失败"
+        }
+        return "\(name) 执行成功"
     }
 }
 
@@ -309,14 +375,24 @@ public final class ToolRegistry: ObservableObject {
                 AuditLog.shared.logTool(originalName, status: .success,
                                         elapsedMs: elapsedMs, dataBytes: bytes, permission: perm)
                 WorkflowManager.shared.updateStep(tool: originalName, detail: "\(elapsedMs)ms", success: true)
-                return result
+                // v2.9.125：CLI 式统一返回——顶层只留 ok/message，细节收进 data。
+                // AI 读 message 一眼判成败；需要排障才展开 data。
+                var data = result
+                data.removeValue(forKey: "message")
+                let msg = (result["message"] as? String)
+                    ?? FailureKind.defaultSuccessMessage(name: originalName, result: result)
+                return ["ok": true, "message": msg, "data": data]
             } catch {
                 let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
                 AuditLog.shared.logTool(originalName, status: .failure,
                                         elapsedMs: elapsedMs, dataBytes: 0, permission: perm,
                                         detail: (error as? MCPError)?.description ?? error.localizedDescription)
                 WorkflowManager.shared.updateStep(tool: originalName, detail: error.localizedDescription, success: false)
-                throw error
+                // v2.9.125：失败统一分类（环境/目标/参数/工具自身），已分类的不重复分类
+                if case MCPError.classified = error { throw error }
+                let info = FailureKind.classify((error as? MCPError)?.description ?? error.localizedDescription)
+                throw MCPError.classified((error as? MCPError)?.description ?? error.localizedDescription,
+                                          code: info.code, reason: info.reason, nextStep: info.nextStep)
             }
         }
         throw MCPError.failed("tool \(originalName) 未加载，请先调用 tool_search 搜索该工具")
