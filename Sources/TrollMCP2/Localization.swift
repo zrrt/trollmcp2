@@ -48,6 +48,7 @@ enum L10n {
             "copy": ["zh": "复制", "en": "Copy"],
             "share": ["zh": "分享", "en": "Share"],
             "version": ["zh": "版本", "en": "Version"],
+            "row_crash": ["zh": "崩溃日志", "en": "Crash Log"],
             "language": ["zh": "语言", "en": "Language"],
             "search": ["zh": "搜索", "en": "Search"],
             "refresh": ["zh": "刷新", "en": "Refresh"],
