@@ -114,6 +114,30 @@ final class ControlAgentTools {
         ]
     }
 
+    // MARK: - v2.9.186 进程内砸壳
+    // 调 ControlAgent /decrypt：目标进程内遍历 dyld 镜像，从内存读已解密段写副本
+    // 绕开 TrollStore 无 task_for_pid 的限制。返回各镜像解密结果（output 为容器内副本路径）。
+
+    func decrypt() -> [String: Any] {
+        var lastErr: String? = nil
+        for attempt in 0..<4 {
+            let (code, data, error) = request(path: "/decrypt")
+            if code == 200 {
+                var json = parseJSON(data)
+                json["connected"] = true
+                if attempt > 0 { json["retries"] = attempt }
+                return json
+            }
+            lastErr = error
+            Thread.sleep(forTimeInterval: 0.8)
+        }
+        return [
+            "connected": false,
+            "error": lastErr ?? "decrypt endpoint unreachable",
+            "hint": "确认 ControlAgent 已注入且目标 App 正在运行（服务器启动后约 1.5s 就绪）"
+        ]
+    }
+
     // MARK: - UI 树
     // v2.9.128：服务器刚就绪时首帧可能超时，轻量重试 2 次
 

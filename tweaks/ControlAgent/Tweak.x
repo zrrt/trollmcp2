@@ -4,6 +4,9 @@
 #import <sys/socket.h>
 #import <netinet/in.h>
 #import <arpa/inet.h>
+#import <mach-o/loader.h>
+#import <mach-o/dyld.h>
+#import <mach-o/fat.h>
 
 // ControlAgent v1.0 — 通用 UI 控制 dylib
 // 注入任意 App 后开启 localhost HTTP 服务，TrollAgent 通过 HTTP 控制目标 App
@@ -359,6 +362,122 @@ static NSDictionary *typeText(NSString *text) {
 static NSDictionary *simulateBack(void);
 static UIView *findFirstResponder(void);
 
+// MARK: - v2.9.186 进程内砸壳（注入式，绕开 task_for_pid）
+// TrollStore 无 task-for-pid-allow entitlement（实测 task_for_pid false），
+// 跨进程读 dyld 镜像表不可行。改在目标进程内部自解密：
+// dyld 已把加密页解密到内存，遍历 _dyld_image_* 镜像表，从内存读已解密段覆盖文件。
+
+static NSDictionary *dumpDecryptedImage(uint32_t index) {
+    const struct mach_header *hdr = _dyld_get_image_header(index);
+    if (!hdr) return nil;
+    const char *imagePath = _dyld_get_image_name(index);
+    if (!imagePath) return nil;
+    NSString *pathStr = [NSString stringWithUTF8String:imagePath];
+    // 只处理 .app 内主二进制与 Frameworks（排除扩展/系统库）
+    if (![pathStr containsString:@".app/"] || [pathStr containsString:@".appex/"]) return nil;
+
+    intptr_t slide = _dyld_get_image_vmaddr_slide(index);
+
+    // 定位 LC_ENCRYPTION_INFO_64（注意 64 位头；fat 文件在运行时是 thin slice，hdr 即运行 slice）
+    const struct load_command *cmd = (const struct load_command *)((const char *)hdr + sizeof(struct mach_header_64));
+    BOOL foundEnc = NO;
+    const struct encryption_info_command_64 *targetEic = NULL;
+    for (uint32_t i = 0; i < hdr->ncmds; i++) {
+        if (cmd->cmd == LC_ENCRYPTION_INFO_64) {
+            targetEic = (const struct encryption_info_command_64 *)cmd;
+            foundEnc = YES;
+            break;
+        }
+        cmd = (const struct load_command *)((const char *)cmd + cmd->cmdsize);
+    }
+    if (!foundEnc) return @{@"path": pathStr, @"cryptid": @0, @"note": @"无加密信息"};
+
+    // 只读拷贝出 cryptid（先判断是否加密）
+    uint32_t cryptid = targetEic->cryptid;
+    if (cryptid == 0) return @{@"path": pathStr, @"cryptid": @0, @"note": @"未加密"};
+
+    // v2.9.186：写入副本（Documents/decrypted_work/），不破坏原 App 文件
+    NSString *docs = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+    NSString *outDir = [docs stringByAppendingPathComponent:@"decrypted_work"];
+    [[NSFileManager defaultManager] createDirectoryAtPath:outDir withIntermediateDirectories:YES attributes:nil error:nil];
+    NSString *outPath = [outDir stringByAppendingPathComponent:[pathStr lastPathComponent]];
+    if ([[NSFileManager defaultManager] fileExistsAtPath:outPath]) {
+        [[NSFileManager defaultManager] removeItemAtPath:outPath error:nil];
+    }
+    if (![[NSFileManager defaultManager] copyItemAtPath:pathStr toPath:outPath error:nil]) {
+        return @{@"path": pathStr, @"cryptid": @(cryptid), @"error": @"复制副本失败"};
+    }
+
+    FILE *fp = fopen([outPath UTF8String], "r+b");
+    if (!fp) return @{@"path": pathStr, @"cryptid": @(cryptid), @"error": @"打开失败"};
+
+    // fat 处理：若文件是 fat，定位当前 slice 的文件偏移
+    long sliceOffset = 0;
+    {
+        uint32_t magic = 0;
+        FILE *fr = fopen(imagePath, "rb");
+        if (fr) {
+            if (fread(&magic, 1, 4, fr) == 4) {
+                magic = ntohl(magic); // FAT_MAGIC 大端
+                if (magic == FAT_MAGIC) {
+                    uint32_t nfat = 0;
+                    if (fread(&nfat, 1, 4, fr) == 4) {
+                        nfat = ntohl(nfat);
+                        for (uint32_t i = 0; i < nfat; i++) {
+                            struct fat_arch fa;
+                            if (fread(&fa, sizeof(fa), 1, fr) != 1) break;
+                            uint32_t cputype = ntohl(fa.cputype);
+                            uint32_t offset = ntohl(fa.offset);
+                            if (cputype == (hdr->cputype & ~(uint32_t)0x01000000) || cputype == hdr->cputype) {
+                                sliceOffset = (long)offset;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            fclose(fr);
+        }
+    }
+
+    // 遍历 segment，从内存复制已解密段覆盖文件对应偏移
+    const struct load_command *seg = (const struct load_command *)((const char *)hdr + sizeof(struct mach_header_64));
+    for (uint32_t j = 0; j < hdr->ncmds; j++) {
+        if (seg->cmd == LC_SEGMENT_64) {
+            const struct segment_command_64 *sc = (const struct segment_command_64 *)seg;
+            if (sc->filesize > 0 && sc->fileoff > 0) {
+                const char *src = (const char *)sc->vmaddr + slide;
+                if (fseek(fp, sliceOffset + (long)sc->fileoff, SEEK_SET) == 0) {
+                    fwrite(src, 1, sc->filesize, fp);
+                }
+            }
+        }
+        seg = (const struct load_command *)((const char *)seg + seg->cmdsize);
+    }
+
+    // cryptid 清零（内存里改 load command 前先把文件写完整）
+    // 文件偏移 = sliceOffset + (内存中 eic 距 hdr 的偏移)
+    long eicOffset = (long)((const char *)targetEic - (const char *)hdr);
+    uint32_t zero = 0;
+    if (fseek(fp, sliceOffset + eicOffset + offsetof(struct encryption_info_command_64, cryptid), SEEK_SET) == 0) {
+        fwrite(&zero, 1, 1, fp);
+    }
+    fclose(fp);
+
+    NSDictionary *attrs = [[NSFileManager defaultManager] attributesOfItemAtPath:outPath error:nil];
+    return @{@"path": pathStr, @"output": outPath, @"cryptid": @(cryptid), @"decrypted": @YES, @"size": attrs.fileSize ?: @0};
+}
+
+static NSDictionary *decryptAllImages(void) {
+    NSMutableArray *results = [NSMutableArray array];
+    uint32_t count = _dyld_image_count();
+    for (uint32_t i = 0; i < count; i++) {
+        NSDictionary *r = dumpDecryptedImage(i);
+        if (r) [results addObject:r];
+    }
+    return @{@"ok": @YES, @"total_images": @(count), @"results": results};
+}
+
 static NSDictionary *parseJSONBody(NSData *body) {
     if (!body || body.length == 0) return @{};
     id obj = [NSJSONSerialization JSONObjectWithData:body options:0 error:nil];
@@ -376,8 +495,13 @@ static NSData *handleRequest(NSString *method, NSString *path, NSData *body) {
             @"app_name": [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleDisplayName"] ?: @"",
             @"pid": @(getpid()),
             @"port": @(kControlAgentPort),
-            @"apis": @[@"/status", @"/ui_tree", @"/screenshot", @"/tap", @"/swipe", @"/type", @"/key"]
+            @"apis": @[@"/status", @"/decrypt", @"/ui_tree", @"/screenshot", @"/tap", @"/swipe", @"/type", @"/key"]
         });
+    }
+
+    // v2.9.186：进程内砸壳
+    if ([path isEqualToString:@"/decrypt"]) {
+        return jsonResponse(decryptAllImages());
     }
 
     // UI 树

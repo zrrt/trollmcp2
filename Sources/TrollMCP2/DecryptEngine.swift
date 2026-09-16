@@ -341,10 +341,13 @@ enum DecryptEngine {
         var task: UInt32 = 0
         let kr = DeviceProbe.shared.tm_task_for_pid(DeviceProbe.shared.tm_mach_task_self(), pid, &task)
         guard kr == 0, task != 0 else {
+            // v2.9.186：TrollStore 无 task-for-pid-allow（实测 task_for_pid false），
+            // 自动降级「注入式砸壳」：注入 ControlAgent → 目标进程内自解密（绕开跨进程 task_for_pid）
+            let viaCA = decryptViaControlAgent(app: app, bundleId: bundleId, pid: pid, launchErrors: launchErrors)
+            if viaCA.ok { return viaCA }
             return DecryptResult(ok: false, errorCode: "env",
-                                 errorReason: "task_for_pid 失败（kern_return=\(Int(kr))）",
-                                 nextStep: "需要在 TrollStore 中开启「编辑 Entitlements」后卸载重装本 App（覆盖安装不生效），确认 device_probe 的 task_for_pid 项为 ✔",
-                                 pid: pid, launchErrors: launchErrors)
+                                 errorReason: "task_for_pid 失败（kern_return=\(Int(kr))）且注入式砸壳降级不可用: \(viaCA.errorReason)",
+                                 nextStep: viaCA.nextStep, pid: pid, launchErrors: launchErrors)
         }
         defer { DeviceProbe.shared.tm_mach_port_deallocate(DeviceProbe.shared.tm_mach_task_self(), task) }
 
@@ -424,6 +427,110 @@ enum DecryptEngine {
         if !launchErrors.isEmpty {
             _ = InjectionManager.shared.spawnRoot("/bin/kill", args: ["-9", "\(pid)"])
         }
+
+        return DecryptResult(ok: true, pid: pid, launchErrors: launchErrors,
+                             outputPath: ipaPath, outputName: ipaName,
+                             decryptedBinaries: decrypted, cryptInfo: cryptInfo)
+    }
+
+    // MARK: - v2.9.186 注入式砸壳（ControlAgent 进程内自解密，绕开 task_for_pid）
+    // 流程：注入 ControlAgent.dylib → 重启目标 App → 4789 在线 → /decrypt 进程内遍历
+    // dyld 镜像（dyld 已把加密页解密到内存，从内存读已解密段写副本）→ 从目标 App 容器
+    // 取解密副本覆盖 Payload 对应二进制 → 打包 IPA。
+
+    private static func decryptViaControlAgent(app: AppCatalog.AppEntry, bundleId: String,
+                                               pid: pid_t, launchErrors: [[String: Any]]) -> DecryptResult {
+        // 0. 准备输出目录 + 复制 bundle（同主流程）
+        let workspace = NSHomeDirectory().appending("/Documents/Workspace/decrypted")
+        try? FileManager.default.createDirectory(atPath: workspace, withIntermediateDirectories: true)
+        let plist = NSDictionary(contentsOfFile: app.path + "/Info.plist")
+        let execName = (plist?["CFBundleExecutable"] as? String) ?? "App"
+        let version = (plist?["CFBundleShortVersionString"] as? String) ?? "unknown"
+        let workingRoot = workspace + "/\(bundleId)_\(version)_work"
+        try? FileManager.default.removeItem(atPath: workingRoot)
+        let payloadDir = workingRoot + "/Payload"
+        let destApp = payloadDir + "/" + (app.path as NSString).lastPathComponent
+        do {
+            try FileManager.default.createDirectory(atPath: payloadDir, withIntermediateDirectories: true)
+            try FileManager.default.copyItem(atPath: app.path, toPath: destApp)
+        } catch {
+            return DecryptResult(ok: false, errorCode: "tool",
+                                 errorReason: "复制 App Bundle 失败: \(error.localizedDescription)",
+                                 nextStep: "确认 device_probe 的 App 容器任意读写为 ✔；空间不足则清理工作区",
+                                 pid: pid, launchErrors: launchErrors)
+        }
+
+        // 1. 注入 ControlAgent（4789 已在线则跳过）
+        let tools = ControlAgentTools.shared
+        var connected = (tools.status(retries: 1)["connected"] as? Bool) ?? false
+        if !connected {
+            let inj = tools.inject(bundleId: bundleId)
+            if let err = inj["error"] as? String {
+                return DecryptResult(ok: false, errorCode: "tool",
+                                     errorReason: "注入 ControlAgent 失败: \(err)",
+                                     nextStep: "手动用 control.inject 注入后再试",
+                                     pid: pid, launchErrors: launchErrors)
+            }
+            _ = launchApp(bundleId: bundleId) // 重启目标 App 加载 dylib
+            connected = (tools.status(retries: 15)["connected"] as? Bool) ?? false
+        }
+        guard connected else {
+            return DecryptResult(ok: false, errorCode: "env",
+                                 errorReason: "注入后 ControlAgent(4789) 未就绪，注入式砸壳不可用",
+                                 nextStep: "确认目标 App 能正常启动（可先手动打开一次）；注入后需重启目标 App",
+                                 pid: pid, launchErrors: launchErrors)
+        }
+
+        // 2. 调 /decrypt（进程内自解密）
+        let dec = tools.decrypt()
+        guard (dec["connected"] as? Bool) == true else {
+            return DecryptResult(ok: false, errorCode: "tool",
+                                 errorReason: "/decrypt 无响应: \(dec["error"] ?? "")",
+                                 nextStep: "检查 ControlAgent 版本（需 ≥ v2.9.186 的 /decrypt 端点）",
+                                 pid: pid, launchErrors: launchErrors)
+        }
+        let results = (dec["results"] as? [[String: Any]]) ?? []
+        var decrypted: [String] = []
+        var cryptInfo: [String: Any] = [:]
+        for r in results {
+            guard let out = r["output"] as? String, !out.isEmpty,
+                  (r["decrypted"] as? Bool) == true else { continue }
+            let name = (out as NSString).lastPathComponent
+            if name == execName {
+                // 主二进制
+                try? FileManager.default.removeItem(atPath: destApp + "/" + execName)
+                try? FileManager.default.copyItem(atPath: out, toPath: destApp + "/" + execName)
+                cryptInfo["main"] = ["cryptid": 0, "decrypted": true, "method": "controlagent"]
+                decrypted.append(out)
+            } else {
+                // Frameworks：按二进制名匹配 .framework 目录
+                let fwDir = destApp + "/Frameworks"
+                if let entries = try? FileManager.default.contentsOfDirectory(atPath: fwDir) {
+                    for fw in entries where fw.hasSuffix(".framework") {
+                        if (fw as NSString).deletingPathExtension == name {
+                            let dest = fwDir + "/" + fw + "/" + name
+                            try? FileManager.default.removeItem(atPath: dest)
+                            try? FileManager.default.copyItem(atPath: out, toPath: dest)
+                            cryptInfo[fw] = ["cryptid": 0, "decrypted": true, "method": "controlagent"]
+                            decrypted.append(out)
+                            break
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. 打包 IPA
+        let ipaName = "\(bundleId)_\(version)_decrypted.ipa"
+        let ipaPath = workspace + "/" + ipaName
+        try? FileManager.default.removeItem(atPath: ipaPath)
+        guard ZipStorer.createZip(at: ipaPath, fromDirectory: workingRoot) else {
+            return DecryptResult(ok: false, errorCode: "tool",
+                                 errorReason: "打包 IPA 失败（zip 写入错误）",
+                                 nextStep: "工作区临时文件保留在 \(workingRoot)，可手动打包",
+                                 pid: pid, launchErrors: launchErrors)
+        }
+        try? FileManager.default.removeItem(atPath: workingRoot)
 
         return DecryptResult(ok: true, pid: pid, launchErrors: launchErrors,
                              outputPath: ipaPath, outputName: ipaName,
