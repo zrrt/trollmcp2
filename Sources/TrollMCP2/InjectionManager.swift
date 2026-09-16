@@ -929,7 +929,8 @@ final class InjectionManager {
     /// 备份 .troll-fools.bak（TrollFools 可识别），每步改前 ldid 伪签，任一步失败自动回滚。
     func enable(bundleId: String, dylibName: String = "@executable_path/TrollMCPAgent.dylib",
                 dylibSourcePath: String? = nil, weakReference: Bool = false,
-                injectStrategy: String = "lexicographic", preferredTarget: String? = nil) throws -> [String: Any] {
+                injectStrategy: String = "lexicographic", preferredTarget: String? = nil,
+                skipProbe: Bool = false) throws -> [String: Any] {
         _ = dylibName
         guard let app = AppCatalog.find(bundleId) else {
             throw MCPError.failed("app not found: \(bundleId)")
@@ -1204,7 +1205,7 @@ final class InjectionManager {
         //    两次探测进程均不在 → 判定闪退 → 自动恢复备份并删 dylib
         var selfcheckAlive = false
         var selfcheckNote = "skipped"
-        if injected {
+        if injected && !skipProbe {
             selfcheckAlive = launchAndProbe(bundleId: bundleId, execName: executableName, executable: executablePath(app))
             if !selfcheckAlive {
                 do { _ = try restoreAlternate(targetMachO) } catch {}
