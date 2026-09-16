@@ -41,8 +41,8 @@ final class AppStartTool: MCPTool {
         errors.append(["step": "open -b", "exit": Int(c1), "stderr": String(o1.prefix(400))])
 
         // 方法 1.5（v2.9.185）：LSApplicationWorkspace 私有 API 拉起（TrollStore 可用，不依赖 shell）
-        if let wsClass = NSClassFromString("LSApplicationWorkspace"),
-           let ws = wsClass.perform(NSSelectorFromString("defaultWorkspace"))?.takeUnretainedValue(),
+        if let wsClass = NSClassFromString("LSApplicationWorkspace") as? AnyClass,
+           let ws = wsClass.perform(NSSelectorFromString("defaultWorkspace"))?.takeUnretainedValue() as? NSObject,
            ws.responds(to: NSSelectorFromString("openApplicationWithBundleID:")) {
             _ = ws.perform(NSSelectorFromString("openApplicationWithBundleID:"), with: bundleId)
             Thread.sleep(forTimeInterval: TimeInterval(wait))
