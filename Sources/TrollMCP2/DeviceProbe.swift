@@ -1,5 +1,6 @@
 ﻿import Foundation
 import UIKit
+import Security
 
 // MARK: - 设备环境自检（"检测手机"核心层）
 
@@ -76,28 +77,35 @@ final class DeviceProbe: ObservableObject {
         let injectionBinaries = testInjectionBinaries()
         let amfidBypassInferred = taskForPid && !injectionBinaries.isEmpty && injectionBinaries.values.allSatisfy { $0 } && containerWrite
 
-        // v2.9.66：Entitlements 检测改为信息提醒，不打 ✔/✘。
-        // 原因：persona spawn / Bundle 写入检测在不同 iOS 版本、不同 TrollStore 配置下表现不一致，
-        // 反复误报"未生效"。改为只显示当前检测到的状态和操作建议，不影响整体就绪判断。
+        // v2.9.153：Entitlements 检测改用 SecTask 直接读自身代码签名（最可靠），
+        // 行为测试（bundleWrite/root spawn）只作交叉验证。entitlements 是安装时写入的，
+        // 因此反映的是"安装时 TrollStore 开关状态"；开启开关后必须卸载重装才生效。
+        let ent = snapshotEntitlements()
         let bundleWriteOK = testBundleWrite()
         let rootDiag = InjectionManager.shared.diagnoseRoot()
         let spawnIsRoot = (rootDiag["is_root"] as? Bool) ?? false
         let entDetail: String
-        if bundleWriteOK || spawnIsRoot {
-            var parts: [String] = ["已检测到 root 写入能力，注入环境就绪"]
-            if bundleWriteOK { parts.append("（Bundle 写入测试通过）") }
-            if spawnIsRoot { parts.append("（persona spawn uid=0）") }
-            entDetail = parts.joined()
+        if ent.noSandbox {
+            var parts: [String] = ["✅ 已生效（签名含 no-sandbox）"]
+            parts.append(ent.summary)
+            if bundleWriteOK { parts.append("Bundle 写入实测通过") }
+            if spawnIsRoot { parts.append("persona spawn uid=0") }
+            entDetail = parts.joined(separator: "\n")
         } else {
-            entDetail = "⚠️ 注入功能需要在 TrollStore 中开启「编辑 Entitlements」权限，然后卸载重装本 App（覆盖安装不会重新应用权限）。当前未验证到 root 写入能力，注入可能失败。"
+            var parts: [String] = ["⚠️ 未检测到 no-sandbox（沙盒未解除）"]
+            parts.append(ent.summary)
+            if bundleWriteOK { parts.append("Bundle 写入实测通过") }
+            if spawnIsRoot { parts.append("persona spawn uid=0") }
+            parts.append("注入功能需要在 TrollStore 设置中开启「编辑 Entitlements」，然后卸载重装本 App（覆盖安装不会重新应用权限）。")
+            entDetail = parts.joined(separator: "\n")
         }
-        let entitlementsOK = bundleWriteOK || spawnIsRoot  // 内部记录用，不影响 ready 和 UI 显示
+        let entitlementsOK = ent.noSandbox || bundleWriteOK || spawnIsRoot  // 内部记录用，不影响 ready 和 UI 显示
 
         var checks: [Check] = []
         checks.append(Check(label: "TrollStore 已安装", passed: trollStore, detail: trollStore ? "检测到 TrollStore App 或越狱根" : "未检测到 TrollStore / 越狱环境", infoOnly: false))
         checks.append(Check(label: "TrollStore Entitlements 权限", passed: true, detail: entDetail, infoOnly: true))
         checks.append(Check(label: "TrollFools 已安装", passed: trollFools, detail: trollFools ? "检测到 TrollFools（可注入）" : "未检测到 TrollFools，注入需手动", infoOnly: false))
-        checks.append(Check(label: "task_for_pid 权限", passed: taskForPid, detail: taskForPid ? "持有 task_for_pid-allow，可获取进程端口" : "无 task_for_pid-allow，进程级操作受限", infoOnly: false))
+        checks.append(Check(label: "task_for_pid 权限", passed: taskForPid || ent.taskForPidAllow, detail: (taskForPid || ent.taskForPidAllow) ? "实测可获取 launchd(pid1) 端口，进程级操作可用" : "无 task_for_pid-allow，进程级操作受限", infoOnly: false))
         checks.append(Check(label: "App 容器任意读写", passed: containerWrite, detail: containerWrite ? "AppDataContainers 权限生效，可写任意 App 沙盒" : "无法写入其他 App 容器（缺 entitlement）", infoOnly: false))
         for (name, ok) in injectionBinaries.sorted(by: { $0.key < $1.key }) {
             checks.append(Check(label: "注入二进制 \(name)", passed: ok, detail: ok ? "已捆绑且可执行" : "缺失或不可执行", infoOnly: false))
@@ -172,14 +180,49 @@ final class DeviceProbe: ObservableObject {
         }
     }
 
+    // v2.9.153：真实测 task_for_pid-allow——之前用 getpid()（自己）恒成功=假阳性。
+    // 改成拿 pid=1（launchd）的 task port：只有持有 task_for_pid-allow 才能获取其他进程端口。
     private func testTaskForPid() -> Bool {
         var task: UInt32 = 0
-        let kr = tm_task_for_pid(tm_mach_task_self(), getpid(), &task)
+        let kr = tm_task_for_pid(tm_mach_task_self(), 1, &task)
         if kr == 0 {
             _ = tm_mach_port_deallocate(tm_mach_task_self(), task)
             return true
         }
         return false
+    }
+
+    /// v2.9.153：SecTask 读取本进程代码签名里的 entitlements（最可靠——直接读签名，不靠行为推断）
+    private func readOwnEntitlement(_ key: String) -> Bool {
+        guard let task = SecTaskCreateFromSelf(nil) else { return false }
+        guard let v = SecTaskCopyValueForEntitlement(task, key as CFString, nil) else { return false }
+        return CFGetTypeID(v) == CFBooleanGetTypeID() && CFBooleanGetValue(v as! CFBoolean)
+    }
+
+    /// 一次性读全关键 entitlements（返回是否 no-sandbox 等）
+    struct EntitlementSnapshot {
+        let noSandbox: Bool
+        let platformApplication: Bool
+        let taskForPidAllow: Bool
+        let getTaskAllow: Bool
+        let summary: String
+    }
+
+    private func snapshotEntitlements() -> EntitlementSnapshot {
+        let ns = readOwnEntitlement("com.apple.private.security.no-sandbox")
+        let pa = readOwnEntitlement("platform-application")
+        let tf = readOwnEntitlement("task_for_pid-allow")
+        let gt = readOwnEntitlement("get-task-allow")
+        var parts: [String] = []
+        parts.append("no-sandbox: \(ns ? "有" : "无")")
+        parts.append("platform-app: \(pa ? "有" : "无")")
+        parts.append("task_for_pid: \(tf ? "有" : "无")")
+        parts.append("get-task-allow: \(gt ? "有" : "无")")
+        return EntitlementSnapshot(
+            noSandbox: ns, platformApplication: pa,
+            taskForPidAllow: tf, getTaskAllow: gt,
+            summary: parts.joined(separator: " · ")
+        )
     }
 
     private func testContainerWrite() -> Bool {
