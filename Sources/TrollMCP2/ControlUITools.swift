@@ -162,8 +162,14 @@ final class ScreenCapture {
             recorder.stopCapture { _ in }
             Thread.sleep(forTimeInterval: 0.2)
         }
+        // v2.9.178：不再"首帧立即停"——RPScreenRecorder 不是为录一帧就停设计，
+        // 秒开秒停在 stopCapture 内部 CFRetain 断言（SIGTRAP，用户复现日志 sig_1789582255：
+        // ReplayKit frame3 CFRetain+0）。改为：持续缓存最新帧 → 收帧后延迟 0.6s
+        // 再 stop → stop 完成后统一落盘（不碰活 buffer）。
         let lock = NSLock()
         var done = false
+        var scheduled = false
+        var latestImage: UIImage?
         let finish: (Bool, String) -> Void = { ok, msg in
             lock.lock()
             if done { lock.unlock(); return }
@@ -171,57 +177,62 @@ final class ScreenCapture {
             lock.unlock()
             DispatchQueue.main.async { completion(ok, msg) }
         }
+        let saveLatest: () -> Void = {
+            lock.lock()
+            let img = latestImage
+            lock.unlock()
+            guard let img else {
+                recorder.stopCapture { _ in }
+                finish(false, "未捕获到视频帧")
+                return
+            }
+            let dir = Workspace.root.appendingPathComponent("control_shots", isDirectory: true)
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let url = dir.appendingPathComponent("shot_\(Int(Date().timeIntervalSince1970)).png")
+            guard let data = img.pngData() else {
+                recorder.stopCapture { _ in }
+                finish(false, "PNG 编码失败")
+                return
+            }
+            do {
+                try data.write(to: url)
+                finish(true, url.path)
+            } catch {
+                recorder.stopCapture { _ in }
+                finish(false, "保存失败: \(error.localizedDescription)")
+            }
+        }
         recorder.startCapture(handler: { sampleBuffer, bufferType, _ in
             guard bufferType == .video else { return }
             lock.lock()
             if done { lock.unlock(); return }
-            done = true
+            let needSchedule = !scheduled
+            if needSchedule { scheduled = true }
             lock.unlock()
             autoreleasepool {
-                guard let pixel = CMSampleBufferGetImageBuffer(sampleBuffer) else {
-                    // v2.9.176：先 stopCapture 再返回（buffer 可能已不可用，但录制必须停干净）
-                    recorder.stopCapture { _ in }
-                    finish(false, "截图转码失败")
-                    return
-                }
-                // 软件渲染：后台线程 + 无 Metal 上下文时的稳定路径
+                guard let pixel = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
                 let ctx = CIContext(options: [.useSoftwareRenderer: true])
                 let ci = CIImage(cvPixelBuffer: pixel)
-                guard let cg = ctx.createCGImage(ci, from: ci.extent) else {
-                    finish(false, "CGImage 生成失败")
-                    return
-                }
+                guard let cg = ctx.createCGImage(ci, from: ci.extent) else { return }
                 let img = UIImage(cgImage: cg)
-                let dir = Workspace.root.appendingPathComponent("control_shots", isDirectory: true)
-                try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-                let url = dir.appendingPathComponent("shot_\(Int(Date().timeIntervalSince1970)).png")
-                guard let data = img.pngData() else {
-                    recorder.stopCapture { _ in }
-                    finish(false, "PNG 编码失败")
-                    return
-                }
-                do {
-                    try data.write(to: url)
-                    // v2.9.176：处理完 buffer 再停录制——stopCapture 可能触发系统释放 buffer，
-                    // 先停后用已释放的 CMSampleBuffer 是 UAF 崩溃源（"点录屏秒闪退"嫌疑）。
-                    recorder.stopCapture { _ in }
-                    finish(true, url.path)
-                } catch {
-                    recorder.stopCapture { _ in }
-                    finish(false, "保存失败: \(error.localizedDescription)")
+                lock.lock()
+                latestImage = img
+                lock.unlock()
+            }
+            if needSchedule {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    recorder.stopCapture { _ in
+                        saveLatest()
+                    }
                 }
             }
         }) { error in
-            if let err = error {
-                finish(false, "截图失败: \(err.localizedDescription)（需在系统设置允许 TrollAgent 录屏）")
+            if let error {
+                recorder.stopCapture { _ in }
+                finish(false, "录屏失败: \(error.localizedDescription)")
             }
         }
-        // 兜底：8 秒未取到帧视为失败
-        DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
-            finish(false, "截图超时（未取到画面帧）")
-        }
-    }
-}
+    }}
 
 // MARK: - 节点横幅（执行中进度汇报：本地通知立即弹出，任何 App 界面顶部可见）
 
