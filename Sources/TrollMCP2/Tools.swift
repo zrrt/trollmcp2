@@ -143,7 +143,7 @@ final class ArtifactFindTool: MCPTool {
 // MARK: - 基础工具
 
 final class PingTool: MCPTool {
-    let definition = ToolDefinition(name: "ping", summary: "连通性测试")
+    let definition = ToolDefinition(name: "ping", summary: "连通性测试：返回 pong 与耗时，验证设备/工具链是否在线。")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         ["pong": true, "ts": Int(Date().timeIntervalSince1970)]
@@ -151,7 +151,7 @@ final class PingTool: MCPTool {
 }
 
 final class DeviceInfoTool: MCPTool {
-    let definition = ToolDefinition(name: "device.info", summary: "设备与应用信息")
+    let definition = ToolDefinition(name: "device.info", summary: "查看设备与应用信息：系统版本、机型、TrollAgent 版本、工作区路径。")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         [

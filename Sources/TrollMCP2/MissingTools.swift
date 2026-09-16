@@ -403,7 +403,7 @@ final class KnowledgeSearchTool: MCPTool {
 }
 
 final class KnowledgeDeleteTool: MCPTool {
-    let definition = ToolDefinition(name: "knowledge.delete", summary: "删除知识库条目",
+    let definition = ToolDefinition(name: "knowledge.delete", summary: "删除知识库中的一条条目：按 id 删除，不可恢复。",
         parameters: ["name": "条目名"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }

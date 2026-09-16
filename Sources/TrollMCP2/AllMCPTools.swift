@@ -181,7 +181,7 @@ final class NodeInvokeTool: MCPTool {
 }
 
 final class CronFireTool: MCPTool {
-    let definition = ToolDefinition(name: "cron.fire", summary: "触发定时任务",
+    let definition = ToolDefinition(name: "cron.fire", summary: "触发一次定时任务（cron.fire 由调度器在到点调用；也可手动触发验证任务逻辑）。返回任务执行结果。",
         parameters: ["task": "任务名"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let task = params["task"] as? String ?? "unnamed"
@@ -254,7 +254,7 @@ final class AutomationStopTool: MCPTool {
 }
 
 final class AutomationStatusTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.status", summary: "自动化引擎状态")
+    let definition = ToolDefinition(name: "automation.status", summary: "查看自动化引擎运行状态：是否运行、当前任务、队列长度、最近执行记录。")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         [
             "engine": "UNUserNotificationCenter",
@@ -339,7 +339,7 @@ final class CalendarListTool: MCPTool {
 }
 
 final class ReminderCreateTool: MCPTool {
-    let definition = ToolDefinition(name: "reminder.create", summary: "创建提醒事项",
+    let definition = ToolDefinition(name: "reminder.create", summary: "创建一条提醒事项：标题/时间/是否重复。返回创建结果与标识。",
         parameters: ["title": "标题", "notes": "备注（可选）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let title = params["title"] as? String else { throw MCPError.invalidParams("title required") }
@@ -366,7 +366,7 @@ final class LocationGetTool: MCPTool {
 }
 
 final class NotificationSendTool: MCPTool {
-    let definition = ToolDefinition(name: "notification.send", summary: "发送本地通知",
+    let definition = ToolDefinition(name: "notification.send", summary: "发送一条本地通知：标题/正文/延迟秒数。用于任务完成提醒。",
         parameters: ["title": "标题", "body": "内容"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let title = params["title"] as? String ?? "TrollMCP"
@@ -542,7 +542,7 @@ final class ToolHealthTool: MCPTool {
 }
 
 final class WorkspaceInfoTool: MCPTool {
-    let definition = ToolDefinition(name: "workspace.info", summary: "查看工作区信息")
+    let definition = ToolDefinition(name: "workspace.info", summary: "查看工作区信息：路径、可用空间、目录结构。用于定位产物与下载目录。")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let fm = FileManager.default
         let items = (try? fm.contentsOfDirectory(atPath: Workspace.root.path)) ?? []

@@ -25,6 +25,7 @@ final class AppInstallTool: MCPTool {
             let (c, out) = im.spawnRoot(helper, args: ["install", path], timeout: 180)
             if c == 0 {
                 AuditLog.shared.log("app.install", detail: "\(path) → trollstorehelper 成功")
+                AppCatalog.invalidateCache()   // v2.9.135: 安装后失效应用缓存
                 return ["ok": true, "method": "trollstorehelper", "output": out,
                         "message": "已静默安装 \(path)"]
             }
@@ -54,6 +55,7 @@ final class AppInstallTool: MCPTool {
         }
         _ = sem.wait(timeout: .now() + 5)
         if ok {
+            AppCatalog.invalidateCache()   // v2.9.135: 安装后失效应用缓存
             return (true, "已调起 TrollStore 安装 \(path)，请在 TrollStore 弹窗确认")
         }
         return (false, "调起 TrollStore 失败（未安装 TrollStore？）")
@@ -75,6 +77,7 @@ final class AppUninstallTool: MCPTool {
         if FileManager.default.isExecutableFile(atPath: helper) {
             let (c, out) = im.spawnRoot(helper, args: ["uninstall", bid], timeout: 120)
             AuditLog.shared.log("app.uninstall", detail: "\(bid) c=\(c)")
+            if c == 0 { AppCatalog.invalidateCache() }   // v2.9.135: 卸载后失效应用缓存
             return ["ok": c == 0, "bundle_id": bid, "output": out,
                     "message": c == 0 ? "已卸载 \(bid)" : "卸载失败: \(out)"]
         }

@@ -30,7 +30,30 @@ final class AppCatalog {
         }
     }
 
+    /// v2.9.135：全量枚举缓存（TTL 5 秒）——旧版每次 list() 都重新枚举 266 个 App，
+    /// AI 连续调用 injection.list / app.diagnose 等会反复全量扫描，慢且耗资源。
+    /// 运行中集合（runningExecNames）不缓存，每次实时查（变化频繁且查询轻量）。
+    private static var cachedList: [AppEntry]?
+    private static var cachedAt: Date?
+
     static func list() -> [AppEntry] {
+        if let cached = cachedList, let at = cachedAt,
+           Date().timeIntervalSince(at) < 5 {
+            return cached
+        }
+        let fresh = enumerate()
+        cachedList = fresh
+        cachedAt = Date()
+        return fresh
+    }
+
+    /// 强制刷新（安装/卸载 App 后由调用方触发，避免旧缓存误导）
+    static func invalidateCache() {
+        cachedList = nil
+        cachedAt = nil
+    }
+
+    private static func enumerate() -> [AppEntry] {
         guard let wsClass = NSClassFromString("LSApplicationWorkspace") else { return [] }
         guard let m = class_getClassMethod(wsClass, NSSelectorFromString("defaultWorkspace")) else { return [] }
         let fn = unsafeBitCast(method_getImplementation(m), to: (@convention(c) (AnyClass, Selector) -> AnyObject?).self)
