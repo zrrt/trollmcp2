@@ -467,15 +467,17 @@ public final class ToolRegistry: ObservableObject {
     /// ["status":"failed"]）。返回 nil 表示该结果应视为成功。
     /// v2.9.137：结果摘要化（递归）——大数组保持数组但截断并末尾加省略标记，
     /// 大字符串截断并附总长度。返回后 AI 仍能读结论字段，细节可带 limit 重取。
+    /// `content` 字段（fs.read/artifact.read_text 的文件内容）保留完整——
+    /// 它们已由 max_bytes 参数控制读取量，不能再截断。
     static func compactResult(_ root: [String: Any], arrLimit: Int = 20, strLimit: Int = 4000) -> [String: Any] {
         var out: [String: Any] = [:]
         for (k, v) in root {
             switch v {
             case let s as String:
-                if s.count > strLimit {
-                    out[k] = String(s.prefix(strLimit)) + "\n…[截断 共\(s.count)字符，需完整请用 limit/范围参数缩小]"
-                } else {
+                if k == "content" || s.count <= strLimit {
                     out[k] = s
+                } else {
+                    out[k] = String(s.prefix(strLimit)) + "\n…[截断 共\(s.count)字符，需完整请用 limit/范围参数缩小]"
                 }
             case let arr as [[String: Any]]:
                 if arr.count > arrLimit {
