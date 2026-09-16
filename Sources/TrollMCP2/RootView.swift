@@ -7,6 +7,8 @@ final class AppUIState: ObservableObject {
     @Published var settingsPresented = false
     // v2.9.84：打开设置后自动跳转到「模型 API」页（聊天框「在设置中管理模型」用）
     @Published var settingsJumpToModels = false
+    // v2.9.139：AI 控制中心（控制任意 App 的计划/日志/结果页）
+    @Published var controlPresented = false
 }
 
 struct RootView: View {
@@ -67,9 +69,15 @@ struct RootView: View {
             markOnboardingDone()
         }) {
             OnboardingView {
-                markOnboardingDone()
-                showOnboarding = false
+                markOnboardingDone()                showOnboarding = false
             }
+        }
+        // v2.9.139：AI 控制中心（控制任意 App 时的计划/进度/日志/结果页）
+        .fullScreenCover(isPresented: Binding(
+            get: { ui.controlPresented },
+            set: { ui.controlPresented = $0 }
+        )) {
+            ControlCenterView()
         }
         // v2.9.76：语言切换后全局重建视图
         .id(lang.language.rawValue)

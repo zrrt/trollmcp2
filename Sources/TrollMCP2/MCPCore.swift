@@ -769,6 +769,17 @@ public final class ToolRegistry: ObservableObject {
         register(FSCrashTool())        // v2.9.115：崩溃日志解析
         register(FSImageInfoTool())    // v2.9.115：图片元数据
 
+        // v2.9.139：AI 控制任意 App（HID 触摸注入 + 进度横幅 + 控制会话）
+        register(UITapTool())
+        register(UISwipeTool())
+        register(UILongPressTool())
+        register(UIClipboardTool())
+        register(UIScreenshotTool())
+        register(ProgressNotifyTool())
+        register(ControlBeginTool())
+        register(ControlUpdateTool())
+        register(ControlFinishTool())
+
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
     }
 }

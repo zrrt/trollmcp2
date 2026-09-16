@@ -414,6 +414,13 @@ enum L10n {
             "ui_145": ["zh": "默认指令会注入 AI 请求。可写：工程约定、代码风格、工具使用偏好、回复格式要求等。", "en": "Default instructions are injected into every AI request. You can write: project conventions, code style, tool usage preferences, reply format requirements, etc."],
             "ui_146": ["zh": "默认指令（标「默认」）会在每次 AI 请求时作为 system 消息注入，AI 将遵循其中的约定。长按指令可设默认/编辑/删除。", "en": "Default instructions (marked 'Default') are injected as system messages in every AI request and AI follows them. Long-press a instruction to set default / edit / delete."],
             "ui_147": ["zh": "🚑 紧急恢复（Residue 式）", "en": "🚑 Emergency restore (Residue-style)"],
+            // v2.9.139：AI 控制中心
+            "ui_172": ["zh": "AI 控制中心", "en": "AI Control Center"],
+            "ui_173": ["zh": "执行计划", "en": "Plan"],
+            "ui_174": ["zh": "执行日志", "en": "Execution Log"],
+            "ui_175": ["zh": "执行结果", "en": "Result"],
+            "ui_176": ["zh": "现场截图", "en": "Live Screenshot"],
+            "ui_177": ["zh": "关闭", "en": "Close"],
         ]
         return table[key]?[lang] ?? key
     }
