@@ -95,9 +95,9 @@ final class AppCatalog {
         let fn2 = unsafeBitCast(method_getImplementation(m2), to: (@convention(c) (AnyObject, Selector) -> AnyObject?).self)
         guard let apps = fn2(ws, NSSelectorFromString("allInstalledApplications")) as? [NSObject] else { return [] }
 
-        return apps.compactMap { p in
+        return apps.compactMap { (p: NSObject) -> AppEntry? in
             let bid = p.value(forKey: "applicationIdentifier") as? String ?? ""
-            guard !bid.isEmpty else { return nil }
+            guard !bid.isEmpty else { return nil as AppEntry? }
             let path = (p.value(forKey: "bundleURL") as? URL)?.path ?? ""
             let plist = path.isEmpty ? nil : NSDictionary(contentsOfFile: path + "/Info.plist")
             // v2.9.144：过滤系统服务/隐藏应用（ViewService/UIService/Extension/无界面 daemon），
@@ -106,9 +106,9 @@ final class AppCatalog {
             // v2.9.158：对齐 TrollFools——LSApplicationProxy.applicationType 区分
             // "User"（App Store 装）/ "System"（TrollStore 侧载，系统 App 已被路径过滤）；
             // teamID 兜底（TrollStore 重签名为 TROLLTROLL）
-            let appType = (p.value(forKey: "applicationType") as? String)
+            let appType: String = (p.value(forKey: "applicationType") as? String)
                 ?? (path.contains("/var/containers/Bundle/Application") ? "User" : "System")
-            let teamID = p.value(forKey: "teamID") as? String
+            let teamID: String? = p.value(forKey: "teamID") as? String
             return AppEntry(
                 bundleId: bid,
                 name: p.value(forKey: "localizedName") as? String ?? bid,
