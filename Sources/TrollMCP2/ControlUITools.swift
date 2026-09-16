@@ -168,7 +168,6 @@ final class ScreenCapture {
         // 再 stop → stop 完成后统一落盘（不碰活 buffer）。
         let lock = NSLock()
         var done = false
-        var scheduled = false
         var latestImage: UIImage?
         let finish: (Bool, String) -> Void = { ok, msg in
             lock.lock()
@@ -245,6 +244,17 @@ final class ScreenCapture {
             }
         }
     }}
+
+final class ProgressNotifier {
+    static func notify(title: String, body: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
+    }
+}
 
 // MARK: - MCP 工具：ui.* 控制任意 App
 
