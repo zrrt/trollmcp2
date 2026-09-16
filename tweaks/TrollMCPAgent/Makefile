@@ -4,10 +4,9 @@ INSTALL_TARGET_PROCESSES = SpringBoard
 
 include $(THEOS)/makefiles/common.mk
 
-# v2.9.193: tweak.mk → library.mk（纯 C/ObjC 无 Logos/MSHook，去 CydiaSubstrate 依赖）
-LIBRARY_NAME = TrollMCPAgent
+# v2.9.196: library.mk → tweak.mk（回滚，原因同 ControlAgent）
+TWEAK_NAME = TrollMCPAgent
 TrollMCPAgent_FILES = Tweak.x
 TrollMCPAgent_CFLAGS = -fobjc-arc
-TrollMCPAgent_INSTALL_PATH = /usr/lib
 
-include $(THEOS_MAKE_PATH)/library.mk
+include $(THEOS_MAKE_PATH)/tweak.mk
