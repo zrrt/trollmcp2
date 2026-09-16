@@ -2,7 +2,7 @@ import SwiftUI
 
 struct InjectionView: View {
     @State private var apps: [AppCatalog.AppEntry] = []
-    @State private var searchText = ""
+    @State private var runningIds = Set<String>()
     @State private var selectedApp: AppCatalog.AppEntry?
     @State private var inspectResult: [String: Any]?
     // v2.9.92：紧急恢复区块
@@ -26,41 +26,16 @@ struct InjectionView: View {
         var id: String { bundleId }
     }
 
-    private var filtered: [AppCatalog.AppEntry] {
-        if searchText.isEmpty { return apps }
-        return apps.filter { $0.name.localizedCaseInsensitiveContains(searchText) || $0.bundleId.localizedCaseInsensitiveContains(searchText) }
-    }
-
     var body: some View {
         VStack(spacing: 0) {
-            // v2.9.77：美化头部（标题 + 搜索）
+            // v2.9.77：美化头部（标题 + 副标题）
             PageHeader(
                 icon: "syringe.fill",
                 title: L10n.t("page_inject"),
-                subtitle: "\(apps.count) 个应用 · 点击查看详情与注入",
+                subtitle: "\(apps.count) 个应用 · 搜索/分类/版本/索引",
                 colors: [.tmIndigo, .tmCyan]
             )
             .padding(.vertical, 8)
-
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
-                    .font(.system(size: 14))
-                TextField("搜索应用或 Bundle ID...", text: $searchText)
-                    .font(.subheadline)
-                if !searchText.isEmpty {
-                    Button(action: { searchText = "" }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
-            .background(Color(.secondarySystemBackground))
-            .cornerRadius(12)
-            .padding(.horizontal, 16)
-            .padding(.bottom, 4)
 
             // v2.9.92：🚑 紧急恢复（Residue 式）——注入把 App 搞坏后的第一选择
             rescueSection
@@ -77,7 +52,11 @@ struct InjectionView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    appList
+                    // v2.9.128：Fuck 工具箱风格（分类标签/类型胶囊/版本/A-Z 索引）
+                    AppBrowserList(apps: apps, runningIds: runningIds) { app in
+                        selectedApp = app
+                        inspectApp(app)
+                    }
                 }
             }
             .toolbar {
@@ -93,36 +72,6 @@ struct InjectionView: View {
         .navigationTitle(L10n.t("page_inject"))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: refresh)   // v2.9.18：进入自动加载应用列表
-    }
-
-    private var appList: some View {
-        List {
-            ForEach(filtered) { app in
-                Button(action: { selectedApp = app; inspectApp(app) }) {
-                    HStack(spacing: 12) {
-                        // v2.9.18：真实 app 图标（加载失败时显示首字母占位）
-                        AppIconView(bundleId: app.bundleId, path: app.path)
-                            .frame(width: 38, height: 38)
-                            .cornerRadius(10)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(app.name)
-                                .font(.body)
-                                .foregroundColor(.primary)
-                            Text(app.bundleId)
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.vertical, 3)
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-        }
-        .listStyle(.insetGrouped)
     }
 
     // MARK: - v2.9.92 紧急恢复（Residue 式）
@@ -357,8 +306,15 @@ struct InjectionView: View {
 
 
     private func refresh() {
-        apps = AppCatalog.list()
-        AuditLog.shared.log("injection.refresh", detail: "\(apps.count) apps")
+        DispatchQueue.global(qos: .userInitiated).async {
+            let list = AppCatalog.list()
+            let running = AppCatalog.runningExecNames()
+            DispatchQueue.main.async {
+                apps = list
+                runningIds = running
+                AuditLog.shared.log("injection.refresh", detail: "\(list.count) apps, \(running.count) running")
+            }
+        }
     }
 
     private func inspectApp(_ app: AppCatalog.AppEntry) {

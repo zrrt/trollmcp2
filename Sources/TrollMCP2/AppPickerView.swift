@@ -1,60 +1,21 @@
 import SwiftUI
 
+// v2.9.128：应用选择（Fuck 工具箱风格：分类标签+版本+类型胶囊+A-Z 索引）
 struct AppPickerView: View {
     @Environment(\.presentationMode) var presentationMode
     var onSelect: ((AppCatalog.AppEntry) -> Void)?
 
-    @State private var apps: [AppCatalog.AppEntry] = []
-    @State private var searchText = ""
-
-    private var filtered: [AppCatalog.AppEntry] {
-        if searchText.isEmpty { return apps }
-        return apps.filter {
-            $0.name.localizedCaseInsensitiveContains(searchText) ||
-            $0.bundleId.localizedCaseInsensitiveContains(searchText)
-        }
-    }
-
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                searchBar
-                List {
-                    Section(header: HStack {
-                        Text("已安装应用")
-                        Spacer()
-                        Text("\(apps.count)")
-                            .foregroundColor(.secondary)
-                    }) {
-                        ForEach(filtered) { app in
-                            Button(action: {
-                                onSelect?(app)
-                                presentationMode.wrappedValue.dismiss()
-                            }) {
-                                HStack(spacing: 12) {
-                                    AppIconView(bundleId: app.bundleId, path: app.path)
-                                        .frame(width: 44, height: 44)
-                                        .cornerRadius(10)
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(app.name)
-                                            .font(.body)
-                                            .foregroundColor(.primary)
-                                        Text(app.bundleId)
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                            .lineLimit(1)
-                                    }
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                        }
-                    }
+            AppBrowserContainer(
+                title: "选择应用",
+                subtitle: "搜索 · 分类 · 版本 · 索引",
+                icon: "app.badge.fill",
+                onTap: { app in
+                    onSelect?(app)
+                    presentationMode.wrappedValue.dismiss()
                 }
-                .listStyle(.plain)
-            }
+            )
             .navigationTitle("选择应用")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -64,37 +25,6 @@ struct AppPickerView: View {
             }
         }
         .navigationViewStyle(.stack)
-        .onAppear { loadApps() }
-    }
-
-    private var searchBar: some View {
-        HStack {
-            Image(systemName: "magnifyingglass")
-                .foregroundColor(.secondary)
-            TextField("搜索名称或 Bundle ID", text: $searchText)
-                .font(.body)
-            if !searchText.isEmpty {
-                Button(action: { searchText = "" }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(10)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-    }
-
-    private func loadApps() {
-        DispatchQueue.global(qos: .userInitiated).async {
-            let list = AppCatalog.list()
-            DispatchQueue.main.async {
-                apps = list
-            }
-        }
     }
 }
 
