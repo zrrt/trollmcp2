@@ -1,9 +1,9 @@
 import Foundation
-import Darwin
 
 // v2.9.184：libproc 进程枚举（proc_listallpids / proc_pidpath，纯 C API，
 // 不依赖 shell/ps/task_for_pid——TrollStore 无 shell 环境 /bin/ps 不可用，
 // 导致 app.status / app.decrypt 的进程检测永远 false（实测证实）。
+// Darwin 模块不暴露 libproc 符号，用 @_silgen_name 直接绑定系统符号（iOS 6+ 均存在）。
 
 // v2.9.70：进程管理 + 测试编排器
 // 1. 进程管理 — 目标 App 启停、重启、前台状态、CPU/内存/线程采样
@@ -404,16 +404,23 @@ final class TestRunTool: MCPTool {
 
 // MARK: - 辅助函数
 
+// libproc 系统符号直绑（iOS 6+；macOS CI 交叉编译 iOS target 也可链接）
+@_silgen_name("proc_listallpids")
+func sys_proc_listallpids(_ buffer: UnsafeMutablePointer<pid_t>?, _ bufferSize: Int32) -> Int32
+
+@_silgen_name("proc_pidpath")
+func sys_proc_pidpath(_ pid: Int32, _ buffer: UnsafeMutablePointer<CChar>?, _ buffersize: UInt32) -> Int32
+
 /// v2.9.184：libproc 枚举进程，按可执行文件路径前缀匹配（xxx.app 目录）。
 /// 纯 C API，TrollStore 无 shell 环境可用；非越狱可能受进程可见性限制，实测确认。
 func findPidByExecutable(bundlePath: String) -> Int32 {
     var pids = [pid_t](repeating: 0, count: 2048)
-    let count = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
+    let count = sys_proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
     guard count > 0 else { return 0 }
     for i in 0..<Int(count) {
         let pid = pids[i]
         var buf = [CChar](repeating: 0, count: 4096)
-        let len = proc_pidpath(pid, &buf, UInt32(buf.count))
+        let len = sys_proc_pidpath(pid, &buf, UInt32(buf.count))
         if len > 0 {
             let path = String(cString: buf)
             // 可执行文件在 .app 目录内，路径以 bundlePath 开头即命中
