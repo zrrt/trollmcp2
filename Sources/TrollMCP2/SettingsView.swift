@@ -444,9 +444,7 @@ struct SettingsView: View {
     }
 
     private func triggerProbe() {
-        DeviceProbe.shared.run { report in
-            lastProbe = report
-        }
+        lastProbe = DeviceProbe.shared.run()
     }
 
     private func modelProviderName() -> String {
