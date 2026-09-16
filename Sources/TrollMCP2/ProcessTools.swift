@@ -437,6 +437,10 @@ func findPidByExecutable(bundlePath: String) -> Int32 {
         let len = sys_proc_pidpath(pid, &buf, UInt32(buf.count))
         if len > 0 {
             let path = String(cString: buf)
+            // v2.9.186：排除扩展进程（.appex）——扩展在 bundle 目录内但非主 App 进程，
+            // 此前误把 NotificationServiceExtension 当主进程（真机实测 pid 11718 假阳性，
+            // 导致 app.start 误报启动成功、app.decrypt 拿扩展进程 task 读镜像表全空）
+            if path.contains(".appex") { continue }
             // 可执行文件在 .app 目录内，路径以 bundlePath 开头即命中
             if path.hasPrefix(bundlePath) {
                 return pid
