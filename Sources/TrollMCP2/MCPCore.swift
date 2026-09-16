@@ -87,26 +87,58 @@ enum FailureKind {
         return ("UNKNOWN", "未知", "查看完整日志后重试")
     }
 
-    /// 兜底成功一句话（工具未提供 message 时生成）
+    /// 兜底成功一句话（工具未提供 message 时生成）。
+    /// v2.9.125：智能提取器——按 布尔状态 → 数量 → status/summary → 首字段 顺序
+    /// 从返回里提取最有信息量的一句，让全部 162 个工具都有可读结论（而非"xx执行成功"）。
     static func defaultSuccessMessage(name: String, result: [String: Any]) -> String {
-        if let injected = result["injected"] as? Bool {
-            return injected ? "注入成功（injected=true）" : "注入未生效"
+        // ① 布尔状态类（按词义生成"动作+成功/失败"）
+        let boolVerb: [String: String] = [
+            "injected": "注入", "ready": "就绪", "started": "启动", "running": "运行",
+            "success": "执行", "found": "找到", "deleted": "删除", "created": "创建",
+            "updated": "更新", "removed": "移除", "connected": "连接", "loaded": "加载",
+            "installed": "安装", "enabled": "启用", "disabled": "停用", "restored": "恢复",
+            "cleaned": "清理", "written": "写入", "saved": "保存", "downloaded": "下载",
+            "sent": "发送", "completed": "完成", "active": "激活", "available": "可用",
+            "canceled": "取消", "killed": "已终止", "resumed": "已恢复", "paused": "已暂停",
+            "exists": "存在", "is_core": "常驻", "valid": "有效", "compatible": "兼容"
+        ]
+        for (key, verb) in boolVerb {
+            if let v = result[key] as? Bool {
+                return "\(verb)\(v ? "成功" : "失败")"
+            }
         }
-        if let ready = result["ready"] as? Bool {
-            return ready ? "环境就绪" : "环境未就绪"
+        // ② 数量类（total/count/matched 等用"条"，size/bytes 用"字节"）
+        let countKeys = ["total", "count", "matched", "found",
+                         "apps", "tools", "files", "records", "items"]
+        for key in countKeys {
+            if let n = result[key] as? Int {
+                return "共 \(n) 条"
+            }
         }
-        if let started = result["started"] as? Bool {
-            return started ? "已启动" : "未启动"
+        for key in ["size", "bytes"] {
+            if let n = result[key] as? Int {
+                return n >= 1048576 ? "\(String(format: "%.1f", Double(n) / 1048576)) MB"
+                    : n >= 1024 ? "\(String(format: "%.1f", Double(n) / 1024)) KB"
+                    : "\(n) 字节"
+            }
         }
-        if let running = result["running"] as? Bool {
-            return running ? "运行中" : "未运行"
+        // ③ 状态/结论类字段
+        for key in ["status", "verdict", "summary", "result", "state", "conclusion"] {
+            if let s = result[key] as? String, !s.isEmpty {
+                return s.count > 60 ? String(s.prefix(60)) + "…" : s
+            }
         }
-        if let count = result["total"] as? Int {
-            return "共 \(count) 条"
+        // ④ 首个有值的简短字段（排除大对象/长文本）
+        for (k, v) in result {
+            if k == "ok" || k == "message" || k == "data" || k == "error" { continue }
+            if let s = v as? String, !s.isEmpty, s.count <= 40 {
+                return "\(k)=\(s)"
+            }
+            if let n = v as? NSNumber {
+                return "\(k)=\(n)"
+            }
         }
-        if let ok = result["ok"] as? Bool {
-            return ok ? "执行成功" : "执行失败"
-        }
+        // ⑤ 终极兜底
         return "\(name) 执行成功"
     }
 }
