@@ -173,7 +173,15 @@ final class DeviceProbe: ObservableObject {
         if FileManager.default.fileExists(atPath: "/.TrollStore") { return true }
         if FileManager.default.fileExists(atPath: "/var/jb") { return true }
         if FileManager.default.fileExists(atPath: "/private/preboot/jb") { return true }
-        return AppCatalog.list().contains { $0.bundleId == "com.opa334.TrollStore" }
+        if AppCatalog.list().contains(where: { $0.bundleId == "com.opa334.TrollStore" }) { return true }
+        // v2.9.159：AppCatalog 兜底——直接扫容器目录找 TrollStore.app（不依赖枚举结果）
+        for root in ["/var/containers/Bundle/Application", "/private/var/containers/Bundle/Application"] {
+            if let dirs = try? FileManager.default.contentsOfDirectory(atPath: root),
+               dirs.contains(where: { $0.localizedCaseInsensitiveContains("TrollStore") }) {
+                return true
+            }
+        }
+        return false
     }
 
     private func detectTrollFools() -> Bool {
@@ -188,11 +196,19 @@ final class DeviceProbe: ObservableObject {
         let apps = AppCatalog.list()
         if apps.contains(where: { ids.contains($0.bundleId) }) { return true }
         // 兜底：按名字/路径模糊匹配（TrollFools / TrollFools.app）
-        return apps.contains {
+        if apps.contains(where: {
             $0.bundleId.localizedCaseInsensitiveContains("trollfools") ||
             $0.name.localizedCaseInsensitiveContains("trollfools") ||
             $0.path.localizedCaseInsensitiveContains("TrollFools.app")
+        }) { return true }
+        // v2.9.159：AppCatalog 兜底——直接扫容器目录找 TrollFools.app（不依赖枚举结果）
+        for root in ["/var/containers/Bundle/Application", "/private/var/containers/Bundle/Application"] {
+            if let dirs = try? FileManager.default.contentsOfDirectory(atPath: root),
+               dirs.contains(where: { $0.localizedCaseInsensitiveContains("TrollFools") }) {
+                return true
+            }
         }
+        return false
     }
 
     // v2.9.154：真实测 task_for_pid-allow。

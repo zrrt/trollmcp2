@@ -52,9 +52,15 @@ final class AppCatalog {
     /// 特征：.appex 扩展 / ViewService·UIService·Extension·XPCService / isHidden=true
     static func isLaunchable(bundleId: String, path: String, proxy: NSObject?) -> Bool {
         if path.contains(".appex") { return false }
-        // v2.9.157：系统自带 App（root 分区 /System /Applications）不展示——
-        // 只保留第三方容器 App（App Store / TrollStore / 企业签名都在 /var/containers/Bundle/Application/）
-        if !path.hasPrefix("/var/containers/Bundle/Application/") { return false }
+        // v2.9.159：系统自带 App（root 分区 /System /Applications）不展示——
+        // 只保留第三方容器 App（App Store / TrollStore / 企业签名）。
+        // 注意 bundleURL 在部分 iOS 版本返回 /private/var/containers/...（/var 是符号链接），
+        // 前缀必须兼容 /private/var 与 /var 两种形态，否则全部 App 被过滤（列表空+环境检测误报）。
+        let containerPrefixes = [
+            "/var/containers/Bundle/Application/",
+            "/private/var/containers/Bundle/Application/"
+        ]
+        if !containerPrefixes.contains(where: { path.hasPrefix($0) }) { return false }
         let lower = bundleId.lowercased()
         let serviceHints = ["viewservice", "uiservice", "xpcservice", "extension",
                             "intents", "widget", "share", "watchapp", "messagesextension",
