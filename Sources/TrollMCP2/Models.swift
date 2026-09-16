@@ -1,5 +1,8 @@
 import Foundation
 import Combine
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - 模型配置
 
@@ -822,13 +825,15 @@ final class ConversationStore: ObservableObject {
         client.currentReasoningLevel = reasoningLevel
         currentClient = client
         var history = messagesForAPI(budget: config.contextTokens)
-        // v2.9.74：系统指令（用户可在设置中切换默认，不可编辑）
-        // ——优先级最高，高于开发者指令。替代 v2.9.34 写死的协作规范。
+        // v2.9.138：模块化 system prompt 组装（稳定前缀工程）——
+        // 稳定块（系统指令→开发者指令）在前、动态状态块（设备/App/工作区/会话）在后，
+        // 稳定前缀保持字节一致 → 官方 API 前缀缓存可直接命中（Anthropic/OpenAI）。
         history.insert(ChatMessage(role: "system", content: SystemPrompts.shared.selected.content), at: 0)
-        // v2.9.19：默认开发者指令注入为 system 前缀（用户可自建并设为默认）
         if let devInstr = DeveloperInstructionStore.shared.defaultInjectionContent(), !devInstr.isEmpty {
             history.insert(ChatMessage(role: "system", content: "以下是开发者指令，请始终遵守：\n" + devInstr), at: 0)
         }
+        // 动态状态块：最新信息放最后，不影响稳定前缀缓存
+        history.insert(ChatMessage(role: "system", content: Self.dynamicStatePrompt()), at: 0)
 
         client.send(messages: history, tools: effectiveTools, onStatus: { status in
             DispatchQueue.main.async {
@@ -868,6 +873,16 @@ final class ConversationStore: ObservableObject {
                     self.currentClient = nil
                     self.requestRound = 0
                     self.runningTool = nil
+                    // v2.9.138：自动会话记忆——一轮完整回复后落库（供下会话 BM25 检索）
+                    if let idx = self.selectedIndex {
+                        let msgs = self.conversations[idx].messages
+                        let lastUser = msgs.last { $0.role == "user" }?.content ?? ""
+                        let usedTools = msgs.compactMap { $0.toolName }
+                        KnowledgeStore.shared.appendSessionMemory(
+                            user: String(lastUser.prefix(80)),
+                            reply: String(text.prefix(150)),
+                            tools: Array(Set(usedTools)).sorted().suffix(8))
+                    }
                     // v2.9.127：轨迹——回复完成，附到消息持久化
                     self.trailStep(.done(.note, "AI 回复完成", detail: String(text.prefix(80))))
                     // v2.9.82：完成通知（后台时）
@@ -1065,9 +1080,41 @@ final class ConversationStore: ObservableObject {
         }
     }
 
+    /// v2.9.138：动态会话状态块——设备/App/工作区/当前会话，注入 system 最前
+    /// （位于稳定块之后，最新状态放最后）。让 AI 始终感知当前环境，不靠猜。
+    private static func dynamicStatePrompt() -> String {
+        var device = "iPhone"
+        var os = ""
+        #if canImport(UIKit)
+        device = UIDevice.current.model
+        os = UIDevice.current.systemName + " " + UIDevice.current.systemVersion
+        #endif
+        var appVer = ""
+        if let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String { appVer = v }
+        var parts = ["[当前环境] 设备: \(device)\(os.isEmpty ? "" : " · \(os)")"]
+        if !appVer.isEmpty { parts.append("App: TrollAgent \(appVer)") }
+        parts.append("工作区: \(Workspace.root.path)")
+        if let idx = ConversationStore.shared.selectedIndex,
+           idx < ConversationStore.shared.conversations.count {
+            parts.append("当前会话: \(ConversationStore.shared.conversations[idx].title)")
+        }
+        return parts.joined(separator: " | ")
+    }
+
     private func messagesForAPI(budget: Int) -> [ChatMessage] {
-        let all = currentMessages.filter { !$0.isError }
+        var all = currentMessages.filter { !$0.isError }
         guard !all.isEmpty else { return all }
+        // v2.9.138：工具结果修剪（Claude Code Precision Forgetting Layer 1）——
+        // 非最近 3 条 tool 消息、内容 > 300 字符的旧工具结果替换为紧凑占位符。
+        // 零 LLM 成本回收上下文：AI 需要细节时可重新调用该工具。
+        let toolIdx = all.enumerated().filter { $0.element.isTool }.map { $0.offset }
+        let keepTool = Set(toolIdx.suffix(3))
+        for (i, m) in all.enumerated() where m.isTool && !keepTool.contains(i) && m.content.count > 300 {
+            var nm = m
+            let toolName = m.toolName ?? "tool"
+            nm.content = "[工具结果已修剪: \(toolName)，原\(m.content.count)字符。如需完整结果请重新调用该工具并带 limit/范围参数]"
+            all[i] = nm
+        }
         // v2.9.87：预算预留 30% 给 tools schema + 系统/开发者指令 + 请求开销。
         // 之前只按消息估算，tools（可能几十 KB JSON）+ 两条 system 前缀没算，
         // 长会话+多工具时实际请求体远超预算 → 中转处理慢（"一直请求中"）。

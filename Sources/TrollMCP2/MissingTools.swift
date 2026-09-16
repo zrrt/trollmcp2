@@ -345,7 +345,24 @@ final class KnowledgeStore {
         return (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
     }
 
-    /// v2.9.137：BM25 本地加权检索（零依赖，中英混合分词）
+    /// v2.9.138：自动会话记忆（类 code-session-memory）——AI 每完成一轮文字回复，
+    /// 把「用户提问 + AI 结论 + 涉及工具」追加到 knowledge/session_memory.md，
+    /// 供后续会话用 knowledge.search（BM25）检索。行数上限 300，自动滚动。
+    func appendSessionMemory(user: String, reply: String, tools: [String]) {
+        ensure()
+        let url = dir.appendingPathComponent("session_memory.md")
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM-dd HH:mm"
+        var entry = "- \(formatter.string(from: Date())) 问: \(user)"
+        if !reply.isEmpty { entry += " → AI: \(reply)" }
+        if !tools.isEmpty { entry += " [工具: \(tools.joined(separator: "、"))]" }
+        var lines = (try? String(contentsOf: url, encoding: .utf8))?.components(separatedBy: .newlines) ?? []
+        lines.append(entry)
+        if lines.count > 300 { lines = Array(lines.suffix(300)) }
+        try? lines.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    /// v2.9.138：BM25 本地加权检索（零依赖，中英混合分词）
     /// 返回按相关性排序的命中行；无命中返回空数组（调用方回退 contains）
     func bm25Search(query: String, limit: Int = 15) -> [(file: String, line: Int, snippet: String, score: Double)] {
         let qTokens = BM25Tokenizer.tokenize(query)
