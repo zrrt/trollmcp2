@@ -261,6 +261,14 @@ struct SettingsView: View {
                         color: .tmCyan,
                         destination: CleanupCenterView()
                     )
+                    // v2.9.128：系统清理（Fuck 工具箱系统清理页）
+                    SettingRow(
+                        title: "系统清理",
+                        subtitle: "存储使用 · 缓存占用 · 快速/高级清理",
+                        icon: "externaldrive.fill.badge.timemachine",
+                        color: .red,
+                        destination: SystemCleanupView()
+                    )
                     SettingRow(
                         title: L10n.t("row_apikeys"),
                         subtitle: "查看 · 显隐 · 恢复",

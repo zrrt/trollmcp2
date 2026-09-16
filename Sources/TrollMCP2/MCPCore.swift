@@ -487,6 +487,9 @@ public final class ToolRegistry: ObservableObject {
         register(CleanupScanTool())
         register(CleanupExecuteTool())
         register(CleanupAiTool())
+        // v2.9.128：系统级清理（Fuck 工具箱系统清理页能力，AI 可调用）
+        register(SystemCleanupScanTool())
+        register(SystemCleanupExecuteTool())
 
         // M2 助理记忆（原版命名）
         register(AssistantMemorySetTool())
