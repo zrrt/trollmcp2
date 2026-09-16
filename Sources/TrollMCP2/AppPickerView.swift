@@ -29,36 +29,54 @@ struct AppPickerView: View {
     }
 }
 
-/// v2.9.158：App 图标加载器——对齐 TrollFools 用系统缓存图标私有 API
-/// `+[UIImage _applicationIconImageForBundleIdentifier:format:scale:]`（能拿到
-/// Assets.car 里的图标，系统级缓存持久），NSCache 防重复读取；失败回退首字母占位。
+/// v2.9.162：App 图标加载器——v2.9.161 之前用私有 API
+/// `+[UIImage _applicationIconImageForBundleIdentifier:format:scale:]`，实测 iOS 16.3
+/// 不响应（崩溃日志 exc_*.txt: unrecognized selector → NSInvalidArgumentException → 列表页闪退）。
+/// 改用公开 API：读 App 包内 Info.plist 的 CFBundleIcons → CFBundlePrimaryIcon → CFBundleIconFiles，
+/// 用 UIImage(contentsOfFile:) 直接加载图标文件（@3x/@2x/无后缀依次尝试）；NSCache 防重复读。
 final class AppIconLoader {
     static let shared = AppIconLoader()
     private let cache = NSCache<NSString, UIImage>()
-    /// v2.9.160：私有 API 可用性（responds 检查，避免低版本系统闪退）
-    private static let apiAvailable: Bool = {
-        UIImage.self.responds(to: NSSelectorFromString("_applicationIconImageForBundleIdentifier:format:scale:"))
-    }()
     private init() { cache.countLimit = 512 }
 
-    func icon(for bundleId: String) -> UIImage? {
-        let key = bundleId as NSString
+    func icon(forPath path: String) -> UIImage? {
+        guard !path.isEmpty else { return nil }
+        let key = path as NSString
         if let hit = cache.object(forKey: key) { return hit }
-        var img: UIImage?
-        if AppIconLoader.apiAvailable {
-            let cls: AnyClass = UIImage.self
-            let sel = NSSelectorFromString("_applicationIconImageForBundleIdentifier:format:scale:")
-            typealias IconFn = @convention(c) (AnyClass, Selector, NSString, Int, CGFloat) -> UIImage?
-            let fn = unsafeBitCast(class_getMethodImplementation(cls, sel), to: IconFn.self)
-            img = fn(cls, sel, bundleId as NSString, 0, 3.0)
-        }
+        let img = Self.readIcon(from: path)
         if let img = img { cache.setObject(img, forKey: key) }
         return img
+    }
+
+    /// 公开 API 读图标文件：解析 App 的 Info.plist 图标名，逐 scale 尝试读取
+    private static func readIcon(from appPath: String) -> UIImage? {
+        guard let plist = NSDictionary(contentsOfFile: appPath + "/Info.plist") else { return nil }
+        var names: [String] = []
+        if let icons = plist["CFBundleIcons"] as? [String: Any],
+           let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
+           let files = primary["CFBundleIconFiles"] as? [String] {
+            names = files
+        }
+        if names.isEmpty, let files = plist["CFBundleIconFiles"] as? [String] {
+            names = files
+        }
+        if names.isEmpty, let legacy = plist["CFBundleIconFile"] as? String {
+            names = [legacy]
+        }
+        guard let base = names.first else { return nil }
+        // 依次尝试 @3x / @2x / 无后缀；有的图标文件不带 .png 扩展名
+        for (scale, suffix) in [(3.0, "@3x"), (2.0, "@2x"), (1.0, "")] {
+            for ext in ["png", ""] {
+                let file = base + suffix + (ext.isEmpty ? "" : "." + ext)
+                if let img = UIImage(contentsOfFile: appPath + "/" + file) { return img }
+            }
+        }
+        return nil
     }
 }
 
 struct AppIconView: View {
-    let bundleId: String
+    let path: String
 
     @State private var image: UIImage?
 
@@ -71,7 +89,7 @@ struct AppIconView: View {
             } else {
                 ZStack {
                     Color(.secondarySystemBackground)
-                    Text(String(bundleId.prefix(1).uppercased()))
+                    Text(String((path as NSString).lastPathComponent.prefix(1).uppercased()))
                         .font(.system(size: 20, weight: .medium))
                         .foregroundColor(.secondary)
                 }
@@ -82,7 +100,7 @@ struct AppIconView: View {
 
     private func loadIcon() {
         DispatchQueue.global(qos: .userInitiated).async {
-            let img = AppIconLoader.shared.icon(for: bundleId)
+            let img = AppIconLoader.shared.icon(forPath: path)
             DispatchQueue.main.async {
                 image = img
             }
