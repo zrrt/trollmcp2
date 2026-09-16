@@ -80,6 +80,6 @@ enum SharePresenter {
             return
         }
         top.present(vc, animated: true)
-        AuditLog.shared.log("share.present", detail: "items=\(vc.activityItems.count)")
+        AuditLog.shared.log("share.present", detail: "ok")
     }
 }
