@@ -206,8 +206,6 @@ final class ScreenCapture {
             guard bufferType == .video else { return }
             lock.lock()
             if done { lock.unlock(); return }
-            let needSchedule = !scheduled
-            if needSchedule { scheduled = true }
             lock.unlock()
             autoreleasepool {
                 guard let pixel = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
@@ -219,33 +217,34 @@ final class ScreenCapture {
                 latestImage = img
                 lock.unlock()
             }
-            if needSchedule {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                    recorder.stopCapture { _ in
-                        saveLatest()
-                    }
-                }
-            }
         }) { error in
             if let error {
                 recorder.stopCapture { _ in }
                 finish(false, "录屏失败: \(error.localizedDescription)")
             }
         }
+        // v2.9.179：固定 0.8s 后停（不依赖首帧——旧版等首帧才调度 stop，无帧就永远卡死，
+        // 表现为"AI 一直思考"）。无论有没有帧都必停必返回。
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            recorder.stopCapture { _ in
+                saveLatest()
+            }
+        }
+        // v2.9.179：12s 总超时兜底——startCapture 的 completionHandler 在 TrollStore 环境
+        // 可能不被调用（授权弹窗未响应/系统卡住），此时 0.8s stop 也无帧可存，需要强制收尾
+        // 返回结果，绝不无限挂起。
+        DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
+            lock.lock()
+            let img = latestImage
+            lock.unlock()
+            if img == nil {
+                recorder.stopCapture { _ in }
+                finish(false, "录屏超时：TrollStore 环境 ReplayKit 无响应。请确认授权弹窗已允许；仍不行则改用注入截图。")
+            } else {
+                saveLatest()
+            }
+        }
     }}
-
-// MARK: - 节点横幅（执行中进度汇报：本地通知立即弹出，任何 App 界面顶部可见）
-
-final class ProgressNotifier {
-    static func notify(title: String, body: String) {
-        let content = UNMutableNotificationContent()
-        content.title = title
-        content.body = body
-        content.sound = .default
-        let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
-    }
-}
 
 // MARK: - MCP 工具：ui.* 控制任意 App
 
