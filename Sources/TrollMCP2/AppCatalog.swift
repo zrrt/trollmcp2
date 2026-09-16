@@ -141,15 +141,19 @@ final class AppCatalog {
     /// v2.9.128：运行中 App 的可执行名集合（ps -ax，匹配 execName；兼容 16 字符截断）
     static func runningExecNames() -> Set<String> {
         var set = Set<String>()
-        let (_, out) = InjectionManager.shared.spawnRoot("/bin/ps", args: ["-ax"], timeout: 10)
+        // v2.9.163：ps -axo pid,comm 只输出命令名（-ax 行尾带完整参数导致 execName 匹配失败，运行中恒空）
+        let (_, out) = InjectionManager.shared.spawnRoot("/bin/ps", args: ["-axo", "pid,comm"], timeout: 10)
         for line in out.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
-            // 取行尾的命令名（ps -ax 输出最后一段是命令/参数）
             let parts = trimmed.split(separator: " ", omittingEmptySubsequences: true)
-            if let cmd = parts.last {
-                set.insert(String(cmd.prefix(16)))
-            }
+            guard let cmd = parts.last else { continue }
+            // comm 可能带路径/括号（如 (WeChat)），取纯命令名
+            var name = String(cmd)
+            if name.hasPrefix("(") { name.removeFirst() }
+            if name.hasSuffix(")") { name.removeLast() }
+            name = (name as NSString).lastPathComponent
+            if !name.isEmpty { set.insert(String(name.prefix(16))) }
         }
         return set
     }

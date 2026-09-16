@@ -8,7 +8,6 @@ enum AppCategory: String, CaseIterable {
     case all = "全部"
     case user = "用户"
     case troll = "巨魔"
-    case system = "系统"
     case running = "运行中"
 }
 
@@ -27,7 +26,6 @@ struct AppBrowserList: View {
         case .all: break
         case .user: list = apps.filter { $0.isUser && !$0.isTroll }
         case .troll: list = apps.filter { $0.isTroll }
-        case .system: list = apps.filter { $0.isSystem }
         case .running: list = apps.filter { runningIds.contains(String($0.execName.prefix(16))) }
         }
         if !searchText.isEmpty {

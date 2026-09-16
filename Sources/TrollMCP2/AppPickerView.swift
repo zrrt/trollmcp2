@@ -48,7 +48,10 @@ final class AppIconLoader {
         return img
     }
 
-    /// 公开 API 读图标文件：解析 App 的 Info.plist 图标名，逐 scale 尝试读取
+    /// 公开 API 读图标文件，命中率从高到低：
+    /// 1) Info.plist CFBundleIconFiles 名（老 App 独立 PNG）
+    /// 2) 常见图标名 UIImage(named:in:)（能读 Assets.car 里的命名图标）
+    /// 3) 顶层 *.png 中面积最大的（排除 Launch/Splash）
     private static func readIcon(from appPath: String) -> UIImage? {
         guard let plist = NSDictionary(contentsOfFile: appPath + "/Info.plist") else { return nil }
         var names: [String] = []
@@ -63,13 +66,35 @@ final class AppIconLoader {
         if names.isEmpty, let legacy = plist["CFBundleIconFile"] as? String {
             names = [legacy]
         }
-        guard let base = names.first else { return nil }
-        // 依次尝试 @3x / @2x / 无后缀；有的图标文件不带 .png 扩展名
-        for (scale, suffix) in [(3.0, "@3x"), (2.0, "@2x"), (1.0, "")] {
-            for ext in ["png", ""] {
-                let file = base + suffix + (ext.isEmpty ? "" : "." + ext)
-                if let img = UIImage(contentsOfFile: appPath + "/" + file) { return img }
+        // 1) Info.plist 图标名 + 文件系统读取
+        for base in names {
+            for (scale, suffix) in [(3.0, "@3x"), (2.0, "@2x"), (1.0, "")] {
+                for ext in ["png", ""] {
+                    let file = base + suffix + (ext.isEmpty ? "" : "." + ext)
+                    if let img = UIImage(contentsOfFile: appPath + "/" + file) { return img }
+                }
             }
+        }
+        // 2) 常见编译名（Assets.car 命名资源）
+        let bundle = Bundle(path: appPath)
+        let common = ["AppIcon60x60@3x", "AppIcon60x60@2x", "AppIcon60x60",
+                      "AppIcon@3x", "AppIcon@2x", "AppIcon",
+                      "Icon-60@3x", "Icon-60@2x", "Icon-76@2x", "Icon",
+                      "icon@3x", "icon@2x", "icon"]
+        for name in common {
+            if let img = UIImage(named: name, in: bundle, compatibleWith: nil) { return img }
+            if let img = UIImage(contentsOfFile: appPath + "/" + name + ".png") { return img }
+        }
+        // 3) 顶层 *.png 面积最大者（排除启动图/背景图）
+        if let files = try? FileManager.default.contentsOfDirectory(atPath: appPath) {
+            let candidates = files.filter { $0.hasSuffix(".png") && !$0.lowercased().contains("launch") && !$0.lowercased().contains("splash") }
+            var best: (UIImage, CGFloat)? = nil
+            for f in candidates {
+                guard let img = UIImage(contentsOfFile: appPath + "/" + f) else { continue }
+                let area = img.size.width * img.size.height
+                if best == nil || area > best!.1 { best = (img, area) }
+            }
+            if let b = best { return b.0 }
         }
         return nil
     }
