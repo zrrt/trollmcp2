@@ -118,7 +118,7 @@ enum DecryptEngine {
 
         // 方法 0（v2.9.185）：LSApplicationWorkspace 私有 API 拉起——TrollStore 环境可用，
         // 不依赖 shell/root（open -b 与 direct_exec 在无 shell 环境全部 spawnRoot failed，真机实测）。
-        if let wsClass = NSClassFromString("LSApplicationWorkspace") as? AnyClass,
+        if let wsClass = NSClassFromString("LSApplicationWorkspace") as? NSObject.Type,
            let ws = wsClass.perform(NSSelectorFromString("defaultWorkspace"))?.takeUnretainedValue() as? NSObject,
            ws.responds(to: NSSelectorFromString("openApplicationWithBundleID:")) {
             _ = ws.perform(NSSelectorFromString("openApplicationWithBundleID:"), with: bundleId)
