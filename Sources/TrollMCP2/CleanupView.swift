@@ -4,7 +4,9 @@ import SwiftUI
 /// v2.9.144：复用 AppBrowserContainer（分类标签+搜索+App图标+A-Z索引），
 /// 默认只显示"用户"分类——系统 App 不再默认统计出来（可手动切"系统"tab 查看）。
 struct CleanupCenterView: View {
+    // v2.9.144：NavigationView(iOS16) 不支持 navigationDestination，改 sheet 弹出详情
     @State private var selected: AppCatalog.AppEntry?
+    @State private var showCleanup = false
 
     var body: some View {
         AppBrowserContainer(
@@ -12,12 +14,25 @@ struct CleanupCenterView: View {
             subtitle: "缓存 · 钥匙串 · 广告符 · 数据容器 · AI 清理",
             icon: "sparkles.rectangle.stack",
             defaultCategory: .user,
-            onTap: { app in selected = app }
+            onTap: { app in
+                selected = app
+                showCleanup = true
+            }
         )
         .navigationTitle("清理中心")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(item: $selected) { app in
-            AppCleanupView(bundleId: app.bundleId, name: app.name)
+        .sheet(isPresented: $showCleanup) {
+            if let app = selected {
+                NavigationView {
+                    AppCleanupView(bundleId: app.bundleId, name: app.name)
+                        .toolbar {
+                            ToolbarItem(placement: .navigationBarLeading) {
+                                Button("完成") { showCleanup = false }
+                            }
+                        }
+                }
+                .navigationViewStyle(.stack)
+            }
         }
     }
 }
