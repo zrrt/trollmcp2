@@ -297,6 +297,12 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     // MARK: - 高亮与快照
 
     /// 高亮脚本：清除旧标记 → 给可见可交互元素加 data-browser-idx + 蓝框 → 返回元素 JSON 数组
+    /// 注入高亮并返回元素快照 JSON（AI 调用时自动浮现悬浮窗）
+    /// v2.9.44：支持 query 关键字过滤（按文本/标签/占位符/name/href 模糊匹配），长页面不爆 token
+    /// v2.9.80：元素带 x/y/w/h 坐标
+    /// v2.9.129：去掉"只抓视口内元素"的过滤——小悬浮窗里 Bing 搜索结果第一屏只有 1 条链接，
+    /// 其余结果在视口外被裁剪导致 snapshot 只返回 1 条。改为只过滤尺寸/显示，全页可点元素入列，
+    /// 靠 prefix(30) 截断；JS click 对不可见元素同样有效，AI 拿到 idx 即可操作
     static let highlightScript = """
     (function(){
       try{
@@ -308,7 +314,6 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
           var e=els[i];
           var r=e.getBoundingClientRect();
           if(!r||r.width<5||r.height<5)continue;
-          if(r.bottom<0||r.top>window.innerHeight||r.right<0||r.left>window.innerWidth)continue;
           var st=window.getComputedStyle(e);
           if(st.display==='none'||st.visibility==='hidden'||st.opacity==='0')continue;
           e.setAttribute('data-browser-idx',String(idx));
@@ -352,9 +357,9 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
                 result["query"] = q
                 result["matched"] = arr.count
             }
-            result["elements"] = Array(arr.prefix(20))
+            result["elements"] = Array(arr.prefix(30))
             result["count"] = arr.count
-            result["truncated"] = arr.count > 20
+            result["truncated"] = arr.count > 30
             elementCount = arr.count
         } else {
             result["elements"] = []

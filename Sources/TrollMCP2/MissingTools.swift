@@ -153,13 +153,15 @@ final class WebSearchTool: MCPTool {
     }
 
     /// 同步抓取网页（15 秒超时）
+    /// v2.9.129：UA 改桌面 Chrome —— Bing 移动版 HTML 结构与桌面版不同且不稳定，
+    /// 桌面版 b_algo 结构多年稳定，解析命中率高
     private func fetchHTML(_ url: URL) -> String? {
         var html: String?
         var fetchError: String?
         let sem = DispatchSemaphore(value: 0)
         DispatchQueue.global().async {
             var req = URLRequest(url: url, timeoutInterval: 15)
-            req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
+            req.setValue("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
             let task = URLSession.shared.dataTask(with: req) { data, _, err in
                 defer { sem.signal() }
                 if let err = err { fetchError = err.localizedDescription; return }
@@ -174,18 +176,53 @@ final class WebSearchTool: MCPTool {
         return html
     }
 
+    /// v2.9.129：Bing 解析增强——三级兜底，不再"只出一条"
+    /// 1) 严格 b_algo 块  2) 宽松 b_algo 块(class 带附加项)  3) 通用 h2>a 兜底
     private func parseBing(html: String, limit: Int) -> [[String: String]] {
-        guard let regex = try? NSRegularExpression(pattern: "<li class=\"b_algo\">(.*?)</li>", options: [.dotMatchesLineSeparators]) else { return [] }
+        var out = parseBingBlocks(html: html, pattern: "<li class=\"b_algo\">(.*?)</li>", limit: limit)
+        if out.count < limit {
+            out += parseBingBlocks(html: html, pattern: "<li class=\"b_algo[^\"]*\">(.*?)</li>", limit: limit - out.count)
+        }
+        if out.isEmpty {
+            out = parseBingGeneric(html: html, limit: limit)
+        }
+        return out
+    }
+
+    private func parseBingBlocks(html: String, pattern: String, limit: Int) -> [[String: String]] {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else { return [] }
         let ns = html as NSString
         let matches = regex.matches(in: html, range: NSRange(location: 0, length: ns.length))
         var out: [[String: String]] = []
-        for m in matches.prefix(limit) {
+        for m in matches {
             let block = ns.substring(with: m.range(at: 1))
-            let head = block.firstMatch(pattern: "<h2><a[^>]*href=\"([^\"]+)\"[^>]*>([^<]+)</a></h2>")
-            let snippet = block.firstCapture(pattern: "<p[^>]*>([^<]{10,})</p>") ?? ""
-            if let caps = head, caps.count == 2, !caps[1].isEmpty {
-                out.append(["title": caps[1], "url": caps[0], "snippet": snippet])
+            // 标题：<h2> 下第一个 <a>，容许多行/嵌套 span
+            let head = block.firstMatch(pattern: "<h2[^>]*>[\\s\\S]*?<a[^>]*href=\"([^\"]+)\"[^>]*>([\\s\\S]*?)</a>")
+            // 摘要：取 b_caption 或第一个 <p>（去除标签）
+            let snippet = (block.firstCapture(pattern: "<p[^>]*>([\\s\\S]*?)</p>") ?? "").stripHTMLTags()
+            if let caps = head, caps.count == 2 {
+                let title = caps[1].stripHTMLTags()
+                if !title.isEmpty {
+                    out.append(["title": title, "url": caps[0], "snippet": snippet])
+                }
             }
+            if out.count >= limit { break }
+        }
+        return out
+    }
+
+    /// 通用兜底：任意 <h2><a href="...">标题</a></h2>（Bing 改版时仍能出结果）
+    private func parseBingGeneric(html: String, limit: Int) -> [[String: String]] {
+        guard let regex = try? NSRegularExpression(pattern: "<h2[^>]*>[\\s\\S]*?<a[^>]*href=\"([^\"]+)\"[^>]*>([\\s\\S]*?)</a>[\\s\\S]*?</h2>", options: [.dotMatchesLineSeparators]) else { return [] }
+        let ns = html as NSString
+        let matches = regex.matches(in: html, range: NSRange(location: 0, length: ns.length))
+        var out: [[String: String]] = []
+        var seen = Set<String>()
+        for m in matches {
+            let url = ns.substring(with: m.range(at: 1))
+            let title = ns.substring(with: m.range(at: 2)).stripHTMLTags()
+            guard !title.isEmpty, !url.hasPrefix("javascript:"), seen.insert(url).inserted else { continue }
+            out.append(["title": title, "url": url, "snippet": ""])
             if out.count >= limit { break }
         }
         return out
