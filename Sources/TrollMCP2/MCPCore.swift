@@ -416,13 +416,13 @@ public final class ToolRegistry: ObservableObject {
                 // v2.9.134：返回式错误统一识别——工具 return ["error":...] / ["ok": false] /
                 // ["status": "failed"] 不再伪装成功（旧版 ok 恒为 true，AI 无法分辨成败，
                 // 即"死结果"根因）。统一走 code/reason/nextStep 失败路径。
-                if let errBox = Self.extractReturnedError(result) {
-                    let info = FailureKind.classify(errBox.message)
+                if let errMsg = Self.extractReturnedError(result) {
+                    let info = FailureKind.classify(errMsg)
                     AuditLog.shared.logTool(originalName, status: .failure,
                                             elapsedMs: elapsedMs, dataBytes: 0, permission: perm,
-                                            detail: errBox.message, code: info.code, reason: info.reason, nextStep: info.nextStep)
-                    WorkflowManager.shared.updateStep(tool: originalName, detail: errBox.message, success: false)
-                    throw MCPError.classified(errBox.message, code: info.code, reason: info.reason, nextStep: info.nextStep)
+                                            detail: errMsg, code: info.code, reason: info.reason, nextStep: info.nextStep)
+                    WorkflowManager.shared.updateStep(tool: originalName, detail: errMsg, success: false)
+                    throw MCPError.classified(errMsg, code: info.code, reason: info.reason, nextStep: info.nextStep)
                 }
                 let bytes = Self.resultBytes(result)
                 AuditLog.shared.logTool(originalName, status: .success,

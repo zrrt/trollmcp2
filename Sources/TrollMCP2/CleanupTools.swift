@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 // v2.9.128：清理中心工具集（对齐 Fuck 工具箱"清理类"能力 + AI 清理亮点）
 // 聚合已有能力：缓存清理 / keychain / 广告符 / 数据容器 / 标识符

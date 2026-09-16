@@ -265,10 +265,9 @@ enum DebReader {
         if let member = ArReader.member(data, name: "data.tar.gz") {
             tarData = try Gzip.decompress(member)
         } else if let member = ArReader.member(data, name: "data.tar.bz2") {
-            guard let d = decompressCompression(member, algorithm: COMPRESSION_BZIP2) else {
-                throw ArchiveError.format("data.tar.bz2 解压失败（bzip2）")
-            }
-            tarData = d
+            // 构建环境 Compression SDK 无 COMPRESSION_BZIP2 常量，明确降级（bzip2 deb 极少见）
+            _ = member
+            throw ArchiveError.format("data.tar.bz2 暂不支持（SDK 缺 COMPRESSION_BZIP2），请用 gzip 打包的 deb")
         } else if let member = ArReader.member(data, name: "data.tar.lzma") {
             guard let d = decompressCompression(member, algorithm: COMPRESSION_LZMA) else {
                 throw ArchiveError.format("data.tar.lzma 解压失败（raw lzma）")

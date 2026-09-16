@@ -156,7 +156,7 @@ final class ScreenCapture {
             guard !done else { return }
             if bufferType == .video {
                 done = true
-                recorder.stopCapture { _, _ in }
+                recorder.stopCapture { _ in }
                 guard let pixel = CMSampleBufferGetImageBuffer(sampleBuffer) else {
                     completion(false, "截图转码失败")
                     return
@@ -191,7 +191,7 @@ final class ScreenCapture {
         DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
             if !done {
                 done = true
-                recorder.stopCapture { _, _ in }
+                recorder.stopCapture { _ in }
                 completion(false, "截图超时（未取到画面帧）")
             }
         }

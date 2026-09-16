@@ -153,18 +153,20 @@ final class AuditLog: ObservableObject {
             if let ms = e.elapsedMs { v.ms.append(ms) }
             map[k] = v
         }
-        let ranked = map
-            .map { (tool: $0.key, v: $0.value) }
-            .filter { $0.v.f > 0 || $0.v.s > 0 }
-            .sorted { $0.v.f != $1.v.f ? $0.v.f > $1.v.f : $0.tool < $1.tool }
-            .prefix(limit)
+        var ranked: [(tool: String, s: Int, f: Int, ms: [Int], code: [String: Int], lastFail: String)] = []
+        for (tool, v) in map {
+            if v.f > 0 || v.s > 0 {
+                ranked.append((tool, v.s, v.f, v.ms, v.code, v.lastFail))
+            }
+        }
+        ranked.sort { $0.f != $1.f ? $0.f > $1.f : $0.tool < $1.tool }
         var out: [ToolHealth] = []
-        for item in ranked {
-            let avg = item.v.ms.isEmpty ? 0 : item.v.ms.reduce(0, +) / item.v.ms.count
-            let topCode = item.v.code.max { $0.value < $1.value }?.key ?? "ok"
-            out.append(ToolHealth(tool: item.tool, success: item.v.s, failure: item.v.f,
+        for item in ranked.prefix(limit) {
+            let avg = item.ms.isEmpty ? 0 : item.ms.reduce(0, +) / item.ms.count
+            let topCode = item.code.max { $0.value < $1.value }?.key ?? "ok"
+            out.append(ToolHealth(tool: item.tool, success: item.s, failure: item.f,
                                   avgMs: avg, topCode: topCode,
-                                  lastFailureDetail: String(item.v.lastFail.prefix(160))))
+                                  lastFailureDetail: String(item.lastFail.prefix(160))))
         }
         return out
     }
