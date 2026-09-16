@@ -14,6 +14,9 @@ struct RootView: View {
     @ObservedObject private var lang = LanguageManager.shared   // v2.9.76：语言切换全局刷新
     // v2.9.78：首次启动引导；v2.9.83：改为按版本展示——每次安装新版本/覆盖老版本都重新展现引导页
     @State private var showOnboarding = RootView.onboardingNeeded()
+    // v2.9.126：深链导入确认页（trollagent://import?...）
+    @ObservedObject private var pendingImport = PendingImport.shared
+    @State private var importResult: String?
 
     private static func onboardingNeeded() -> Bool {
         let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -70,6 +73,40 @@ struct RootView: View {
         }
         // v2.9.76：语言切换后全局重建视图
         .id(lang.language.rawValue)
+        // v2.9.126：深链导入确认页——暂存配置后弹窗，确认才写入
+        .onReceive(NotificationCenter.default.publisher(for: PendingImport.didStageNotification)) { note in
+            if let result = note.userInfo?["result"] as? String {
+                importResult = result == "imported" ? "已导入并切换" : "重复配置，未导入"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) { importResult = nil }
+            }
+        }
+        .alert(isPresented: Binding(
+            get: { pendingImport.staged != nil },
+            set: { if !$0 { pendingImport.cancel() } }
+        )) {
+            if let cfg = pendingImport.staged {
+                return Alert(
+                    title: Text("导入模型配置？"),
+                    message: Text("名称: \(cfg.name)\n模型: \(cfg.model)\n接口: \(cfg.baseURL)\n\n确认导入并立即使用？"),
+                    primaryButton: .default(Text("导入"), action: { pendingImport.confirm() }),
+                    secondaryButton: .cancel(Text("取消"), action: { pendingImport.cancel() })
+                )
+            }
+            return Alert(title: Text(""), dismissButton: .default(Text("OK")))
+        }
+        .overlay(Group {
+            if let result = importResult {
+                Text(result)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 10)
+                    .background(Color.green.opacity(0.85))
+                    .cornerRadius(10)
+                    .padding(.bottom, 120)
+                    .transition(.opacity)
+            }
+        }, alignment: .bottom)
     }
 
     private func drawerWidth(for geo: GeometryProxy) -> CGFloat {

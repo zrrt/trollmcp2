@@ -111,8 +111,7 @@ final class ModelStore: ObservableObject {
     static let shared = ModelStore()
 
     @Published var configs: [ModelConfig] = []
-    private let key = "trollmcp2.model_configs"
-    // v2.9.97：记住最近一次使用的模型，顶栏立即显示用户上次用的配置，不再回退到第一个（旧 gpt4o）
+    private let key = "trollmcp2.model_configs"    // v2.9.97：记住最近一次使用的模型，顶栏立即显示用户上次用的配置，不再回退到第一个（旧 gpt4o）
     private let lastUsedKey = "trollmcp2.last_used_config_id"
 
     init() { load() }
@@ -234,6 +233,15 @@ final class ModelStore: ObservableObject {
         if configs.isEmpty { c.isDefault = true }
         configs.append(c)
         save()
+    }
+
+    /// v2.9.126：深链导入专用——同 baseURL+model 去重（重复导入不再堆积配置）
+    func importFromDeepLink(_ config: ModelConfig) -> Bool {
+        let dup = configs.contains { $0.baseURL == config.baseURL && $0.model == config.model }
+        guard !dup else { return false }
+        add(config)
+        markUsed(config.id)
+        return true
     }
 
     func update(_ config: ModelConfig) {
@@ -1257,5 +1265,37 @@ final class CircuitBreaker {
         case .open:
             break
         }
+    }
+}
+
+// MARK: - v2.9.126 深链导入暂存（对齐 cc-switch DeepLinkImportDialog）
+
+/// AppDelegate 收到 trollagent://import?... 后暂存配置，发通知；SwiftUI 层弹确认页。
+/// 确认才写入 ModelStore（防误导入），取消即丢弃。
+final class PendingImport: ObservableObject {
+    static let shared = PendingImport()
+    static let didStageNotification = Notification.Name("trollagent.pendingImport.staged")
+
+    @Published var staged: ModelConfig?
+
+    private init() {}
+
+    func stage(_ config: ModelConfig) {
+        staged = config
+        NotificationCenter.default.post(name: Self.didStageNotification, object: config)
+    }
+
+    func confirm() {
+        guard let c = staged else { return }
+        let ok = ModelStore.shared.importFromDeepLink(c)
+        staged = nil
+        // 通知 UI 显示结果（导入成功/已存在重复）
+        NotificationCenter.default.post(name: Self.didStageNotification,
+                                        object: nil,
+                                        userInfo: ["result": ok ? "imported" : "duplicate"])
+    }
+
+    func cancel() {
+        staged = nil
     }
 }

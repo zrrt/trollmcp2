@@ -254,6 +254,13 @@ struct ModelRow: View {
                     .foregroundColor(.purple)
             }
             .buttonStyle(.plain)
+            // v2.9.126：分享深链——trollagent://import?...，对方点链接即可导入（对齐 cc-switch DeepLinkImportDialog）
+            Button(action: shareDeepLink) {
+                Image(systemName: "link")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.teal)
+            }
+            .buttonStyle(.plain)
             if !config.isDefault {
                 Button(action: activate) {
                     Image(systemName: "checkmark.circle")
@@ -294,6 +301,25 @@ struct ModelRow: View {
         c.isDefault = false
         ModelStore.shared.add(c)
         AuditLog.shared.log("model.duplicate", detail: config.name)
+    }
+
+    /// v2.9.126：生成深链并唤起系统分享（对方设备装 TrollAgent 点链接即可导入）
+    private func shareDeepLink() {
+        let enc = { (s: String) in
+            s.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? s
+        }
+        var link = "trollagent://import?baseURL=\(enc(config.baseURL))&model=\(enc(config.model))&name=\(enc(config.name))"
+        if !config.apiKey.isEmpty { link += "&apiKey=\(enc(config.apiKey))" }
+        link += "&auth=\(enc(config.authMethod))&group=\(enc(config.group))&protocol=\(enc(config.apiProtocol))"
+        if config.temperature != 0.7 { link += "&temperature=\(config.temperature)" }
+        if config.maxTokens != 2048 { link += "&maxTokens=\(config.maxTokens)" }
+        if config.contextTokens != 16000 { link += "&contextTokens=\(config.contextTokens)" }
+
+        let activity = UIActivityViewController(activityItems: [link], applicationActivities: nil)
+        if let window = UIApplication.shared.windows.first {
+            window.rootViewController?.present(activity, animated: true)
+        }
+        AuditLog.shared.log("model.share_deeplink", detail: config.name)
     }
 
     /// v2.9.107：供应商测速（GET /models，8s 超时）
