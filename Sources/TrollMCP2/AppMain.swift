@@ -36,6 +36,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         AppLifecycleMonitor.shared.start()
         // v2.9.66：启动时上报设备信息到统计后台（安装量/机型分布，需在设置中开启并配置服务器地址）
         DeviceReporter.shared.reportIfNeeded()
+        // v2.9.180：远程诊断——启动即开始轮询云端指令；上报安装信息 + 上次崩溃未上报的日志。
+        // 只读白名单执行，无危险操作；配置在 设置 → 远程诊断。
+        RemoteAgent.shared.start()
+        RemoteAgent.shared.reportInstallIfNeeded()
+        RemoteAgent.shared.reportPendingCrashes()
 
         window = UIWindow(frame: UIScreen.main.bounds)
         window?.rootViewController = UIHostingController(rootView: RootView())

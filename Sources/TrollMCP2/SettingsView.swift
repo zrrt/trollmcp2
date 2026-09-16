@@ -238,6 +238,10 @@ struct SettingsView: View {
                          subtitle: "存储使用 · 缓存占用 · 快速/高级清理",
                          icon: "externaldrive.fill.badge.timemachine", color: .red,
                          destination: AnyView(SystemCleanupView())),
+            SettingsItem(title: "远程诊断",
+                         subtitle: "崩溃自动上报 · 云端指令测试 · 只读白名单",
+                         icon: "antenna.radiowaves.left.and.right", color: .tmTeal,
+                         destination: AnyView(RemoteDiagnosticsView())),
         ]))
 
         // 关于
