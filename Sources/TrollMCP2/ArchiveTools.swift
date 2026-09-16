@@ -1,11 +1,13 @@
 //
 //  ArchiveTools.swift
 //  TrollAgent — 对齐 TrollFools preprocessAssets 的 zip/deb 解压能力
-//  纯系统库实现：libz（raw deflate / gzip）+ 手写 ZIP/ar/tar 解析
+//  纯系统库实现：libz（raw deflate / gzip）+ Compression.framework（bzip2/lzma）+ liblzma dlsym（xz）
+//  + 手写 ZIP/ar/tar 解析
 //
 
 import Foundation
 import zlib
+import Compression
 
 enum ArchiveError: Error, CustomStringConvertible {
     case format(String)
@@ -177,20 +179,115 @@ enum TarReader {
     }
 }
 
-/// deb 解包（对齐 extractDebianPackage：data.tar.gz/bz2/xz/lzma/zst/lz4；本实现支持 gz，其余明确报错）
+/// deb 解包（对齐 extractDebianPackage：data.tar.gz/bz2/lzma/xz/zst/lz4；
+/// v2.9.126 支持 gzip + bzip2 + raw lzma + xz 容器；zst/lz4 明确报错并给出重打包指引）
 enum DebReader {
+    /// 用 Compression.framework 解 bzip2 / raw lzma 流（无容器包装，逐块 streaming）
+    private static func decompressCompression(_ data: Data, algorithm: compression_algorithm) -> Data? {
+        var out = Data()
+        let src = (data as NSData).bytes.bindMemory(to: UInt8.self, capacity: data.count)
+        var stream = compression_stream(dst_ptr: nil, dst_size: 0, src_ptr: src, src_size: data.count, state: nil)
+        guard compression_stream_init(&stream, COMPRESSION_STREAM_DECODE, algorithm) != COMPRESSION_STATUS_ERROR else {
+            return nil
+        }
+        defer { compression_stream_destroy(&stream) }
+        var dst = [UInt8](repeating: 0, count: 65536)
+        let dstBuf = dst.withUnsafeMutableBytes { $0.bindMemory(to: UInt8.self).baseAddress! }
+        var status = COMPRESSION_STATUS_OK
+        stream.src_ptr = src
+        stream.src_size = data.count
+        var guardCount = 0
+        while status == COMPRESSION_STATUS_OK {
+            stream.dst_ptr = dstBuf
+            stream.dst_size = dst.count
+            status = compression_stream_process(&stream, Int32(COMPRESSION_STREAM_FINALIZE.rawValue))
+            let produced = dst.count - stream.dst_size
+            if produced > 0 { out.append(dstBuf, count: produced) }
+            if status == COMPRESSION_STATUS_END { break }
+            if status == COMPRESSION_STATUS_ERROR { return nil }
+            // 防死循环：输入耗尽且无进展（异常流）时退出
+            guardCount += 1
+            if guardCount > 1_000_000 || (stream.src_size == 0 && produced == 0) { break }
+        }
+        return out
+    }
+
+    /// 解 xz 容器：dlsym /usr/lib/liblzma.dylib（iOS 系统自带；Debian deb 默认 data.tar.xz 是 XZ 容器格式，
+    /// Compression.framework 的 COMPRESSION_LZMA 只解 raw lzma 流、解不了 xz 帧，必须走 liblzma）。
+    /// lzma_stream 是 C ABI 固定布局（xz 5.x 64 位，字段顺序/偏移 liblzma 保证稳定）：
+    ///   0:next_in  8:avail_in  16:total_in  24:next_out  32:avail_out  40:total_out  48:allocator  56:internal
+    /// 用固定偏移读写（不用 Swift struct——Swift 结构体布局不保证与 C 一致）。
+    private static func decompressXZ(_ data: Data) -> Data? {
+        typealias LzmaStreamDecoderFn = @convention(c) (UnsafeMutableRawPointer, UInt64, UInt32) -> Int32
+        typealias LzmaCodeFn = @convention(c) (UnsafeMutableRawPointer, Int32) -> Int32
+        typealias LzmaEndFn = @convention(c) (UnsafeMutableRawPointer) -> Void
+
+        guard let handle = dlopen("/usr/lib/liblzma.dylib", RTLD_LAZY) else { return nil }
+        defer { dlclose(handle) }
+        guard let symDecoder = dlsym(handle, "lzma_stream_decoder"),
+              let symCode = dlsym(handle, "lzma_code"),
+              let symEnd = dlsym(handle, "lzma_end") else { return nil }
+        let decoderFn = unsafeBitCast(symDecoder, to: LzmaStreamDecoderFn.self)
+        let codeFn = unsafeBitCast(symCode, to: LzmaCodeFn.self)
+        let endFn = unsafeBitCast(symEnd, to: LzmaEndFn.self)
+
+        // 零初始化一块足够大的 stream buffer（liblzma 只写它认识的字段）
+        let stream = UnsafeMutableRawPointer.allocate(byteCount: 256, alignment: 16)
+        memset(stream, 0, 256)
+        defer { endFn(stream); stream.deallocate() }
+
+        let ret = decoderFn(stream, UInt64.max, 0x001 /* LZMA_CONCATENATED */)
+        guard ret == 0 /* LZMA_OK */ else { return nil }
+
+        var out = Data()
+        var dstBuf = [UInt8](repeating: 0, count: 262144)
+        return data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) -> Data? in
+            guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return nil }
+            let bytes = stream.assumingMemoryBound(to: UInt64.self)
+            bytes[0] = UInt64(UInt(bitPattern: base))          // next_in
+            bytes[1] = UInt64(data.count)                       // avail_in
+            while true {
+                bytes[3] = UInt64(UInt(bitPattern: dstBuf.withUnsafeMutableBytes { $0.baseAddress! }))  // next_out
+                bytes[4] = UInt64(dstBuf.count)                                                          // avail_out
+                let r = codeFn(stream, 3 /* LZMA_FINISH */)
+                let produced = dstBuf.count - Int(bytes[4])
+                if produced > 0 { out.append(dstBuf, count: produced) }
+                if r == 1 /* LZMA_STREAM_END */ { return out }
+                if r != 0 /* LZMA_OK */ { return nil }
+            }
+        }
+    }
+
     static func extractDylibAndBundles(at url: URL, to targetDir: URL) throws {
         let data = try Data(contentsOf: url)
-        guard let ar = ArReader.member(data, name: "data.tar.gz") else {
-            for alt in ["data.tar.bz2", "data.tar.xz", "data.tar.lzma", "data.tar.zst", "data.tar.lz4"] {
+        var tarData: Data?
+        if let member = ArReader.member(data, name: "data.tar.gz") {
+            tarData = try Gzip.decompress(member)
+        } else if let member = ArReader.member(data, name: "data.tar.bz2") {
+            guard let d = decompressCompression(member, algorithm: COMPRESSION_BZIP2) else {
+                throw ArchiveError.format("data.tar.bz2 解压失败（bzip2）")
+            }
+            tarData = d
+        } else if let member = ArReader.member(data, name: "data.tar.lzma") {
+            guard let d = decompressCompression(member, algorithm: COMPRESSION_LZMA) else {
+                throw ArchiveError.format("data.tar.lzma 解压失败（raw lzma）")
+            }
+            tarData = d
+        } else if let member = ArReader.member(data, name: "data.tar.xz") {
+            guard let d = decompressXZ(member) else {
+                throw ArchiveError.format("data.tar.xz 解压失败（liblzma）")
+            }
+            tarData = d
+        } else {
+            for alt in ["data.tar.zst", "data.tar.lz4"] {
                 if ArReader.member(data, name: alt) != nil {
-                    throw ArchiveError.format("deb 含 \(alt)，当前仅支持 gzip 压缩（data.tar.gz）。请用 gzip 重新打包 deb。")
+                    throw ArchiveError.format("deb 含 \(alt)，iOS 平台无内置解压器。请用 gzip 重新打包 deb（dpkg-deb -Zgzip）后再注入。")
                 }
             }
-            throw ArchiveError.format("deb 中找不到 data.tar.gz")
+            throw ArchiveError.format("deb 中找不到 data.tar.gz/bz2/lzma/xz")
         }
-        let tarData = try Gzip.decompress(ar)
-        let entries = TarReader.entries(tarData)
+        guard let tar = tarData else { throw ArchiveError.format("deb 解压后为空") }
+        let entries = TarReader.entries(tar)
         var processedBundles = Set<String>()
         for entry in entries {
             let lower = entry.name.lowercased()

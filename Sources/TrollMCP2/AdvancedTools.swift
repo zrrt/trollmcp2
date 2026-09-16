@@ -72,11 +72,11 @@ final class BinarySymbolsTool: MCPTool {
 
         if FileManager.default.fileExists(atPath: nmPath) {
 
-            let (_, nmOutput) = InjectionManager.shared.spawnRoot(nmPath, args: ["-g", "-U", path])
+            let nmResult = InjectionManager.shared.spawnRootDetailed(nmPath, args: ["-g", "-U", path], timeout: 60)
 
             var symbols: [String] = []
 
-            for line in nmOutput.components(separatedBy: .newlines) {
+            for line in nmResult.stdout.components(separatedBy: .newlines) {
 
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
 
@@ -104,11 +104,11 @@ final class BinarySymbolsTool: MCPTool {
 
             if FileManager.default.fileExists(atPath: stringsPath) {
 
-                let (_, strOutput) = InjectionManager.shared.spawnRoot(stringsPath, args: [path])
+                let strResult = InjectionManager.shared.spawnRootDetailed(stringsPath, args: [path], timeout: 60)
 
                 var strings: [String] = []
 
-                for line in strOutput.components(separatedBy: .newlines) {
+                for line in strResult.stdout.components(separatedBy: .newlines) {
 
                     let trimmed = line.trimmingCharacters(in: .whitespaces)
 

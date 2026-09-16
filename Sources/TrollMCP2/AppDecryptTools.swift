@@ -130,7 +130,7 @@ final class AppDecryptTool: MCPTool {
         // 用 ldid 检查是否有加密段
         let ldidPath = InjectionManager.shared.binaryPath("ldid") ?? ""
         if !ldidPath.isEmpty {
-            _ = InjectionManager.shared.spawnRoot(ldidPath, args: ["-e", binaryPath])
+            _ = InjectionManager.shared.spawnRootDetailed(ldidPath, args: ["-e", binaryPath], timeout: 30)
         }
 
         // 内存 dump 的核心逻辑：
@@ -161,8 +161,8 @@ final class AppDecryptTool: MCPTool {
 
     private func findProcess(by bundleId: String) -> Int32 {
         // 通过 sysctl 获取进程列表，匹配 bundleId
-        // 简化：用 ps 命令查找
-        let (_, output) = InjectionManager.shared.spawnRoot("/bin/ps", args: ["-ax"])
+        // 简化：用 ps 命令查找（v2.9.126：只取 stdout，stderr 噪音不混入）
+        let output = InjectionManager.shared.spawnRootDetailed("/bin/ps", args: ["-ax"], timeout: 30).stdout
         let lines = output.components(separatedBy: .newlines)
         for line in lines {
             if line.contains(bundleId) || line.contains(bundleId.replacingOccurrences(of: ".", with: "")) {
@@ -205,7 +205,8 @@ final class AppEncryptInfoTool: MCPTool {
         let otoolPath = Bundle.main.path(forResource: "otool", ofType: nil, inDirectory: "bin") ?? "/usr/bin/otool"
         var cryptInfo = "未知"
         if FileManager.default.fileExists(atPath: otoolPath) {
-            let (_, output) = InjectionManager.shared.spawnRoot(otoolPath, args: ["-l", binaryPath])
+            // v2.9.126：只取 stdout——otool 警告/错误在 stderr，不混入解析结果
+            let output = InjectionManager.shared.spawnRootDetailed(otoolPath, args: ["-l", binaryPath], timeout: 60).stdout
             if output.contains("LC_ENCRYPTION_INFO") {
                 cryptInfo = "已加密（App Store 下载）"
             } else {
@@ -217,7 +218,8 @@ final class AppEncryptInfoTool: MCPTool {
         let ldidPath = InjectionManager.shared.binaryPath("ldid") ?? ""
         var signInfo = "未知"
         if !ldidPath.isEmpty {
-            let (_, output) = InjectionManager.shared.spawnRoot(ldidPath, args: ["-e", binaryPath])
+            // v2.9.126：只取 stdout——ldid 的 plist 解析错误在 stderr，不再误判"无签名"
+            let output = InjectionManager.shared.spawnRootDetailed(ldidPath, args: ["-e", binaryPath], timeout: 30).stdout
             signInfo = output.isEmpty ? "无签名信息" : "已签名"
         }
 

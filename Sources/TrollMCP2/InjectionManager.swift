@@ -178,15 +178,30 @@ final class InjectionManager {
 
     // MARK: - posix_spawn 执行包内二进制
 
+    /// v2.9.126：结构化 spawn 结果——stdout/stderr 分离（根治"ldid 错误混进 entitlements"）、
+    /// 超时标记、signal/exit 区分。code：>=0 exit code；-1 spawn 失败；-2 超时被 SIGKILL。
+    struct SpawnResult {
+        var code: Int32
+        var stdout: String
+        var stderr: String
+        var timedOut: Bool
+        var signaled: Bool
+        var signal: Int32
+        var diagPrefix: String
+        var output: String { diagPrefix + stdout + stderr }
+        var isTimeout: Bool { code == -2 || timedOut }
+        var isSpawnFailed: Bool { code == -1 }
+    }
+
     /// 执行包内二进制，捕获 stdout/stderr，返回 (exitCode, combinedOutput)
     @discardableResult
-    func runBundled(_ name: String, args: [String]) -> (Int32, String) {
+    func runBundled(_ name: String, args: [String], timeout: Double = 60) -> (Int32, String) {
         guard let bin = binaryPath(name) else { return (-1, "binary not bundled: \(name)") }
-        let result = spawn(bin, args: [name] + args)
+        let result = spawn(bin, args: [name] + args, timeout: timeout)
         // 权限/签名问题：ldid 重签后重试一次
         if result.0 != 0, name != "ldid", let ldid = binaryPath("ldid") {
-            _ = spawn(ldid, args: ["-S", bin])
-            let retry = spawn(bin, args: [name] + args)
+            _ = spawn(ldid, args: ["-S", bin], timeout: 30)
+            let retry = spawn(bin, args: [name] + args, timeout: timeout)
             if retry.0 == 0 { return retry }
         }
         return result
@@ -194,19 +209,31 @@ final class InjectionManager {
 
     /// v2.9.32：以 **root 身份**执行包内二进制（写 app bundle 必需，mobile 无 POSIX 写权限）。
     /// 依赖 TrollStore 安装时保留的 persona-mgmt entitlement + Info.plist TSRootBinaries 声明。
+    /// v2.9.126：内部走 spawnRootDetailed（stdout/stderr 分离 + 超时），对外签名不变。
     @discardableResult
-    func runAsRoot(_ name: String, args: [String]) -> (Int32, String) {
+    func runAsRoot(_ name: String, args: [String], timeout: Double = 60) -> (Int32, String) {
         guard let bin = binaryPath(name) else { return (-1, "binary not bundled: \(name)") }
-        let result = spawnRoot(bin, args: [name] + args)
-        if result.0 != 0, name != "ldid", let ldid = binaryPath("ldid") {
-            _ = spawnRoot(ldid, args: ["-S", bin])
-            let retry = spawnRoot(bin, args: [name] + args)
-            if retry.0 == 0 { return retry }
+        let result = spawnRootDetailed(bin, args: [name] + args, timeout: timeout)
+        if result.code != 0, name != "ldid", let ldid = binaryPath("ldid") {
+            _ = spawnRootDetailed(ldid, args: ["-S", bin], timeout: 30)
+            let retry = spawnRootDetailed(bin, args: [name] + args, timeout: timeout)
+            if retry.code == 0 { return (0, retry.output) }
         }
-        return result
+        return (result.code, result.output)
     }
 
-    func spawn(_ path: String, args: [String]) -> (Int32, String) {
+    /// 需要纯净 stdout 的命令（如 ldid -e 提取 entitlements）：stderr 噪音不混入。
+    /// v2.9.126：根治"工具结果混杂"——解析类命令只读 stdout。
+    @discardableResult
+    func runAsRootStdout(_ name: String, args: [String], timeout: Double = 30) -> (Int32, String) {
+        guard let bin = binaryPath(name) else { return (-1, "") }
+        let r = spawnRootDetailed(bin, args: [name] + args, timeout: timeout)
+        return (r.code, r.stdout)
+    }
+
+    /// 非 root 版 posix_spawn（部分场景需要 mobile 身份执行）。
+    /// v2.9.126：加 timeout（默认 60s，超时 SIGKILL 返回 code=-2），防命令挂起卡死。
+    func spawn(_ path: String, args: [String], timeout: Double = 60) -> (Int32, String) {
         var argv: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) }
         argv.append(nil)
         defer { for p in argv where p != nil { free(p) } }
@@ -237,6 +264,13 @@ final class InjectionManager {
 
         var out = Data()
         if status == 0 {
+            // v2.9.126：超时控制（timer 到点 SIGKILL，防挂起永久卡死）
+            var timedOut = false
+            let timer = DispatchSource.makeTimerSource(queue: .global())
+            timer.schedule(deadline: .now() + timeout)
+            timer.setEventHandler { timedOut = true; kill(pid, SIGKILL) }
+            timer.resume()
+
             var buf = [UInt8](repeating: 0, count: 4096)
             while true {
                 let n = read(outPipe[0], &buf, buf.count)
@@ -251,7 +285,9 @@ final class InjectionManager {
             }
             var st: Int32 = 0
             waitpid(pid, &st, 0)
+            timer.cancel()
             close(outPipe[0]); close(errPipe[0])
+            if timedOut { return (-2, "timeout after \(Int(timeout))s (SIGKILL)") }
             let code = Int32((UInt32(st) >> 8) & 0xff)  // WEXITSTATUS
             return (code, String(data: out, encoding: .utf8) ?? "")
         }
@@ -263,13 +299,20 @@ final class InjectionManager {
     /// 对照 TrollStore 官方 TSUtil.m spawnRoot：persona 99 + uid=0 + gid=0，编译时链接（@_silgen_name）。
     /// 之前用 dlsym 运行时查找，iOS 上这些是隐藏符号，dlsym 全返回 nil → persona 没设置 → euid=501 → EPERM。
     /// 编译时链接后直接调用，有 persona-mgmt entitlement 即可 root spawn，不依赖 TSRootBinaries setuid 位。
-    /// v2.9.57：完全重写，对齐 TrollFools AuxiliaryExecute+Spawn.swift：
-    /// - 非阻塞 pipe（fcntl O_NONBLOCK），避免子进程输出满缓冲区时死锁
-    /// - DispatchSource.makeReadSource 异步读取 stdout/stderr
-    /// - DispatchSource.makeProcessSource 异步等待进程退出
-    /// - 对外保持同步接口（DispatchSemaphore 等待）
-    /// - args 已由 runAsRoot 加上工具名作为 argv[0]
-    func spawnRoot(_ path: String, args: [String]) -> (Int32, String) {
+    /// v2.9.57：完全重写，对齐 TrollFools AuxiliaryExecute+Spawn.swift。
+    /// v2.9.126：薄封装，真实实现走 spawnRootDetailed（stdout/stderr 分离 + 超时 + signal 区分）。
+    @discardableResult
+    func spawnRoot(_ path: String, args: [String], timeout: Double = 60) -> (Int32, String) {
+        let r = spawnRootDetailed(path, args: args, timeout: timeout)
+        return (r.code, r.output)
+    }
+
+    /// v2.9.126：root spawn 结构化版。
+    /// - stdout/stderr 分离：解析类命令（ldid -e 等）可只取 stdout，根治"stderr 噪音混进结果"
+    /// - 超时：默认 60s，超时 SIGKILL → code=-2，调用方可报 [TOOL_TIMEOUT]
+    /// - signal/exit 区分：被信号杀死的命令 → signaled=true + signal 号，而非误报 exit code
+    /// 保持 v2.9.57 的非阻塞 pipe + DispatchSource 异步读取 + waitpid 同步等待。
+    func spawnRootDetailed(_ path: String, args: [String], timeout: Double = 60) -> SpawnResult {
         var argv: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) }
         argv.append(nil)
         defer { for p in argv where p != nil { free(p) } }
@@ -328,12 +371,15 @@ final class InjectionManager {
         guard spawnStatus == 0 else {
             close(outPipe[0]); close(outPipe[1])
             close(errPipe[0]); close(errPipe[1])
-            return (spawnStatus, diagPrefix + "spawnRoot failed (\(spawnStatus))")
+            return SpawnResult(code: spawnStatus, stdout: "", stderr: "", timedOut: false,
+                               signaled: false, signal: 0,
+                               diagPrefix: diagPrefix + "spawnRoot failed (\(spawnStatus)) ")
         }
 
         close(outPipe[1]); close(errPipe[1])
 
-        var output = ""
+        var stdoutStr = ""
+        var stderrStr = ""
         let outputLock = NSLock()
         let bufsiz = 65536
 
@@ -357,7 +403,7 @@ final class InjectionManager {
             let arr = Array(UnsafeBufferPointer(start: buf, count: n)) + [UInt8(0)]
             arr.withUnsafeBufferPointer { ptr in
                 let s = String(cString: unsafeBitCast(ptr.baseAddress, to: UnsafePointer<CChar>.self))
-                outputLock.lock(); output += s; outputLock.unlock()
+                outputLock.lock(); stdoutStr += s; outputLock.unlock()
             }
         }
         errSource.setEventHandler {
@@ -372,11 +418,18 @@ final class InjectionManager {
             let arr = Array(UnsafeBufferPointer(start: buf, count: n)) + [UInt8(0)]
             arr.withUnsafeBufferPointer { ptr in
                 let s = String(cString: unsafeBitCast(ptr.baseAddress, to: UnsafePointer<CChar>.self))
-                outputLock.lock(); output += s; outputLock.unlock()
+                outputLock.lock(); stderrStr += s; outputLock.unlock()
             }
         }
         outSource.resume()
         errSource.resume()
+
+        // v2.9.126：超时控制——timer 到点 SIGKILL，防命令挂起永久卡死
+        var timedOut = false
+        let timer = DispatchSource.makeTimerSource(queue: .global())
+        timer.schedule(deadline: .now() + timeout)
+        timer.setEventHandler { timedOut = true; kill(pid, SIGKILL) }
+        timer.resume()
 
         // v2.9.63：用 waitpid 同步等待进程结束，替代 DispatchSource.makeProcessSource。
         // 原实现有竞态：/usr/bin/id 等快速命令在 procSource.resume() 前就退出，.exit 事件丢失，
@@ -384,12 +437,27 @@ final class InjectionManager {
         var st: Int32 = 0
         var wr: Int32 = 0
         repeat { wr = waitpid(pid, &st, 0) } while wr == -1 && errno == EINTR
+        timer.cancel()
         // 进程已退出，等待 pipe 数据全部读完
         outSem.wait()
         errSem.wait()
-        let exitCode = Int32((UInt32(st) >> 8) & 0xff)
 
-        return (exitCode, diagPrefix + output)
+        // v2.9.126：signal/exit 区分（对齐 TrollFools WIFSIGNALED/WTERMSIG）
+        var signaled = false
+        var signal = Int32(0)
+        if timedOut {
+            return SpawnResult(code: -2, stdout: stdoutStr, stderr: stderrStr, timedOut: true,
+                               signaled: false, signal: 0,
+                               diagPrefix: diagPrefix + "timeout after \(Int(timeout))s (SIGKILL) ")
+        }
+        if (st & 0x7F) != 0 && (st & 0x7F) != 0x7F {
+            signaled = true
+            signal = st & 0x7F   // WTERMSIG
+        }
+        let exitCode = signaled ? -100 - signal : Int32((UInt32(st) >> 8) & 0xff)
+
+        return SpawnResult(code: exitCode, stdout: stdoutStr, stderr: stderrStr, timedOut: false,
+                           signaled: signaled, signal: signal, diagPrefix: diagPrefix)
     }
 
     // MARK: - 路径解析
@@ -753,7 +821,8 @@ final class InjectionManager {
             return (0, "skip: already signed")
         }
         if info.fileType == 0x2 {
-            let (c1, o1) = runAsRoot("ldid", args: ["-e", target])
+            // v2.9.126：走 runAsRootStdout——只读纯净 stdout，根治"ldid 错误混进 entitlements"
+            let (c1, o1) = runAsRootStdout("ldid", args: ["-e", target], timeout: 30)
             if c1 == 0 {
                 let trimmed = o1.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty {
@@ -784,7 +853,8 @@ final class InjectionManager {
     /// 提取前缀——零外部依赖（不用 LSApplicationProxy），对齐 TrollFools teamID() 的效果
     private func realTeamID(for bundleId: String, appPath: String?) -> String {
         guard let main = appPath else { return "TROLLTROLL" }
-        let (c, o) = runAsRoot("ldid", args: ["-e", main])
+        // v2.9.126：runAsRootStdout——entitlements 解析只读 stdout，stderr 噪音（如 ldid 警告）不混入
+        let (c, o) = runAsRootStdout("ldid", args: ["-e", main], timeout: 30)
         guard c == 0, let r = o.range(of: "application-identifier"), o.contains(bundleId) else {
             return "TROLLTROLL"
         }
