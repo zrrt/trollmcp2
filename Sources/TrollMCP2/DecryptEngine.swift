@@ -116,6 +116,18 @@ enum DecryptEngine {
         func find() -> Int32 { findPid(by: bundleId) }
         var errors: [[String: Any]] = []
 
+        // 方法 0（v2.9.185）：LSApplicationWorkspace 私有 API 拉起——TrollStore 环境可用，
+        // 不依赖 shell/root（open -b 与 direct_exec 在无 shell 环境全部 spawnRoot failed，真机实测）。
+        if let wsClass = NSClassFromString("LSApplicationWorkspace"),
+           let ws = wsClass.perform(NSSelectorFromString("defaultWorkspace"))?.takeUnretainedValue(),
+           ws.responds(to: NSSelectorFromString("openApplicationWithBundleID:")) {
+            _ = ws.perform(NSSelectorFromString("openApplicationWithBundleID:"), with: bundleId)
+            Thread.sleep(forTimeInterval: TimeInterval(waitSeconds))
+            var pid0 = find()
+            if pid0 > 0 { return (pid0, errors) }
+            errors.append(["step": "ls_workspace_open", "exit": 0, "stderr": "openApplicationWithBundleID 未拉起（系统限制或 App 不可启动）"])
+        }
+
         // 方法 1：open -b
         let (c1, o1) = InjectionManager.shared.spawnRoot("/usr/bin/open", args: ["-b", bundleId])
         Thread.sleep(forTimeInterval: TimeInterval(waitSeconds))

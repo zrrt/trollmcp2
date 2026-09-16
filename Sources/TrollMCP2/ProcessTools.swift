@@ -40,6 +40,20 @@ final class AppStartTool: MCPTool {
         }
         errors.append(["step": "open -b", "exit": Int(c1), "stderr": String(o1.prefix(400))])
 
+        // 方法 1.5（v2.9.185）：LSApplicationWorkspace 私有 API 拉起（TrollStore 可用，不依赖 shell）
+        if let wsClass = NSClassFromString("LSApplicationWorkspace"),
+           let ws = wsClass.perform(NSSelectorFromString("defaultWorkspace"))?.takeUnretainedValue(),
+           ws.responds(to: NSSelectorFromString("openApplicationWithBundleID:")) {
+            _ = ws.perform(NSSelectorFromString("openApplicationWithBundleID:"), with: bundleId)
+            Thread.sleep(forTimeInterval: TimeInterval(wait))
+            pid = find()
+            if pid > 0 {
+                return ["bundle_id": bundleId, "started": true, "pid": pid, "method_used": "ls_workspace_open",
+                        "launch_ms": Int(Date().timeIntervalSince(start) * 1000)]
+            }
+            errors.append(["step": "ls_workspace_open", "exit": 0, "stderr": "openApplicationWithBundleID 未拉起"])
+        }
+
         // 方法 2：注册表路径 → 直接执行主二进制（绕过 open 依赖）
         if let app = AppCatalog.find(bundleId) {
             let plistPath = app.path + "/Info.plist"
