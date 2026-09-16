@@ -442,6 +442,12 @@ public final class ToolRegistry: ObservableObject {
                 }
                 let msg = (result["message"] as? String)
                     ?? FailureKind.defaultSuccessMessage(name: originalName, result: result)
+                // v2.9.168：全局紧凑规则——data 序列化后 >600 字节（有实质内容自解释）
+                // 时自动去掉顶层 message 省 token（201 个工具大结果统一生效）；
+                // 小结果保留 message（"砸壳完成：xxx"这类结论句帮 AI 秒判，不丢判断力）。
+                if Self.resultBytes(data) > 600 {
+                    return ["ok": true, "data": data]
+                }
                 return ["ok": true, "message": msg, "data": data]
             } catch {
                 let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
