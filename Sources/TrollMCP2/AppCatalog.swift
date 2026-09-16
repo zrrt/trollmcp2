@@ -103,13 +103,21 @@ final class AppCatalog {
             // v2.9.144：过滤系统服务/隐藏应用（ViewService/UIService/Extension/无界面 daemon），
             // 避免"全部"列表混入 AAUIViewService、AirDropUI 之类不可交互条目
             guard isLaunchable(bundleId: bid, path: path, proxy: p) else { return nil }
+            // v2.9.158：对齐 TrollFools——LSApplicationProxy.applicationType 区分
+            // "User"（App Store 装）/ "System"（TrollStore 侧载，系统 App 已被路径过滤）；
+            // teamID 兜底（TrollStore 重签名为 TROLLTROLL）
+            let appType = (p.value(forKey: "applicationType") as? String)
+                ?? (path.contains("/var/containers/Bundle/Application") ? "User" : "System")
+            let teamID = p.value(forKey: "teamID") as? String
             return AppEntry(
                 bundleId: bid,
                 name: p.value(forKey: "localizedName") as? String ?? bid,
                 path: path,
                 containerPath: (p.value(forKey: "dataContainerURL") as? URL)?.path,
                 version: plist?["CFBundleShortVersionString"] as? String ?? "",
-                execName: plist?["CFBundleExecutable"] as? String ?? ""
+                execName: plist?["CFBundleExecutable"] as? String ?? "",
+                appType: appType,
+                teamID: teamID
             )
         }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
