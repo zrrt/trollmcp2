@@ -480,6 +480,18 @@ public final class ToolRegistry: ObservableObject {
     /// 大字符串截断并附总长度。返回后 AI 仍能读结论字段，细节可带 limit 重取。
     /// `content` 字段（fs.read/artifact.read_text 的文件内容）保留完整——
     /// 它们已由 max_bytes 参数控制读取量，不能再截断。
+    /// v2.9.168：通用字段瘦身（全部工具生效，向 tool_search 看齐）——
+    /// hint 截 60、summary 截 30、删空字符串值。结构信息不删，只去冗余。
+    static func slim(_ d: [String: Any]) -> [String: Any] {
+        var nd = d
+        if let h = nd["hint"] as? String, h.count > 60 { nd["hint"] = String(h.prefix(60)) + "…" }
+        if let sm = nd["summary"] as? String, sm.count > 30 { nd["summary"] = String(sm.prefix(30)) + "…" }
+        for (k, v) in nd where (v as? String)?.isEmpty == true {
+            nd.removeValue(forKey: k)
+        }
+        return nd
+    }
+
     /// v2.9.164：大字符串落盘到工作区 tool_spill/（完整内容保留，AI 按路径再读）
     static func spillLarge(_ key: String, _ content: String) -> String {
         let dir = Workspace.root.appendingPathComponent("tool_spill", isDirectory: true)
@@ -514,7 +526,7 @@ public final class ToolRegistry: ObservableObject {
                     cut.append(["note": "…[共\(arr.count)项，已截断，仅显示前 \(arrLimit) 项]"])
                     out[k] = cut
                 } else {
-                    out[k] = arr.map { compactResult($0) }
+                    out[k] = arr.map { slim(compactResult($0)) }
                 }
             case let arr as [Any]:
                 if arr.count > arrLimit {
@@ -522,10 +534,10 @@ public final class ToolRegistry: ObservableObject {
                     cut.append("…[共\(arr.count)项，已截断，仅显示前 \(arrLimit) 项]")
                     out[k] = cut
                 } else {
-                    out[k] = arr.map { ($0 as? [String: Any]).map { Self.compactResult($0) } ?? $0 }
+                    out[k] = arr.map { ($0 as? [String: Any]).map { Self.slim(Self.compactResult($0)) } ?? $0 }
                 }
             case let d as [String: Any]:
-                out[k] = compactResult(d)
+                out[k] = slim(compactResult(d))
             default:
                 out[k] = v
             }
