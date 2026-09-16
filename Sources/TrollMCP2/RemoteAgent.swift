@@ -130,11 +130,11 @@ public final class RemoteAgent: ObservableObject {
         var ok = true
         var result: [String: Any] = [:]
         do {
-            guard let mcp = ToolRegistry.shared.tool(named: tool) else {
+            if let mcp = ToolRegistry.shared.tool(named: tool) {
+                result = try mcp.invoke(params)
+            } else {
                 result = ["error": "unknown tool"]
                 ok = false
-            } else {
-                result = try mcp.invoke(params)
             }
         } catch {
             ok = false
