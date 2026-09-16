@@ -332,15 +332,7 @@ struct ConversationDrawerView: View {
                                 lineWidth: 2
                             )
                             .frame(width: 32, height: 32)
-            "home_quick_automation": ["zh": "自动化", "en": "Automation"],
-            "home_quick_automation_sub": ["zh": "定时任务与重试", "en": "Scheduled tasks & retries"],
-            "home_quick_env": ["zh": "环境体检", "en": "Env Check"],
-            "home_quick_env_sub": ["zh": "TrollStore 与注入链", "en": "TrollStore & injection"],
-            "home_quick_capture": ["zh": "网络抓包", "en": "Packet Capture"],
-            "home_quick_capture_sub": ["zh": "HTTP 请求分析", "en": "HTTP analysis"],
-            "home_quick_clean": ["zh": "应用清理", "en": "App Cleanup"],
-            "home_quick_clean_sub": ["zh": "缓存扫描与备份", "en": "Cache scan & backup"],
-            "drawer_ready_short": ["zh": "环境就绪", "en": "Environment Ready"],
+                        Image(systemName: deviceReady == true ? "checkmark" : "exclamationmark")
                             .font(.system(size: 13, weight: .bold))
                             .foregroundColor(deviceReady == true ? .green : .orange)
                     }
@@ -349,15 +341,7 @@ struct ConversationDrawerView: View {
                             .font(.footnote)
                             .fontWeight(.medium)
                             .foregroundColor(deviceReady == true ? .green : .orange)
-            "home_quick_automation": ["zh": "自动化", "en": "Automation"],
-            "home_quick_automation_sub": ["zh": "定时任务与重试", "en": "Scheduled tasks & retries"],
-            "home_quick_env": ["zh": "环境体检", "en": "Env Check"],
-            "home_quick_env_sub": ["zh": "TrollStore 与注入链", "en": "TrollStore & injection"],
-            "home_quick_capture": ["zh": "网络抓包", "en": "Packet Capture"],
-            "home_quick_capture_sub": ["zh": "HTTP 请求分析", "en": "HTTP analysis"],
-            "home_quick_clean": ["zh": "应用清理", "en": "App Cleanup"],
-            "home_quick_clean_sub": ["zh": "缓存扫描与备份", "en": "Cache scan & backup"],
-            "drawer_ready_short": ["zh": "环境就绪", "en": "Environment Ready"],
+                        Text(deviceReady == true ? L10n.t("drawer_ready_short") : "检测环境")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
