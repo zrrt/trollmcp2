@@ -11,23 +11,19 @@ final class AppCatalog {
         let containerPath: String?
         let version: String
         let execName: String
+        /// LSApplicationProxy.applicationType："User"（App Store 装）/ "System"
+        let appType: String
+        /// 签名 TeamID（TrollStore 侧载为 TROLLTROLL）
+        let teamID: String?
         var id: String { bundleId }
 
-        /// 用户 App：路径在 /var/containers/Bundle/Application 下
-        var isUser: Bool { path.contains("/var/containers/Bundle/Application") }
-        /// 系统 App：/Applications 或 /System/Applications
-        var isSystem: Bool { !isUser }
-        /// 巨魔/越狱工具：bundle id 白名单前缀
-        var isTroll: Bool {
-            let trollPrefixes = [
-                "wiki.qaq.", "cn.gblw", "com.cokepokes", "net.limneos",
-                "com.opa334", "io.opa334", "dev.", "me.alfie", "com.zzanehip",
-                "eu.slind", "com.imokhles", "org.coolstar", "com.zidati",
-                "com.hackyouriphone", "xyz.skylarmccauley", "com.muirey03"
-            ]
-            for p in trollPrefixes where bundleId.hasPrefix(p) { return true }
-            return false
-        }
+        /// 用户 App（App Store / 企业签名）：LS 类型 = User
+        var isUser: Bool { appType == "User" }
+        /// 系统 App：路径不在第三方容器（正常已被过滤，不出现）
+        var isSystem: Bool { !path.contains("/var/containers/Bundle/Application") }
+        /// 巨魔 TrollStore 侧载：LS 类型 = System（系统 App 已被路径过滤，
+        /// 剩余 System 即 TrollStore 装）；teamID=TROLLTROLL 兜底
+        var isTroll: Bool { appType == "System" || (teamID?.uppercased().contains("TROLL") ?? false) }
     }
 
     /// v2.9.135：全量枚举缓存（TTL 5 秒）——旧版每次 list() 都重新枚举 266 个 App，
