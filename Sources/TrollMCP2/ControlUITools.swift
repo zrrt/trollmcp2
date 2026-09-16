@@ -145,26 +145,49 @@ final class HIDTouchInjector {
 final class ScreenCapture {
     /// 截当前屏幕（含任意前台 App）：ReplayKit startCapture 取首帧视频后立即停止。
     /// 需首次录屏授权；授权后可截任意前台 App（AI 控制目标 App 时的现场证据）。
+    /// v2.9.174：防秒崩重写——
+    ///  1) done 竞态用 NSLock 保护（原布尔在 handler 线程与 8s 兜底线程无锁竞争）
+    ///  2) CIContext 用软件渲染（避免后台线程无 GPU/Metal 上下文时崩溃）
+    ///  3) 图像转换包 autoreleasepool（ReplayKit buffer 生命周期：stopCapture 后 buffer 可能被系统回收）
+    ///  4) completion 统一回主线程（防调用方在主线程做 UI 时崩）
+    ///  5) startCapture 前若残留录制状态先 stop（764369 官方建议）
     static func take(completion: @escaping (Bool, String) -> Void) {
         let recorder = RPScreenRecorder.shared()
         guard recorder.isAvailable else {
-            completion(false, "RPScreenRecorder 不可用")
+            DispatchQueue.main.async { completion(false, "RPScreenRecorder 不可用") }
             return
         }
+        // 残留录制状态清理（上次异常退出可能没 stop 干净）
+        if recorder.isRecording {
+            recorder.stopCapture { _ in }
+            Thread.sleep(forTimeInterval: 0.2)
+        }
+        let lock = NSLock()
         var done = false
+        let finish: (Bool, String) -> Void = { ok, msg in
+            lock.lock()
+            if done { lock.unlock(); return }
+            done = true
+            lock.unlock()
+            DispatchQueue.main.async { completion(ok, msg) }
+        }
         recorder.startCapture(handler: { sampleBuffer, bufferType, _ in
-            guard !done else { return }
-            if bufferType == .video {
-                done = true
-                recorder.stopCapture { _ in }
+            guard bufferType == .video else { return }
+            lock.lock()
+            if done { lock.unlock(); return }
+            done = true
+            lock.unlock()
+            recorder.stopCapture { _ in }
+            autoreleasepool {
                 guard let pixel = CMSampleBufferGetImageBuffer(sampleBuffer) else {
-                    completion(false, "截图转码失败")
+                    finish(false, "截图转码失败")
                     return
                 }
+                // 软件渲染：后台线程 + 无 Metal 上下文时的稳定路径
+                let ctx = CIContext(options: [.useSoftwareRenderer: true])
                 let ci = CIImage(cvPixelBuffer: pixel)
-                let ctx = CIContext()
                 guard let cg = ctx.createCGImage(ci, from: ci.extent) else {
-                    completion(false, "CGImage 生成失败")
+                    finish(false, "CGImage 生成失败")
                     return
                 }
                 let img = UIImage(cgImage: cg)
@@ -172,28 +195,24 @@ final class ScreenCapture {
                 try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                 let url = dir.appendingPathComponent("shot_\(Int(Date().timeIntervalSince1970)).png")
                 guard let data = img.pngData() else {
-                    completion(false, "PNG 编码失败")
+                    finish(false, "PNG 编码失败")
                     return
                 }
                 do {
                     try data.write(to: url)
-                    completion(true, url.path)
+                    finish(true, url.path)
                 } catch {
-                    completion(false, "保存失败: \(error.localizedDescription)")
+                    finish(false, "保存失败: \(error.localizedDescription)")
                 }
             }
         }) { error in
-            if let err = error, !done {
-                completion(false, "截图失败: \(err.localizedDescription)（需在系统设置允许 TrollAgent 录屏）")
+            if let err = error {
+                finish(false, "截图失败: \(err.localizedDescription)（需在系统设置允许 TrollAgent 录屏）")
             }
         }
         // 兜底：8 秒未取到帧视为失败
         DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
-            if !done {
-                done = true
-                recorder.stopCapture { _ in }
-                completion(false, "截图超时（未取到画面帧）")
-            }
+            finish(false, "截图超时（未取到画面帧）")
         }
     }
 }

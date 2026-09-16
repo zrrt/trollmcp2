@@ -17,7 +17,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.9.173</string>
+	<string>2.9.174</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>CFBundleURLTypes</key>
@@ -126,6 +126,8 @@
 	<string>TrollAgent 需要位置信息以支持定位工具</string>
 	<key>NSCameraUsageDescription</key>
 	<string>TrollAgent 需要相机以支持扫码功能</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>TrollAgent 需要屏幕录制权限以支持 AI 控制 App 时的屏幕截图验证</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>TrollAgent 需要相册以选择待识别的图片</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
