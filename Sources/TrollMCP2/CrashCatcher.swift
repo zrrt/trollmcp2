@@ -79,9 +79,9 @@ enum CrashCatcher {
         // 显式 sorted(by:) 避免 iOS16 SDK 的 SortComparator 重载歧义
         let urls: [URL] = entries.filter { $0.pathExtension == "txt" }
         let sortedUrls: [URL] = urls.sorted(by: { l, r in
-            let ld = l.contentModificationDate ?? Date.distantPast
-            let rd = r.contentModificationDate ?? Date.distantPast
-            return ld > rd
+            let lv = try? l.resourceValues(forKeys: [.contentModificationDateKey])
+            let rv = try? r.resourceValues(forKeys: [.contentModificationDateKey])
+            return (lv?.contentModificationDate ?? Date.distantPast) > (rv?.contentModificationDate ?? Date.distantPast)
         })
         return sortedUrls.map { $0.path }
     }
