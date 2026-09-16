@@ -209,10 +209,15 @@ final class InjectionManager {
 
     /// v2.9.32：以 **root 身份**执行包内二进制（写 app bundle 必需，mobile 无 POSIX 写权限）。
     /// 依赖 TrollStore 安装时保留的 persona-mgmt entitlement + Info.plist TSRootBinaries 声明。
-    /// v2.9.126：内部走 spawnRootDetailed（stdout/stderr 分离 + 超时），对外签名不变。
+    /// v2.9.126：内部走 spawnRootDetailed（stdout/stderr 分离 + 超时），对外签名不变；
+    /// 进程本身已是 root（越狱环境 geteuid()==0）时，cp/rm/mv/mkdir/chown 直接用 FileManager
+    /// 原生 API（对齐 TrollFools isPrivileged），省一次进程创建。
     @discardableResult
     func runAsRoot(_ name: String, args: [String], timeout: Double = 60) -> (Int32, String) {
         guard let bin = binaryPath(name) else { return (-1, "binary not bundled: \(name)") }
+        if geteuid() == 0, let native = nativeFileOp(name, args) {
+            return native
+        }
         let result = spawnRootDetailed(bin, args: [name] + args, timeout: timeout)
         if result.code != 0, name != "ldid", let ldid = binaryPath("ldid") {
             _ = spawnRootDetailed(ldid, args: ["-S", bin], timeout: 30)
@@ -220,6 +225,54 @@ final class InjectionManager {
             if retry.code == 0 { return (0, retry.output) }
         }
         return (result.code, result.output)
+    }
+
+    /// v2.9.126：root 环境下 FileManager 原生映射（对齐 TrollFools isPrivileged 快路径）。
+    /// 只处理参数形态明确的简单操作，无法安全映射返回 nil 走 spawn。
+    private func nativeFileOp(_ name: String, _ args: [String]) -> (Int32, String)? {
+        let fm = FileManager.default
+        if name == "cp", args.count >= 3 {
+            let src = args[args.count - 2], dst = args[args.count - 1]
+            do {
+                if fm.fileExists(atPath: dst) { try fm.removeItem(atPath: dst) }
+                try fm.copyItem(atPath: src, toPath: dst)
+                return (0, "")
+            } catch { return (1, "cp failed: \(error.localizedDescription)") }
+        }
+        if name == "rm" {
+            var failed = false
+            var errMsg = ""
+            for a in args where !a.hasPrefix("-") {
+                do {
+                    if fm.fileExists(atPath: a) { try fm.removeItem(atPath: a) }
+                } catch { failed = true; errMsg = error.localizedDescription }
+            }
+            return (failed ? 1 : 0, failed ? "rm: \(errMsg)" : "")
+        }
+        if name == "mv", args.count >= 3 {
+            let src = args[args.count - 2], dst = args[args.count - 1]
+            do {
+                if fm.fileExists(atPath: dst) { try fm.removeItem(atPath: dst) }
+                try fm.moveItem(atPath: src, toPath: dst)
+                return (0, "")
+            } catch { return (1, "mv failed: \(error.localizedDescription)") }
+        }
+        if name == "mkdir", let path = args.last {
+            do {
+                try fm.createDirectory(atPath: path, withIntermediateDirectories: true)
+                return (0, "")
+            } catch { return (1, "mkdir failed: \(error.localizedDescription)") }
+        }
+        if name == "chown", args.count >= 2 {
+            let parts = args[0].split(separator: ":").map { Int($0) }
+            let path = args.last ?? ""
+            guard parts.count >= 2, let uid = parts[0], let gid = parts[1] else { return nil }
+            do {
+                try fm.setAttributes([.ownerAccountID: uid, .groupOwnerAccountID: gid], ofItemAtPath: path)
+                return (0, "")
+            } catch { return (1, "chown failed: \(error.localizedDescription)") }
+        }
+        return nil
     }
 
     /// 需要纯净 stdout 的命令（如 ldid -e 提取 entitlements）：stderr 噪音不混入。
