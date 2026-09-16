@@ -78,7 +78,9 @@ enum CrashCatcher {
         ) else { return [] }
         return entries
             .filter { $0.pathExtension == "txt" }
-            .sorted { ($0.contentModificationDate ?? .distantPast) > ($1.contentModificationDate ?? .distantPast) }
+            .sorted { (l, r) -> Bool in
+                (l.contentModificationDate ?? .distantPast) > (r.contentModificationDate ?? .distantPast)
+            }
             .map { $0.path }
     }
 
