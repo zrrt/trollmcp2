@@ -114,6 +114,13 @@ enum L10n {
             "home_quick_browser_sub": ["zh": "网页操作与抓取", "en": "Browse & scrape pages"],
             "home_quick_automation": ["zh": "自动化", "en": "Automation"],
             "home_quick_automation_sub": ["zh": "定时任务与重试", "en": "Scheduled tasks & retries"],
+            "home_quick_env": ["zh": "环境体检", "en": "Env Check"],
+            "home_quick_env_sub": ["zh": "TrollStore 与注入链", "en": "TrollStore & injection"],
+            "home_quick_capture": ["zh": "网络抓包", "en": "Packet Capture"],
+            "home_quick_capture_sub": ["zh": "HTTP 请求分析", "en": "HTTP analysis"],
+            "home_quick_clean": ["zh": "应用清理", "en": "App Cleanup"],
+            "home_quick_clean_sub": ["zh": "缓存扫描与备份", "en": "Cache scan & backup"],
+            "drawer_ready_short": ["zh": "环境就绪", "en": "Environment Ready"],
 
             // ===== 新手引导（v2.9.78）=====
             "ob_skip": ["zh": "跳过", "en": "Skip"],

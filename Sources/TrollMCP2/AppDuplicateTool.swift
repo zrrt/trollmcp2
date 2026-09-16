@@ -108,7 +108,7 @@ final class AppDuplicateTool: MCPTool {
                 AppCatalog.invalidateCache()
                 return ["ok": true, "new_bundle_id": newBid, "new_name": newName,
                         "ipa_path": ipaPath, "method": "trollstorehelper",
-                        "sensitive_warning": sensitive ? "目标 App 属敏感应用（微信/支付宝/银行等），双开副本独立运行，请确认使用合规。" : "",
+                        "sensitive_warning": sensitive ? "目标 App 属敏感应用（小红书/支付宝/银行等），双开副本独立运行，请确认使用合规。" : "",
                         "message": "双开成功：\(newName)（\(newBid)），已安装，数据容器独立"]
             }
             return ["ok": false, "error": "trollstorehelper 安装失败: \(out3.prefix(200))",

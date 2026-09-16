@@ -533,7 +533,7 @@ final class InjectionManager {
 
     // MARK: - 公共 API
 
-    /// 高危 App 前缀（v2.9.89 高危护栏）：微信/支付宝/系统/银行等注入风险高，注入前强制提醒
+    /// 高危 App 前缀（v2.9.89 高危护栏）：支付/银行/系统等注入风险高，注入前强制提醒
     static let sensitiveBundleHints = [
         "com.tencent.mm", "com.tencent.xin", "com.alipay", "com.apple",
         "com.unionpay", "com.ccb", "com.icbc", "com.cmbchina", "com.bank",
@@ -1230,7 +1230,7 @@ final class InjectionManager {
             "persisted": persisted,
             "weak_reference": weakReference,
             "selfcheck": ["app_alive": selfcheckAlive, "note": selfcheckNote],
-            "risk_warning": sensitive ? "⚠️ 目标 App 为敏感应用（微信/支付宝/系统/银行类）。已自动选择 Frameworks 内未加密 Mach-O 注入，未修改主二进制；如有异常立即调用 injection.restore 或 rescue.recover_all 恢复。" : nil,
+            "risk_warning": sensitive ? "⚠️ 目标 App 为敏感应用（支付/银行/系统类）。已自动选择 Frameworks 内未加密 Mach-O 注入，未修改主二进制；如有异常立即调用 injection.restore 或 rescue.recover_all 恢复。" : nil,
             "hint": "注入目标为 Frameworks 内未加密 Mach-O（对齐 TrollFools 策略），不直接修改主二进制。备份位于 \(backup)，可用 injection.restore 随时恢复。",
             "status": injected ? "injected" : "injection_failed"
         ]

@@ -124,7 +124,7 @@ struct RemoteControlView: View {
             CardSectionHeader(icon: "list.number", title: "使用流程")
             CardBox {
                 VStack(alignment: .leading, spacing: 12) {
-                    stepView(1, "在聊天中让 AI 注入：\"给微信注入控制代理\"")
+                    stepView(1, "在聊天中让 AI 注入：\"给小红书注入控制代理\"")
                     stepView(2, "AI 调用 control.inject(bundle_id) 注入 ControlAgent.dylib")
                     stepView(3, "手动启动目标 App（注入后需重启）")
                     stepView(4, "AI 调用 control.status 确认连接")

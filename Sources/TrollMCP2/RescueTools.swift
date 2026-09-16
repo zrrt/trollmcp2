@@ -3,7 +3,7 @@ import Foundation
 // MARK: - v2.9.89 紧急救援工具（Residue 式）
 //
 // 背景：v2.9.88 及更早版本注入直接改主二进制 + 备份后缀不兼容（.bak_macho vs .troll-fools.bak），
-// 导致微信注入事故后 TrollFools 无法识别/卸载，只能靠卸载重装（聊天记录丢失）。
+// 曾经导致敏感 App 注入事故后 TrollFools 无法识别/卸载，只能靠卸载重装（聊天记录丢失）。
 // 本组工具提供：单 App 恢复、全机扫描、一键全恢复、残留清理——都是"保命"能力。
 
 /// injection.restore：单 App 恢复——移除注入加载命令、删除注入资产、从备份还原原始 Mach-O

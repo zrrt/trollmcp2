@@ -6,7 +6,7 @@ import ReplayKit
 
 // MARK: - v2.9.139 HID 触摸注入（TrollStore 无沙箱 + com.apple.private.hid.client.event-dispatch）
 // 原理：IOHIDEventSystemClient 创建 digitizer 触摸事件并分发到系统，
-// 可对任意前台 App（美团/微信等）合成点击/滑动/长按——AI 控制任意 App UI 的关键能力。
+// 可对任意前台 App（美团/小红书等）合成点击/滑动/长按——AI 控制任意 App UI 的关键能力。
 // 全部符号用 dlsym 动态加载（私有 API 编译期不可见），云端无法真机验证，按社区通用实现。
 
 final class HIDTouchInjector {
@@ -215,7 +215,7 @@ final class ProgressNotifier {
 
 final class UITapTool: MCPTool {
     let definition = ToolDefinition(name: "ui.tap",
-        summary: "在屏幕指定坐标点击（AI 控制任意前台 App：美团/微信等）。坐标用 points（iPhone 全屏约 390x844 逻辑点），原点左上角。调用时务必带 reason 说明判断依据（为什么点这里）。",
+        summary: "在屏幕指定坐标点击（AI 控制任意前台 App：美团/小红书等）。坐标用 points（iPhone 全屏约 390x844 逻辑点），原点左上角。调用时务必带 reason 说明判断依据（为什么点这里）。",
         parameters: ["x": "横坐标 points", "y": "纵坐标 points", "reason": "判断依据（必填，如：截图显示搜索框在 (100,55)）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x = params["x"] as? Double, let y = params["y"] as? Double else {

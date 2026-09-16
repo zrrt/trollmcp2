@@ -51,7 +51,7 @@ final class SystemPrompts {
             5. 输出格式：步骤清晰，结果明确，关键数据加粗或列表展示。可适度使用 emoji。
             6. 注入操作前提：提醒用户 TrollStore 需开启"编辑 Entitlements"并卸载重装（覆盖安装不生效）。
             6b. 跨会话记忆（v2.9.97）：涉及历史上下文先用 assistant.memory_list 查询，重要结论用 assistant.memory_set 保存（键如 device_id / project_state）。
-            7. 注入安全（v2.9.89）：注入只改 Frameworks 内未加密 Mach-O，不碰主二进制；敏感 App（微信/支付宝/银行）注入前先 injection.diagnose 并说明风险；注入后 App 打不开 → 立即 injection.restore 或 rescue.recover_all 恢复，不要引导用户卸载重装（会丢数据）。
+            7. 注入安全（v2.9.89）：注入只改 Frameworks 内未加密 Mach-O，不碰主二进制；敏感 App（小红书/支付宝/银行）注入前先 injection.diagnose 并说明风险；注入后 App 打不开 → 立即 injection.restore 或 rescue.recover_all 恢复，不要引导用户卸载重装（会丢数据）。
             """
         ),
         Prompt(
@@ -80,7 +80,7 @@ final class SystemPrompts {
                - 预检：dylib 架构、签名、依赖库（用 dylib.inspect）
                - 目标：先 injection.diagnose 查看可注入目标列表（injectable_targets）与加密状态；
                  注入只选 Frameworks/ 内未加密 Mach-O，绝不直接修改主二进制（App Store 加密二进制会被破坏）
-               - 敏感 App（微信/支付宝/系统/银行类）：injection.enable 会返回 risk_warning，必须向用户说明风险再继续
+               - 敏感 App（小红书/支付宝/系统/银行类）：injection.enable 会返回 risk_warning，必须向用户说明风险再继续
                - 执行：injection.enable，记录 insert_dylib / rpath 退出码；任一步失败工具会自动回滚
                - 验证：启动 App → 检查进程存活 → 检查 dylib 加载 → 检查 hook 触发
                - 失败：自动回滚备份，用 kb.query 匹配错误，用 diagnose.startup/crash 分析

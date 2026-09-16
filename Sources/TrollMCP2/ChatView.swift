@@ -337,7 +337,16 @@ struct ChatView: View {
                         runQuickPrompt("检查内存修改工具（MemoryTweak）是否就绪，并说明用法")
                     }
                     miniCard("cursorarrow.click.2", L10n.t("home_quick_ui"), L10n.t("home_quick_ui_sub"), [.tmCyan, .blue]) {
-                        runQuickPrompt("给微信注入控制代理（ControlAgent），然后读取它的界面树")
+                        runQuickPrompt("给小红书注入控制代理（ControlAgent），然后读取它的界面树")
+                    }
+                    miniCard("stethoscope", L10n.t("home_quick_env"), L10n.t("home_quick_env_sub"), [.tmCyan, .teal]) {
+                        runQuickPrompt("全面检查本机环境：TrollStore、注入工具链、Entitlements 与网络连通性，输出体检报告")
+                    }
+                    miniCard("antenna.radiowaves.left.and.right", L10n.t("home_quick_capture"), L10n.t("home_quick_capture_sub"), [.orange, .red]) {
+                        runQuickPrompt("对小红书做一次网络抓包分析，列出请求清单和可疑字段")
+                    }
+                    miniCard("trash.circle.fill", L10n.t("home_quick_clean"), L10n.t("home_quick_clean_sub"), [.purple, .blue]) {
+                        runQuickPrompt("扫描本机应用缓存，帮我清理缓存最大的几个 App（先备份再清理）")
                     }
                     miniCard("globe", L10n.t("home_quick_browser"), L10n.t("home_quick_browser_sub"), [.red, .orange]) {
                         runQuickPrompt("打开内置浏览器访问 bing.com，告诉我页面上有什么")
