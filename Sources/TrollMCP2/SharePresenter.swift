@@ -1,6 +1,6 @@
 import UIKit
 
-/// v2.9.169：统一安全分享器——全部分享点共用，修复 iOS 16 分享闪退根因。
+/// v2.9.170：统一安全分享器——全部分享点共用，修复 iOS 16 分享闪退/无反应。
 ///
 /// 旧实现（ModelsView/UpdateManager 等）直接 `rootVC.present(UIActivityViewController)`
 /// 在两种场景必崩：
@@ -8,9 +8,13 @@ import UIKit
 ///    抛 "Attempt to present ... whose view is not in the window hierarchy"；
 /// 2) 当前已有 presented sheet（如设置子页）时再 present，抛 "already presenting"。
 ///
-/// 统一策略：主线程 → 找 keyWindow 最顶层 presented（跳过正在 dismiss 的）→
-/// 若顶层正 dismiss / 无 window 则延时 0.4s 重试 → iPad popover 适配 → 顶层无
-/// presented 才 present。
+/// v2.9.170 增强（用户反馈 169 仍"失败"）：
+/// 1) 窗口获取多级兜底：connectedScenes 的 keyWindow → 该 scene 首个 window →
+///    UIApplication.shared.windows.first（iOS 16 废弃但可用），避免 guard 静默 return
+///    导致"点了没反应"；
+/// 2) 失败不再静默：拿不到窗口/根控制器时写 AuditLog（share.present_no_window /
+///    share.present_no_root），用户可在工作区日志里查根因；
+/// 3) 延时重试也做同样的多级兜底。
 enum SharePresenter {
     static func present(
         _ items: [Any],
@@ -27,9 +31,12 @@ enum SharePresenter {
                     completion(completed, error)
                 }
             }
-            guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                  let window = scene.windows.first(where: { $0.isKeyWindow }),
-                  let root = window.rootViewController else {
+            guard let window = Self.topWindow() else {
+                AuditLog.shared.log("share.present_no_window", detail: "items=\(items.count)")
+                return
+            }
+            guard let root = window.rootViewController else {
+                AuditLog.shared.log("share.present_no_root", detail: "")
                 return
             }
 
@@ -42,15 +49,25 @@ enum SharePresenter {
             // 顶层正在 dismiss（contextMenu 收起动画中）或视图已脱离窗口 → 延后重试
             if top.isBeingDismissed || top.view.window == nil {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                    presentFrom(top: root, vc: vc, rootView: window)
+                    presentFrom(top: top, vc: vc, window: window)
                 }
                 return
             }
-            presentFrom(top: top, vc: vc, rootView: window)
+            presentFrom(top: top, vc: vc, window: window)
         }
     }
 
-    private static func presentFrom(top: UIViewController, vc: UIActivityViewController, rootView: UIView) {
+    /// 多级窗口获取：keyWindow → scene 首个 window → 旧 API windows.first
+    private static func topWindow() -> UIWindow? {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        if let scene = scenes.first,
+           let win = scene.windows.first(where: { $0.isKeyWindow }) ?? scene.windows.first {
+            return win
+        }
+        return UIApplication.shared.windows.first
+    }
+
+    private static func presentFrom(top: UIViewController, vc: UIActivityViewController, window: UIWindow) {
         // iPad 必须指定 popover 锚点
         if let popover = vc.popoverPresentationController {
             popover.sourceView = top.view
@@ -58,7 +75,11 @@ enum SharePresenter {
             popover.permittedArrowDirections = []
         }
         // 二次防御：若期间又弹出了别的控制器则放弃，避免 "already presenting" 崩溃
-        guard top.presentedViewController == nil else { return }
+        guard top.presentedViewController == nil else {
+            AuditLog.shared.log("share.present_conflict", detail: "\(top)")
+            return
+        }
         top.present(vc, animated: true)
+        AuditLog.shared.log("share.present", detail: "items=\(vc.activityItems.count)")
     }
 }
