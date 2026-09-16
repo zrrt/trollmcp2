@@ -1007,7 +1007,17 @@ final class InjectionManager {
             guard !fwCandidates.isEmpty else {
                 throw MCPError.failed("Frameworks 内没有可注入的 Mach-O（全部加密或不可读）。为避免 TrollFools 无法识别和关闭的注入，已拒绝注入主二进制；请先处理加密/重签后重试。")
             }
-            targetMachO = fwCandidates[0]
+            // v2.9.191：优先"启动必加载"的 framework——主二进制 LC_LOAD_DYLIB 直接依赖的
+            // framework 才是启动时 dlopen 的（词典序第一个可能懒加载，导致 dylib constructor 不执行、
+            // HTTP server 不启动、注入式砸壳/控制失效；小红书/哔哩哔哩实测 AppsFlyerLib/BGM 均懒加载）
+            var chosen = fwCandidates[0]
+            let mainDeps = MachOAnalyzer.analyze(executablePath(app))?.dylibs ?? []
+            if let boot = fwCandidates.first(where: { c in
+                mainDeps.contains { d in d.contains((c as NSString).lastPathComponent) }
+            }) {
+                chosen = boot
+            }
+            targetMachO = chosen
         } else {
             guard !allCandidates.isEmpty else {
                 throw MCPError.failed("没有可注入的 Mach-O：目标 App 的二进制全部加密或不可读（App Store 加密 App 无法注入）")
