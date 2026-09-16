@@ -731,12 +731,17 @@ final class ConversationStore: ObservableObject {
     }
 
     /// v2.9.127：把实时轨迹持久化到最后一条 assistant 消息（AI 回复完成后调用）
-    func attachTrail(to messageId: UUID?) {
+    /// thinking 非空时把"已思考"插到轨迹最前（对齐豆包流程第一步）。
+    func attachTrail(to messageId: UUID?, thinking: String? = nil) {
         guard let sid = messageId, !liveTrail.isEmpty else { return }
         DispatchQueue.main.async {
             if let idx = self.selectedIndex,
                let mi = self.conversations[idx].messages.firstIndex(where: { $0.id == sid }) {
                 self.conversations[idx].messages[mi].trail = self.liveTrail
+                if let th = thinking, !th.isEmpty {
+                    self.conversations[idx].messages[mi].trail?.insert(
+                        TrailStep.done(.think, "已思考", detail: String(th.prefix(300))), at: 0)
+                }
                 self.save()
             }
         }
@@ -844,13 +849,13 @@ final class ConversationStore: ObservableObject {
                            let th = thinking, !th.isEmpty {
                             self.conversations[idx].messages[mi].thinking = th
                         }
-                        self.attachTrail(to: sid)
+                        self.attachTrail(to: sid, thinking: thinking)
                         self.streamingMessageId = nil
                     } else {
                         var am = ChatMessage(role: "assistant", content: text)
                         if let th = thinking, !th.isEmpty { am.thinking = th }
                         self.appendToCurrent(am)
-                        self.attachTrail(to: am.id)
+                        self.attachTrail(to: am.id, thinking: thinking)
                     }
                 case .success(.toolCalls(let calls)):
                     // 工具调用：删除流式文本消息（如果有），然后显示工具调用
