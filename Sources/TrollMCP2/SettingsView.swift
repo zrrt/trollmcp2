@@ -242,6 +242,10 @@ struct SettingsView: View {
                          subtitle: "崩溃自动上报 · 云端指令测试 · 只读白名单",
                          icon: "antenna.radiowaves.left.and.right", color: .tmTeal,
                          destination: AnyView(RemoteDiagnosticsView())),
+            SettingsItem(title: "远程终端",
+                         subtitle: "公网 HTTP API · 云端直连调工具/看审计/读崩溃",
+                         icon: "terminal.fill", color: .tmCyan,
+                         destination: AnyView(RemoteTerminalView())),
         ]))
 
         // 关于
