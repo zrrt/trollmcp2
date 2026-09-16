@@ -17,6 +17,10 @@ final class AuditLog: ObservableObject {
         var elapsedMs: Int? = nil
         var dataBytes: Int? = nil
         var permission: String? = nil
+        // v2.9.128：CLI 错误四分类（env/target/param/tool）——让用户和 AI 都能看到"为什么失败"
+        var errorCode: String? = nil
+        var errorReason: String? = nil
+        var nextStep: String? = nil
 
         enum Level: String, Codable {
             case info, warning, error
@@ -54,16 +58,21 @@ final class AuditLog: ObservableObject {
     }
 
     // v2.9.36：工具调用统一审计（在 ToolRegistry.dispatch 入口记录）
-    func logTool(_ category: String, status: Entry.EntryStatus, elapsedMs: Int, dataBytes: Int, permission: String, detail: String = "") {
+    // v2.9.128：新增 code/reason/nextStep——失败时记录 CLI 四分类，供健康度聚合与 AI 自查
+    func logTool(_ category: String, status: Entry.EntryStatus, elapsedMs: Int, dataBytes: Int,
+                 permission: String, detail: String = "",
+                 code: String? = nil, reason: String? = nil, nextStep: String? = nil) {
         DispatchQueue.main.async {
             self.entries.insert(Entry(category: category, detail: detail,
                                       status: status, elapsedMs: elapsedMs,
-                                      dataBytes: dataBytes, permission: permission), at: 0)
+                                      dataBytes: dataBytes, permission: permission,
+                                      errorCode: code, errorReason: reason, nextStep: nextStep), at: 0)
             if self.entries.count > self.maxEntries {
                 self.entries.removeLast()
             }
         }
-        fileAppend("[\(category)] \(status.rawValue) \(elapsedMs)ms \(dataBytes)B perm=\(permission) \(detail)")
+        let codeTag = code.map { " code=\($0)" } ?? ""
+        fileAppend("[\(category)] \(status.rawValue) \(elapsedMs)ms \(dataBytes)B perm=\(permission)\(codeTag) \(detail)")
     }
 
     /// v2.9.126：文件日志——按天滚动（audit-YYYYMMDD.log），异步追加，防阻塞主线程
@@ -107,5 +116,70 @@ final class AuditLog: ObservableObject {
 
     func clear() {
         entries.removeAll()
+    }
+
+    // MARK: - v2.9.128 工具健康度聚合（从内存 entries 现算）
+
+    struct ToolHealth: Identifiable {
+        var id: String { tool }
+        let tool: String
+        let success: Int
+        let failure: Int
+        let avgMs: Int
+        let topCode: String
+        let lastFailureDetail: String
+        var failureRate: Double { failure == 0 ? 0 : Double(failure) / Double(failure + success) }
+    }
+
+    struct CodeDist: Identifiable {
+        var id: String { code }
+        let code: String
+        let count: Int
+    }
+
+    /// 按工具聚合健康度：失败数排序 → 一眼看出"哪些工具有问题"
+    func healthSummary(limit: Int = 30) -> [ToolHealth] {
+        var map: [String: (s: Int, f: Int, ms: [Int], code: [String: Int], lastFail: String)] = [:]
+        for e in entries where e.status != nil {
+            let k = e.category
+            var v = map[k] ?? (s: 0, f: 0, ms: [Int](), code: [String: Int](), lastFail: "")
+            if e.status == .success { v.s += 1 }
+            else {
+                v.f += 1
+                let c = e.errorCode ?? "unknown"
+                v.code[c, default: 0] += 1
+                v.lastFail = e.errorReason ?? e.detail
+            }
+            if let ms = e.elapsedMs { v.ms.append(ms) }
+            map[k] = v
+        }
+        return map
+            .map { (tool: $0.key, v: $0.value) }
+            .filter { $0.v.f > 0 || $0.v.s > 0 }
+            .sorted { $0.v.f != $1.v.f ? $0.v.f > $1.v.f : $0.tool < $1.tool }
+            .prefix(limit)
+            .map {
+                let avg = $0.v.ms.isEmpty ? 0 : $0.v.ms.reduce(0, +) / $0.v.ms.count
+                let topCode = $0.v.code.max { $0.value < $1.value }?.key ?? "ok"
+                return ToolHealth(tool: $0.tool, success: $0.v.s, failure: $0.v.f,
+                                  avgMs: avg, topCode: topCode,
+                                  lastFailureDetail: String($0.v.lastFail.prefix(160)))
+            }
+    }
+
+    /// 错误码分布（env/target/param/tool + unknown）
+    func codeDistribution() -> [CodeDist] {
+        var map: [String: Int] = [:]
+        for e in entries where e.status == .failure {
+            let c = e.errorCode ?? "unknown"
+            map[c, default: 0] += 1
+        }
+        return map.map { CodeDist(code: $0.key, count: $0.value) }
+            .sorted { $0.count > $1.count }
+    }
+
+    /// 最近失败明细（供审计页/AI 自查）
+    func recentFailures(limit: Int = 20) -> [Entry] {
+        entries.filter { $0.status == .failure }.prefix(limit).map { $0 }
     }
 }

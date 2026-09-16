@@ -5,6 +5,8 @@ struct AuditLogView: View {
     @ObservedObject private var log = AuditLog.shared
     @State private var exportPath: String?
     @State private var showExportAlert = false
+    @State private var tab = 0
+    @State private var fileLogText = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -17,103 +19,257 @@ struct AuditLogView: View {
             )
             .padding(.vertical, 8)
 
-            List {
-                if log.entries.isEmpty {
-                    Section {
-                        HStack {
-                            Spacer()
-                            VStack(spacing: 8) {
-                                Image(systemName: "doc.text")
-                                    .font(.system(size: 40))
-                                    .foregroundColor(.secondary)
-                                Text("暂无审计日志")
-                                    .font(.footnote)
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.vertical, 40)
-                            Spacer()
-                        }
-                    }
-                } else {
-                    ForEach(log.entries) { entry in
-                        if let status = entry.status {
-                            // v2.9.36：老 MCP 审计样式（工具名 + 执行成功/失败·权限 + 时间·耗时·大小 + 绿勾/红叉）
-                            Section {
-                                HStack(spacing: 12) {
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(entry.category)
-                                            .font(.system(.subheadline, design: .monospaced))
-                                            .fontWeight(.semibold)
-                                            .foregroundColor(.primary)
-                                        HStack(spacing: 6) {
-                                            Text(status == .success ? "执行成功" : "执行失败")
-                                                .font(.caption2)
-                                                .fontWeight(.semibold)
-                                                .foregroundColor(status == .success ? .green : .red)
-                                            if let p = entry.permission, !p.isEmpty {
-                                                Text(p)
-                                                    .font(.caption2)
-                                                    .foregroundColor(.secondary)
-                                            }
-                                        }
-                                        Text("\(timeString(entry.timestamp))·\(durationLabel(entry.elapsedMs))·\(bytesLabel(entry.dataBytes))")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                        if !entry.detail.isEmpty {
-                                            Text(entry.detail)
-                                                .font(.caption2)
-                                                .foregroundColor(.secondary)
-                                                .lineLimit(2)
-                                        }
-                                    }
-                                    Spacer()
-                                    Image(systemName: status == .success ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                        .font(.system(size: 18))
-                                        .foregroundColor(status == .success ? .green : .red)
-                                }
-                                .padding(.vertical, 2)
-                            }
-                        } else {
-                            // 系统事件（非工具调用）
-                            Section(header: SettingSectionHeader(title: timeString(entry.timestamp))) {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    HStack {
-                                        Text(entry.category)
-                                            .font(.system(.caption, design: .monospaced))
-                                            .foregroundColor(levelColor(entry.level))
-                                        Spacer()
-                                        Text(entry.level.rawValue.uppercased())
-                                            .font(.caption2)
-                                            .fontWeight(.semibold)
-                                            .foregroundColor(levelColor(entry.level))
-                                    }
-                                    Text(entry.detail)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                        .lineLimit(3)
-                                }
-                                .padding(.vertical, 2)
-                            }
-                        }
-                    }
-                }
+            // v2.9.128：三 Tab——调用记录 / 健康度（失败归因）/ 文件日志
+            Picker("", selection: $tab) {
+                Text("调用记录").tag(0)
+                Text("健康度").tag(1)
+                Text("文件日志").tag(2)
             }
-            .listStyle(.insetGrouped)
-            .toolbar {
-                ToolbarItemGroup(placement: .navigationBarTrailing) {
-                    Button(action: exportLog) { Label(L10n.t("btn_export"), systemImage: "square.and.arrow.up") }
-                    Button(L10n.t("btn_clear")) { log.clear() }
-                }
-            }
-            .alert(isPresented: $showExportAlert) {
-                Alert(title: Text("审计记录已导出"),
-                      message: Text(exportPath ?? ""),
-                      dismissButton: .default(Text("好")))
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 4)
+
+            if tab == 0 {
+                callLogList
+            } else if tab == 1 {
+                healthView
+            } else {
+                fileLogView
             }
         }
         .background(Color(.systemGroupedBackground))
         .navigationTitle(L10n.t("page_audit"))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Button(action: exportLog) { Label(L10n.t("btn_export"), systemImage: "square.and.arrow.up") }
+                Button(L10n.t("btn_clear")) {
+                    if tab == 0 { log.clear() }
+                    else if tab == 2 { loadFileLog() }
+                }
+            }
+        }
+        .onAppear { loadFileLog() }
+        .alert(isPresented: $showExportAlert) {
+            Alert(title: Text("审计记录已导出"),
+                  message: Text(exportPath ?? ""),
+                  dismissButton: .default(Text("好")))
+        }
+    }
+
+    // MARK: Tab1 调用记录（原列表 + errorCode 徽标）
+    private var callLogList: some View {
+        List {
+            if log.entries.isEmpty {
+                Section {
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 8) {
+                            Image(systemName: "doc.text")
+                                .font(.system(size: 40))
+                                .foregroundColor(.secondary)
+                            Text("暂无审计日志")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 40)
+                        Spacer()
+                    }
+                }
+            } else {
+                ForEach(log.entries) { entry in
+                    if let status = entry.status {
+                        Section {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    HStack(spacing: 6) {
+                                        Text(entry.category)
+                                            .font(.system(.subheadline, design: .monospaced))
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.primary)
+                                        // v2.9.128：CLI 错误码徽标（env/target/param/tool）
+                                        if status == .failure, let code = entry.errorCode {
+                                            Text(code)
+                                                .font(.caption2)
+                                                .fontWeight(.bold)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 1)
+                                                .background(codeColor(code).opacity(0.15))
+                                                .foregroundColor(codeColor(code))
+                                                .clipShape(Capsule())
+                                        }
+                                    }
+                                    HStack(spacing: 6) {
+                                        Text(status == .success ? "执行成功" : "执行失败")
+                                            .font(.caption2)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(status == .success ? .green : .red)
+                                        if let p = entry.permission, !p.isEmpty {
+                                            Text(p)
+                                                .font(.caption2)
+                                                .foregroundColor(.secondary)
+                                        }
+                                    }
+                                    Text("\(timeString(entry.timestamp))·\(durationLabel(entry.elapsedMs))·\(bytesLabel(entry.dataBytes))")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                    if status == .failure, let reason = entry.errorReason, !reason.isEmpty {
+                                        Text("原因：\(reason)")
+                                            .font(.caption2)
+                                            .foregroundColor(.red)
+                                            .lineLimit(2)
+                                        if let next = entry.nextStep, !next.isEmpty {
+                                            Text("建议：\(next)")
+                                                .font(.caption2)
+                                                .foregroundColor(.orange)
+                                                .lineLimit(2)
+                                        }
+                                    } else if !entry.detail.isEmpty {
+                                        Text(entry.detail)
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(2)
+                                    }
+                                }
+                                Spacer()
+                                Image(systemName: status == .success ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(status == .success ? .green : .red)
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    } else {
+                        Section(header: SettingSectionHeader(title: timeString(entry.timestamp))) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text(entry.category)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundColor(levelColor(entry.level))
+                                    Spacer()
+                                    Text(entry.level.rawValue.uppercased())
+                                        .font(.caption2)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(levelColor(entry.level))
+                                }
+                                Text(entry.detail)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(3)
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+    }
+
+    // MARK: Tab2 健康度——失败归因（用户/AI 都能看到"哪些工具有问题、为什么"）
+    private var healthView: some View {
+        let summary = log.healthSummary(limit: 40)
+        let dist = log.codeDistribution()
+        return List {
+            Section(header: SettingSectionHeader(title: "错误码分布（env=环境 / target=目标 / param=参数 / tool=工具自身）")) {
+                if dist.isEmpty {
+                    Text("暂无失败记录").font(.footnote).foregroundColor(.secondary)
+                } else {
+                    HStack(spacing: 8) {
+                        ForEach(dist) { d in
+                            HStack(spacing: 4) {
+                                Text(d.code)
+                                    .font(.caption2).fontWeight(.bold)
+                                    .foregroundColor(codeColor(d.code))
+                                Text("×\(d.count)")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(codeColor(d.code).opacity(0.12))
+                            .clipShape(Capsule())
+                        }
+                    }
+                }
+            }
+            Section(header: SettingSectionHeader(title: "工具健康度排行（按失败次数）")) {
+                if summary.isEmpty {
+                    Text("暂无工具调用记录").font(.footnote).foregroundColor(.secondary)
+                } else {
+                    ForEach(summary) { h in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(h.tool)
+                                    .font(.system(.subheadline, design: .monospaced))
+                                    .fontWeight(.semibold)
+                                Spacer()
+                                if h.failure > 0 {
+                                    Text("\(h.failure) 失败")
+                                        .font(.caption2).fontWeight(.bold)
+                                        .foregroundColor(.red)
+                                } else {
+                                    Text("全部成功")
+                                        .font(.caption2).fontWeight(.semibold)
+                                        .foregroundColor(.green)
+                                }
+                                Text(String(format: "%.0f%%", h.failureRate * 100))
+                                    .font(.caption2)
+                                    .foregroundColor(h.failureRate > 0.5 ? .red : (h.failureRate > 0 ? .orange : .green))
+                            }
+                            HStack(spacing: 6) {
+                                Text("成功 \(h.success)")
+                                    .font(.caption2).foregroundColor(.secondary)
+                                Text("·均耗 \(h.avgMs)ms")
+                                    .font(.caption2).foregroundColor(.secondary)
+                                if h.failure > 0 {
+                                    Text("主导错误 \(h.topCode)")
+                                        .font(.caption2).fontWeight(.semibold)
+                                        .foregroundColor(codeColor(h.topCode))
+                                }
+                            }
+                            if h.failure > 0 && !h.lastFailureDetail.isEmpty {
+                                Text("最近失败：\(h.lastFailureDetail)")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(2)
+                            }
+                        }
+                        .padding(.vertical, 3)
+                    }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+    }
+
+    // MARK: Tab3 文件日志（按天滚动，读当天）
+    private var fileLogView: some View {
+        ScrollView {
+            Text(fileLogText.isEmpty ? "暂无文件日志" : fileLogText)
+                .font(.system(.caption2, design: .monospaced))
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+        }
+        .background(Color(.systemGroupedBackground))
+    }
+
+    private func loadFileLog() {
+        let logsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Logs", isDirectory: true)
+        let df = DateFormatter(); df.dateFormat = "yyyyMMdd"
+        let file = logsDir.appendingPathComponent("audit-\(df.string(from: Date())).log")
+        fileLogText = (try? String(contentsOf: file, encoding: .utf8)) ?? "（今天暂无文件日志）"
+    }
+
+    private func codeColor(_ code: String) -> Color {
+        switch code {
+        case "env": return .orange
+        case "target": return .red
+        case "param": return .purple
+        case "tool": return .blue
+        default: return .gray
+        }
     }
 
     private func exportLog() {

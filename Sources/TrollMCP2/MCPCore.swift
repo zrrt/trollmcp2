@@ -416,23 +416,37 @@ public final class ToolRegistry: ObservableObject {
                 return ["ok": true, "message": msg, "data": data]
             } catch {
                 let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+                let errDesc = (error as? MCPError)?.description ?? error.localizedDescription
+                // v2.9.128：失败记录 CLI 四分类 code/reason/nextStep（供健康度聚合 + AI 自查）
+                let classified: MCPError
+                if case MCPError.classified(_, code: let c, reason: let r, nextStep: let n) = error {
+                    classified = MCPError.classified(errDesc, code: c, reason: r, nextStep: n)
+                } else {
+                    let info = FailureKind.classify(errDesc)
+                    classified = MCPError.classified(errDesc, code: info.code, reason: info.reason, nextStep: info.nextStep)
+                }
+                let (cCode, cReason, cNext) = Self.unpack(classified)
                 AuditLog.shared.logTool(originalName, status: .failure,
                                         elapsedMs: elapsedMs, dataBytes: 0, permission: perm,
-                                        detail: (error as? MCPError)?.description ?? error.localizedDescription)
-                WorkflowManager.shared.updateStep(tool: originalName, detail: error.localizedDescription, success: false)
-                // v2.9.125：失败统一分类（环境/目标/参数/工具自身），已分类的不重复分类
-                if case MCPError.classified = error { throw error }
-                let info = FailureKind.classify((error as? MCPError)?.description ?? error.localizedDescription)
-                throw MCPError.classified((error as? MCPError)?.description ?? error.localizedDescription,
-                                          code: info.code, reason: info.reason, nextStep: info.nextStep)
+                                        detail: errDesc, code: cCode, reason: cReason, nextStep: cNext)
+                WorkflowManager.shared.updateStep(tool: originalName, detail: errDesc, success: false)
+                throw classified
             }
         }
         throw MCPError.failed("tool \(originalName) 未加载，请先调用 tool_search 搜索该工具")
     }
 
+    // v2.9.128：解包 classified 的 code/reason/nextStep（审计记录用）
+    private static func unpack(_ err: MCPError) -> (String, String, String) {
+        if case MCPError.classified(_, code: let c, reason: let r, nextStep: let n) = err {
+            return (c, r, n)
+        }
+        let info = FailureKind.classify(err.description)
+        return (info.code, info.reason, info.nextStep)
+    }
+
     // v2.9.36：权限标签（对齐老 MCP readOnly/privilegedRead/write 语义，按工具名前缀粗分）
-    private static func permissionLabel(_ name: String) -> String {
-        let write = ["open", "open_and_input", "enable", "disable", "remove", "write",
+    private static func permissionLabel(_ name: String) -> String {        let write = ["open", "open_and_input", "enable", "disable", "remove", "write",
                      "set", "delete", "clear", "run", "send", "connect", "create",
                      "cancel", "fire", "schedule", "prepare", "stop", "import",
                      "generate", "config", "set_enabled", "output", "approve", "refresh"]
@@ -468,6 +482,7 @@ public final class ToolRegistry: ObservableObject {
         register(ControlTypeTool())
         register(ControlKeyTool())
         register(WorkspaceInfoTool())
+        register(ToolHealthTool())   // v2.9.128：工具健康度自查
 
         // M2 助理记忆（原版命名）
         register(AssistantMemorySetTool())

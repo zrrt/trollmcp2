@@ -253,6 +253,14 @@ struct SettingsView: View {
                         color: .tmIndigo,
                         destination: AuditLogView()
                     )
+                    // v2.9.128：工作区文件浏览器（像文件夹一样点开）
+                    SettingRow(
+                        title: L10n.t("row_workspace"),
+                        subtitle: "点开浏览目录 · 预览 · 复制路径 · 分享",
+                        icon: "folder",
+                        color: .blue,
+                        destination: WorkspaceBrowserView()
+                    )
                     SettingRow(
                         title: L10n.t("row_apikeys"),
                         subtitle: "查看 · 显隐 · 恢复",

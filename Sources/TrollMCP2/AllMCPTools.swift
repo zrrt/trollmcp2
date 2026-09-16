@@ -490,6 +490,57 @@ final class ModelConfigTool: MCPTool {
     }
 }
 
+// v2.9.128：工具健康度自查——AI 和用户都能看到"哪些工具经常失败、为什么失败、怎么修"
+final class ToolHealthTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "tools.health",
+        summary: "查看工具健康度：失败排行、错误码分布（env/target/param/tool）、最近失败明细。用于自查哪些工具有问题及失败原因，避免反复执行失败工具。",
+        parameters: [
+            "limit": "最多返回多少个工具的健康数据（默认 20）"
+        ]
+    )
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        let limit = max(1, min((params["limit"] as? Int) ?? 20, 100))
+        let audit = AuditLog.shared
+        let summary = audit.healthSummary(limit: limit)
+        let dist = audit.codeDistribution()
+        let recent = audit.recentFailures(limit: 8).map { e -> [String: Any] in
+            [
+                "tool": e.category,
+                "code": e.errorCode ?? "unknown",
+                "reason": e.errorReason ?? e.detail,
+                "next_step": e.nextStep ?? "",
+                "time": Self.timeStr(e.timestamp)
+            ]
+        }
+        return [
+            "ok": true,
+            "message": "工具健康度：失败工具 \(summary.filter { $0.failure > 0 }.count) 个，错误码分布 \(dist.map { "\($0.code)×\($0.count)" }.joined(separator: " "))",
+            "data": [
+                "error_code_distribution": dist.map { ["code": $0.code, "count": $0.count] },
+                "tool_health": summary.map { h -> [String: Any] in
+                    [
+                        "tool": h.tool,
+                        "success": h.success,
+                        "failure": h.failure,
+                        "failure_rate": String(format: "%.1f%%", h.failureRate * 100),
+                        "avg_ms": h.avgMs,
+                        "top_error_code": h.topCode,
+                        "last_failure": h.lastFailureDetail
+                    ]
+                },
+                "recent_failures": recent
+            ]
+        ]
+    }
+
+    private static func timeStr(_ d: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        return f.string(from: d)
+    }
+}
+
 final class WorkspaceInfoTool: MCPTool {
     let definition = ToolDefinition(name: "workspace.info", summary: "查看工作区信息")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
