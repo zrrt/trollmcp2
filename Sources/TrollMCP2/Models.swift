@@ -167,8 +167,13 @@ final class ModelStore: ObservableObject {
     // MARK: v2.9.107 —— 熔断器注册表（运行时，不持久化；对齐 cc-switch circuit_breaker）
 
     private(set) var breakers: [UUID: CircuitBreaker] = [:]
+    // v2.9.150：熔断器字典锁——ModelRow 渲染(主线程)与 AI 请求回调(后台线程)
+    // 并发调 breaker(for:) 写同一字典 → 字典并发修改 SIGSEGV（"模型 API 页闪退"根因）
+    private let breakerLock = NSLock()
 
     func breaker(for id: UUID) -> CircuitBreaker {
+        breakerLock.lock()
+        defer { breakerLock.unlock() }
         if let b = breakers[id] { return b }
         let b = CircuitBreaker(name: configs.first { $0.id == id }?.name ?? "model")
         breakers[id] = b

@@ -9,7 +9,18 @@ enum CrashCatcher {
         Workspace.root.appendingPathComponent("crash", isDirectory: true)
     }
 
+    // v2.9.150：signal-safe 预分配缓冲（install() 时在正常上下文分配，
+    // handler 内只做指针写入，绝不触发 Swift 堆分配/字符串/ObjC）
+    private static var sigPathBuf: UnsafeMutablePointer<CChar>?
+    private static var sigMsgBuf: UnsafeMutablePointer<CChar>?
+    private static let sigPathCap = 1024
+    private static let sigMsgCap = 128
+
     static func install() {
+        // 预分配信号缓冲（正常上下文，避免 handler 内 Swift 运行时分配二次崩溃）
+        if sigPathBuf == nil { sigPathBuf = .allocate(capacity: sigPathCap) }
+        if sigMsgBuf == nil { sigMsgBuf = .allocate(capacity: sigMsgCap) }
+
         // 1) ObjC 未捕获异常（Swift fatalError / 强解包 / 数组越界等走这里）
         NSSetUncaughtExceptionHandler { exception in
             let ts = time(nil)
@@ -41,39 +52,30 @@ enum CrashCatcher {
         arm(SIGFPE)
     }
 
-    private static func sigName(_ s: Int32) -> String {
-        switch s {
-        case SIGABRT: return "SIGABRT"
-        case SIGSEGV: return "SIGSEGV"
-        case SIGBUS: return "SIGBUS"
-        case SIGILL: return "SIGILL"
-        case SIGTRAP: return "SIGTRAP"
-        case SIGFPE: return "SIGFPE"
-        default: return "SIG(\(s))"
-        }
-    }
-
-    /// signal-safe：只用 open/write/close，不分配堆、不调 ObjC
+    /// v2.9.150：纯 signal-safe 写盘——上一版用 Swift String 插值/Date/数组，
+    /// 在信号上下文里二次崩溃，导致 16 条日志全部只记录到 writeSignal 自身、
+    /// 真正崩溃点被掩盖。现在只用 C 函数：
+    ///   time/mkdir/open/snprintf/write/strlen/backtrace/backtrace_symbols_fd/close
+    /// 全部 async-signal-safe。
     private static func writeSignal(_ s: Int32) {
         let ts = time(nil)
         let dir = crashDir.path
         _ = mkdir(dir, 0o755)
-        let path = "\(dir)/sig_\(ts).txt"
-        let fd = open(path, O_CREAT | O_WRONLY | O_APPEND, 0o644)
-        if fd >= 0 {
-            let msg = "signal \(sigName(s)) @ \(ts)\n"
-            msg.withCString { write(fd, $0, strlen($0)) }
-            // v2.9.147：信号安全调用栈——backtrace_symbols_fd 是 async-signal-safe，
-            // 下次 SIGSEGV 直接拿到崩溃点栈，不用再猜
-            var frames = [UnsafeMutableRawPointer?](repeating: nil, count: 64)
-            let n = backtrace(&frames, 64)
-            frames.withUnsafeBufferPointer { buf in
-                if let base = buf.baseAddress {
-                    backtrace_symbols_fd(base, n, fd)
-                }
-            }
-            close(fd)
-        }
+        let dc = (dir as NSString).utf8String
+        guard let d = dc, let pb = sigPathBuf, let mb = sigMsgBuf else { return }
+        snprintf(pb, sigPathCap, "%s/sig_%ld.txt", d, ts)
+        let fd = open(pb, O_CREAT | O_WRONLY | O_APPEND, 0o644)
+        guard fd >= 0 else { return }
+        // 信号名用 strsignal（返回静态字符串，signal-safe）；fallback 打印数字
+        let name = strsignal(s) ?? "SIG"
+        snprintf(mb, sigMsgCap, "signal %s @ %ld\n", name, ts)
+        _ = write(fd, mb, strlen(mb))
+        // backtrace/backtrace_symbols_fd 均为 async-signal-safe
+        let frames = UnsafeMutablePointer<UnsafeMutableRawPointer?>.allocate(capacity: 64)
+        let n = backtrace(frames, 64)
+        backtrace_symbols_fd(frames, n, fd)
+        frames.deallocate()
+        close(fd)
         // 恢复默认处理并重发，让系统也生成官方崩溃报告
         signal(s, SIG_DFL)
         raise(s)
