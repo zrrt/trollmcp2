@@ -7,6 +7,9 @@ import UIKit
 /// App 容器任意读写权限是否生效、内置注入二进制可否执行、amfid 绕过是否推断生效。
 final class DeviceProbe: ObservableObject {
     static let shared = DeviceProbe()
+    // v2.9.149：探测串行锁——页面 onAppear 与启动后台探测可能并发 run()，
+    // 同时枚举应用/写探针文件导致 SIGSEGV
+    private let runLock = NSLock()
 
     struct Check: Identifiable {
         let id = UUID()
@@ -59,6 +62,8 @@ final class DeviceProbe: ObservableObject {
     // MARK: 公开入口
 
     func run() -> Report {
+        runLock.lock()
+        defer { runLock.unlock() }
         let deviceName = UIDevice.current.name
         let model = UIDevice.current.model
         let systemVersion = UIDevice.current.systemVersion

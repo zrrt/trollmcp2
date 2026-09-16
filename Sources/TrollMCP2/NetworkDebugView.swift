@@ -101,10 +101,12 @@ struct NetworkDebugView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-                    ForEach(log.entries.indices, id: \.self) { i in
-                        Text(log.entries[i])
+                    // v2.9.149：entries 在 main.async 里 insert(at:0)，
+                    // ForEach(indices) 会因 index 位移崩溃，改 enumerated 安全写法
+                    ForEach(Array(log.entries.enumerated()), id: \.offset) { _, line in
+                        Text(line)
                             .font(.system(.caption2, design: .monospaced))
-                            .foregroundColor(log.entries[i].contains("失败") ? .red : .secondary)
+                            .foregroundColor(line.contains("失败") ? .red : .secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }

@@ -174,6 +174,9 @@ struct BrowserView: View {
         }
         .navigationViewStyle(.stack)
         .onAppear {
+            // v2.9.149：先进浏览器页先隐藏悬浮窗——悬浮窗与页面共用同一 WKWebView，
+            // 同时挂载到两个父视图会 SIGSEGV 闪退（"内置浏览器闪退"根因）
+            FloatingBrowser.shared.hide()
             bm.ensureWebView()
             // v2.9.81：只在从未加载过任何页面时自动开 Bing（修竞态覆盖）
             if !bm.hasLoadedAny {
@@ -206,6 +209,11 @@ struct WebViewContainer: UIViewRepresentable {
 
     func makeUIView(context: Context) -> WKWebView {
         bm.ensureWebView()
+        // v2.9.149：单例 WKWebView 若已被其他视图持有（悬浮窗/旧页面），
+        // 先移除旧挂载，避免同一 WKWebView 同时挂两个父视图 SIGSEGV
+        if let wv = bm.webView, wv.superview != nil {
+            wv.removeFromSuperview()
+        }
         // v2.9.144：webView 可能为 nil 时强解包闪退，改用安全兜底
         if let wv = bm.webView { return wv }
         return WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
