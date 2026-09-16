@@ -1043,9 +1043,15 @@ final class InjectionManager {
             throw MCPError.failed("无法解析 dylib 或目标 Mach-O 架构，已拒绝注入（防闪退）")
         }
 
-        // 3. 杀目标进程（对齐 TrollFools terminateApp）
+        // 3. 杀目标进程（v2.9.193：TrollStore 无 /usr/bin/killall，spawnRoot 恒失败 → 旧进程不杀
+        // → 注入后 App 未真正重启 → dylib 永不加载 → 4789 不起（B站 pid 恒定 1697 实测实锤）。
+        // 改用 libproc 找主进程 pid + kill syscall）
         let executableName = (executablePath(app) as NSString).lastPathComponent
-        _ = spawnRoot("/usr/bin/killall", args: ["killall", "-9", executableName])
+        let targetPid = findPidByExecutable(bundlePath: app.path)
+        if targetPid > 0 {
+            kill(targetPid, SIGKILL)
+            Thread.sleep(forTimeInterval: 0.6)
+        }
 
         // 5. 拷贝 dylib 到 Frameworks/（无 Frameworks 才放 app 根）
         // A3 资产预处理（对齐 TrollFools injectDylibsAndFrameworks 前置）：
@@ -1280,7 +1286,8 @@ final class InjectionManager {
 
         // 杀目标进程
         let executableName = (mainBinary as NSString).lastPathComponent
-        _ = spawnRoot("/usr/bin/killall", args: ["killall", "-9", executableName])
+        let dp = findPidByExecutable(bundlePath: (executablePath(app) as NSString).deletingLastPathComponent)
+        if dp > 0 { kill(dp, SIGKILL); Thread.sleep(forTimeInterval: 0.5) }
 
         var removedLoads: [String: [String]] = [:]
         var removedAssets: [String] = []
