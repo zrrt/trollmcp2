@@ -665,22 +665,22 @@ public final class ToolRegistry: ObservableObject {
         register(ToolSearchTool())   // v2.9.16：渐进式披露元工具
         register(ClipboardReadTool())   // v2.9.108：剪贴板读取（ios-mcp 借鉴）
         register(ClipboardWriteTool())  // v2.9.108：剪贴板写入（ios-mcp 借鉴）
-    register(FSTreeTool())      // v2.9.111：Filza 式目录浏览
-    register(FSReadTool())      // v2.9.111：文件读取（文本/plist/SQLite/二进制识别）
-    register(FSHexdumpTool())   // v2.9.111：二进制十六进制查看
-    register(FSZipTool())       // v2.9.112：ZIP/IPA 归档浏览与条目读取
-    register(FSSQLTool())       // v2.9.112：SQLite 只读查询（Filza SQLite3 编辑器）
-    register(FSGrepTool())      // v2.9.112：目录文本关键词搜索
-    register(FSWriteTool())     // v2.9.113：写文件（带 .bak 备份）
-    register(FSEditTool())      // v2.9.113：行级/片段编辑（带 .bak 备份）
-    register(FSDiffTool())      // v2.9.113：文件对比（文本 diff / 二进制哈希）
-    register(FSHashTool())      // v2.9.113：文件哈希与元数据
-    register(FSFindTool())      // v2.9.113：文件名搜索
-    register(FSDownloadTool())  // v2.9.113：下载到工作区
-    register(FSPropertyListTool()) // v2.9.115：plist 键值读写（Filza 属性表编辑器）
-    register(FSContainerTool())    // v2.9.115：App 容器路径四件套
-    register(FSCrashTool())        // v2.9.115：崩溃日志解析
-    register(FSImageInfoTool())    // v2.9.115：图片元数据
+        register(FSTreeTool())      // v2.9.111：Filza 式目录浏览
+        register(FSReadTool())      // v2.9.111：文件读取（文本/plist/SQLite/二进制识别）
+        register(FSHexdumpTool())   // v2.9.111：二进制十六进制查看
+        register(FSZipTool())       // v2.9.112：ZIP/IPA 归档浏览与条目读取
+        register(FSSQLTool())       // v2.9.112：SQLite 只读查询（Filza SQLite3 编辑器）
+        register(FSGrepTool())      // v2.9.112：目录文本关键词搜索
+        register(FSWriteTool())     // v2.9.113：写文件（带 .bak 备份）
+        register(FSEditTool())      // v2.9.113：行级/片段编辑（带 .bak 备份）
+        register(FSDiffTool())      // v2.9.113：文件对比（文本 diff / 二进制哈希）
+        register(FSHashTool())      // v2.9.113：文件哈希与元数据
+        register(FSFindTool())      // v2.9.113：文件名搜索
+        register(FSDownloadTool())  // v2.9.113：下载到工作区
+        register(FSPropertyListTool()) // v2.9.115：plist 键值读写（Filza 属性表编辑器）
+        register(FSContainerTool())    // v2.9.115：App 容器路径四件套
+        register(FSCrashTool())        // v2.9.115：崩溃日志解析
+        register(FSImageInfoTool())    // v2.9.115：图片元数据
 
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
     }

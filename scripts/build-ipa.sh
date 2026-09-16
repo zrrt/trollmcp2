@@ -27,6 +27,20 @@ mkdir -p "$APP"
 cp "$BIN" "$APP/TrollMCP2"
 cp Support/Info.plist "$APP/Info.plist"
 
+# v2.9.133: 版本注入——CI 传 RELEASE_VERSION 时覆盖产物版本，
+# 解决"构建产物版本永远停在仓库写死值、装上分不清新旧"的脱节问题。
+# 未传时保持 Support/Info.plist 原值（本地构建默认）。
+if [ -n "${RELEASE_VERSION:-}" ]; then
+    echo ">>> injecting RELEASE_VERSION=$RELEASE_VERSION"
+    if command -v /usr/libexec/PlistBuddy >/dev/null 2>&1; then
+        /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $RELEASE_VERSION" "$APP/Info.plist" 2>/dev/null || \
+        /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $RELEASE_VERSION" "$APP/Info.plist"
+        /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(git rev-parse --short HEAD 2>/dev/null || echo 1)" "$APP/Info.plist" 2>/dev/null || true
+    else
+        /usr/bin/sed -i '' "s#<string>2\.9\.[0-9]*</string>#<string>$RELEASE_VERSION</string>#" "$APP/Info.plist" || true
+    fi
+fi
+
 # 内置注入工具链（ldid/optool/insert_dylib/ct_bypass + coreutils + 依赖 dylib）
 if [ -d "Resources/bin" ]; then
     cp -R "Resources/bin" "$APP/bin"

@@ -1,4 +1,4 @@
-﻿# v2.9.93 合并版主构建：内置 tweaks 编译（theos）+ IPA 打包一条龙
+# v2.9.93 合并版主构建：内置 tweaks 编译（theos）+ IPA 打包一条龙
 # 不再依赖单独 build-tweak workflow（其 runner 启动不稳定）；改 Tweak.x 后直接跑本 workflow 即全量更新。
 name: build-trollmcp2
 
@@ -52,6 +52,10 @@ jobs:
 
       - name: Build unsigned IPA
         run: bash scripts/build-ipa.sh
+        env:
+          # v2.9.133: 用 git 描述注入产物版本，解决构建产物版本脱节
+          RELEASE_VERSION: v${{ github.run_number }}.${{ github.sha }}
+
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
