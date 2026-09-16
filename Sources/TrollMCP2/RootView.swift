@@ -9,6 +9,7 @@ final class AppUIState: ObservableObject {
     @Published var settingsJumpToModels = false
     // v2.9.139：AI 控制中心（控制任意 App 的计划/日志/结果页）
     @Published var controlPresented = false
+    @Published var macroPresented = false
 }
 
 struct RootView: View {
@@ -78,6 +79,13 @@ struct RootView: View {
             set: { ui.controlPresented = $0 }
         )) {
             ControlCenterView()
+        }
+        // v2.9.142：宏管理页（聊天输入框「🎬 宏」入口）
+        .fullScreenCover(isPresented: Binding(
+            get: { ui.macroPresented },
+            set: { ui.macroPresented = $0 }
+        )) {
+            MacroView()
         }
         // v2.9.76：语言切换后全局重建视图
         .id(lang.language.rawValue)

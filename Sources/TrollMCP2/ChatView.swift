@@ -556,6 +556,13 @@ struct ChatView: View {
                 ChatChip(label: "智能搜索·\(smartSearch ? "开" : "关")", action: {
                     smartSearch.toggle()
                 }, accent: smartSearch, icon: "magnifyingglass")
+                // v2.9.142：AI 控制中心 + 宏管理入口
+                ChatChip(label: "🎯 控制", action: {
+                    AppUIState.shared.controlPresented = true
+                }, accent: ControlSession.shared.isActive, icon: "target")
+                ChatChip(label: "🎬 宏", action: {
+                    AppUIState.shared.macroPresented = true
+                }, accent: MacroRecorder.shared.isRecording, icon: "play.rectangle")
                 Spacer()
             }
             .padding(.horizontal, 12)

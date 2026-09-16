@@ -425,7 +425,20 @@ enum L10n {
             "ui_179": ["zh": "已完成", "en": "Done"],
             "ui_180": ["zh": "未开始", "en": "Idle"],
             "ui_181": ["zh": "控制已结束", "en": "Control finished"],
-            "ui_182": ["zh": "控制会话已结束，可查看结果", "en": "Control session finished, see result below"],
+            "ui_183": ("操作宏", "Macros"),
+    "ui_184": ("新建宏", "New Macro"),
+    "ui_185": ("宏名称（如 每日打卡）", "Macro name (e.g. daily check-in)"),
+    "ui_186": ("名称不能为空", "Name cannot be empty"),
+    "ui_187": ("开始录制：去聊天让 AI 操作，完成后回来点「停止」或喊 AI 调 macro.stop", "Recording started: ask AI to operate in chat, then tap Stop or call macro.stop"),
+    "ui_188": ("录制中", "Recording"),
+    "ui_189": ("停止并保存", "Stop & Save"),
+    "ui_190": ("还没有宏", "No macros yet"),
+    "ui_191": ("点右上角「录制」新建：让 AI 操作一遍（点/滑/输入），自动录成宏，以后一键回放", "Tap record: let AI operate once (tap/swipe/type), it becomes a replayable macro"),
+    "ui_192": ("录制新宏", "Record New Macro"),
+    "ui_193": ("步", "steps"),
+    "ui_194": ("创建于", "Created"),
+    "ui_195": ("删除", "Delete"),
+    "ui_182": ["zh": "控制会话已结束，可查看结果", "en": "Control session finished, see result below"],
         ]
         return table[key]?[lang] ?? key
     }
