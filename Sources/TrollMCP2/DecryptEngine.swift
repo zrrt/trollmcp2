@@ -157,6 +157,13 @@ enum DecryptEngine {
 
     /// 在目标进程的 dyld 镜像表里找 imageFilePath == 目标二进制路径的加载地址
     static func findImageLoadAddress(task: UInt32, pid: Int32, binaryPath: String) -> UInt64? {
+        return findImageLoadAddressDiag(task: task, pid: pid, binaryPath: binaryPath).0
+    }
+
+    /// v2.9.188：带诊断版——返回 (加载地址, 最后失败原因)，失败原因进 app.decrypt 报错，
+    /// 不再笼统报"镜像表未找到"
+    static func findImageLoadAddressDiag(task: UInt32, pid: Int32, binaryPath: String) -> (UInt64?, String?) {
+        var lastDiag: String? = nil
         for _ in 0..<MAX_DYLD_RETRIES {
             var dyldInfo = TaskDyldInfoBuf()
             var count: UInt32 = UInt32(MemoryLayout<TaskDyldInfoBuf>.size / 4)
@@ -164,21 +171,25 @@ enum DecryptEngine {
                 DeviceProbe.shared.tm_task_info(task, TASK_DYLD_INFO, raw.baseAddress!, &count)
             }
             guard kr == 0, dyldInfo.all_image_info_addr != 0 else {
+                lastDiag = (kr != 0) ? "task_info kr=\(kr)" : "all_image_info_addr=0"
                 Thread.sleep(forTimeInterval: 0.01); continue
             }
             guard let infosData = vmRead(task: task, address: dyldInfo.all_image_info_addr,
                                          size: MemoryLayout<DyldAllImageInfos>.size) else {
+                lastDiag = "vmRead dyld_all_image_infos 失败 addr=\(dyldInfo.all_image_info_addr)"
                 Thread.sleep(forTimeInterval: 0.01); continue
             }
             let infos = DyldAllImageInfos(version: loadU32(infosData, 0),
                                           infoArrayCount: loadU32(infosData, 4),
                                           infoArray: loadU64(infosData, 8))
             guard infos.infoArrayCount > 0, infos.infoArrayCount < 4096, infos.infoArray != 0 else {
+                lastDiag = "infoArrayCount=\(infos.infoArrayCount) infoArray=0x\(String(infos.infoArray, radix: 16))"
                 Thread.sleep(forTimeInterval: 0.01); continue
             }
             let itemSize = MemoryLayout<DyldImageInfo>.size
             let arrayBytes = Int(infos.infoArrayCount) * itemSize
             guard let arrData = vmRead(task: task, address: infos.infoArray, size: arrayBytes) else {
+                lastDiag = "vmRead infoArray 失败 count=\(infos.infoArrayCount)"
                 Thread.sleep(forTimeInterval: 0.01); continue
             }
             let want = canonicalPath(binaryPath)
@@ -189,12 +200,13 @@ enum DecryptEngine {
                 guard filePathPtr != 0,
                       let path = vmReadString(task: task, address: filePathPtr, maxLen: 4096) else { continue }
                 if canonicalPath(path) == want {
-                    return loadAddr
+                    return (loadAddr, nil)
                 }
             }
+            lastDiag = "表项\(infos.infoArrayCount)条无路径匹配(目标 \(want))"
             Thread.sleep(forTimeInterval: 0.01)
         }
-        return nil
+        return (nil, lastDiag)
     }
 
     /// 路径规范化：去掉 /private 前缀差异（TrollDecrypt 同款处理）
@@ -293,8 +305,9 @@ enum DecryptEngine {
     enum SingleResult { case ok, notEncrypted, failed(Int32, String) }
 
     static func decryptBinary(sourcePath: String, task: UInt32, pid: Int32, outputPath: String) -> SingleResult {
-        guard let loadAddr = findImageLoadAddress(task: task, pid: pid, binaryPath: sourcePath) else {
-            return .failed(0, "dyld 镜像表未找到 \(sourcePath)（进程可能未加载该镜像，或镜像路径不一致）")
+        let (loadAddr, diag) = findImageLoadAddressDiag(task: task, pid: pid, binaryPath: sourcePath)
+        guard let loadAddr else {
+            return .failed(0, "dyld 镜像表未找到 \(sourcePath)：\(diag ?? "未知原因")")
         }
         guard let enc = readEncryptionInfo(task: task, loadAddress: loadAddr) else {
             return .failed(0, "读取 Mach-O load commands 失败（可能解析异常）")
