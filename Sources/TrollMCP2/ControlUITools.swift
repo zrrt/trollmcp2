@@ -139,111 +139,50 @@ final class HIDTouchInjector {
     }
 }
 
-// MARK: - 全屏截图（ReplayKit：AI 控制目标 App 时验证现场证据）
-// 需用户首次授权「录屏」；授权后可在任何前台 App 下截全屏。
+// MARK: - 全屏截图（v2.9.182：不再使用 ReplayKit）
+// 实证：iOS 16.3 侧载环境 RPScreenRecorder 系统级崩溃（CFRetain SIGTRAP，
+// 崩溃栈 sig_1789582255 / sig_1789588011：ReplayKit frame3 CFRetain+0，信号级无法 try-catch）。
+// 方案：1) 优先 ControlAgent 注入截图（目标 App 内截自己窗口，零权限零崩溃）
+//       2) 兜底截 TrollAgent 自身窗口（AI 召唤时可见聊天界面）
+//       3) 均不可用 → 明确返回降级提示，绝不调用 RPScreenRecorder。
 
 final class ScreenCapture {
-    /// 截当前屏幕（含任意前台 App）：ReplayKit startCapture 取首帧视频后立即停止。
-    /// 需首次录屏授权；授权后可截任意前台 App（AI 控制目标 App 时的现场证据）。
-    /// v2.9.174：防秒崩重写——
-    ///  1) done 竞态用 NSLock 保护（原布尔在 handler 线程与 8s 兜底线程无锁竞争）
-    ///  2) CIContext 用软件渲染（避免后台线程无 GPU/Metal 上下文时崩溃）
-    ///  3) 图像转换包 autoreleasepool（ReplayKit buffer 生命周期：stopCapture 后 buffer 可能被系统回收）
-    ///  4) completion 统一回主线程（防调用方在主线程做 UI 时崩）
-    ///  5) startCapture 前若残留录制状态先 stop（764369 官方建议）
+    static func keyWindow() -> UIWindow? {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.windows.first { $0.isKeyWindow }
+    }
+
+    /// 截当前屏幕（安全版，无 ReplayKit）。
     static func take(completion: @escaping (Bool, String) -> Void) {
-        let recorder = RPScreenRecorder.shared()
-        guard recorder.isAvailable else {
-            DispatchQueue.main.async { completion(false, "RPScreenRecorder 不可用") }
+        // 1) 优先：ControlAgent 注入截图（目标 App 在线时走 localhost:4789 /screenshot）
+        let controlResult = ControlAgentTools.shared.screenshot()
+        if controlResult["screenshot"] as? Bool == true, let path = controlResult["path"] as? String {
+            DispatchQueue.main.async { completion(true, path) }
             return
         }
-        // 残留录制状态清理（上次异常退出可能没 stop 干净）
-        if recorder.isRecording {
-            recorder.stopCapture { _ in }
-            Thread.sleep(forTimeInterval: 0.2)
-        }
-        // v2.9.178：不再"首帧立即停"——RPScreenRecorder 不是为录一帧就停设计，
-        // 秒开秒停在 stopCapture 内部 CFRetain 断言（SIGTRAP，用户复现日志 sig_1789582255：
-        // ReplayKit frame3 CFRetain+0）。改为：持续缓存最新帧 → 收帧后延迟 0.6s
-        // 再 stop → stop 完成后统一落盘（不碰活 buffer）。
-        let lock = NSLock()
-        var done = false
-        var latestImage: UIImage?
-        let finish: (Bool, String) -> Void = { ok, msg in
-            lock.lock()
-            if done { lock.unlock(); return }
-            done = true
-            lock.unlock()
-            DispatchQueue.main.async { completion(ok, msg) }
-        }
-        let saveLatest: () -> Void = {
-            lock.lock()
-            let img = latestImage
-            lock.unlock()
-            guard let img else {
-                recorder.stopCapture { _ in }
-                finish(false, "未捕获到视频帧")
-                return
+        // 2) 兜底：截 TrollAgent 自身窗口（drawViewHierarchy，零权限）
+        if let window = keyWindow() {
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = UIScreen.main.scale
+            let renderer = UIGraphicsImageRenderer(bounds: window.bounds, format: format)
+            let img = renderer.image { _ in
+                window.drawHierarchy(in: window.bounds, afterScreenUpdates: false)
             }
             let dir = Workspace.root.appendingPathComponent("control_shots", isDirectory: true)
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             let url = dir.appendingPathComponent("shot_\(Int(Date().timeIntervalSince1970)).png")
-            guard let data = img.pngData() else {
-                recorder.stopCapture { _ in }
-                finish(false, "PNG 编码失败")
+            if let data = img.pngData(), (try? data.write(to: url)) != nil {
+                DispatchQueue.main.async { completion(true, url.path) }
                 return
             }
-            do {
-                try data.write(to: url)
-                finish(true, url.path)
-            } catch {
-                recorder.stopCapture { _ in }
-                finish(false, "保存失败: \(error.localizedDescription)")
-            }
         }
-        recorder.startCapture(handler: { sampleBuffer, bufferType, _ in
-            guard bufferType == .video else { return }
-            lock.lock()
-            if done { lock.unlock(); return }
-            lock.unlock()
-            autoreleasepool {
-                guard let pixel = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-                let ctx = CIContext(options: [.useSoftwareRenderer: true])
-                let ci = CIImage(cvPixelBuffer: pixel)
-                guard let cg = ctx.createCGImage(ci, from: ci.extent) else { return }
-                let img = UIImage(cgImage: cg)
-                lock.lock()
-                latestImage = img
-                lock.unlock()
-            }
-        }) { error in
-            if let error {
-                recorder.stopCapture { _ in }
-                finish(false, "录屏失败: \(error.localizedDescription)")
-            }
+        // 3) 明确降级（不再触发 ReplayKit 系统崩溃）
+        DispatchQueue.main.async {
+            completion(false, "此设备录屏不可用：iOS 16.3 侧载环境 ReplayKit 系统级崩溃（已实证 CFRetain SIGTRAP，无法捕获）。请：1. 注入目标 App 并重启后，用 control.screenshot 截屏；2. 或直接用 ui_tree / ui.tap 读取与操作界面。")
         }
-        // v2.9.179：固定 0.8s 后停（不依赖首帧——旧版等首帧才调度 stop，无帧就永远卡死，
-        // 表现为"AI 一直思考"）。无论有没有帧都必停必返回。
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-            recorder.stopCapture { _ in
-                saveLatest()
-            }
-        }
-        // v2.9.179：12s 总超时兜底——startCapture 的 completionHandler 在 TrollStore 环境
-        // 可能不被调用（授权弹窗未响应/系统卡住），此时 0.8s stop 也无帧可存，需要强制收尾
-        // 返回结果，绝不无限挂起。
-        DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
-            lock.lock()
-            let img = latestImage
-            lock.unlock()
-            if img == nil {
-                recorder.stopCapture { _ in }
-                finish(false, "录屏超时：TrollStore 环境 ReplayKit 无响应。请确认授权弹窗已允许；仍不行则改用注入截图。")
-            } else {
-                saveLatest()
-            }
-        }
-    }}
+    }
+}
 
 final class ProgressNotifier {
     static func notify(title: String, body: String) {
@@ -345,7 +284,7 @@ final class UIClipboardTool: MCPTool {
 
 final class UIScreenshotTool: MCPTool {
     let definition = ToolDefinition(name: "ui.screenshot",
-        summary: "截取当前屏幕（任意前台 App，ReplayKit）。返回图片路径供 AI 验证界面状态；首次使用需系统授权录屏。调用时务必带 reason 说明要验证什么。",
+        summary: "截取当前屏幕（安全版，v2.9.182 弃用 ReplayKit：iOS16.3 侧载环境 ReplayKit 系统级崩溃）。优先走 ControlAgent 注入截图（目标 App 在线时），兜底截 TrollAgent 自身窗口。调用时务必带 reason 说明要验证什么。",
         parameters: ["reason": "验证目的（必填，如：确认搜索框是否弹出）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let reason = params["reason"] as? String ?? ""
