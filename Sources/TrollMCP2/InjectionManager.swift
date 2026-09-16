@@ -683,22 +683,23 @@ final class InjectionManager {
     }
 
     /// 启动自检：open -b 兜底直接执行主二进制；两次探测进程均不在 → 判定闪退
+    // v2.9.190：TrollStore 无 shell（/bin/sh、/usr/bin/open、/bin/ps、spawnRoot 全部不可用，
+    // 真机实测）——原实现启动与探测全走 spawnRoot，恒失败 → 误判"注入后必闪退"并自动回滚，
+    // 导致 201 个工具里 injection.enable/control.inject 注入任意 App 都被判"闪退"。
+    // 修复：启动改用 LSWorkspace 私有 API（与 app.start 同款，185 起真机实测可拉起），
+    //       探测改用 libproc（proc_listallpids + proc_pidpath，排除 .appex，与 app.status 同款）。
     private func launchAndProbe(bundleId: String, execName: String, executable: String) -> Bool {
-        _ = spawnRoot("/usr/bin/open", args: ["-b", bundleId])
-        Thread.sleep(forTimeInterval: 1.2)
-        if appProcessAlive(execName) { return true }
-        // open -b 对部分 App 不生效（TrollStore/Flutter 壳），直接执行主二进制兜底
-        _ = spawnRoot(executable, args: [executable])
+        _ = DecryptEngine.launchApp(bundleId: bundleId, waitSeconds: 2)
         Thread.sleep(forTimeInterval: 2.0)
-        return appProcessAlive(execName)
+        if appProcessAlive(executable) { return true }
+        Thread.sleep(forTimeInterval: 3.0)
+        return appProcessAlive(executable)
     }
 
-    private func appProcessAlive(_ execName: String) -> Bool {
-        let (_, out) = spawnRoot("/bin/ps", args: ["-ax"])
-        for line in out.components(separatedBy: .newlines) {
-            if line.contains(execName) { return true }
-        }
-        return false
+    private func appProcessAlive(_ executable: String) -> Bool {
+        // executable = xxx.app/xxx；bundlePath = xxx.app（findPidByExecutable 排除 .appex 后命中主进程）
+        let bundlePath = (executable as NSString).deletingLastPathComponent
+        return findPidByExecutable(bundlePath: bundlePath) > 0
     }
 
     @discardableResult
