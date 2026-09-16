@@ -434,6 +434,12 @@ public final class ToolRegistry: ObservableObject {
                 // 递归压缩，复合工具诊断结论前置、细节按需取，防大结果占满上下文。
                 var data = Self.compactResult(result)
                 data.removeValue(forKey: "message")
+                // v2.9.167：_noMessage 标记——高频元工具（如 tool_search）返回里
+                // 明确不需要顶层 message（total/tools 已自解释），省 ~10 token/次
+                if result["_noMessage"] as? Bool == true {
+                    data.removeValue(forKey: "_noMessage")
+                    return ["ok": true, "data": data]
+                }
                 let msg = (result["message"] as? String)
                     ?? FailureKind.defaultSuccessMessage(name: originalName, result: result)
                 return ["ok": true, "message": msg, "data": data]
@@ -845,18 +851,21 @@ final class ToolSearchTool: MCPTool {
             guard let n = h["name"], !n.isEmpty else { continue }
             ToolRegistry.shared.approveForSession(n)
         }
-        // v2.9.165：去冗余——query 是 AI 自己刚发的（回显浪费）；authorized 与 tools[].name
-        // 完全重复；hint 精简；summary 截 120 字。单次搜索省 ~180 token，且是每轮最高频元工具。
+        // v2.9.167：按用户示例最紧凑形态——无 hint/无 query、authorized 保留（明确可直调）、
+        // summary 改 desc 短摘要（30 字足够 AI 判断用途）、_noMessage 省顶层 message。
+        // 单次搜索比 v2.9.165 再省 ~40 token，且信息不减。
         return [
+            "_noMessage": true,
             "total": hits.count,
+            "authorized": hits.map { $0["name"] ?? "" },
             "tools": hits.map { h -> [String: String] in
                 var d = h
-                if let s = d["summary"], s.count > 120 {
-                    d["summary"] = String(s.prefix(120)) + "…"
+                if let s = d["summary"] {
+                    d["desc"] = String(s.prefix(30))
+                    d.removeValue(forKey: "summary")
                 }
                 return d
-            },
-            "hint": "已授权，可直接调用"
+            }
         ]
     }
 }
