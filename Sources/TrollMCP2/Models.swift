@@ -1231,8 +1231,11 @@ final class ConversationStore: ObservableObject {
         return obj
     }
 
+    // v2.9.171：工具结果序列化去掉 prettyPrinted → 紧凑 JSON（无缩进空格）。
+    // 之前每层缩进 4 空格，一条 tool_search 结果缩进就占几十~上百 token，
+    // 且该字符串既展示在聊天界面又作为 tool 消息发给模型，双重烧 token。
     private static func jsonString(_ dict: [String: Any]) -> String {
-        guard let data = try? JSONSerialization.data(withJSONObject: dict, options: .prettyPrinted),
+        guard let data = try? JSONSerialization.data(withJSONObject: dict),
               let s = String(data: data, encoding: .utf8) else { return "{}" }
         return s
     }
