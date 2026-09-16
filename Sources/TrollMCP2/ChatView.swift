@@ -416,6 +416,7 @@ struct ChatView: View {
                     }
                     if store.isLoading {
                         // v2.9.34：请求过程可视化（对齐老 MCP 的"正在思考"面板）
+                        // v2.9.127：改为实时执行轨迹（豆包工作任务/Codex 式步骤流）
                         VStack(alignment: .trailing, spacing: 6) {
                             HStack {
                                 Spacer()
@@ -431,16 +432,14 @@ struct ChatView: View {
                                 .cornerRadius(14)
                                 .padding(.trailing, 16)
                             }
+                            if store.isLoading, !store.liveTrail.isEmpty {
+                                LiveTrailCard(steps: store.liveTrail)
+                                    .padding(.trailing, 16)
+                            }
                             if let status = store.statusText {
                                 Text(status)
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                                    .padding(.trailing, 16)
-                            }
-                            if let tool = store.runningTool {
-                                Text("正在执行工具 \(tool)…")
-                                    .font(.caption2)
-                                    .foregroundColor(.blue)
                                     .padding(.trailing, 16)
                             }
                             if store.requestRound > 0 {
@@ -1003,6 +1002,10 @@ struct MessageBubble: View {
             if !isUser, let th = message.thinking, !th.isEmpty {
                 thinkingView(th)
             }
+            // v2.9.127：执行轨迹（豆包/Codex 式过程流）——历史消息可展开回看
+            if !isUser, let trail = message.trail, !trail.isEmpty {
+                TrailCard(steps: trail)
+            }
             Text(message.content)
                 .font(.body)
                 .padding(.horizontal, 14)
@@ -1158,5 +1161,128 @@ struct TypingIndicator: View {
         .background(Color(.secondarySystemBackground))
         .cornerRadius(18)
         .onAppear { offset = -4 }
+    }
+}
+
+// MARK: - v2.9.127 执行轨迹组件（豆包工作任务/Codex 式过程流）
+
+/// 实时轨迹卡片：请求进行中，在"正在思考"下方竖排显示步骤流
+struct LiveTrailCard: View {
+    let steps: [TrailStep]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(steps) { step in
+                TrailRow(step: step)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.tertiarySystemBackground).opacity(0.85))
+        .cornerRadius(12)
+    }
+}
+
+/// 历史轨迹卡片：assistant 消息气泡内，可折叠展开执行全过程
+struct TrailCard: View {
+    let steps: [TrailStep]
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button(action: { withAnimation { expanded.toggle() } }) {
+                HStack(spacing: 6) {
+                    Image(systemName: expanded ? "chevron.down.circle" : "chevron.right.circle")
+                        .font(.system(size: 13))
+                    Text("执行过程（\(steps.count) 步）")
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(.blue)
+                    Spacer()
+                    Text(summaryText)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .buttonStyle(.plain)
+            if expanded {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(steps) { step in
+                        TrailRow(step: step)
+                    }
+                }
+                .padding(.top, 2)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.blue.opacity(0.06))
+        .cornerRadius(12)
+    }
+
+    private var summaryText: String {
+        let ok = steps.filter { $0.status == .success }.count
+        let fail = steps.filter { $0.status == .failed }.count
+        if fail > 0 { return "✅\(ok) ❌\(fail)" }
+        return "✅ \(ok) 步成功"
+    }
+}
+
+/// 单步行：图标 + 名称 + 状态色 + 可展开 detail
+struct TrailRow: View {
+    let step: TrailStep
+    @State private var detailExpanded = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: iconFor)
+                .font(.system(size: 12))
+                .foregroundColor(colorFor)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(step.name)
+                    .font(.caption)
+                    .fontWeight(step.status == .running ? .medium : .regular)
+                    .foregroundColor(step.status == .running ? .primary : (step.status == .failed ? .red : .primary))
+                    .lineLimit(1)
+                if step.status == .running {
+                    Text("执行中…")
+                        .font(.caption2)
+                        .foregroundColor(.blue)
+                } else if !step.detail.isEmpty {
+                    if detailExpanded {
+                        Text(step.detail)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(6)
+                            .onTapGesture { detailExpanded = false }
+                    } else {
+                        Text(step.detail)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .onTapGesture { detailExpanded = true }
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var iconFor: String {
+        switch step.kind {
+        case .think: return "brain"
+        case .tool: return "wrench.and.screwdriver"
+        case .result: return step.status == .failed ? "xmark.circle.fill" : "checkmark.circle.fill"
+        case .note: return "flag"
+        }
+    }
+
+    private var colorFor: Color {
+        switch step.status {
+        case .running: return .blue
+        case .success: return .green
+        case .failed: return .red
+        }
     }
 }

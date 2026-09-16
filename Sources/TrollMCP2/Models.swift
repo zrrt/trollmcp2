@@ -491,8 +491,31 @@ struct ChatMessage: Codable, Identifiable, Hashable {
     var imageDataURLs: [String]? = nil
     /// v2.9.20：思考记录（reasoning）。Responses API 返回的 reasoning 摘要，气泡内可展开。
     var thinking: String? = nil
+    /// v2.9.127：执行轨迹（对齐豆包工作任务/Codex turn 流）——AI 本次回复的
+    /// 思考→工具调用→工具结果 全过程，随消息持久化，可展开回看。
+    var trail: [TrailStep]? = nil
 
     var isTool: Bool { role == "tool" }
+}
+
+/// v2.9.127：执行轨迹单步（思考/工具调用/工具结果/备注）
+struct TrailStep: Codable, Identifiable, Hashable {
+    var id: UUID = UUID()
+    var kind: Kind
+    var name: String
+    var status: Status
+    var detail: String
+    var ts: Date = Date()
+
+    enum Kind: String, Codable { case think, tool, result, note }
+    enum Status: String, Codable { case running, success, failed }
+
+    static func running(_ kind: Kind, _ name: String, detail: String = "") -> TrailStep {
+        TrailStep(kind: kind, name: name, status: .running, detail: detail)
+    }
+    static func done(_ kind: Kind, _ name: String, detail: String = "", ok: Bool = true) -> TrailStep {
+        TrailStep(kind: kind, name: name, status: ok ? .success : .failed, detail: detail)
+    }
 }
 
 // MARK: - 单个会话
@@ -520,6 +543,9 @@ final class ConversationStore: ObservableObject {
     @Published var requestRounds = 60
     /// v2.9.34：正在执行的工具名（展示"正在执行工具 xxx…"）
     @Published var runningTool: String?
+    /// v2.9.127：执行轨迹（实时）——当前请求的 思考→工具调用→工具结果 步骤流，
+    /// 请求结束时随最后一条 assistant 消息持久化（message.trail）。
+    @Published var liveTrail: [TrailStep] = []
 
     // v2.9.87：网络恢复自动重试（"切后台回来网络中断"补偿）——
     // 网络类错误且当前确认为断网时，等 AppLifecycleMonitor 广播 networkRestored 后自动重发一次。
@@ -690,6 +716,32 @@ final class ConversationStore: ObservableObject {
         }
     }
 
+    /// v2.9.127：新一轮请求开始——清空实时轨迹
+    func beginTrail() {
+        DispatchQueue.main.async {
+            self.liveTrail = []
+        }
+    }
+
+    /// v2.9.127：追加一条实时轨迹步骤
+    func trailStep(_ step: TrailStep) {
+        DispatchQueue.main.async {
+            self.liveTrail.append(step)
+        }
+    }
+
+    /// v2.9.127：把实时轨迹持久化到最后一条 assistant 消息（AI 回复完成后调用）
+    func attachTrail(to messageId: UUID?) {
+        guard let sid = messageId, !liveTrail.isEmpty else { return }
+        DispatchQueue.main.async {
+            if let idx = self.selectedIndex,
+               let mi = self.conversations[idx].messages.firstIndex(where: { $0.id == sid }) {
+                self.conversations[idx].messages[mi].trail = self.liveTrail
+                self.save()
+            }
+        }
+    }
+
     private func runLoop(config: ModelConfig, tools: [[String: Any]]?, disclosed: [String], depth: Int, reasoningLevel: Int = 0) {
         // v2.9.25：不再限制工具调用轮次（用户可手动点「停止」）。
         // 仅保留 60 轮极端安全保险，正常流程永不触发，防止 AI 完全失控无限发请求。
@@ -701,7 +753,10 @@ final class ConversationStore: ObservableObject {
             // v2.9.82：后台时通知
             TaskNotify.shared.endBackground()
             TaskNotify.shared.notifyIfBackground(title: "⏹ 任务已停止", body: "达到极端安全上限（60 轮），已停止。可点「停止」中断。")
-            appendToCurrent(ChatMessage(role: "assistant", content: "已达到极端安全上限（60 轮），已停止。若 AI 仍在循环，请点输入框旁的「停止」按钮中断。", isError: true))
+            let stopMsg = ChatMessage(role: "assistant", content: "已达到极端安全上限（60 轮），已停止。若 AI 仍在循环，请点输入框旁的「停止」按钮中断。", isError: true)
+            self.appendToCurrent(stopMsg)
+            self.trailStep(.done(.note, "任务停止", detail: "达到 60 轮上限", ok: false))
+            self.attachTrail(to: stopMsg.id)
             return
         }
         // v2.9.34：请求过程可视化
@@ -709,6 +764,7 @@ final class ConversationStore: ObservableObject {
             self.requestRound = depth + 1
             self.requestRounds = 60
             self.statusText = "已准备请求（正在整理会话与可用工具）"
+            self.liveTrail = []   // v2.9.127：新一轮清空实时轨迹
         }
 
         // 动态合并：白名单 schema + 已披露工具的 schema（去重）
@@ -775,6 +831,8 @@ final class ConversationStore: ObservableObject {
                     self.currentClient = nil
                     self.requestRound = 0
                     self.runningTool = nil
+                    // v2.9.127：轨迹——回复完成，附到消息持久化
+                    self.trailStep(.done(.note, "AI 回复完成", detail: String(text.prefix(80))))
                     // v2.9.82：完成通知（后台时）
                     TaskNotify.shared.endBackground()
                     TaskNotify.shared.notifyIfBackground(title: "✅ AI 已回复", body: String(text.prefix(60)))
@@ -786,11 +844,13 @@ final class ConversationStore: ObservableObject {
                            let th = thinking, !th.isEmpty {
                             self.conversations[idx].messages[mi].thinking = th
                         }
+                        self.attachTrail(to: sid)
                         self.streamingMessageId = nil
                     } else {
                         var am = ChatMessage(role: "assistant", content: text)
                         if let th = thinking, !th.isEmpty { am.thinking = th }
                         self.appendToCurrent(am)
+                        self.attachTrail(to: am.id)
                     }
                 case .success(.toolCalls(let calls)):
                     // 工具调用：删除流式文本消息（如果有），然后显示工具调用
@@ -800,6 +860,9 @@ final class ConversationStore: ObservableObject {
                     }
                     let summary = calls.map { "调用工具 \($0.name)" }.joined(separator: "\n")
                     self.appendToCurrent(ChatMessage(role: "assistant", content: summary, toolCalls: calls))
+                    // v2.9.127：轨迹——AI 决定调用一批工具
+                    self.trailStep(.done(.tool, "AI 选择调用 \(calls.count) 个工具",
+                                         detail: calls.map { $0.name }.joined(separator: "、")))
                     // v2.9.31：递归处理一批工具调用（后台执行，无授权弹窗）
                     self.processToolCalls(calls, index: 0, toolMessages: [], newlyDisclosed: [],
                                           config: config, tools: tools, disclosed: disclosed, depth: depth,
@@ -831,10 +894,20 @@ final class ConversationStore: ObservableObject {
                     if self.streamingMessageId != nil {
                         self.streamingMessageId = nil
                     }
-                    self.appendToCurrent(ChatMessage(role: "assistant", content: "⚠️ \(error.localizedDescription)", isError: true))
+                    let errMsg = ChatMessage(role: "assistant", content: "⚠️ \(error.localizedDescription)", isError: true)
+                    self.appendToCurrent(errMsg)
+                    self.trailStep(.done(.note, "请求失败", detail: String(error.localizedDescription.prefix(200)), ok: false))
+                    self.attachTrail(to: errMsg.id)
                 }
             }
         }
+    }
+
+    /// v2.9.127：轨迹摘要——取 JSON 里 ok/message/status 等关键字段，超长截断
+    static func trailSummary(_ json: String) -> String {
+        let trimmed = json.count > 300 ? String(json.prefix(300)) : json
+        // 去掉换行压扁，便于步骤行内展示
+        return trimmed.replacingOccurrences(of: "\n", with: " ")
     }
 
     /// v2.9.31：递归处理一批工具调用。工具在后台线程执行（避免耗时操作阻塞主线程），
@@ -858,6 +931,8 @@ final class ConversationStore: ObservableObject {
         let params = Self.parseArgs(call.arguments)
         // v2.9.34：展示"正在执行工具 xxx…"
         self.runningTool = call.name
+        // v2.9.127：轨迹——单工具开始执行（参数序列化展示）
+        self.trailStep(.running(.tool, call.name, detail: Self.jsonString(params)))
         do {
             // v2.9.29：工具执行放后台线程，避免注入/文件操作等耗时调用阻塞主线程
             // （授权恢复后执行注入导致一直转圈 + 聊天框/输入框无响应）。
@@ -897,6 +972,10 @@ final class ConversationStore: ObservableObject {
             }
             var next = toolMessages
             next.append(ChatMessage(role: "tool", content: content, toolCallId: call.id, toolName: call.name))
+            // v2.9.127：轨迹——工具执行成功（结果摘要 200 字符，完整结果在 tool 消息里）
+            self.trailStep(.done(.result, call.name,
+                                 detail: Self.trailSummary(rawContent),
+                                 ok: true))
             var nextDisclosed = newlyDisclosed
             // v2.9.16：tool_search 命中后，把搜到的工具名加入待披露集合
             // v2.9.27：修复披露 bug——ToolSearchTool 返回 [[String: String]]，
@@ -931,12 +1010,19 @@ final class ConversationStore: ObservableObject {
             }
             let content = Self.jsonString(failureBody)
             next.append(ChatMessage(role: "tool", content: content, isError: true, toolCallId: call.id, toolName: call.name))
+            // v2.9.127：轨迹——工具执行失败（四分类错误摘要）
+            self.trailStep(.done(.result, call.name,
+                                 detail: Self.trailSummary(Self.jsonString(failureBody)),
+                                 ok: false))
             self.processToolCalls(calls, index: index + 1, toolMessages: next, newlyDisclosed: newlyDisclosed,
                                   config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
         case .failure(let err):
             var next = toolMessages
             next.append(ChatMessage(role: "tool", content: Self.jsonString(["ok": false, "message": err.localizedDescription]),
                                     isError: true, toolCallId: call.id, toolName: call.name))
+            self.trailStep(.done(.result, call.name,
+                                 detail: "❌ \(err.localizedDescription.prefix(200))",
+                                 ok: false))
             self.processToolCalls(calls, index: index + 1, toolMessages: next, newlyDisclosed: newlyDisclosed,
                                   config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
         }
