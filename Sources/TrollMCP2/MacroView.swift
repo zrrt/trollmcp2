@@ -173,20 +173,21 @@ struct MacroView: View {
 
     private func runMacro(name: String, loop: Int) {
         ui.macroPresented = false
-        // 切回聊天/主界面展示回放（控制中心自动弹出）
-        var out: [String: Any] = [:]
-        let sem = DispatchSemaphore(value: 0)
-        MacroRunner.run(name: name, loop: loop, stepDelayMs: 300) { ok, msg in
-            out["ok"] = ok
-            out["message"] = msg
-            sem.signal()
-        }
-        _ = sem.wait(timeout: .now() + 600)
-        // 运行完成回到宏页刷新
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            ui.macroPresented = true
-            refresh()
-            showToast(out["message"] as? String ?? "完成")
+        // 等宏页 cover 关闭动画完成再回放，避免与控制中心 cover 冲突
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            var out: [String: Any] = [:]
+            let sem = DispatchSemaphore(value: 0)
+            MacroRunner.run(name: name, loop: loop, stepDelayMs: 300) { ok, msg in
+                out["ok"] = ok
+                out["message"] = msg
+                sem.signal()
+            }
+            _ = sem.wait(timeout: .now() + 600)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                ui.macroPresented = true
+                refresh()
+                showToast(out["message"] as? String ?? "完成")
+            }
         }
     }
 
