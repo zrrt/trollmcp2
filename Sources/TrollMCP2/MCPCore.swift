@@ -425,7 +425,9 @@ public final class ToolRegistry: ObservableObject {
                 WorkflowManager.shared.updateStep(tool: originalName, detail: "\(elapsedMs)ms", success: true)
                 // v2.9.125：CLI 式统一返回——顶层只留 ok/message，细节收进 data。
                 // AI 读 message 一眼判成败；需要排障才展开 data。
-                var data = result
+                // v2.9.137：结果摘要化——data 内大数组（>20）/大字符串（>4000）
+                // 递归压缩，复合工具诊断结论前置、细节按需取，防大结果占满上下文。
+                var data = Self.compactResult(result)
                 data.removeValue(forKey: "message")
                 let msg = (result["message"] as? String)
                     ?? FailureKind.defaultSuccessMessage(name: originalName, result: result)
@@ -463,6 +465,43 @@ public final class ToolRegistry: ObservableObject {
 
     /// v2.9.134：提取"返回式错误"（工具不 throw 而是 return ["error":...]/["ok":false]/
     /// ["status":"failed"]）。返回 nil 表示该结果应视为成功。
+    /// v2.9.137：结果摘要化（递归）——大数组保持数组但截断并末尾加省略标记，
+    /// 大字符串截断并附总长度。返回后 AI 仍能读结论字段，细节可带 limit 重取。
+    static func compactResult(_ root: [String: Any], arrLimit: Int = 20, strLimit: Int = 4000) -> [String: Any] {
+        var out: [String: Any] = [:]
+        for (k, v) in root {
+            switch v {
+            case let s as String:
+                if s.count > strLimit {
+                    out[k] = String(s.prefix(strLimit)) + "\n…[截断 共\(s.count)字符，需完整请用 limit/范围参数缩小]"
+                } else {
+                    out[k] = s
+                }
+            case let arr as [[String: Any]]:
+                if arr.count > arrLimit {
+                    var cut = Array(arr.prefix(arrLimit))
+                    cut.append(["…[共\(arr.count)项，已截断，仅显示前 \(arrLimit) 项]"])
+                    out[k] = cut
+                } else {
+                    out[k] = arr.map { compactResult($0) }
+                }
+            case let arr as [Any]:
+                if arr.count > arrLimit {
+                    var cut = Array(arr.prefix(arrLimit))
+                    cut.append("…[共\(arr.count)项，已截断，仅显示前 \(arrLimit) 项]")
+                    out[k] = cut
+                } else {
+                    out[k] = arr.map { ($0 as? [String: Any]).map(compactResult) ?? $0 }
+                }
+            case let d as [String: Any]:
+                out[k] = compactResult(d)
+            default:
+                out[k] = v
+            }
+        }
+        return out
+    }
+
     static func extractReturnedError(_ result: [String: Any]) -> (message: String)? {
         // ① 显式 ok:false
         if result["ok"] as? Bool == false {

@@ -344,6 +344,91 @@ final class KnowledgeStore {
         ensure()
         return (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
     }
+
+    /// v2.9.137：BM25 本地加权检索（零依赖，中英混合分词）
+    /// 返回按相关性排序的命中行；无命中返回空数组（调用方回退 contains）
+    func bm25Search(query: String, limit: Int = 15) -> [(file: String, line: Int, snippet: String, score: Double)] {
+        let qTokens = BM25Tokenizer.tokenize(query)
+        guard !qTokens.isEmpty else { return [] }
+        // 文档 = 行。一次扫描所有知识库文件构建索引（本地文件小，查询频率低）
+        var docs: [(file: String, line: Int, text: String, tokens: [String])] = []
+        var df: [String: Int] = [:]      // 含 token 的行数
+        var totalLines = 0
+        var totalTokens = 0
+        for file in list() {
+            let url = dir.appendingPathComponent(file)
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            let lines = text.components(separatedBy: .newlines)
+            for (i, line) in lines.enumerated() {
+                let toks = BM25Tokenizer.tokenize(line)
+                guard !toks.isEmpty else { continue }
+                docs.append((file, i + 1, line, toks))
+                totalLines += 1
+                totalTokens += toks.count
+                for t in Set(toks) { df[t, default: 0] += 1 }
+            }
+        }
+        guard !docs.isEmpty else { return [] }
+        let avgdl = Double(totalTokens) / Double(totalLines)
+        let N = Double(totalLines)
+        let k1 = 1.5, b = 0.75
+        // 查询 token 只取出现过的（避免全零）
+        let querySet = Set(qTokens).filter { df[$0] != nil }
+        guard !querySet.isEmpty else { return [] }
+        // idf 预计算
+        var idf: [String: Double] = [:]
+        for t in querySet {
+            let n = Double(df[t] ?? 0)
+            idf[t] = log(1 + (N - n + 0.5) / (n + 0.5))
+        }
+        // 逐行打分
+        var scored: [(file: String, line: Int, snippet: String, score: Double)] = []
+        for d in docs {
+            var score = 0.0
+            let dl = Double(d.tokens.count)
+            var tf: [String: Int] = [:]
+            for t in d.tokens { tf[t, default: 0] += 1 }
+            for t in querySet {
+                let f = Double(tf[t] ?? 0)
+                guard f > 0 else { continue }
+                score += (idf[t] ?? 0) * (f * (k1 + 1)) / (f + k1 * (1 - b + b * dl / avgdl))
+            }
+            if score > 0 {
+                scored.append((d.file, d.line, d.text.trimmingCharacters(in: .whitespaces), score))
+            }
+        }
+        scored.sort { $0.score > $1.score }
+        return Array(scored.prefix(limit))
+    }
+}
+
+/// v2.9.137：BM25 分词器——ASCII 词 + 中文 bigram/单字，零依赖
+enum BM25Tokenizer {
+    static func tokenize(_ s: String) -> [String] {
+        var tokens: [String] = []
+        let ns = s as NSString
+        if let ascii = try? NSRegularExpression(pattern: "[a-zA-Z0-9][a-zA-Z0-9_\\-]{1,}") {
+            ascii.enumerateMatches(in: s, range: NSRange(location: 0, length: ns.length)) { m, _, _ in
+                if let r = m?.range, r.location != NSNotFound {
+                    tokens.append(ns.substring(with: r).lowercased())
+                }
+            }
+        }
+        if let cjk = try? NSRegularExpression(pattern: "[\\u4e00-\\u9fff]+") {
+            cjk.enumerateMatches(in: s, range: NSRange(location: 0, length: ns.length)) { m, _, _ in
+                guard let r = m?.range, r.location != NSNotFound else { return }
+                let chars = Array(ns.substring(with: r))
+                if chars.count == 1 {
+                    tokens.append(String(chars[0]))
+                }
+                for i in 0..<(chars.count - 1) {
+                    tokens.append(String(chars[i]) + String(chars[i + 1]))
+                }
+                for c in chars { tokens.append(String(c)) }
+            }
+        }
+        return tokens
+    }
 }
 
 final class KnowledgeImportTextTool: MCPTool {
@@ -382,11 +467,20 @@ final class KnowledgeImportFileTool: MCPTool {
 
 final class KnowledgeSearchTool: MCPTool {
     let definition = ToolDefinition(name: "knowledge.search",
-        summary: "在本机知识库检索",
-        parameters: ["query": "关键词"])
+        summary: "在本机知识库检索（BM25 加权相关度排序，语义优于关键词 contains；无命中自动回退关键词匹配）",
+        parameters: ["query": "查询内容", "limit": "最多返回条数（默认 15，最大 50）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let query = params["query"] as? String, !query.isEmpty else { throw MCPError.invalidParams("query required") }
         KnowledgeStore.shared.ensure()
+        let limit = min(max(params["limit"] as? Int ?? 15, 1), 50)
+        // 主路径：BM25 加权检索
+        let scored = KnowledgeStore.shared.bm25Search(query: query, limit: limit)
+        if !scored.isEmpty {
+            AuditLog.shared.log("knowledge.search", detail: "\(query) → BM25 \(scored.count) 条")
+            return ["query": query, "engine": "bm25", "count": scored.count,
+                    "hits": scored.map { ["file": $0.file, "line": $0.line, "snippet": $0.snippet, "score": Double(round($0.score * 1000) / 1000)] }]
+        }
+        // 回退：关键词 contains
         var hits: [[String: Any]] = []
         for file in KnowledgeStore.shared.list() {
             let url = KnowledgeStore.shared.dir.appendingPathComponent(file)
@@ -394,11 +488,11 @@ final class KnowledgeSearchTool: MCPTool {
             let lines = text.components(separatedBy: .newlines)
             for (i, line) in lines.enumerated() where line.localizedCaseInsensitiveContains(query) {
                 hits.append(["file": file, "line": i + 1, "snippet": line.trimmingCharacters(in: .whitespaces)])
-                if hits.count >= 30 { break }
+                if hits.count >= limit { break }
             }
         }
-        AuditLog.shared.log("knowledge.search", detail: "\(query) → \(hits.count)")
-        return ["query": query, "count": hits.count, "hits": hits]
+        AuditLog.shared.log("knowledge.search", detail: "\(query) → contains \(hits.count) 条")
+        return ["query": query, "engine": "contains", "count": hits.count, "hits": hits]
     }
 }
 
