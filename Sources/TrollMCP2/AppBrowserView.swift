@@ -259,6 +259,12 @@ struct AppBrowserContainer: View {
         DispatchQueue.global(qos: .userInitiated).async {
             let list = AppCatalog.list()
             let running = AppCatalog.runningExecNames()
+            // v2.9.164：预加载全部图标到 NSCache——避免列表滚动时 cell onAppear
+            // 逐个后台读文件导致"图标过好久才显示"。首次进页转圈 1~2 秒换全量图标就绪，
+            // 之后进页全部命中缓存。AppIconLoader 自身线程安全（NSCache）。
+            for app in list {
+                _ = AppIconLoader.shared.icon(forPath: app.path)
+            }
             DispatchQueue.main.async {
                 apps = list
                 runningIds = running

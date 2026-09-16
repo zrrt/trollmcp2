@@ -141,15 +141,16 @@ final class AppCatalog {
     /// v2.9.128：运行中 App 的可执行名集合（ps -ax，匹配 execName；兼容 16 字符截断）
     static func runningExecNames() -> Set<String> {
         var set = Set<String>()
-        // v2.9.163：ps -axo pid,comm 只输出命令名（-ax 行尾带完整参数导致 execName 匹配失败，运行中恒空）
-        let (_, out) = InjectionManager.shared.spawnRoot("/bin/ps", args: ["-axo", "pid,comm"], timeout: 10)
+        // v2.9.164：ps -ax 解析——BSD ps 在 iOS 精简版不支持 -o pid,comm（163 实测运行中仍空），
+        // 回退 -ax 并取"第 4 列起第一个 token"为命令名（PID TTY TIME CMD[带参数]），
+        // 命令名带路径取 lastPathComponent，兼容 (WeChat) 括号形态。
+        let (_, out) = InjectionManager.shared.spawnRoot("/bin/ps", args: ["-ax"], timeout: 10)
         for line in out.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
             let parts = trimmed.split(separator: " ", omittingEmptySubsequences: true)
-            guard let cmd = parts.last else { continue }
-            // comm 可能带路径/括号（如 (WeChat)），取纯命令名
-            var name = String(cmd)
+            guard parts.count >= 4 else { continue }
+            var name = String(parts[3])
             if name.hasPrefix("(") { name.removeFirst() }
             if name.hasSuffix(")") { name.removeLast() }
             name = (name as NSString).lastPathComponent

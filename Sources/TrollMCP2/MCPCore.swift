@@ -474,15 +474,33 @@ public final class ToolRegistry: ObservableObject {
     /// 大字符串截断并附总长度。返回后 AI 仍能读结论字段，细节可带 limit 重取。
     /// `content` 字段（fs.read/artifact.read_text 的文件内容）保留完整——
     /// 它们已由 max_bytes 参数控制读取量，不能再截断。
+    /// v2.9.164：大字符串落盘到工作区 tool_spill/（完整内容保留，AI 按路径再读）
+    static func spillLarge(_ key: String, _ content: String) -> String {
+        let dir = Workspace.root.appendingPathComponent("tool_spill", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let name = "spill_\(Int(Date().timeIntervalSince1970))_\(key.replacingOccurrences(of: "/", with: "_")).txt"
+        let url = dir.appendingPathComponent(name)
+        try? content.write(to: url, atomically: true, encoding: .utf8)
+        return url.path
+    }
+
     static func compactResult(_ root: [String: Any], arrLimit: Int = 20, strLimit: Int = 4000) -> [String: Any] {
         var out: [String: Any] = [:]
         for (k, v) in root {
             switch v {
             case let s as String:
-                if k == "content" || s.count <= strLimit {
-                    out[k] = s
+                // v2.9.164：先压多余空行（\n{3,}→\n\n）与行尾空格——日志/hexdump 的空行
+                // 在模型侧也是 token，压缩后单次可省数百 token，且不破坏内容结构。
+                var t = s.replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
+                t = t.split(separator: "\n", omittingEmptySubsequences: false).map {
+                    $0.trimmingCharacters(in: .whitespaces)
+                }.joined(separator: "\n")
+                if k == "content" || t.count <= strLimit {
+                    out[k] = t
                 } else {
-                    out[k] = String(s.prefix(strLimit)) + "\n…[截断 共\(s.count)字符，需完整请用 limit/范围参数缩小]"
+                    // 截断 + 落盘：完整内容写工作区 tool_spill/，AI 需要细节可再读文件
+                    let spillPath = Self.spillLarge(k, t)
+                    out[k] = String(t.prefix(strLimit)) + "\n…[截断 共\(t.count)字符，完整内容: \(spillPath)]"
                 }
             case let arr as [[String: Any]]:
                 if arr.count > arrLimit {
