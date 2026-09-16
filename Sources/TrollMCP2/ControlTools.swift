@@ -84,7 +84,9 @@ final class ControlAgentTools {
                 "next_step": "启动目标 App 后调用 control.status 确认连接，然后用 control.ui_tree / control.tap 等控制；真后台保活已开启，目标 App 切后台不挂起"
             ]
         } catch {
-            return ["error": "注入失败: \(error.localizedDescription)", "bundle_id": bundleId]
+            // v2.9.189：用 \(error) 而非 localizedDescription——纯 Swift Error 的
+            // localizedDescription 会被 NSError bridge 抹成"未能完成操作。"，真实原因丢失
+            return ["error": "注入失败: \(error)", "bundle_id": bundleId]
         }
     }
 
