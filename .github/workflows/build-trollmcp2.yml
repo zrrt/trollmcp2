@@ -4,6 +4,8 @@ name: build-trollmcp2
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
 
 jobs:
   build:
