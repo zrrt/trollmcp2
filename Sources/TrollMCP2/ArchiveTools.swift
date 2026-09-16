@@ -186,7 +186,8 @@ enum DebReader {
     private static func decompressCompression(_ data: Data, algorithm: compression_algorithm) -> Data? {
         var out = Data()
         let src = (data as NSData).bytes.bindMemory(to: UInt8.self, capacity: data.count)
-        var stream = compression_stream(dst_ptr: nil, dst_size: 0, src_ptr: src, src_size: data.count, state: nil)
+        var dummyDst: UInt8 = 0
+        var stream = compression_stream(dst_ptr: &dummyDst, dst_size: 0, src_ptr: src, src_size: data.count, state: nil)
         guard compression_stream_init(&stream, COMPRESSION_STREAM_DECODE, algorithm) != COMPRESSION_STATUS_ERROR else {
             return nil
         }

@@ -487,7 +487,7 @@ public final class ToolRegistry: ObservableObject {
             case let arr as [[String: Any]]:
                 if arr.count > arrLimit {
                     var cut = Array(arr.prefix(arrLimit))
-                    cut.append(["…[共\(arr.count)项，已截断，仅显示前 \(arrLimit) 项]"])
+                    cut.append(["note": "…[共\(arr.count)项，已截断，仅显示前 \(arrLimit) 项]"])
                     out[k] = cut
                 } else {
                     out[k] = arr.map { compactResult($0) }
@@ -498,7 +498,7 @@ public final class ToolRegistry: ObservableObject {
                     cut.append("…[共\(arr.count)项，已截断，仅显示前 \(arrLimit) 项]")
                     out[k] = cut
                 } else {
-                    out[k] = arr.map { ($0 as? [String: Any]).map(compactResult) ?? $0 }
+                    out[k] = arr.map { ($0 as? [String: Any]).map { Self.compactResult($0) } ?? $0 }
                 }
             case let d as [String: Any]:
                 out[k] = compactResult(d)
@@ -509,18 +509,18 @@ public final class ToolRegistry: ObservableObject {
         return out
     }
 
-    static func extractReturnedError(_ result: [String: Any]) -> (message: String)? {
+    static func extractReturnedError(_ result: [String: Any]) -> String? {
         // ① 显式 ok:false
         if result["ok"] as? Bool == false {
-            return (message: Self.errorMessage(from: result["error"], fallback: "工具返回 ok=false"))
+            return Self.errorMessage(from: result["error"], fallback: "工具返回 ok=false")
         }
         // ② error 键（String 或 [String:Any] 字典）
         if let errBox = result["error"] {
-            return (message: Self.errorMessage(from: errBox, fallback: "工具返回错误（未提供原因）"))
+            return Self.errorMessage(from: errBox, fallback: "工具返回错误（未提供原因）")
         }
         // ③ status 失败态
         if let st = result["status"] as? String, ["failed", "error", "failure"].contains(st.lowercased()) {
-            return (message: Self.errorMessage(from: result["reason"] ?? result["error"], fallback: "工具返回失败状态 \(st)"))
+            return Self.errorMessage(from: result["reason"] ?? result["error"], fallback: "工具返回失败状态 \(st)")
         }
         return nil
     }

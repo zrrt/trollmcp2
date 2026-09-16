@@ -243,7 +243,7 @@ final class ModelStore: ObservableObject {
         let dup = configs.contains { $0.baseURL == config.baseURL && $0.model == config.model }
         guard !dup else { return false }
         add(config)
-        markUsed(config.id)
+        markUsed(config.id.uuidString)
         return true
     }
 
@@ -844,11 +844,6 @@ final class ConversationStore: ObservableObject {
                     self.statusText = status
                 }
             }
-        }, onThinking: { delta in
-            // v2.9.127：实时思考流式——逐段追加到轨迹的"正在思考"步骤
-            DispatchQueue.main.async {
-                self.appendThinking(delta)
-            }
         }, onDelta: { delta in
             // v2.9.53：流式逐字显示
             DispatchQueue.main.async {
@@ -863,6 +858,11 @@ final class ConversationStore: ObservableObject {
                     self.streamingMessageId = msg.id
                     self.appendToCurrent(msg)
                 }
+            }
+        }, onThinking: { delta in
+            // v2.9.127：实时思考流式——逐段追加到轨迹的"正在思考"步骤
+            DispatchQueue.main.async {
+                self.appendThinking(delta)
             }
         }) { result in
             DispatchQueue.main.async {

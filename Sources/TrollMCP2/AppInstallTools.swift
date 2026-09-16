@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 // v2.9.131：AI 安装/卸载 App——补全"下载 IPA → 安装 → 注入 → 启动 → 控制"全链路
 // TrollStore 官方 trollstorehelper 静默安装优先（/var/usr/bin/trollstorehelper），

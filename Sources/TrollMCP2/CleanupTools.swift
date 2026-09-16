@@ -169,7 +169,7 @@ final class CleanupExecuteTool: MCPTool {
 final class CleanupAiTool: MCPTool {
     let definition = ToolDefinition(
         name: "cleanup.ai",
-        summary: "AI 全自动清理指定 App：扫描可清理项 → 按风险执行（默认只清 safe；auto=true 连 warn 也清；danger 项除非 confirm=true 否则跳过）→ 重新扫描验证 → 输出报告。适合"一键清理"",
+        summary: "AI 全自动清理指定 App：扫描可清理项 → 按风险执行（默认只清 safe；auto=true 连 warn 也清；danger 项除非 confirm=true 否则跳过）→ 重新扫描验证 → 输出报告。适合「一键清理」",
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "auto": "可选：true 连警告级（钥匙串/广告符）一起清（默认 false 只清安全项）",

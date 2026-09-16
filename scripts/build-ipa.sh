@@ -8,12 +8,12 @@ cd "$(dirname "$0")/.."
 SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
 echo ">>> iphoneos SDK: $SDK"
 
-echo ">>> swift build (arm64-apple-ios14.0, release)"
+echo ">>> swift build (arm64-apple-ios16.0, release)"
 swift build -c release \
     -Xswiftc -sdk -Xswiftc "$SDK" \
-    -Xswiftc -target -Xswiftc arm64-apple-ios14.0 \
+    -Xswiftc -target -Xswiftc arm64-apple-ios16.0 \
     -Xcc -isysroot -Xcc "$SDK" \
-    -Xcc -target -Xcc arm64-apple-ios14.0
+    -Xcc -target -Xcc arm64-apple-ios16.0
 
 BIN=".build/release/TrollMCP2"
 test -f "$BIN"

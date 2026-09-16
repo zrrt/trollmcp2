@@ -143,43 +143,56 @@ final class HIDTouchInjector {
 // 需用户首次授权「录屏」；授权后可在任何前台 App 下截全屏。
 
 final class ScreenCapture {
+    /// 截当前屏幕（含任意前台 App）：ReplayKit startCapture 取首帧视频后立即停止。
+    /// 需首次录屏授权；授权后可截任意前台 App（AI 控制目标 App 时的现场证据）。
     static func take(completion: @escaping (Bool, String) -> Void) {
-        guard RPScreenRecorder.shared().isAvailable else {
+        let recorder = RPScreenRecorder.shared()
+        guard recorder.isAvailable else {
             completion(false, "RPScreenRecorder 不可用")
             return
         }
-        RPScreenRecorder.shared().takeScreenshot { sampleBuffer, error in
-            if let err = error {
+        var done = false
+        recorder.startCapture(handler: { sampleBuffer, bufferType, _ in
+            guard !done else { return }
+            if bufferType == .video {
+                done = true
+                recorder.stopCapture { _, _ in }
+                guard let pixel = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+                    completion(false, "截图转码失败")
+                    return
+                }
+                let ci = CIImage(cvPixelBuffer: pixel)
+                let ctx = CIContext()
+                guard let cg = ctx.createCGImage(ci, from: ci.extent) else {
+                    completion(false, "CGImage 生成失败")
+                    return
+                }
+                let img = UIImage(cgImage: cg)
+                let dir = Workspace.root.appendingPathComponent("control_shots", isDirectory: true)
+                try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                let url = dir.appendingPathComponent("shot_\(Int(Date().timeIntervalSince1970)).png")
+                guard let data = img.pngData() else {
+                    completion(false, "PNG 编码失败")
+                    return
+                }
+                do {
+                    try data.write(to: url)
+                    completion(true, url.path)
+                } catch {
+                    completion(false, "保存失败: \(error.localizedDescription)")
+                }
+            }
+        }) { error in
+            if let err = error, !done {
                 completion(false, "截图失败: \(err.localizedDescription)（需在系统设置允许 TrollAgent 录屏）")
-                return
             }
-            guard let buf = sampleBuffer else {
-                completion(false, "截图返回空")
-                return
-            }
-            guard let pixel = CMSampleBufferGetImageBuffer(buf) else {
-                completion(false, "截图转码失败")
-                return
-            }
-            let ci = CIImage(cvPixelBuffer: pixel)
-            let ctx = CIContext()
-            guard let cg = ctx.createCGImage(ci, from: ci.extent) else {
-                completion(false, "CGImage 生成失败")
-                return
-            }
-            let img = UIImage(cgImage: cg)
-            let dir = Workspace.root.appendingPathComponent("control_shots", isDirectory: true)
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            let url = dir.appendingPathComponent("shot_\(Int(Date().timeIntervalSince1970)).png")
-            guard let data = img.pngData() else {
-                completion(false, "PNG 编码失败")
-                return
-            }
-            do {
-                try data.write(to: url)
-                completion(true, url.path)
-            } catch {
-                completion(false, "保存失败: \(error.localizedDescription)")
+        }
+        // 兜底：8 秒未取到帧视为失败
+        DispatchQueue.global().asyncAfter(deadline: .now() + 8) {
+            if !done {
+                done = true
+                recorder.stopCapture { _, _ in }
+                completion(false, "截图超时（未取到画面帧）")
             }
         }
     }

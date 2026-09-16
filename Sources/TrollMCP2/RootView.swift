@@ -70,7 +70,8 @@ struct RootView: View {
             markOnboardingDone()
         }) {
             OnboardingView {
-                markOnboardingDone()                showOnboarding = false
+                markOnboardingDone()
+                showOnboarding = false
             }
         }
         // v2.9.139：AI 控制中心（控制任意 App 时的计划/进度/日志/结果页）

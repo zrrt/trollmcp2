@@ -35,7 +35,7 @@ enum AppLaunchWithOptions {
             dlclose(handle)
         }
         // 回退：无参启动
-        return AdvancedTools.launchApp(bundleId: bundleId)
+        return ProcessHelper.launchApp(bundleId: bundleId)
     }
 }
 

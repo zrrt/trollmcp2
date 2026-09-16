@@ -143,8 +143,8 @@ struct MacroView: View {
                 runButton(name, loop: 1, label: "▶ 1")
                 runButton(name, loop: 5, label: "▶ 5")
                 Button {
-                    let (ok, msg) = MacroStore.delete(name)
-                    showToast(msg)
+                    let ok = MacroStore.delete(name)
+                    showToast(ok ? L10n.t("ui_195", "删除") + " ✓" : L10n.t("ui_195", "删除") + " ✗")
                     refresh()
                 } label: {
                     Label(L10n.t("ui_195", "删除"), systemImage: "trash")

@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "TrollMCP2",
-    platforms: [.iOS(.v14)],
+    platforms: [.iOS(.v16)],
     targets: [
         .executableTarget(
             name: "TrollMCP2",

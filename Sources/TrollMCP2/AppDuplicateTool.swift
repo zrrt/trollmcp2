@@ -31,7 +31,7 @@ final class AppDuplicateTool: MCPTool {
         let fm = FileManager.default
         let im = InjectionManager.shared
         let workspace = Workspace.root
-        let dupRoot = workspace + "/duplicates"
+        let dupRoot = workspace.appendingPathComponent("duplicates").path
         try? fm.createDirectory(atPath: dupRoot, withIntermediateDirectories: true)
 
         // 1. 目标 bundle id：默认 原ID.dup，冲突则追加序号

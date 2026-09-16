@@ -110,8 +110,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
                 isDefault: false,
                 temperature: temp,
                 maxTokens: maxTokens,
-                contextTokens: context,
                 compatLevel: 0,
+                contextTokens: context,
                 group: group.isEmpty ? "默认" : group
             )
             PendingImport.shared.stage(config)

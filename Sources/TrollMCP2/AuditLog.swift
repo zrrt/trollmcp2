@@ -153,18 +153,20 @@ final class AuditLog: ObservableObject {
             if let ms = e.elapsedMs { v.ms.append(ms) }
             map[k] = v
         }
-        return map
+        let ranked = map
             .map { (tool: $0.key, v: $0.value) }
             .filter { $0.v.f > 0 || $0.v.s > 0 }
             .sorted { $0.v.f != $1.v.f ? $0.v.f > $1.v.f : $0.tool < $1.tool }
             .prefix(limit)
-            .map {
-                let avg = $0.v.ms.isEmpty ? 0 : $0.v.ms.reduce(0, +) / $0.v.ms.count
-                let topCode = $0.v.code.max { $0.value < $1.value }?.key ?? "ok"
-                return ToolHealth(tool: $0.tool, success: $0.v.s, failure: $0.v.f,
+        var out: [ToolHealth] = []
+        for item in ranked {
+            let avg = item.v.ms.isEmpty ? 0 : item.v.ms.reduce(0, +) / item.v.ms.count
+            let topCode = item.v.code.max { $0.value < $1.value }?.key ?? "ok"
+            out.append(ToolHealth(tool: item.tool, success: item.v.s, failure: item.v.f,
                                   avgMs: avg, topCode: topCode,
-                                  lastFailureDetail: String($0.v.lastFail.prefix(160)))
-            }
+                                  lastFailureDetail: String(item.v.lastFail.prefix(160))))
+        }
+        return out
     }
 
     /// 错误码分布（env/target/param/tool + unknown）
