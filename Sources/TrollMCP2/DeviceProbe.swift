@@ -192,10 +192,17 @@ final class DeviceProbe: ObservableObject {
         return false
     }
 
-    /// v2.9.153：SecTask 读取本进程代码签名里的 entitlements（最可靠——直接读签名，不靠行为推断）
+    // v2.9.153b：SecTask 是私有 API（公共 SDK 不导出），用 @_silgen_name 直接声明符号
+    @_silgen_name("SecTaskCreateFromSelf")
+    private func secTaskCreateFromSelf(_ allocator: CFAllocator?) -> CFTypeRef?
+
+    @_silgen_name("SecTaskCopyValueForEntitlement")
+    private func secTaskCopyValueForEntitlement(_ task: CFTypeRef, _ entitlement: CFString, _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> CFTypeRef?
+
+    /// v2.9.153：读取本进程代码签名里的 entitlements（最可靠——直接读签名，不靠行为推断）
     private func readOwnEntitlement(_ key: String) -> Bool {
-        guard let task = SecTaskCreateFromSelf(nil) else { return false }
-        guard let v = SecTaskCopyValueForEntitlement(task, key as CFString, nil) else { return false }
+        guard let task = secTaskCreateFromSelf(nil) else { return false }
+        guard let v = secTaskCopyValueForEntitlement(task, key as CFString, nil) else { return false }
         return CFGetTypeID(v) == CFBooleanGetTypeID() && CFBooleanGetValue(v as! CFBoolean)
     }
 
