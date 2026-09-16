@@ -103,9 +103,18 @@ final class DeviceProbe: ObservableObject {
 
         var checks: [Check] = []
         checks.append(Check(label: "TrollStore 已安装", passed: trollStore, detail: trollStore ? "检测到 TrollStore App 或越狱根" : "未检测到 TrollStore / 越狱环境", infoOnly: false))
-        checks.append(Check(label: "TrollStore Entitlements 权限", passed: true, detail: entDetail, infoOnly: true))
+        // v2.9.154：Entitlements 检测已可靠（SecTask 读签名），恢复打勾/红叉
+        checks.append(Check(label: "TrollStore Entitlements 权限", passed: ent.noSandbox, detail: entDetail, infoOnly: false))
         checks.append(Check(label: "TrollFools 已安装", passed: trollFools, detail: trollFools ? "检测到 TrollFools（可注入）" : "未检测到 TrollFools，注入需手动", infoOnly: false))
-        checks.append(Check(label: "task_for_pid 权限", passed: taskForPid || ent.taskForPidAllow, detail: (taskForPid || ent.taskForPidAllow) ? "实测可获取 launchd(pid1) 端口，进程级操作可用" : "无 task_for_pid-allow，进程级操作受限", infoOnly: false))
+        let tfpDetail: String
+        if taskForPid {
+            tfpDetail = "实测可获取其他进程端口，进程级操作可用"
+        } else if ent.taskForPidAllow {
+            tfpDetail = "签名含 task_for_pid-allow，但实测获取进程端口被系统拒绝（需越狱或特殊配置）"
+        } else {
+            tfpDetail = "无 task_for_pid-allow，进程级操作受限"
+        }
+        checks.append(Check(label: "task_for_pid 权限", passed: taskForPid, detail: tfpDetail, infoOnly: false))
         checks.append(Check(label: "App 容器任意读写", passed: containerWrite, detail: containerWrite ? "AppDataContainers 权限生效，可写任意 App 沙盒" : "无法写入其他 App 容器（缺 entitlement）", infoOnly: false))
         for (name, ok) in injectionBinaries.sorted(by: { $0.key < $1.key }) {
             checks.append(Check(label: "注入二进制 \(name)", passed: ok, detail: ok ? "已捆绑且可执行" : "缺失或不可执行", infoOnly: false))
@@ -180,16 +189,24 @@ final class DeviceProbe: ObservableObject {
         }
     }
 
-    // v2.9.153：真实测 task_for_pid-allow——之前用 getpid()（自己）恒成功=假阳性。
-    // 改成拿 pid=1（launchd）的 task port：只有持有 task_for_pid-allow 才能获取其他进程端口。
+    // v2.9.154：真实测 task_for_pid-allow。
+    // 153 用 pid=1(launchd)——但 TrollStore 是非越狱环境，拿特权进程端口会被系统拒绝
+    // （用户反馈"amfid 不生效"）。注入实际场景是拿"普通 App 进程"端口，
+    // 因此 spawn 一个用户级子进程(/usr/bin/true)来实测——与注入任意 App 完全等价。
     private func testTaskForPid() -> Bool {
+        var pid: pid_t = 0
+        var argv: [UnsafeMutablePointer<CChar>?] = [strdup("/usr/bin/true"), nil]
+        defer { argv.forEach { free($0) } }
+        let sr = posix_spawn(&pid, "/usr/bin/true", nil, nil, &argv, nil)
+        guard sr == 0 else { return false }
         var task: UInt32 = 0
-        let kr = tm_task_for_pid(tm_mach_task_self(), 1, &task)
+        let kr = tm_task_for_pid(tm_mach_task_self(), pid, &task)
         if kr == 0 {
             _ = tm_mach_port_deallocate(tm_mach_task_self(), task)
-            return true
         }
-        return false
+        kill(pid, SIGKILL)
+        waitpid(pid, nil, 0)
+        return kr == 0
     }
 
     // v2.9.153b：SecTask 是私有 API（公共 SDK 不导出），用 @_silgen_name 直接声明符号
