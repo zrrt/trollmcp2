@@ -203,7 +203,15 @@ final class AppEncryptInfoTool: MCPTool {
         return Int32(digits) ?? -1
     }
 
+    /// v2.9.184：改 libproc 枚举（TrollStore 无 shell 环境 ps 不可用，实测 running 恒 false）
     private func findPidFor(by bundleId: String) -> Int32 {
+        if let entry = AppCatalog.find(bundleId) {
+            let exePath = entry.path + "/" + entry.execName
+            let pid = findPidByExecutable(bundlePath: exePath)
+            if pid > 0 { return pid }
+            let pid2 = findPidByExecutable(bundlePath: entry.path)
+            if pid2 > 0 { return pid2 }
+        }
         let output = InjectionManager.shared.spawnRootDetailed("/bin/ps", args: ["-ax"], timeout: 30).stdout
         let lines = output.components(separatedBy: .newlines)
         for line in lines {

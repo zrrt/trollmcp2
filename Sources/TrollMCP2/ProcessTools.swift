@@ -1,4 +1,9 @@
 import Foundation
+import Darwin
+
+// v2.9.184：libproc 进程枚举（proc_listallpids / proc_pidpath，纯 C API，
+// 不依赖 shell/ps/task_for_pid——TrollStore 无 shell 环境 /bin/ps 不可用，
+// 导致 app.status / app.decrypt 的进程检测永远 false（实测证实）。
 
 // v2.9.70：进程管理 + 测试编排器
 // 1. 进程管理 — 目标 App 启停、重启、前台状态、CPU/内存/线程采样
@@ -399,7 +404,39 @@ final class TestRunTool: MCPTool {
 
 // MARK: - 辅助函数
 
+/// v2.9.184：libproc 枚举进程，按可执行文件路径前缀匹配（xxx.app 目录）。
+/// 纯 C API，TrollStore 无 shell 环境可用；非越狱可能受进程可见性限制，实测确认。
+func findPidByExecutable(bundlePath: String) -> Int32 {
+    var pids = [pid_t](repeating: 0, count: 2048)
+    let count = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
+    guard count > 0 else { return 0 }
+    for i in 0..<Int(count) {
+        let pid = pids[i]
+        var buf = [CChar](repeating: 0, count: 4096)
+        let len = proc_pidpath(pid, &buf, UInt32(buf.count))
+        if len > 0 {
+            let path = String(cString: buf)
+            // 可执行文件在 .app 目录内，路径以 bundlePath 开头即命中
+            if path.hasPrefix(bundlePath) {
+                return pid
+            }
+        }
+    }
+    return 0
+}
+
 func findPid(by bundleId: String) -> Int32 {
+    // v2.9.184：主用 libproc（不依赖 shell）。AppCatalog 拿 bundle 可执行路径。
+    if let entry = AppCatalog.find(bundleId) {
+        let exePath = entry.path + "/" + entry.execName
+        let pid = findPidByExecutable(bundlePath: exePath)
+        if pid > 0 { return pid }
+        // 某些进程的可执行路径与 LSApplicationProxy 记录不完全一致，
+        // 用 .app 目录前缀再试一次
+        let pid2 = findPidByExecutable(bundlePath: entry.path)
+        if pid2 > 0 { return pid2 }
+    }
+    // 兜底：旧 ps 方式（无 shell 环境会失败，保留仅作兼容）
     let (_, output) = InjectionManager.shared.spawnRoot("/bin/ps", args: ["-ax"])
     for line in output.components(separatedBy: .newlines) {
         if line.contains(bundleId) || line.contains(bundleId.replacingOccurrences(of: ".", with: "")) {
