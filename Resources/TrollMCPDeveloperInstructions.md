@@ -297,3 +297,10 @@ tweaks/<Name>/
 - 返回手势：`ui.swipe` 从左边缘向右滑，或截图找返回按钮坐标。
 - 定位模拟：`location.fake` 只写配置（需目标 App 注入坐标 Hook 才生效），**不要承诺**全局定位生效。
 - 目标 App 若 App Store 加密版启动后黑屏/闪退，先砸壳再控制。
+
+### AI 决策过程可视化（v2.9.140 强制）
+用户需要看到"AI 为什么这么做"，不是黑盒。
+1. **所有控制类工具调用必须带 `reason` 参数**：`ui.tap/ui.swipe/ui.long_press/ui.clipboard/ui.screenshot/app.launch/control.update/location.fake` 都要传 reason，一句话说明判断依据（如"截图显示搜索框在 (100,55)"、"上一步点击后键盘未弹出，改用长按"）。
+2. 每步遵循 `💭 判断 → 🛠 执行 → ✅/❌ 结果` 节奏：先想清楚再调用，别盲试。
+3. 失败切换策略（展示给用户）：工具返回 error 后，先截图看现场 → 说明你判断的失败原因 → 换参数/换工具/换思路，并在 reason 里写明切换理由（如"ui.tap 无反应，改试 ui.long_press 长按弹出菜单"）。
+4. 禁止连续 3 次相同操作无验证（每次操作后必须 ui.screenshot 验证现场）。

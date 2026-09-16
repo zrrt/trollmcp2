@@ -81,18 +81,23 @@ enum FakeLocationStore {
 
 final class AppLaunchOptionsTool: MCPTool {
     let definition = ToolDefinition(name: "app.launch",
-        summary: "启动指定 App 并可注入环境变量/启动参数（SBSLaunchApplicationWithOptions）。env 可传 DYLD_INSERT_LIBRARIES 预加载 hook 库。",
-        parameters: ["bundle_id": "目标 App Bundle ID", "env": "环境变量字典（可选，如 {\"DYLD_INSERT_LIBRARIES\": \"/path/hook.dylib\"}）", "args": "启动参数数组（可选）"])
+        summary: "启动指定 App 并可注入环境变量/启动参数（SBSLaunchApplicationWithOptions）。env 可传 DYLD_INSERT_LIBRARIES 预加载 hook 库。调用时务必带 reason 说明为何唤醒该 App。",
+        parameters: ["bundle_id": "目标 App Bundle ID", "env": "环境变量字典（可选，如 {\"DYLD_INSERT_LIBRARIES\": \"/path/hook.dylib\"}）", "args": "启动参数数组（可选）", "reason": "判断依据（必填）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
         }
+        let reason = params["reason"] as? String ?? ""
+        ControlSession.shared.addThink(reason)
+        ControlSession.shared.addAction("app.launch(\(bundleId))\(params["env"] != nil ? " +env" : "")")
         let env = params["env"] as? [String: String] ?? [:]
         let args = params["args"] as? [String] ?? []
         let (ok, msg) = AppLaunchWithOptions.launch(bundleId: bundleId, environment: env, arguments: args)
         guard ok else {
+            ControlSession.shared.addResult("❌ 启动失败: \(msg)")
             throw MCPError.classified("启动失败", code: "LAUNCH_FAILED", reason: msg, nextStep: "确认 bundle_id 正确；若目标 App 是 App Store 加密版，先砸壳；或改用 ai 控制中心手动点击启动")
         }
+        ControlSession.shared.addResult("✅ 已唤醒 \(bundleId)")
         return ["message": msg, "bundle_id": bundleId, "method": "SBSLaunchApplicationWithOptions"]
     }
 }
@@ -100,11 +105,14 @@ final class AppLaunchOptionsTool: MCPTool {
 final class LocationFakeTool: MCPTool {
     let definition = ToolDefinition(name: "location.fake",
         summary: "写入模拟定位坐标。注意：系统级全局模拟需 hook locationd 系统进程（TrollStore 做不到）；对目标 App 生效需目标 App 注入坐标 Hook 读取该配置（或用注入功能实现）。",
-        parameters: ["lat": "纬度", "lon": "经度"])
+        parameters: ["lat": "纬度", "lon": "经度", "reason": "判断依据（可选）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let lat = params["lat"] as? Double, let lon = params["lon"] as? Double else {
             throw MCPError.invalidParams("lat, lon required")
         }
+        let reason = params["reason"] as? String ?? ""
+        ControlSession.shared.addThink(reason)
+        ControlSession.shared.addAction("location.fake(\(lat), \(lon))")
         let (ok, msg) = FakeLocationStore.save(lat: lat, lon: lon)
         guard ok else { throw MCPError.failed(msg) }
         return [

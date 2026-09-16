@@ -202,78 +202,93 @@ final class ProgressNotifier {
 
 final class UITapTool: MCPTool {
     let definition = ToolDefinition(name: "ui.tap",
-        summary: "在屏幕指定坐标点击（AI 控制任意前台 App：美团/微信等）。坐标用 points（iPhone 全屏约 390x844 逻辑点），原点左上角。",
-        parameters: ["x": "横坐标 points", "y": "纵坐标 points"])
+        summary: "在屏幕指定坐标点击（AI 控制任意前台 App：美团/微信等）。坐标用 points（iPhone 全屏约 390x844 逻辑点），原点左上角。调用时务必带 reason 说明判断依据（为什么点这里）。",
+        parameters: ["x": "横坐标 points", "y": "纵坐标 points", "reason": "判断依据（必填，如：截图显示搜索框在 (100,55)）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x = params["x"] as? Double, let y = params["y"] as? Double else {
             throw MCPError.invalidParams("x, y required（浮点 points）")
         }
-        ControlSession.shared.addLog("ui.tap(\(Int(x)), \(Int(y)))")
+        let reason = params["reason"] as? String ?? ""
+        ControlSession.shared.addThink(reason)
+        ControlSession.shared.addAction("ui.tap(\(Int(x)), \(Int(y)))")
         let ok = HIDTouchInjector.shared.tap(x: Float(x), y: Float(y))
         guard ok else {
+            ControlSession.shared.addResult("❌ ui.tap 失败")
             throw MCPError.failed("HID 触摸注入失败：请确认 App 已用 TrollStore 安装并带 com.apple.private.hid.client.event-dispatch 权限（当前 App 已声明）")
         }
-        ControlSession.shared.addLog("  ✅ 已点击 (\(Int(x)), \(Int(y)))")
+        ControlSession.shared.addResult("✅ 已点击 (\(Int(x)), \(Int(y)))")
         return ["message": "已点击 (\(Int(x)), \(Int(y)))", "x": Int(x), "y": Int(y)]
     }
 }
 
 final class UISwipeTool: MCPTool {
     let definition = ToolDefinition(name: "ui.swipe",
-        summary: "在屏幕滑动（从 A 到 B），用于翻页/滚动/返回手势。",
-        parameters: ["x1": "起点横坐标", "y1": "起点纵坐标", "x2": "终点横坐标", "y2": "终点纵坐标", "duration_ms": "时长毫秒（默认 300）"])
+        summary: "在屏幕滑动（从 A 到 B），用于翻页/滚动/返回手势。调用时务必带 reason 说明判断依据。",
+        parameters: ["x1": "起点横坐标", "y1": "起点纵坐标", "x2": "终点横坐标", "y2": "终点纵坐标", "duration_ms": "时长毫秒（默认 300）", "reason": "判断依据（必填）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x1 = params["x1"] as? Double, let y1 = params["y1"] as? Double,
               let x2 = params["x2"] as? Double, let y2 = params["y2"] as? Double else {
             throw MCPError.invalidParams("x1,y1,x2,y2 required")
         }
         let dur = params["duration_ms"] as? Int ?? 300
-        ControlSession.shared.addLog("ui.swipe (\(Int(x1)),\(Int(y1)))→(\(Int(x2)),\(Int(y2))) \(dur)ms")
+        let reason = params["reason"] as? String ?? ""
+        ControlSession.shared.addThink(reason)
+        ControlSession.shared.addAction("ui.swipe (\(Int(x1)),\(Int(y1)))→(\(Int(x2)),\(Int(y2))) \(dur)ms")
         let ok = HIDTouchInjector.shared.swipe(x1: Float(x1), y1: Float(y1), x2: Float(x2), y2: Float(y2), durationMs: dur)
         guard ok else {
+            ControlSession.shared.addResult("❌ ui.swipe 失败")
             throw MCPError.failed("HID 滑动注入失败：权限或 IOKit 符号不可用")
         }
-        ControlSession.shared.addLog("  ✅ 已滑动")
+        ControlSession.shared.addResult("✅ 已滑动")
         return ["message": "已滑动", "from": [x1, y1], "to": [x2, y2]]
     }
 }
 
 final class UILongPressTool: MCPTool {
     let definition = ToolDefinition(name: "ui.long_press",
-        summary: "长按屏幕坐标（弹出菜单/选择文本/粘贴菜单用）。",
-        parameters: ["x": "横坐标", "y": "纵坐标", "duration_ms": "长按时长毫秒（默认 800）"])
+        summary: "长按屏幕坐标（弹出菜单/选择文本/粘贴菜单用）。调用时务必带 reason。",
+        parameters: ["x": "横坐标", "y": "纵坐标", "duration_ms": "长按时长毫秒（默认 800）", "reason": "判断依据（必填）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x = params["x"] as? Double, let y = params["y"] as? Double else {
             throw MCPError.invalidParams("x, y required")
         }
         let dur = params["duration_ms"] as? Int ?? 800
-        ControlSession.shared.addLog("ui.long_press(\(Int(x)), \(Int(y))) \(dur)ms")
+        let reason = params["reason"] as? String ?? ""
+        ControlSession.shared.addThink(reason)
+        ControlSession.shared.addAction("ui.long_press(\(Int(x)), \(Int(y))) \(dur)ms")
         let ok = HIDTouchInjector.shared.longPress(x: Float(x), y: Float(y), durationMs: dur)
         guard ok else {
+            ControlSession.shared.addResult("❌ ui.long_press 失败")
             throw MCPError.failed("HID 长按注入失败")
         }
-        ControlSession.shared.addLog("  ✅ 已长按")
+        ControlSession.shared.addResult("✅ 已长按")
         return ["message": "已长按 (\(Int(x)), \(Int(y))) \(dur)ms"]
     }
 }
 
 final class UIClipboardTool: MCPTool {
     let definition = ToolDefinition(name: "ui.clipboard",
-        summary: "把文本写入系统剪贴板（配合 ui.long_press 长按输入框 + 点「粘贴」实现跨 App 文本输入；iOS 无直接注入文本的公开 API）。",
-        parameters: ["text": "要写入剪贴板的文本"])
+        summary: "把文本写入系统剪贴板（配合 ui.long_press 长按输入框 + 点「粘贴」实现跨 App 文本输入；iOS 无直接注入文本的公开 API）。调用时务必带 reason。",
+        parameters: ["text": "要写入剪贴板的文本", "reason": "判断依据（必填）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let text = params["text"] as? String else { throw MCPError.invalidParams("text required") }
+        let reason = params["reason"] as? String ?? ""
+        ControlSession.shared.addThink(reason)
+        ControlSession.shared.addAction("ui.clipboard: \(text.count) 字符")
         UIPasteboard.general.string = text
-        ControlSession.shared.addLog("ui.clipboard: 已写入 \(text.count) 字符")
+        ControlSession.shared.addResult("✅ 已写入剪贴板，下一步长按输入框+点粘贴")
         return ["message": "已写入剪贴板 \(text.count) 字符，请用 ui.long_press 长按输入框后点击「粘贴」", "copied": text.count]
     }
 }
 
 final class UIScreenshotTool: MCPTool {
     let definition = ToolDefinition(name: "ui.screenshot",
-        summary: "截取当前屏幕（任意前台 App，ReplayKit）。返回图片路径供验证；首次使用需系统授权录屏。",
-        parameters: [:])
+        summary: "截取当前屏幕（任意前台 App，ReplayKit）。返回图片路径供 AI 验证界面状态；首次使用需系统授权录屏。调用时务必带 reason 说明要验证什么。",
+        parameters: ["reason": "验证目的（必填，如：确认搜索框是否弹出）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        let reason = params["reason"] as? String ?? ""
+        ControlSession.shared.addThink(reason.isEmpty ? "截屏验证当前界面" : reason)
+        ControlSession.shared.addAction("ui.screenshot")
         var out: [String: Any] = [:]
         let sem = DispatchSemaphore(value: 0)
         ScreenCapture.take { ok, detail in
@@ -283,11 +298,12 @@ final class UIScreenshotTool: MCPTool {
         }
         _ = sem.wait(timeout: .now() + 10)
         guard out["ok"] as? Bool == true, let path = out["detail"] as? String else {
+            ControlSession.shared.addResult("❌ 截图失败")
             throw MCPError.failed(out["detail"] as? String ?? "截图超时")
         }
         ControlSession.shared.lastScreenshotPath = path
-        ControlSession.shared.addLog("ui.screenshot → \(path)")
-        return ["message": "截图已保存: \(path)（可用 fs.read 或让用户查看）", "path": path]
+        ControlSession.shared.addResult("📸 截图已保存")
+        return ["message": "截图已保存: \(path)", "path": path]
     }
 }
 
@@ -303,7 +319,7 @@ final class ProgressNotifyTool: MCPTool {
         }
         let body = params["body"] as? String ?? ""
         ProgressNotifier.notify(title: title, body: body)
-        ControlSession.shared.addLog("progress.notify: \(title) \(body)")
+        ControlSession.shared.addResult("🔔 \(title) \(body)")
         return ["message": "已发送进度通知", "title": title, "body": body]
     }
 }
@@ -329,9 +345,11 @@ final class ControlBeginTool: MCPTool {
 final class ControlUpdateTool: MCPTool {
     let definition = ToolDefinition(name: "control.update",
         summary: "更新控制会话某一步的状态（running/done/failed）+ 详情，UI 实时刷新。",
-        parameters: ["step": "步骤序号（从 0 开始）", "status": "pending/running/done/failed", "detail": "详情（可选）"])
+        parameters: ["step": "步骤序号（从 0 开始）", "status": "pending/running/done/failed", "detail": "详情（可选）", "reason": "判断依据（可选）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let idx = params["step"] as? Int else { throw MCPError.invalidParams("step required") }
+        let reason = params["reason"] as? String ?? ""
+        ControlSession.shared.addThink(reason)
         let raw = params["status"] as? String ?? "done"
         let st: ControlStep.StepStatus
         switch raw {

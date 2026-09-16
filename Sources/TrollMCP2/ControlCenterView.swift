@@ -134,18 +134,41 @@ struct ControlCenterView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(L10n.t("ui_174", "执行日志"))
                 .font(.subheadline.weight(.semibold))
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(session.logs.suffix(60), id: \.self) { line in
-                    Text(line)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(.secondary)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(session.logs.suffix(80)) { log in
+                    HStack(alignment: .top, spacing: 6) {
+                        Text(logIcon(log.kind))
+                            .font(.system(size: 11))
+                            .foregroundColor(logColor(log.kind))
+                        Text(log.text)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundColor(logColor(log.kind))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
             }
             .padding(10)
             .background(Color(.secondarySystemGroupedBackground))
             .cornerRadius(10)
+        }
+    }
+
+    private func logIcon(_ kind: ControlLog.Kind) -> String {
+        switch kind {
+        case .think: return "💭"
+        case .action: return "🛠"
+        case .result: return ""
+        case .info: return "ℹ️"
+        }
+    }
+
+    private func logColor(_ kind: ControlLog.Kind) -> Color {
+        switch kind {
+        case .think: return .blue
+        case .action: return .orange
+        case .result: return .primary
+        case .info: return .secondary
         }
     }
 
