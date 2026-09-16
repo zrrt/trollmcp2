@@ -423,7 +423,8 @@ struct SettingsView: View {
 
     private func envSubtitle() -> String {
         if let r = lastProbe {
-            return r.ready ? "就绪 · 可注入" : "需检查 \(r.checks.filter { !$0.passed }.count) 项"
+            let failed = r.checks.filter { !$0.passed }.count
+            return r.ready ? "就绪 · 可注入" : "需检查 \(failed) 项"
         }
         return "点击探测"
     }
