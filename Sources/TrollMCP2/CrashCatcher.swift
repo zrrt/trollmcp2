@@ -134,10 +134,11 @@ struct CrashLogView: View {
                                 Text(URL(fileURLWithPath: p).lastPathComponent)
                                     .font(.subheadline)
                                     .foregroundColor(.primary)
-                                Text(CrashCatcher.content(p).components(separatedBy: "\n").first ?? "")
-                                    .font(.caption2)
+                                Text(CrashCatcher.content(p))
+                                    .font(.system(.caption2, design: .monospaced))
                                     .foregroundColor(.secondary)
-                                    .lineLimit(1)
+                                    .lineLimit(6)
+                                    .multilineTextAlignment(.leading)
                             }
                         }
                     }

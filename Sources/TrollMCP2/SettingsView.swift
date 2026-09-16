@@ -238,10 +238,6 @@ struct SettingsView: View {
                          subtitle: "存储使用 · 缓存占用 · 快速/高级清理",
                          icon: "externaldrive.fill.badge.timemachine", color: .red,
                          destination: AnyView(SystemCleanupView())),
-            SettingsItem(title: L10n.t("row_apikeys"),
-                         subtitle: "查看 · 显隐 · 恢复",
-                         icon: "key.fill", color: .red,
-                         destination: AnyView(APIKeyRecoverySheet()))
         ]))
 
         // 关于
@@ -285,12 +281,6 @@ struct SettingsView: View {
                 action: { UpdateManager.shared.downloadAndInstall() }
             ))
         }
-        aboutItems.append(SettingsItem(title: "Bundle ID", subtitle: Bundle.main.bundleIdentifier ?? "-",
-                                       icon: "number", color: .gray, destination: nil))
-        aboutItems.append(SettingsItem(title: "工作区", subtitle: Workspace.root.lastPathComponent,
-                                       icon: "folder", color: .gray, destination: nil))
-        aboutItems.append(SettingsItem(title: "工具数", subtitle: "\(ToolRegistry.shared.definitions.count)",
-                                       icon: "wrench.and.screwdriver", color: .gray, destination: nil))
         groups.append(SettingsGroup(header: L10n.t("sec_about"), items: aboutItems))
 
         return groups

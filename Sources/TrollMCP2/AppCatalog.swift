@@ -35,8 +35,13 @@ final class AppCatalog {
     /// 运行中集合（runningExecNames）不缓存，每次实时查（变化频繁且查询轻量）。
     private static var cachedList: [AppEntry]?
     private static var cachedAt: Date?
+    // v2.9.148：枚举锁——后台 DeviceProbe 与主线程 UI 会同时 list()，
+    // LSApplicationWorkspace 私有 API 并发枚举 266 个 App 会 SIGSEGV 闪退
+    private static let listLock = NSLock()
 
     static func list() -> [AppEntry] {
+        listLock.lock()
+        defer { listLock.unlock() }
         if let cached = cachedList, let at = cachedAt,
            Date().timeIntervalSince(at) < 5 {
             return cached
@@ -71,8 +76,10 @@ final class AppCatalog {
 
     /// 强制刷新（安装/卸载 App 后由调用方触发，避免旧缓存误导）
     static func invalidateCache() {
+        listLock.lock()
         cachedList = nil
         cachedAt = nil
+        listLock.unlock()
     }
 
     private static func enumerate() -> [AppEntry] {
