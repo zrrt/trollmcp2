@@ -120,8 +120,12 @@ final class IPAInspectTool: MCPTool {
         var injectNotes: [String] = []
         if let bin = result["binary"] as? [String: Any],
            let arch = bin["arch"] as? String {
-            if arch != "arm64" {
-                injectNotes.append("⚠️ 非 arm64 架构，当前 dylib 可能不兼容")
+            // v2.9.132：arch=unknown 是"解析失败"（可能加密/特殊头），不是"非 arm64"——
+            // 不再误判不可注入（旧版 unknown 也触发此警告）
+            if arch == "unknown" {
+                injectNotes.append("⚠️ Mach-O 解析失败（可能加密/混淆），先用 app.encrypt_info 判断加密，需砸壳后重新 inspect")
+            } else if arch != "arm64" {
+                injectNotes.append("⚠️ 架构 \(arch)，当前 dylib 可能不兼容")
             }
         }
         if let encrypted = result["encrypted"] as? Bool, encrypted {
