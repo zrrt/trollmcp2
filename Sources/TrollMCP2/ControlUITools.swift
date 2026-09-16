@@ -211,6 +211,7 @@ final class UITapTool: MCPTool {
         let reason = params["reason"] as? String ?? ""
         ControlSession.shared.addThink(reason)
         ControlSession.shared.addAction("ui.tap(\(Int(x)), \(Int(y)))")
+        MacroRecorder.shared.capture(tool: "ui.tap", params: ["x": x, "y": y, "reason": reason])
         let ok = HIDTouchInjector.shared.tap(x: Float(x), y: Float(y))
         guard ok else {
             ControlSession.shared.addResult("❌ ui.tap 失败")
@@ -234,6 +235,7 @@ final class UISwipeTool: MCPTool {
         let reason = params["reason"] as? String ?? ""
         ControlSession.shared.addThink(reason)
         ControlSession.shared.addAction("ui.swipe (\(Int(x1)),\(Int(y1)))→(\(Int(x2)),\(Int(y2))) \(dur)ms")
+        MacroRecorder.shared.capture(tool: "ui.swipe", params: ["x1": x1, "y1": y1, "x2": x2, "y2": y2, "duration_ms": dur, "reason": reason])
         let ok = HIDTouchInjector.shared.swipe(x1: Float(x1), y1: Float(y1), x2: Float(x2), y2: Float(y2), durationMs: dur)
         guard ok else {
             ControlSession.shared.addResult("❌ ui.swipe 失败")
@@ -256,6 +258,7 @@ final class UILongPressTool: MCPTool {
         let reason = params["reason"] as? String ?? ""
         ControlSession.shared.addThink(reason)
         ControlSession.shared.addAction("ui.long_press(\(Int(x)), \(Int(y))) \(dur)ms")
+        MacroRecorder.shared.capture(tool: "ui.long_press", params: ["x": x, "y": y, "duration_ms": dur, "reason": reason])
         let ok = HIDTouchInjector.shared.longPress(x: Float(x), y: Float(y), durationMs: dur)
         guard ok else {
             ControlSession.shared.addResult("❌ ui.long_press 失败")
@@ -275,6 +278,7 @@ final class UIClipboardTool: MCPTool {
         let reason = params["reason"] as? String ?? ""
         ControlSession.shared.addThink(reason)
         ControlSession.shared.addAction("ui.clipboard: \(text.count) 字符")
+        MacroRecorder.shared.capture(tool: "ui.clipboard", params: ["text": text, "reason": reason])
         UIPasteboard.general.string = text
         ControlSession.shared.addResult("✅ 已写入剪贴板，下一步长按输入框+点粘贴")
         return ["message": "已写入剪贴板 \(text.count) 字符，请用 ui.long_press 长按输入框后点击「粘贴」", "copied": text.count]

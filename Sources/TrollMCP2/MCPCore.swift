@@ -789,6 +789,19 @@ public final class ToolRegistry: ObservableObject {
         register(LocationFakeTool())
         register(LocationFakeStatusTool())
         register(LocationFakeClearTool())
+        // v2.9.141：跨 App 数据桥（沙箱破坏者）+ AI 操作宏录制/回放
+        register(BridgeContainerTool())
+        register(BridgeLsTool())
+        register(BridgeReadTool())
+        register(BridgeCopyTool())
+        register(BridgeExportTool())
+        register(BridgeImportTool())
+        register(MacroRecordTool())
+        register(MacroStopTool())
+        register(MacroListTool())
+        register(MacroRunTool())
+        register(MacroDeleteTool())
+        register(MacroExportTool())
 
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
     }

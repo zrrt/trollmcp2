@@ -304,3 +304,16 @@ tweaks/<Name>/
 2. 每步遵循 `💭 判断 → 🛠 执行 → ✅/❌ 结果` 节奏：先想清楚再调用，别盲试。
 3. 失败切换策略（展示给用户）：工具返回 error 后，先截图看现场 → 说明你判断的失败原因 → 换参数/换工具/换思路，并在 reason 里写明切换理由（如"ui.tap 无反应，改试 ui.long_press 长按弹出菜单"）。
 4. 禁止连续 3 次相同操作无验证（每次操作后必须 ui.screenshot 验证现场）。
+
+## 21. 跨 App 数据桥 + 操作宏（v2.9.141）
+
+### 跨 App 数据桥（bridge.*）——沙箱破坏者
+no-sandbox 通行证可读写任意 App 容器（Bundle + 数据容器），这是 PC/普通 iOS 做不到的独有能力。
+**流程**：先 `bridge.container(bundle_id)` 定位（拿 bundle 路径 + 数据容器 + 大小）→ `bridge.ls` 浏览 → `bridge.read` 读文件（文本/plist/JSON）→ `bridge.copy` 跨 App 复制 / `bridge.export` 导出到工作区 / `bridge.import` 恢复。
+**规则**：写操作（copy/import）前必须先列目录确认不覆盖关键数据；scope 用 bundle=安装包目录 / data=数据容器；导出默认到 Workspace/bridge_exports/<bundle_id>/。
+
+### AI 操作宏（macro.*）——把控制变成可复用脚本
+**录制**：`macro.record(name)` 开始 → 正常用 ui.tap/swipe/long_press/clipboard 操作（自动入宏，带 reason 说明）→ `macro.stop` 保存。
+**回放**：`macro.run(name, loop, step_delay_ms)`——纯执行不耗 token（不调 AI），控制中心实时显示每步进度 + 结束后留现场截图；回放前必须确保目标 App 已在前台（用 app.launch 或让用户打开）。
+**管理**：`macro.list` / `macro.delete` / `macro.export`（导出 JSON 分享）。
+**场景**：每日打卡、游戏领体力、自动签到、批量操作——录一次，以后一键回放。
