@@ -50,7 +50,7 @@ final class ControlAgentTools {
 
     // MARK: - 注入 ControlAgent.dylib
 
-    func inject(bundleId: String) -> [String: Any] {
+    func inject(bundleId: String, target: String? = nil) -> [String: Any] {
         // 找到内置的 ControlAgent.dylib
         let dylibPath = Bundle.main.path(forResource: "ControlAgent", ofType: "dylib", inDirectory: "tweaks")
         guard dylibPath != nil else {
@@ -59,17 +59,18 @@ final class ControlAgentTools {
             guard FileManager.default.fileExists(atPath: workspacePath) else {
                 return ["error": "ControlAgent.dylib 未内置，请先编译并放入 Resources/tweaks/", "hint": "线上编译 build-tweak workflow"]
             }
-            return doInject(bundleId: bundleId, dylibPath: workspacePath)
+            return doInject(bundleId: bundleId, dylibPath: workspacePath, target: target)
         }
-        return doInject(bundleId: bundleId, dylibPath: dylibPath!)
+        return doInject(bundleId: bundleId, dylibPath: dylibPath!, target: target)
     }
 
-    private func doInject(bundleId: String, dylibPath: String) -> [String: Any] {
+    private func doInject(bundleId: String, dylibPath: String, target: String? = nil) -> [String: Any] {
         do {
             let result = try InjectionManager.shared.enable(
                 bundleId: bundleId,
                 dylibName: "@executable_path/ControlAgent.dylib",
-                dylibSourcePath: dylibPath
+                dylibSourcePath: dylibPath,
+                preferredTarget: target
             )
             // v2.9.109：注入成功自动开启真后台保活（目标 App + TrollAgent 自身），
             // 防止目标 App 切后台被系统挂起导致 4789 断连
@@ -231,7 +232,8 @@ final class ControlInjectTool: MCPTool {
         name: "control.inject",
         summary: "注入 ControlAgent.dylib 到目标 App，注入后 AI 可通过 localhost HTTP 控制目标 App 的 UI（点击/滑动/输入/截图/读取UI树）。参数 bundle_id 为目标 App 的 Bundle ID。注入后需重启目标 App。",
         parameters: [
-            "bundle_id": "目标 App 的 Bundle ID，用 injection.list 搜索获取（必填）"
+            "bundle_id": "目标 App 的 Bundle ID，用 injection.list 搜索获取（必填）",
+            "target": "可选：指定注入目标 Mach-O（framework 名子串，如 BiliCr）。默认自动选择主二进制启动必加载的 framework"
         ]
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -239,7 +241,7 @@ final class ControlInjectTool: MCPTool {
             throw MCPError.invalidParams("bundle_id required")
         }
         AuditLog.shared.log("control.inject", detail: bundleId)
-        return ControlAgentTools.shared.inject(bundleId: bundleId)
+        return ControlAgentTools.shared.inject(bundleId: bundleId, target: params["target"] as? String)
     }
 }
 

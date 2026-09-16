@@ -929,7 +929,7 @@ final class InjectionManager {
     /// 备份 .troll-fools.bak（TrollFools 可识别），每步改前 ldid 伪签，任一步失败自动回滚。
     func enable(bundleId: String, dylibName: String = "@executable_path/TrollMCPAgent.dylib",
                 dylibSourcePath: String? = nil, weakReference: Bool = false,
-                injectStrategy: String = "lexicographic") throws -> [String: Any] {
+                injectStrategy: String = "lexicographic", preferredTarget: String? = nil) throws -> [String: Any] {
         _ = dylibName
         guard let app = AppCatalog.find(bundleId) else {
             throw MCPError.failed("app not found: \(bundleId)")
@@ -1011,11 +1011,16 @@ final class InjectionManager {
             // framework 才是启动时 dlopen 的（词典序第一个可能懒加载，导致 dylib constructor 不执行、
             // HTTP server 不启动、注入式砸壳/控制失效；小红书/哔哩哔哩实测 AppsFlyerLib/BGM 均懒加载）
             var chosen = fwCandidates[0]
-            let mainDeps = MachOAnalyzer.analyze(executablePath(app))?.dylibs ?? []
-            if let boot = fwCandidates.first(where: { c in
-                mainDeps.contains { d in d.contains((c as NSString).lastPathComponent) }
-            }) {
-                chosen = boot
+            if let pref = preferredTarget, !pref.isEmpty,
+               let hit = fwCandidates.first(where: { $0.contains(pref) }) {
+                chosen = hit
+            } else {
+                let mainDeps = MachOAnalyzer.analyze(executablePath(app))?.dylibs ?? []
+                if let boot = fwCandidates.first(where: { c in
+                    mainDeps.contains { d in d.contains((c as NSString).lastPathComponent) }
+                }) {
+                    chosen = boot
+                }
             }
             targetMachO = chosen
         } else {
