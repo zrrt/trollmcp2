@@ -75,7 +75,10 @@ final class DeviceProbe: ObservableObject {
         let taskForPid = testTaskForPid()
         let containerWrite = testContainerWrite()
         let injectionBinaries = testInjectionBinaries()
-        let amfidBypassInferred = taskForPid && !injectionBinaries.isEmpty && injectionBinaries.values.allSatisfy { $0 } && containerWrite
+        // v2.9.155：amfid 推断不再依赖 task_for_pid——注入是静态方式
+        // （insert_dylib 改 Mach-O 加载命令 + ct_bypass 重签名），TrollStore 非越狱
+        // 环境拿不到其他进程端口是常态，task_for_pid 失败不代表注入不可用。
+        let amfidBypassInferred = !injectionBinaries.isEmpty && injectionBinaries.values.allSatisfy { $0 } && containerWrite
 
         // v2.9.153：Entitlements 检测改用 SecTask 直接读自身代码签名（最可靠），
         // 行为测试（bundleWrite/root spawn）只作交叉验证。entitlements 是安装时写入的，
@@ -107,19 +110,23 @@ final class DeviceProbe: ObservableObject {
         checks.append(Check(label: "TrollStore Entitlements 权限", passed: ent.noSandbox, detail: entDetail, infoOnly: false))
         checks.append(Check(label: "TrollFools 已安装", passed: trollFools, detail: trollFools ? "检测到 TrollFools（可注入）" : "未检测到 TrollFools，注入需手动", infoOnly: false))
         let tfpDetail: String
+        var tfpInfoOnly = false
         if taskForPid {
             tfpDetail = "实测可获取其他进程端口，进程级操作可用"
         } else if ent.taskForPidAllow {
-            tfpDetail = "签名含 task_for_pid-allow，但实测获取进程端口被系统拒绝（需越狱或特殊配置）"
+            // v2.9.155：TrollStore 非越狱拿不到其他进程端口是常态（不是配置错），
+            // 不打叉，只提醒——不影响静态注入
+            tfpDetail = "签名含 task_for_pid-allow；实测获取进程端口被系统拦截（TrollStore 非越狱常态），不影响静态注入，进程级内存操作受限"
+            tfpInfoOnly = true
         } else {
             tfpDetail = "无 task_for_pid-allow，进程级操作受限"
         }
-        checks.append(Check(label: "task_for_pid 权限", passed: taskForPid, detail: tfpDetail, infoOnly: false))
+        checks.append(Check(label: "task_for_pid 权限", passed: taskForPid || ent.taskForPidAllow, detail: tfpDetail, infoOnly: tfpInfoOnly))
         checks.append(Check(label: "App 容器任意读写", passed: containerWrite, detail: containerWrite ? "AppDataContainers 权限生效，可写任意 App 沙盒" : "无法写入其他 App 容器（缺 entitlement）", infoOnly: false))
         for (name, ok) in injectionBinaries.sorted(by: { $0.key < $1.key }) {
             checks.append(Check(label: "注入二进制 \(name)", passed: ok, detail: ok ? "已捆绑且可执行" : "缺失或不可执行", infoOnly: false))
         }
-        checks.append(Check(label: "amfid 绕过（推断）", passed: amfidBypassInferred, detail: amfidBypassInferred ? "task_for_pid + 注入工具 + 容器读写 均通过，dylib 注入链路可工作" : "条件不足，unsigned dylib 可能无法加载", infoOnly: false))
+        checks.append(Check(label: "amfid 绕过（推断）", passed: amfidBypassInferred, detail: amfidBypassInferred ? "ct_bypass 重签名 + 注入工具 + 容器读写 均就绪，dylib 注入链路可工作" : "条件不足，unsigned dylib 可能无法加载", infoOnly: false))
 
         // v2.9.66：ready 不再依赖 entitlementsOK（已改为信息提醒项）
         let ready = trollStore && taskForPid && containerWrite && !injectionBinaries.isEmpty && injectionBinaries.values.allSatisfy { $0 }
