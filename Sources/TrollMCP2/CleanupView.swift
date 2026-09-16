@@ -1,77 +1,24 @@
 import SwiftUI
 
 /// v2.9.128：清理中心（对齐 Fuck 工具箱清理类能力 + AI 清理亮点）
-/// 选择一个 App → 扫描可清理项（缓存/钥匙串/广告符/数据容器/标识符）→ 勾选 → 一键清理
+/// v2.9.144：复用 AppBrowserContainer（分类标签+搜索+App图标+A-Z索引），
+/// 默认只显示"用户"分类——系统 App 不再默认统计出来（可手动切"系统"tab 查看）。
 struct CleanupCenterView: View {
-    @State private var query = ""
-    @State private var apps: [AppCatalog.AppEntry] = []
+    @State private var selected: AppCatalog.AppEntry?
 
     var body: some View {
-        VStack(spacing: 0) {
-            PageHeader(
-                icon: "sparkles.rectangle.stack",
-                title: "清理中心",
-                subtitle: "缓存 · 钥匙串 · 广告符 · 数据容器 · AI 清理",
-                colors: [.tmCyan, .blue]
-            )
-            .padding(.vertical, 8)
-
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").font(.caption).foregroundColor(.secondary)
-                TextField("搜索 App", text: $query).font(.subheadline)
-                if !query.isEmpty {
-                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill").font(.caption).foregroundColor(.secondary) }
-                }
-            }
-            .padding(.horizontal, 10).padding(.vertical, 7)
-            .background(Color(.secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal, 16).padding(.bottom, 6)
-
-            if apps.isEmpty {
-                Spacer()
-                ProgressView("扫描已安装应用…")
-                Spacer()
-            } else {
-                List {
-                    Section(header: SettingSectionHeader(title: "选择要清理的 App（\(filtered.count)）")) {
-                        ForEach(filtered, id: \.bundleId) { app in
-                            NavigationLink(destination: AppCleanupView(bundleId: app.bundleId, name: app.name)) {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "app.fill")
-                                        .font(.system(size: 20))
-                                        .foregroundColor(.tmCyan)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(app.name).font(.subheadline)
-                                        Text(app.bundleId)
-                                            .font(.caption2).foregroundColor(.secondary)
-                                            .lineLimit(1)
-                                    }
-                                    Spacer()
-                                    Image(systemName: "sparkles")
-                                        .font(.caption2).foregroundColor(.orange)
-                                }
-                                .padding(.vertical, 2)
-                            }
-                        }
-                    }
-                }
-                .listStyle(.insetGrouped)
-            }
-        }
-        .background(Color(.systemGroupedBackground))
+        AppBrowserContainer(
+            title: "清理中心",
+            subtitle: "缓存 · 钥匙串 · 广告符 · 数据容器 · AI 清理",
+            icon: "sparkles.rectangle.stack",
+            defaultCategory: .user,
+            onTap: { app in selected = app }
+        )
         .navigationTitle("清理中心")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            if apps.isEmpty {
-                apps = AppCatalog.list().sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-            }
+        .navigationDestination(item: $selected) { app in
+            AppCleanupView(bundleId: app.bundleId, name: app.name)
         }
-    }
-
-    private var filtered: [AppCatalog.AppEntry] {
-        guard !query.isEmpty else { return apps }
-        return apps.filter { $0.name.localizedCaseInsensitiveContains(query) || $0.bundleId.localizedCaseInsensitiveContains(query) }
     }
 }
 

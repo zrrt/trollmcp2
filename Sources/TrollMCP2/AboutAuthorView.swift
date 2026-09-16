@@ -170,7 +170,7 @@ struct AboutAuthorView: View {
     }
 
     private var versionLine: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.9.142"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.9.144"
     }
 
     private var thankRows: [(String, String, String)] {

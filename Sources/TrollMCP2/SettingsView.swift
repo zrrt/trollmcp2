@@ -1,4 +1,23 @@
-﻿import SwiftUI
+import SwiftUI
+
+// MARK: - 设置项数据（列表/卡片双视图共用，永不脱节）
+
+struct SettingsItem: Identifiable {
+    let id = UUID()
+    let title: String
+    let subtitle: String
+    let icon: String
+    let color: Color
+    var destination: AnyView?
+    var action: (() -> Void)?
+    var isOn: (() -> Bool)?
+    var onToggle: ((Bool) -> Void)?
+}
+
+struct SettingsGroup {
+    let header: String
+    var items: [SettingsItem]
+}
 
 struct SettingsView: View {
     @Environment(\.presentationMode) var presentationMode
@@ -8,397 +27,39 @@ struct SettingsView: View {
     @State private var showLanguagePicker = false
     // v2.9.84：聊天框「在设置中管理模型」→ 打开设置并自动跳到模型 API 页
     @State private var jumpToModels = false
+    // v2.9.144：双视图切换（列表 ↔ 分组卡片），右上角切换，持久化
+    @AppStorage("settings.card_mode") private var cardMode = false
 
     var body: some View {
         NavigationView {
-            List {
-                Section(header: SettingSectionHeader(title: L10n.t("sec_models"))) {
-                    SettingRow(
-                        title: L10n.t("row_model_api"),
-                        subtitle: "\(ModelStore.shared.configs.count) 个 · \(modelProviderName())",
-                        icon: "rectangle.stack.badge.person.crop",
-                        color: .blue,
-                        destination: ModelsView()
-                    )
-                    SettingRow(
-                        title: L10n.t("row_data"),
-                        subtitle: "App 文稿目录",
-                        icon: "externaldrive.fill",
-                        color: .purple,
-                        destination: DataManagementView()
-                    )
-                    // v2.9.74：系统指令选择器（不可编辑，可切换默认）
-                    SettingRow(
-                        title: L10n.t("row_sys_prompts"),
-                        subtitle: SystemPrompts.shared.selected.name,
-                        icon: "text.book.closed.fill",
-                        color: .tmCyan,
-                        destination: SystemPromptsView()
-                    )
-                }
-
-                Section(header: SettingSectionHeader(title: L10n.t("sec_core"))) {
-                    SettingRow(
-                        title: L10n.t("row_inject"),
-                        subtitle: L10n.t("row_inject_sub"),
-                        icon: "syringe.fill",
-                        color: .tmIndigo,
-                        destination: InjectionView()
-                    )
-                    // v2.9.75：远程控制（ControlAgent 通用 UI 控制）
-                    SettingRow(
-                        title: L10n.t("row_remote"),
-                        subtitle: L10n.t("row_remote_sub"),
-                        icon: "cursorarrow.click.2",
-                        color: .tmCyan,
-                        destination: RemoteControlView()
-                    )
-                    SettingRow(
-                        title: L10n.t("row_github"),
-                        subtitle: "线上编译 · \(githubAccountSubtitle())",
-                        icon: "person.crop.circle.fill.badge.checkmark",
-                        color: .black,
-                        destination: GitHubAccountView()
-                    )
-                    SettingRow(
-                        title: L10n.t("row_downloads"),
-                        subtitle: "线上编译产物 · 勾选删除",
-                        icon: "arrow.down.circle.fill",
-                        color: .green,
-                        destination: DownloadsView()
-                    )
-                }
-
-                // v2.9.76：开发者模式（美化图标 + 状态色）
-                Section {
-                    Toggle(isOn: Binding(
-                        get: { developerMode },
-                        set: { developerMode = $0; UserDefaults.standard.set($0, forKey: "developer_mode") }
-                    )) {
-                        HStack(spacing: 12) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(LinearGradient(
-                                        colors: developerMode
-                                            ? [Color(red: 0.35, green: 0.34, blue: 0.84), Color(red: 0.0, green: 0.74, blue: 0.95)]
-                                            : [Color.gray.opacity(0.55), Color.gray.opacity(0.4)],
-                                        startPoint: .topLeading, endPoint: .bottomTrailing))
-                                    .frame(width: 34, height: 34)
-                                Image(systemName: "hammer.circle.fill")
-                                    .font(.system(size: 17, weight: .semibold))
-                                    .foregroundColor(.white)
-                            }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.t("row_dev_mode"))
-                                    .font(.body)
-                                    .foregroundColor(.primary)
-                                Text(developerMode ? "显示全部高级选项" : "开启后显示开发者选项")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
-                    .accentColor(.tmCyan)   // v2.9.76：iOS14 用 accentColor（.tint 需 iOS15+）
-                }
-
-                // v2.9.136：后台常驻（全局静音保活 + BGTask 周期刷新，与远程控制临时保活互补）
-                Section {
-                    Toggle(isOn: Binding(
-                        get: { UserDefaults.standard.bool(forKey: "trollagent.keepalive_global") },
-                        set: { on in
-                            UserDefaults.standard.set(on, forKey: "trollagent.keepalive_global")
-                            if on {
-                                BackgroundKeepAlive.shared.start()
-                                BackgroundKeepAlive.scheduleRefresh()
-                            } else {
-                                BackgroundKeepAlive.shared.stop()
-                                BackgroundKeepAlive.cancelRefresh()
-                            }
-                        }
-                    )) {
-                        HStack(spacing: 12) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(LinearGradient(colors: [.tmCyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
-                                    .frame(width: 34, height: 34)
-                                Image(systemName: "bolt.heart.fill")
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundColor(.white)
-                            }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.t("row_keepalive"))
-                                    .font(.body)
-                                    .foregroundColor(.primary)
-                                Text(L10n.t("row_keepalive_sub"))
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
-                    .accentColor(.tmCyan)
-                }
-
-                if developerMode {
-                    Section(header: SettingSectionHeader(title: L10n.t("sec_dev"))) {
-                        // v2.9.82：任务完成通知开关
-                        Toggle(isOn: Binding(
-                            get: { TaskNotify.shared.enabled },
-                            set: { TaskNotify.shared.enabled = $0 }
-                        )) {
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .fill(LinearGradient(colors: [.blue, .tmCyan], startPoint: .topLeading, endPoint: .bottomTrailing))
-                                        .frame(width: 34, height: 34)
-                                    Image(systemName: "bell.badge.fill")
-                                        .font(.system(size: 15, weight: .semibold))
-                                        .foregroundColor(.white)
-                                }
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(L10n.t("task_notify"))
-                                        .font(.body)
-                                        .foregroundColor(.primary)
-                                    Text(L10n.t("task_notify_sub"))
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                        }
-                        .accentColor(.tmCyan)
-                        // v2.9.90：图标主题（4 套切换）
-                        SettingRow(
-                            title: L10n.t("row_icon_theme"),
-                            subtitle: "巨魔蓝 · 蓝紫 · 浅白 · 深青",
-                            icon: "app.badge.fill",
-                            color: .tmCyan,
-                            destination: IconThemeView()
-                        )
-                        // v2.9.90：设备伪装（绿盾式）
-                        SettingRow(
-                            title: L10n.t("row_device_fake"),
-                            subtitle: "伪装机型 · 注入生效",
-                            icon: "iphone.gen3.radiowaves.left.and.right",
-                            color: .tmCyan,
-                            destination: FakeDeviceView()
-                        )
-                        SettingRow(
-                            title: L10n.t("row_dev_instructions"),
-                            subtitle: devInstructionsSubtitle(),
-                            icon: "doc.text.magnifyingglass",
-                            color: .orange,
-                            destination: DeveloperInstructionsView()
-                        )
-                        SettingRow(
-                            title: L10n.t("row_permissions"),
-                            subtitle: "\(permissionCount()) 项系统权限",
-                            icon: "hand.raised.fill",
-                            color: .red,
-                            destination: SystemCapabilitiesView()
-                        )
-                        SettingRow(
-                            title: L10n.t("row_automation"),
-                            subtitle: "任务 · 历史 · 重试",
-                            icon: "bolt.fill",
-                            color: .yellow,
-                            destination: AutomationCenterView()
-                        )
-                        SettingRow(
-                            title: L10n.t("row_tool_policy"),
-                            subtitle: "按工具控制 · 真实/占位",
-                            icon: "lock.shield.fill",
-                            color: .green,
-                            destination: ToolPermissionPoliciesView()
-                        )
-                        SettingRow(
-                            title: L10n.t("row_transcripts"),
-                            subtitle: "完整对话存档",
-                            icon: "text.book.closed.fill",
-                            color: .tmCyan,
-                            destination: ConversationTranscriptView()
-                        )
-                        SettingRow(
-                            title: L10n.t("row_ssh"),
-                            subtitle: sshConfigSubtitle(),
-                            icon: "terminal.fill",
-                            color: .tmCyan,
-                            destination: SSHSettingsView()
-                        )
-                        SettingRow(
-                            title: L10n.t("row_search"),
-                            subtitle: "Bing Web · 用法说明",
-                            icon: "magnifyingglass.circle.fill",
-                            color: .tmCyan,
-                            destination: SmartSearchView()
-                        )
-                        // v2.9.39：内置浏览器改为悬浮窗
-                        SettingRowButton(
-                            title: L10n.t("row_browser"),
-                            subtitle: "悬浮窗 · AI 可控制 · 蓝框高亮",
-                            icon: "globe.asia.australia.fill",
-                            color: .tmCyan
-                        ) {
-                            presentationMode.wrappedValue.dismiss()
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                                FloatingBrowser.shared.show()
-                            }
-                        }
-                        SettingRow(
-                            title: L10n.t("row_gateway"),
-                            subtitle: "服务端管理 · \(GatewayServerStore.shared.servers.count) 个",
-                            icon: "network",
-                            color: .tmTeal,
-                            destination: GatewaySettingsView()
-                        )
-                        SettingRow(
-                            title: L10n.t("row_agents"),
-                            subtitle: "隔离指令 · 工作流",
-                            icon: "person.3.fill",
-                            color: .pink,
-                            destination: AgentsAndSkillsView()
-                        )
-                        SettingRow(
-                            title: L10n.t("row_kb"),
-                            subtitle: "文件导入 · 来源检索",
-                            icon: "books.vertical.fill",
-                            color: .tmBrown,
-                            destination: KnowledgeBaseView()
-                        )
-                        SettingRow(
-                            title: L10n.t("row_webhooks"),
-                            subtitle: "HTTPS 事件出口",
-                            icon: "link.circle.fill",
-                            color: .gray,
-                            destination: WebhooksView()
-                        )
-                    }
-                }
-
-                Section(header: SettingSectionHeader(title: L10n.t("sec_security"))) {
-                    // v2.9.36：本机工具审计（老 MCP 样式：执行成功/失败 · 权限 · 耗时 · 数据量 · 可导出）
-                    SettingRow(
-                        title: L10n.t("row_audit"),
-                        subtitle: "工具调用 · 成功/失败 · 导出给 AI 查看",
-                        icon: "list.bullet.rectangle",
-                        color: .tmIndigo,
-                        destination: AuditLogView()
-                    )
-                    // v2.9.128：工作区文件浏览器（像文件夹一样点开）
-                    SettingRow(
-                        title: L10n.t("row_workspace"),
-                        subtitle: "点开浏览目录 · 预览 · 复制路径 · 分享",
-                        icon: "folder",
-                        color: .blue,
-                        destination: WorkspaceBrowserView()
-                    )
-                    // v2.9.128：清理中心（对齐 Fuck 工具箱清理 + AI 清理）
-                    SettingRow(
-                        title: "清理中心",
-                        subtitle: "缓存 · 钥匙串 · 广告符 · 数据容器 · AI 清理",
-                        icon: "sparkles.rectangle.stack",
-                        color: .tmCyan,
-                        destination: CleanupCenterView()
-                    )
-                    // v2.9.128：系统清理（Fuck 工具箱系统清理页）
-                    SettingRow(
-                        title: "系统清理",
-                        subtitle: "存储使用 · 缓存占用 · 快速/高级清理",
-                        icon: "externaldrive.fill.badge.timemachine",
-                        color: .red,
-                        destination: SystemCleanupView()
-                    )
-                    SettingRow(
-                        title: L10n.t("row_apikeys"),
-                        subtitle: "查看 · 显隐 · 恢复",
-                        icon: "key.fill",
-                        color: .red,
-                        destination: APIKeyRecoverySheet()
-                    )
-                }
-
-                Section(header: SettingSectionHeader(title: L10n.t("sec_about"))) {
-                    // v2.9.89：关于作者（作者卡片 / 致谢 / 安全 / 赞助 / 反馈）
-                    SettingRow(
-                        title: L10n.t("about_title"),
-                        subtitle: "ZeenAE · 独立开发者",
-                        icon: "person.crop.circle.fill",
-                        color: .blue,
-                        destination: AboutAuthorView()
-                    )
-                    // v2.9.76：语言切换
-                    SettingRowButton(
-                        title: L10n.t("row_lang"),
-                        subtitle: LanguageManager.shared.language.displayName,
-                        icon: "globe",
-                        color: .tmCyan
-                    ) {
-                        showLanguagePicker = true
-                    }
-                    .actionSheet(isPresented: $showLanguagePicker) {
-                        ActionSheet(
-                            title: Text(L10n.t("row_lang")),
-                            buttons: AppLanguage.allCases.map { lang in
-                                .default(Text(lang.displayName)) {
-                                    LanguageManager.shared.language = lang
-                                }
-                            } + [.cancel(Text(L10n.t("cancel")))]
-                        )
-                    }
-                    SettingRow(
-                        title: L10n.t("row_env"),
-                        subtitle: envSubtitle(),
-                        icon: envIcon(),
-                        color: envColor(),
-                        destination: DeviceDetectionView()
-                    )
-                    SettingRow(
-                        title: L10n.t("row_netlog"),
-                        subtitle: NetworkLog.lastCompatNote ?? "中转站自适应降级记录",
-                        icon: "network",
-                        color: .orange,
-                        destination: NetworkDebugView()
-                    )
-                    // v2.9.125：版本号动态读 Info.plist，不再硬编码
-                    LabeledRow(label: L10n.t("version"), value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown")
-                    // v2.9.68：自动更新检查
-                    SettingRowButton(
-                        title: L10n.t("row_check_update"),
-                        subtitle: updateSubtitle(),
-                        icon: "arrow.triangle.2.circlepath.circle.fill",
-                        color: .tmCyan
-                    ) {
-                        UpdateManager.shared.checkForUpdate(currentVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")
-                    }
-                    if UpdateManager.shared.updateAvailable, let latest = UpdateManager.shared.latestVersion {
-                        SettingRowButton(
-                            title: "下载并安装 v\(latest)",
-                            subtitle: "点击后调起 TrollStore 安装",
-                            icon: "square.and.arrow.down.fill",
-                            color: .green
-                        ) {
-                            UpdateManager.shared.downloadAndInstall()
-                        }
-                    }
-                    LabeledRow(label: "Bundle ID", value: Bundle.main.bundleIdentifier ?? "-")
-                    LabeledRow(label: "工作区", value: Workspace.root.lastPathComponent)
-                    LabeledRow(label: "工具数", value: "\(ToolRegistry.shared.definitions.count)")
+            Group {
+                if cardMode {
+                    cardBody
+                } else {
+                    listBody
                 }
             }
-            .listStyle(.insetGrouped)
             .navigationTitle(L10n.t("settings"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                // v2.9.76：全屏下左侧返回（去掉右上角"完成"）
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: { presentationMode.wrappedValue.dismiss() }) {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 17, weight: .semibold))
                     }
                 }
+                // v2.9.144：右上角切换展示方式
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: { cardMode.toggle() }) {
+                        Image(systemName: cardMode ? "list.bullet" : "square.grid.2x2")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .accessibilityLabel(cardMode ? "切换为列表" : "切换为卡片")
+                }
             }
         }
         .navigationViewStyle(.stack)
         .onAppear { triggerProbe() }   // v2.9.18：进入设置页自动探测一次，更新环境状态色
-        // v2.9.84：从聊天框「在设置中管理模型」跳入时自动导航到模型 API 页
         .background(
             NavigationLink(destination: ModelsView(), isActive: $jumpToModels) { EmptyView() }
         )
@@ -410,37 +71,362 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - 数据源（两种视图共用）
+
+    private func makeGroups() -> [SettingsGroup] {
+        var groups: [SettingsGroup] = []
+
+        // 模型
+        groups.append(SettingsGroup(header: L10n.t("sec_models"), items: [
+            SettingsItem(title: L10n.t("row_model_api"),
+                         subtitle: "\(ModelStore.shared.configs.count) 个 · \(modelProviderName())",
+                         icon: "rectangle.stack.badge.person.crop", color: .blue,
+                         destination: AnyView(ModelsView())),
+            SettingsItem(title: L10n.t("row_data"),
+                         subtitle: "App 文稿目录", icon: "externaldrive.fill", color: .purple,
+                         destination: AnyView(DataManagementView())),
+            SettingsItem(title: L10n.t("row_sys_prompts"),
+                         subtitle: SystemPrompts.shared.selected.name,
+                         icon: "text.book.closed.fill", color: .tmCyan,
+                         destination: AnyView(SystemPromptsView()))
+        ]))
+
+        // 核心（含开发者模式开关 + 后台常驻已并入远程控制页）
+        var coreItems: [SettingsItem] = [
+            SettingsItem(title: L10n.t("row_inject"),
+                         subtitle: L10n.t("row_inject_sub"),
+                         icon: "syringe.fill", color: .tmIndigo,
+                         destination: AnyView(InjectionView())),
+            SettingsItem(title: L10n.t("row_remote"),
+                         subtitle: L10n.t("row_remote_sub"),
+                         icon: "cursorarrow.click.2", color: .tmCyan,
+                         destination: AnyView(RemoteControlView())),
+            SettingsItem(title: L10n.t("row_github"),
+                         subtitle: "线上编译 · \(githubAccountSubtitle())",
+                         icon: "person.crop.circle.fill.badge.checkmark", color: .black,
+                         destination: AnyView(GitHubAccountView())),
+            SettingsItem(title: L10n.t("row_downloads"),
+                         subtitle: "线上编译产物 · 勾选删除",
+                         icon: "arrow.down.circle.fill", color: .green,
+                         destination: AnyView(DownloadsView()))
+        ]
+        // v2.9.72：开发者模式开关（固定显示，控制下方"开发者"分组）
+        coreItems.append(SettingsItem(
+            title: L10n.t("row_dev_mode"),
+            subtitle: developerMode ? "显示全部高级选项" : "开启后显示开发者选项",
+            icon: "hammer.circle.fill",
+            color: developerMode ? .tmCyan : .gray,
+            isOn: { developerMode },
+            onToggle: { on in
+                developerMode = on
+                UserDefaults.standard.set(on, forKey: "developer_mode")
+            }
+        ))
+        groups.append(SettingsGroup(header: L10n.t("sec_core"), items: coreItems))
+
+        // 开发者
+        if developerMode {
+            var devItems: [SettingsItem] = [
+                SettingsItem(title: L10n.t("task_notify"),
+                             subtitle: L10n.t("task_notify_sub"),
+                             icon: "bell.badge.fill", color: .blue,
+                             isOn: { TaskNotify.shared.enabled },
+                             onToggle: { TaskNotify.shared.enabled = $0 }),
+                SettingsItem(title: L10n.t("row_icon_theme"),
+                             subtitle: "巨魔蓝 · 蓝紫 · 浅白 · 深青",
+                             icon: "app.badge.fill", color: .tmCyan,
+                             destination: AnyView(IconThemeView())),
+                SettingsItem(title: L10n.t("row_device_fake"),
+                             subtitle: "伪装机型 · 注入生效",
+                             icon: "iphone.gen3.radiowaves.left.and.right", color: .tmCyan,
+                             destination: AnyView(FakeDeviceView())),
+                SettingsItem(title: L10n.t("row_dev_instructions"),
+                             subtitle: devInstructionsSubtitle(),
+                             icon: "doc.text.magnifyingglass", color: .orange,
+                             destination: AnyView(DeveloperInstructionsView())),
+                SettingsItem(title: L10n.t("row_permissions"),
+                             subtitle: "\(permissionCount()) 项系统权限",
+                             icon: "hand.raised.fill", color: .red,
+                             destination: AnyView(SystemCapabilitiesView())),
+                SettingsItem(title: L10n.t("row_automation"),
+                             subtitle: "任务 · 历史 · 重试",
+                             icon: "bolt.fill", color: .yellow,
+                             destination: AnyView(AutomationCenterView())),
+                SettingsItem(title: L10n.t("row_tool_policy"),
+                             subtitle: "按工具控制 · 真实/占位",
+                             icon: "lock.shield.fill", color: .green,
+                             destination: AnyView(ToolPermissionPoliciesView())),
+                SettingsItem(title: L10n.t("row_transcripts"),
+                             subtitle: "完整对话存档",
+                             icon: "text.book.closed.fill", color: .tmCyan,
+                             destination: AnyView(ConversationTranscriptView())),
+                SettingsItem(title: L10n.t("row_ssh"),
+                             subtitle: sshConfigSubtitle(),
+                             icon: "terminal.fill", color: .tmCyan,
+                             destination: AnyView(SSHSettingsView())),
+                SettingsItem(title: L10n.t("row_search"),
+                             subtitle: "Bing Web · 用法说明",
+                             icon: "magnifyingglass.circle.fill", color: .tmCyan,
+                             destination: AnyView(SmartSearchView())),
+                SettingsItem(title: L10n.t("row_browser"),
+                             subtitle: "悬浮窗 · AI 可控制 · 蓝框高亮",
+                             icon: "globe.asia.australia.fill", color: .tmCyan,
+                             action: {
+                                 presentationMode.wrappedValue.dismiss()
+                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                     FloatingBrowser.shared.show()
+                                 }
+                             }),
+                SettingsItem(title: L10n.t("row_gateway"),
+                             subtitle: "服务端管理 · \(GatewayServerStore.shared.servers.count) 个",
+                             icon: "network", color: .tmTeal,
+                             destination: AnyView(GatewaySettingsView())),
+                SettingsItem(title: L10n.t("row_agents"),
+                             subtitle: "隔离指令 · 工作流",
+                             icon: "person.3.fill", color: .pink,
+                             destination: AnyView(AgentsAndSkillsView())),
+                SettingsItem(title: L10n.t("row_kb"),
+                             subtitle: "文件导入 · 来源检索",
+                             icon: "books.vertical.fill", color: .tmBrown,
+                             destination: AnyView(KnowledgeBaseView())),
+                SettingsItem(title: L10n.t("row_webhooks"),
+                             subtitle: "HTTPS 事件出口",
+                             icon: "link.circle.fill", color: .gray,
+                             destination: AnyView(WebhooksView()))
+            ]
+            groups.append(SettingsGroup(header: L10n.t("sec_dev"), items: devItems))
+        }
+
+        // 安全
+        groups.append(SettingsGroup(header: L10n.t("sec_security"), items: [
+            SettingsItem(title: L10n.t("row_audit"),
+                         subtitle: "工具调用 · 成功/失败 · 导出给 AI 查看",
+                         icon: "list.bullet.rectangle", color: .tmIndigo,
+                         destination: AnyView(AuditLogView())),
+            SettingsItem(title: L10n.t("row_workspace"),
+                         subtitle: "点开浏览目录 · 预览 · 复制路径 · 分享",
+                         icon: "folder", color: .blue,
+                         destination: AnyView(WorkspaceBrowserView())),
+            SettingsItem(title: "清理中心",
+                         subtitle: "缓存 · 钥匙串 · 广告符 · 数据容器 · AI 清理",
+                         icon: "sparkles.rectangle.stack", color: .tmCyan,
+                         destination: AnyView(CleanupCenterView())),
+            SettingsItem(title: "系统清理",
+                         subtitle: "存储使用 · 缓存占用 · 快速/高级清理",
+                         icon: "externaldrive.fill.badge.timemachine", color: .red,
+                         destination: AnyView(SystemCleanupView())),
+            SettingsItem(title: L10n.t("row_apikeys"),
+                         subtitle: "查看 · 显隐 · 恢复",
+                         icon: "key.fill", color: .red,
+                         destination: AnyView(APIKeyRecoverySheet()))
+        ]))
+
+        // 关于
+        let ver = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+        var aboutItems: [SettingsItem] = [
+            SettingsItem(title: L10n.t("about_title"),
+                         subtitle: "ZeenAE · 独立开发者",
+                         icon: "person.crop.circle.fill", color: .blue,
+                         destination: AnyView(AboutAuthorView())),
+            SettingsItem(title: L10n.t("row_lang"),
+                         subtitle: LanguageManager.shared.language.displayName,
+                         icon: "globe", color: .tmCyan,
+                         action: { showLanguagePicker = true }),
+            SettingsItem(title: L10n.t("row_env"),
+                         subtitle: envSubtitle(),
+                         icon: envIcon(), color: envColor(),
+                         destination: AnyView(DeviceDetectionView())),
+            SettingsItem(title: L10n.t("row_netlog"),
+                         subtitle: NetworkLog.lastCompatNote ?? "中转站自适应降级记录",
+                         icon: "network", color: .orange,
+                         destination: AnyView(NetworkDebugView())),
+            SettingsItem(title: L10n.t("version"),
+                         subtitle: ver, icon: "number.circle.fill", color: .gray,
+                         destination: nil),
+            SettingsItem(title: L10n.t("row_check_update"),
+                         subtitle: updateSubtitle(),
+                         icon: "arrow.triangle.2.circlepath.circle.fill", color: .tmCyan,
+                         action: {
+                             UpdateManager.shared.checkForUpdate(currentVersion: ver)
+                         })
+        ]
+        if UpdateManager.shared.updateAvailable, let latest = UpdateManager.shared.latestVersion {
+            aboutItems.append(SettingsItem(
+                title: "下载并安装 v\(latest)",
+                subtitle: "点击后调起 TrollStore 安装",
+                icon: "square.and.arrow.down.fill", color: .green,
+                action: { UpdateManager.shared.downloadAndInstall() }
+            ))
+        }
+        aboutItems.append(SettingsItem(title: "Bundle ID", subtitle: Bundle.main.bundleIdentifier ?? "-",
+                                       icon: "number", color: .gray, destination: nil))
+        aboutItems.append(SettingsItem(title: "工作区", subtitle: Workspace.root.lastPathComponent,
+                                       icon: "folder", color: .gray, destination: nil))
+        aboutItems.append(SettingsItem(title: "工具数", subtitle: "\(ToolRegistry.shared.definitions.count)",
+                                       icon: "wrench.and.screwdriver", color: .gray, destination: nil))
+        groups.append(SettingsGroup(header: L10n.t("sec_about"), items: aboutItems))
+
+        return groups
+    }
+
+    // MARK: - 列表模式
+
+    private var listBody: some View {
+        List {
+            ForEach(makeGroups(), id: \.header) { group in
+                Section(header: SettingSectionHeader(title: group.header)) {
+                    ForEach(group.items) { item in
+                        listRow(item)
+                    }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .actionSheet(isPresented: $showLanguagePicker) {
+            ActionSheet(
+                title: Text(L10n.t("row_lang")),
+                buttons: AppLanguage.allCases.map { lang in
+                    .default(Text(lang.displayName)) {
+                        LanguageManager.shared.language = lang
+                    }
+                } + [.cancel(Text(L10n.t("cancel")))]
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func listRow(_ item: SettingsItem) -> some View {
+        if let dest = item.destination {
+            NavigationLink(destination: dest) {
+                SettingRowContent(item: item)
+            }
+        } else if let isOn = item.isOn, let onToggle = item.onToggle {
+            Toggle(isOn: Binding(get: isOn, set: onToggle)) {
+                SettingRowContent(item: item)
+            }
+            .accentColor(.tmCyan)
+        } else if let action = item.action {
+            Button(action: action) {
+                SettingRowContent(item: item)
+            }
+        } else {
+            SettingRowContent(item: item)
+        }
+    }
+
+    // MARK: - 卡片模式（分组卡片，对齐 Fuck 工具箱"更多"页）
+
+    private var cardBody: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                ForEach(makeGroups(), id: \.header) { group in
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(group.header)
+                            .font(.footnote)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 4)
+                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                            ForEach(group.items) { item in
+                                card(item)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(16)
+        }
+        .background(Color(.systemGroupedBackground))
+        .actionSheet(isPresented: $showLanguagePicker) {
+            ActionSheet(
+                title: Text(L10n.t("row_lang")),
+                buttons: AppLanguage.allCases.map { lang in
+                    .default(Text(lang.displayName)) {
+                        LanguageManager.shared.language = lang
+                    }
+                } + [.cancel(Text(L10n.t("cancel")))]
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func card(_ item: SettingsItem) -> some View {
+        let content = VStack(alignment: .leading, spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(item.color.opacity(0.16))
+                    .frame(width: 40, height: 40)
+                Image(systemName: item.icon)
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundColor(item.color)
+            }
+            Text(item.title)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.primary)
+                .lineLimit(1)
+            if !item.subtitle.isEmpty {
+                Text(item.subtitle)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
+            if item.isOn != nil, let isOn = item.isOn {
+                Toggle("", isOn: Binding(get: isOn, set: item.onToggle ?? { _ in }))
+                    .labelsHidden()
+                    .scaleEffect(0.85)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+        if let dest = item.destination {
+            NavigationLink(destination: dest) { content }
+                .buttonStyle(.plain)
+        } else if let action = item.action {
+            Button(action: action) { content }
+                .buttonStyle(.plain)
+        } else {
+            content
+        }
+    }
+
+    // MARK: - 动态值
+
     @State private var lastProbe: DeviceProbe.Report?
 
     private func envSubtitle() -> String {
-        guard let r = lastProbe else { return "TrollStore · 权限 · 注入二进制" }
-        if r.ready { return "就绪 · 全部通过" }
-        let failed = r.checks.filter { !$0.passed }.count
-        return "未就绪 · \(failed) 项异常"
+        if let r = lastProbe {
+            return r.ready ? "就绪 · 可注入" : "需检查 \(r.checks.filter { !$0.passed }.count) 项"
+        }
+        return "点击探测"
     }
 
     private func envIcon() -> String {
-        // v2.9.76：美化图标（盾牌+对勾/感叹号，随状态变化）
-        guard let r = lastProbe else { return "checkmark.shield.fill" }
-        if r.ready { return "checkmark.shield.fill" }
-        return "exclamationmark.shield.fill"
+        if let r = lastProbe {
+            return r.ready ? "checkmark.shield.fill" : "exclamationmark.shield.fill"
+        }
+        return "shield.lefthalf.filled"
     }
 
     private func envColor() -> Color {
-        guard let r = lastProbe else { return .green }
-        if r.ready { return .green }
-        return .orange
+        if let r = lastProbe {
+            return r.ready ? .green : .red
+        }
+        return .gray
     }
 
     private func triggerProbe() {
-        DispatchQueue.global(qos: .userInitiated).async {
-            let r = DeviceProbe.shared.run()
-            DispatchQueue.main.async { self.lastProbe = r }
+        DeviceProbe.shared.run { report in
+            lastProbe = report
         }
     }
 
     private func modelProviderName() -> String {
-        ModelStore.shared.defaultConfig?.provider.capitalized ?? "未配置"
+        ModelStore.shared.configs.first(where: { $0.isDefault })?.provider ?? ModelStore.shared.configs.first?.provider ?? "未配置"
     }
 
     private func permissionCount() -> Int {
@@ -451,44 +437,51 @@ struct SettingsView: View {
         if let login = GitHubAccountStore.shared.activeLogin {
             return "@\(login)"
         }
-        return "未登录 · 多账号"
+        let count = GitHubAccountStore.shared.accounts.count
+        return count == 0 ? "未登录 · 多账号" : "\(count) 个账号"
     }
 
     private func devInstructionsSubtitle() -> String {
-        let urls = [
-            Bundle.main.url(forResource: "TrollMCPDeveloperInstructions", withExtension: "md"),
-            Bundle.main.url(forResource: "TrollMCPDeveloperInstructions", withExtension: "md", subdirectory: "bin"),
-        ]
-        for url in urls {
-            if let url = url, let text = try? String(contentsOf: url, encoding: .utf8) {
-                let lines = text.split(separator: "\n").count
-                return "已内置 · \(lines) 行"
+        let count = DeveloperInstructionStore.shared.list().count
+        return "\(count) 条 · 长按设默认"
+    }
+
+    private func sshConfigSubtitle() -> String {
+        let host = UserDefaults.standard.string(forKey: "ssh.host") ?? ""
+        return host.isEmpty ? "未配置" : host
+    }
+
+    private func updateSubtitle() -> String {
+        UpdateManager.shared.updateAvailable ? "发现新版本" : "已是最新"
+    }
+}
+
+/// 行内容（列表/卡片共用视觉）
+struct SettingRowContent: View {
+    let item: SettingsItem
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(item.color)
+                    .frame(width: 34, height: 34)
+                Image(systemName: item.icon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                    .font(.body)
+                    .foregroundColor(.primary)
+                if !item.subtitle.isEmpty {
+                    Text(item.subtitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
             }
         }
-        return "开发者约定 · 工程指南"
-    }
-
-    // v2.9.68：SSH 配置状态
-    private func sshConfigSubtitle() -> String {
-        let defaults = UserDefaults.standard
-        let host = defaults.string(forKey: "ssh_host") ?? ""
-        let user = defaults.string(forKey: "ssh_user") ?? ""
-        if !host.isEmpty && !user.isEmpty {
-            return "\(user)@\(host)"
-        }
-        return "未配置 · Linux 远程命令"
-    }
-
-    // v2.9.68：更新状态
-    private func updateSubtitle() -> String {
-        if UpdateManager.shared.isChecking { return "正在检查..." }
-        if UpdateManager.shared.updateAvailable, let v = UpdateManager.shared.latestVersion {
-            return "发现新版本 v\(v)"
-        }
-        if let error = UpdateManager.shared.errorMessage {
-            return "检查失败: \(error.prefix(30))"
-        }
-        return "当前 v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown") · 点击检查"
     }
 }
 

@@ -16,6 +16,7 @@ struct AppBrowserList: View {
     let apps: [AppCatalog.AppEntry]
     let runningIds: Set<String>
     var onTap: (AppCatalog.AppEntry) -> Void
+    var defaultCategory: AppCategory = .all
 
     @State private var category: AppCategory = .all
     @State private var searchText = ""
@@ -224,6 +225,7 @@ struct AppBrowserContainer: View {
     let subtitle: String
     var icon: String = "app.badge.fill"
     var colors: [Color] = [.tmCyan, .blue]
+    var defaultCategory: AppCategory = .all
     var onTap: (AppCatalog.AppEntry) -> Void
 
     @State private var apps: [AppCatalog.AppEntry] = []
@@ -240,7 +242,7 @@ struct AppBrowserContainer: View {
                 ProgressView("加载应用列表…")
                 Spacer()
             } else {
-                AppBrowserList(apps: apps, runningIds: runningIds, onTap: onTap)
+                AppBrowserList(apps: apps, runningIds: runningIds, onTap: onTap, defaultCategory: defaultCategory)
             }
         }
         .background(Color(.systemGroupedBackground))
