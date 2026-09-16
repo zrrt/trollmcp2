@@ -421,6 +421,11 @@ enum L10n {
             "ui_175": ["zh": "执行结果", "en": "Result"],
             "ui_176": ["zh": "现场截图", "en": "Live Screenshot"],
             "ui_177": ["zh": "关闭", "en": "Close"],
+            "ui_178": ["zh": "执行中", "en": "Running"],
+            "ui_179": ["zh": "已完成", "en": "Done"],
+            "ui_180": ["zh": "未开始", "en": "Idle"],
+            "ui_181": ["zh": "控制已结束", "en": "Control finished"],
+            "ui_182": ["zh": "控制会话已结束，可查看结果", "en": "Control session finished, see result below"],
         ]
         return table[key]?[lang] ?? key
     }

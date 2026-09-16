@@ -60,7 +60,7 @@ struct ControlCenterView: View {
                 Image(systemName: session.isActive ? "target" : "checkmark.seal")
                     .font(.system(size: 22))
                     .foregroundColor(session.isActive ? .blue : .green)
-                Text(session.targetApp.isEmpty ? (session.finalResult != nil ? "控制已结束" : "未开始") : session.targetApp)
+                Text(session.targetApp.isEmpty ? (session.finalResult != nil ? L10n.t("ui_181") : L10n.t("ui_180")) : session.targetApp)
                     .font(.headline)
                 Spacer()
                 statusBadge
@@ -71,7 +71,7 @@ struct ControlCenterView: View {
                     .foregroundColor(.secondary)
             }
             if session.finalResult == nil && !session.isActive && !session.targetApp.isEmpty {
-                Text("控制会话已结束，可下拉查看结果")
+                Text(L10n.t("ui_182"))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -84,13 +84,13 @@ struct ControlCenterView: View {
     private var statusBadge: some View {
         let (text, color): (String, Color)
         if session.isActive {
-            text = "执行中"
+            text = L10n.t("ui_178")
             color = .blue
         } else if session.finalResult != nil {
-            text = "已完成"
+            text = L10n.t("ui_179")
             color = .green
         } else {
-            text = "未开始"
+            text = L10n.t("ui_180")
             color = .secondary
         }
         return Text(text)
