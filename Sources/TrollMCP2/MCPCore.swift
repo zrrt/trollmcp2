@@ -779,6 +779,11 @@ public final class ToolRegistry: ObservableObject {
         register(ControlBeginTool())
         register(ControlUpdateTool())
         register(ControlFinishTool())
+        // v2.9.139：启动带参数 + 定位模拟
+        register(AppLaunchOptionsTool())
+        register(LocationFakeTool())
+        register(LocationFakeStatusTool())
+        register(LocationFakeClearTool())
 
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
     }
