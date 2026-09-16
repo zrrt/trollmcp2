@@ -71,12 +71,23 @@ final class AppCatalog {
                            "amsengagementviewservice", "accountauthentication",
                            "aauiviewservice", "mediaservice", "companionlink"]
         for h in daemonHints where lower.contains(h) { return false }
-        // 隐藏 App（LSApplicationProxy.isHidden，先 responds 防 KVC 异常）
-        if proxy?.responds(to: NSSelectorFromString("isHidden")) == true,
-           let hidden = proxy?.value(forKey: "isHidden") as? Bool, hidden {
+        // 隐藏 App（safeValue 已做 responds 保护）
+        if let proxy = proxy, let hidden = safeValue(proxy, "isHidden") as? Bool, hidden {
             return false
         }
         return true
+    }
+
+    /// v2.9.160：安全 KVC——先 responds 检查再用 method 调用。
+    /// 裸 value(forKey:) 对不存在的 key 会抛 NSUnknownKeyException 导致整页闪退
+    /// （158 的 applicationType/teamID 读取就是此问题）。LSApplicationProxy 属性均为对象类型。
+    private static func safeValue(_ obj: NSObject, _ key: String) -> Any? {
+        let sel = NSSelectorFromString(key)
+        guard obj.responds(to: sel),
+              let m = class_getMethodImplementation(type(of: obj), sel) else { return nil }
+        typealias GetFn = @convention(c) (AnyObject, Selector) -> AnyObject?
+        let fn = unsafeBitCast(m, to: GetFn.self)
+        return fn(obj, sel)
     }
 
     /// 强制刷新（安装/卸载 App 后由调用方触发，避免旧缓存误导）
@@ -98,9 +109,9 @@ final class AppCatalog {
         guard let apps = fn2(ws, NSSelectorFromString("allInstalledApplications")) as? [NSObject] else { return [] }
 
         return apps.compactMap { (p: NSObject) -> AppEntry? in
-            let bid = p.value(forKey: "applicationIdentifier") as? String ?? ""
+            let bid = safeValue(p, "applicationIdentifier") as? String ?? ""
             guard !bid.isEmpty else { return nil as AppEntry? }
-            let path = (p.value(forKey: "bundleURL") as? URL)?.path ?? ""
+            let path = (safeValue(p, "bundleURL") as? URL)?.path ?? ""
             let plist = path.isEmpty ? nil : NSDictionary(contentsOfFile: path + "/Info.plist")
             // v2.9.144：过滤系统服务/隐藏应用（ViewService/UIService/Extension/无界面 daemon），
             // 避免"全部"列表混入 AAUIViewService、AirDropUI 之类不可交互条目
@@ -108,14 +119,14 @@ final class AppCatalog {
             // v2.9.158：对齐 TrollFools——LSApplicationProxy.applicationType 区分
             // "User"（App Store 装）/ "System"（TrollStore 侧载，系统 App 已被路径过滤）；
             // teamID 兜底（TrollStore 重签名为 TROLLTROLL）
-            let appType: String = (p.value(forKey: "applicationType") as? String)
+            let appType: String = (safeValue(p, "applicationType") as? String)
                 ?? (path.contains("/var/containers/Bundle/Application") ? "User" : "System")
-            let teamID: String? = p.value(forKey: "teamID") as? String
+            let teamID: String? = safeValue(p, "teamID") as? String
             return AppEntry(
                 bundleId: bid,
-                name: p.value(forKey: "localizedName") as? String ?? bid,
+                name: safeValue(p, "localizedName") as? String ?? bid,
                 path: path,
-                containerPath: (p.value(forKey: "dataContainerURL") as? URL)?.path,
+                containerPath: (safeValue(p, "dataContainerURL") as? URL)?.path,
                 version: plist?["CFBundleShortVersionString"] as? String ?? "",
                 execName: plist?["CFBundleExecutable"] as? String ?? "",
                 appType: appType,

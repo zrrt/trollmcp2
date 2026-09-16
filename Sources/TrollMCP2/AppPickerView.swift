@@ -35,15 +35,19 @@ struct AppPickerView: View {
 final class AppIconLoader {
     static let shared = AppIconLoader()
     private let cache = NSCache<NSString, UIImage>()
+    /// v2.9.160：私有 API 可用性（responds 检查，避免低版本系统闪退）
+    private static let apiAvailable: Bool = {
+        UIImage.self.responds(to: NSSelectorFromString("_applicationIconImageForBundleIdentifier:format:scale:"))
+    }()
     private init() { cache.countLimit = 512 }
 
     func icon(for bundleId: String) -> UIImage? {
         let key = bundleId as NSString
         if let hit = cache.object(forKey: key) { return hit }
         var img: UIImage?
-        let cls: AnyClass = UIImage.self
-        let sel = NSSelectorFromString("_applicationIconImageForBundleIdentifier:format:scale:")
-        if cls.responds(to: sel) {
+        if AppIconLoader.apiAvailable {
+            let cls: AnyClass = UIImage.self
+            let sel = NSSelectorFromString("_applicationIconImageForBundleIdentifier:format:scale:")
             typealias IconFn = @convention(c) (AnyClass, Selector, NSString, Int, CGFloat) -> UIImage?
             let fn = unsafeBitCast(class_getMethodImplementation(cls, sel), to: IconFn.self)
             img = fn(cls, sel, bundleId as NSString, 0, 3.0)
