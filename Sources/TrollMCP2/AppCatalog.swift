@@ -71,10 +71,9 @@ final class AppCatalog {
                            "amsengagementviewservice", "accountauthentication",
                            "aauiviewservice", "mediaservice", "companionlink"]
         for h in daemonHints where lower.contains(h) { return false }
-        // 隐藏 App（safeValue 已做 responds 保护）
-        if let proxy = proxy, let hidden = safeValue(proxy, "isHidden") as? Bool, hidden {
-            return false
-        }
+        // v2.9.161：不查 isHidden——LSApplicationProxy.isHidden 返回 BOOL（标量），
+        // 经 AnyObject? 函数签名桥接会读到垃圾高位指针导致闪退（TrollFools 也不查 isHidden）。
+        // serviceHints/daemonHints + 容器路径过滤已覆盖绝大多数不可交互条目。
         return true
     }
 
