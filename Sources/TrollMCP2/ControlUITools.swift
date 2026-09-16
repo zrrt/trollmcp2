@@ -177,9 +177,10 @@ final class ScreenCapture {
             if done { lock.unlock(); return }
             done = true
             lock.unlock()
-            recorder.stopCapture { _ in }
             autoreleasepool {
                 guard let pixel = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+                    // v2.9.176：先 stopCapture 再返回（buffer 可能已不可用，但录制必须停干净）
+                    recorder.stopCapture { _ in }
                     finish(false, "截图转码失败")
                     return
                 }
@@ -195,13 +196,18 @@ final class ScreenCapture {
                 try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                 let url = dir.appendingPathComponent("shot_\(Int(Date().timeIntervalSince1970)).png")
                 guard let data = img.pngData() else {
+                    recorder.stopCapture { _ in }
                     finish(false, "PNG 编码失败")
                     return
                 }
                 do {
                     try data.write(to: url)
+                    // v2.9.176：处理完 buffer 再停录制——stopCapture 可能触发系统释放 buffer，
+                    // 先停后用已释放的 CMSampleBuffer 是 UAF 崩溃源（"点录屏秒闪退"嫌疑）。
+                    recorder.stopCapture { _ in }
                     finish(true, url.path)
                 } catch {
+                    recorder.stopCapture { _ in }
                     finish(false, "保存失败: \(error.localizedDescription)")
                 }
             }
