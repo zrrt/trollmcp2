@@ -32,7 +32,7 @@ struct InjectionView: View {
             PageHeader(
                 icon: "syringe.fill",
                 title: L10n.t("page_inject"),
-                subtitle: "\(apps.count) 个应用 · 搜索/分类/版本/索引",
+                subtitle: L10n.t("inject_subtitle").replacingOccurrences(of: "{n}", with: "\(apps.count)"),
                 colors: [.tmIndigo, .tmCyan]
             )
             .padding(.vertical, 8)
@@ -47,7 +47,7 @@ struct InjectionView: View {
                         Image(systemName: "syringe")
                             .font(.system(size: 40))
                             .foregroundColor(.secondary)
-                        Text("点击右上角刷新")
+                        Text(L10n.t("inject_refresh_hint"))
                             .foregroundColor(.secondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

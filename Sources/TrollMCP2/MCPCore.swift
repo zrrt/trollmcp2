@@ -57,6 +57,11 @@ public enum MCPError: Error, CustomStringConvertible {
 enum FailureKind {
     static func classify(_ message: String) -> (code: String, reason: String, nextStep: String) {
         let m = message.lowercased()
+        // 0) opainject 内存注入专项：被拒（反调试/架构/权限）→ 明确降级路径
+        if m.contains("opainject") || m.contains("dlopen") || m.contains("memory injection") {
+            return ("INJECT_MEM_FAILED", "目标",
+                    "内存注入被拒（反调试/架构/权限）。改试 injection.enable 文件注入（自动备份可回滚），或用 TrollFools 手动注入；大厂 App 可先 app.decrypt 砸壳")
+        }
         // 1) 环境：权限 / Entitlements / setuid / 容器写 / 未开权限
         if m.contains("operation not permitted") || m.contains("entitlement")
             || m.contains("setuid") || m.contains("denied") || m.contains("permission")
@@ -403,6 +408,17 @@ public final class ToolRegistry: ObservableObject {
                 WorkflowManager.shared.addStep(name: originalName, tool: originalName)
                 let result = try t.invoke(params)
                 let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+                // v2.9.134：返回式错误统一识别——工具 return ["error":...] / ["ok": false] /
+                // ["status": "failed"] 不再伪装成功（旧版 ok 恒为 true，AI 无法分辨成败，
+                // 即"死结果"根因）。统一走 code/reason/nextStep 失败路径。
+                if let errBox = Self.extractReturnedError(result) {
+                    let info = FailureKind.classify(errBox.message)
+                    AuditLog.shared.logTool(originalName, status: .failure,
+                                            elapsedMs: elapsedMs, dataBytes: 0, permission: perm,
+                                            detail: errBox.message, code: info.code, reason: info.reason, nextStep: info.nextStep)
+                    WorkflowManager.shared.updateStep(tool: originalName, detail: errBox.message, success: false)
+                    throw MCPError.classified(errBox.message, code: info.code, reason: info.reason, nextStep: info.nextStep)
+                }
                 let bytes = Self.resultBytes(result)
                 AuditLog.shared.logTool(originalName, status: .success,
                                         elapsedMs: elapsedMs, dataBytes: bytes, permission: perm)
@@ -443,6 +459,35 @@ public final class ToolRegistry: ObservableObject {
         }
         let info = FailureKind.classify(err.description)
         return (info.code, info.reason, info.nextStep)
+    }
+
+    /// v2.9.134：提取"返回式错误"（工具不 throw 而是 return ["error":...]/["ok":false]/
+    /// ["status":"failed"]）。返回 nil 表示该结果应视为成功。
+    static func extractReturnedError(_ result: [String: Any]) -> (message: String)? {
+        // ① 显式 ok:false
+        if result["ok"] as? Bool == false {
+            return (message: Self.errorMessage(from: result["error"], fallback: "工具返回 ok=false"))
+        }
+        // ② error 键（String 或 [String:Any] 字典）
+        if let errBox = result["error"] {
+            return (message: Self.errorMessage(from: errBox, fallback: "工具返回错误（未提供原因）"))
+        }
+        // ③ status 失败态
+        if let st = result["status"] as? String, ["failed", "error", "failure"].contains(st.lowercased()) {
+            return (message: Self.errorMessage(from: result["reason"] ?? result["error"], fallback: "工具返回失败状态 \(st)"))
+        }
+        return nil
+    }
+
+    private static func errorMessage(from box: Any?, fallback: String) -> String {
+        if let s = box as? String, !s.isEmpty { return s }
+        if let d = box as? [String: Any] {
+            for k in ["reason", "message", "error", "detail"] {
+                if let s = d[k] as? String, !s.isEmpty { return s }
+            }
+            if let s = d["description"] as? String, !s.isEmpty { return s }
+        }
+        return fallback
     }
 
     // v2.9.36：权限标签（对齐老 MCP readOnly/privilegedRead/write 语义，按工具名前缀粗分）
