@@ -253,18 +253,11 @@ final class UpdateManager: ObservableObject {
         // 方式1：用 TrollStore URL scheme（如果支持）
         // 方式2：用 UIActivityViewController 分享给 TrollStore
         // 方式3：用 UIDocumentInteractionController
-        let activityVC = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-        activityVC.completionWithItemsHandler = { [weak self] _, completed, _, error in
+        // v2.9.169：统一 SharePresenter（旧裸 present 在子页 sheet 上再 present 必崩）
+        SharePresenter.present([url]) { [weak self] completed, error in
             if let error = error {
                 self?.errorMessage = "安装调起失败: \(error.localizedDescription)"
-            } else if completed {
-                // 用户选择了 TrollStore 安装
             }
-        }
-        // 从根视图控制器弹出
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let rootVC = windowScene.windows.first?.rootViewController {
-            rootVC.present(activityVC, animated: true)
         }
     }
 }

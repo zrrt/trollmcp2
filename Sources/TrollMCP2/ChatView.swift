@@ -741,33 +741,14 @@ struct ChatView: View {
         presentShareSheet(text: text)
     }
 
-    // v2.9.69：修复分享闪退——用 rootViewController 直接弹出 UIActivityViewController，加空值保护
+    // v2.9.169：统一 SharePresenter——修复 contextMenu 收起动画中 present 崩溃
     private func presentShareSheet(text: String) {
         let content = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty else {
             showToast("没有可分享的内容")
             return
         }
-        DispatchQueue.main.async {
-            let activityVC = UIActivityViewController(activityItems: [content], applicationActivities: nil)
-            activityVC.excludedActivityTypes = [.assignToContact, .print]
-            // iPad 适配
-            if let popover = activityVC.popoverPresentationController {
-                popover.sourceView = UIApplication.shared.windows.first(where: { $0.isKeyWindow })
-                popover.sourceRect = CGRect(x: UIScreen.main.bounds.midX, y: UIScreen.main.bounds.midY, width: 0, height: 0)
-                popover.permittedArrowDirections = []
-            }
-            guard let rootVC = UIApplication.shared.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
-                self.showToast("分享失败：无法获取窗口")
-                return
-            }
-            // 找到最顶层的 presentedViewController
-            var topVC = rootVC
-            while let presented = topVC.presentedViewController {
-                topVC = presented
-            }
-            topVC.present(activityVC, animated: true)
-        }
+        SharePresenter.present([content], excluded: [.assignToContact, .print])
     }
 
     /// 把勾选的消息拼成可读文本（按会话内顺序），用于复制 / 分享。

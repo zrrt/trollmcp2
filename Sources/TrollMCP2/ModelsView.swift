@@ -315,10 +315,8 @@ struct ModelRow: View {
         if config.maxTokens != 2048 { link += "&maxTokens=\(config.maxTokens)" }
         if config.contextTokens != 16000 { link += "&contextTokens=\(config.contextTokens)" }
 
-        let activity = UIActivityViewController(activityItems: [link], applicationActivities: nil)
-        if let window = UIApplication.shared.windows.first {
-            window.rootViewController?.present(activity, animated: true)
-        }
+        // v2.9.169：统一 SharePresenter（旧裸 present 在子页 sheet 上再 present 必崩）
+        SharePresenter.present([link])
         AuditLog.shared.log("model.share_deeplink", detail: config.name)
     }
 
