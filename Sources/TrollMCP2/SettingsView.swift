@@ -91,8 +91,8 @@ struct SettingsView: View {
                          destination: AnyView(SystemPromptsView()))
         ]))
 
-        // 核心（含开发者模式开关 + 后台常驻已并入远程控制页）
-        var coreItems: [SettingsItem] = [
+        // 控制（注入/远程控制/控制中心/操作宏 + 开发者模式开关）
+        var controlItems: [SettingsItem] = [
             SettingsItem(title: L10n.t("row_inject"),
                          subtitle: L10n.t("row_inject_sub"),
                          icon: "syringe.fill", color: .tmIndigo,
@@ -101,17 +101,28 @@ struct SettingsView: View {
                          subtitle: L10n.t("row_remote_sub"),
                          icon: "cursorarrow.click.2", color: .tmCyan,
                          destination: AnyView(RemoteControlView())),
-            SettingsItem(title: L10n.t("row_github"),
-                         subtitle: "线上编译 · \(githubAccountSubtitle())",
-                         icon: "person.crop.circle.fill.badge.checkmark", color: .black,
-                         destination: AnyView(GitHubAccountView())),
-            SettingsItem(title: L10n.t("row_downloads"),
-                         subtitle: "线上编译产物 · 勾选删除",
-                         icon: "arrow.down.circle.fill", color: .green,
-                         destination: AnyView(DownloadsView()))
+            // v2.9.144：AI 控制中心 + 操作宏（从聊天框移入设置，退出设置页后全屏弹出）
+            SettingsItem(title: L10n.t("ui_172"),
+                         subtitle: "计划 · 分色日志 · 现场截图",
+                         icon: "target", color: .tmCyan,
+                         action: {
+                             presentationMode.wrappedValue.dismiss()
+                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                 AppUIState.shared.controlPresented = true
+                             }
+                         }),
+            SettingsItem(title: L10n.t("ui_183"),
+                         subtitle: "录制 · 回放 · 导出",
+                         icon: "play.rectangle", color: .orange,
+                         action: {
+                             presentationMode.wrappedValue.dismiss()
+                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                 AppUIState.shared.macroPresented = true
+                             }
+                         })
         ]
         // v2.9.72：开发者模式开关（固定显示，控制下方"开发者"分组）
-        coreItems.append(SettingsItem(
+        controlItems.append(SettingsItem(
             title: L10n.t("row_dev_mode"),
             subtitle: developerMode ? "显示全部高级选项" : "开启后显示开发者选项",
             icon: "hammer.circle.fill",
@@ -122,7 +133,19 @@ struct SettingsView: View {
                 UserDefaults.standard.set(on, forKey: "developer_mode")
             }
         ))
-        groups.append(SettingsGroup(header: L10n.t("sec_core"), items: coreItems))
+        groups.append(SettingsGroup(header: L10n.t("sec_control"), items: controlItems))
+
+        // 线上编译
+        groups.append(SettingsGroup(header: L10n.t("sec_build"), items: [
+            SettingsItem(title: L10n.t("row_github"),
+                         subtitle: "线上编译 · \(githubAccountSubtitle())",
+                         icon: "person.crop.circle.fill.badge.checkmark", color: .black,
+                         destination: AnyView(GitHubAccountView())),
+            SettingsItem(title: L10n.t("row_downloads"),
+                         subtitle: "线上编译产物 · 勾选删除",
+                         icon: "arrow.down.circle.fill", color: .green,
+                         destination: AnyView(DownloadsView()))
+        ]))
 
         // 开发者
         if developerMode {

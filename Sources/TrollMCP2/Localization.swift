@@ -139,6 +139,8 @@ enum L10n {
 
             // ===== 设置分组 =====
             "sec_models": ["zh": "模型", "en": "Models"],
+            "sec_control": ["zh": "控制", "en": "Control"],
+            "sec_build": ["zh": "线上编译", "en": "Cloud Build"],
             "sec_core": ["zh": "核心功能", "en": "Core"],
             "sec_dev": ["zh": "开发者选项", "en": "Developer"],
             "row_keepalive": ["zh": "后台常驻", "en": "Background Keep-Alive"],
