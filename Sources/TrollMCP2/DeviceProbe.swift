@@ -125,8 +125,16 @@ final class DeviceProbe: ObservableObject {
             appCount: appCount, workspaceSize: workspaceSize,
             batteryLevel: batteryLevel
         )
-        lastReport = report
-        AuditLog.shared.log("device.probe", detail: "ready=\(ready) trollStore=\(trollStore) entsOK=\(entitlementsOK) tfpid=\(taskForPid) container=\(containerWrite)")
+        // v2.9.144：@Published 后台线程赋值会触发 SwiftUI 崩溃，挪主线程回写
+        if Thread.isMainThread {
+            lastReport = report
+            AuditLog.shared.log("device.probe", detail: "ready=\(ready) trollStore=\(trollStore) entsOK=\(entitlementsOK) tfpid=\(taskForPid) container=\(containerWrite)")
+        } else {
+            DispatchQueue.main.async {
+                self.lastReport = report
+                AuditLog.shared.log("device.probe", detail: "ready=\(ready) trollStore=\(trollStore) entsOK=\(entitlementsOK) tfpid=\(taskForPid) container=\(containerWrite)")
+            }
+        }
         return report
     }
 

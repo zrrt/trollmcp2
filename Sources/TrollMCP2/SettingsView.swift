@@ -443,8 +443,14 @@ struct SettingsView: View {
         return .gray
     }
 
+    // v2.9.144：探测含 spawnRoot/文件遍历，主线程同步会卡死被看门狗杀（表现为闪退）
     private func triggerProbe() {
-        lastProbe = DeviceProbe.shared.run()
+        DispatchQueue.global(qos: .userInitiated).async {
+            let r = DeviceProbe.shared.run()
+            DispatchQueue.main.async {
+                self.lastProbe = r
+            }
+        }
     }
 
     private func modelProviderName() -> String {

@@ -317,8 +317,15 @@ struct InjectionView: View {
         }
     }
 
+    // v2.9.144：inspect 扫描 App 目录+读 Mach-O，主线程同步会卡死闪退
     private func inspectApp(_ app: AppCatalog.AppEntry) {
-        inspectResult = InjectionManager.shared.inspect(app.bundleId)
+        inspectResult = nil
+        DispatchQueue.global(qos: .userInitiated).async {
+            let r = InjectionManager.shared.inspect(app.bundleId)
+            DispatchQueue.main.async {
+                self.inspectResult = r
+            }
+        }
     }
 }
 

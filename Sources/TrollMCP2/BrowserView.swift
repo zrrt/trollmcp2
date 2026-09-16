@@ -206,7 +206,9 @@ struct WebViewContainer: UIViewRepresentable {
 
     func makeUIView(context: Context) -> WKWebView {
         bm.ensureWebView()
-        return bm.webView!
+        // v2.9.144：webView 可能为 nil 时强解包闪退，改用安全兜底
+        if let wv = bm.webView { return wv }
+        return WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
     }
 
     func updateUIView(_ uiView: WKWebView, context: Context) {}

@@ -47,6 +47,28 @@ final class AppCatalog {
         return fresh
     }
 
+    /// v2.9.144：可启动判定——过滤系统服务、扩展、无界面 daemon、隐藏 App。
+    /// 特征：.appex 扩展 / ViewService·UIService·Extension·XPCService / isHidden=true
+    static func isLaunchable(bundleId: String, path: String, proxy: NSObject?) -> Bool {
+        if path.contains(".appex") { return false }
+        let lower = bundleId.lowercased()
+        let serviceHints = ["viewservice", "uiservice", "xpcservice", "extension",
+                            "intents", "widget", "share", "watchapp", "messagesextension",
+                            "remotewebsheet", "webapp"]
+        for h in serviceHints where lower.contains(h) { return false }
+        // 系统 UI 服务/接收器（无主界面，不可交互）
+        let daemonHints = ["airdropui", "airplayreceiver", "tvremoteuiservice",
+                           "amsengagementviewservice", "accountauthentication",
+                           "aauiviewservice", "mediaservice", "companionlink"]
+        for h in daemonHints where lower.contains(h) { return false }
+        // 隐藏 App（LSApplicationProxy.isHidden，先 responds 防 KVC 异常）
+        if proxy?.responds(to: NSSelectorFromString("isHidden")) == true,
+           let hidden = proxy?.value(forKey: "isHidden") as? Bool, hidden {
+            return false
+        }
+        return true
+    }
+
     /// 强制刷新（安装/卸载 App 后由调用方触发，避免旧缓存误导）
     static func invalidateCache() {
         cachedList = nil
@@ -68,6 +90,9 @@ final class AppCatalog {
             guard !bid.isEmpty else { return nil }
             let path = (p.value(forKey: "bundleURL") as? URL)?.path ?? ""
             let plist = path.isEmpty ? nil : NSDictionary(contentsOfFile: path + "/Info.plist")
+            // v2.9.144：过滤系统服务/隐藏应用（ViewService/UIService/Extension/无界面 daemon），
+            // 避免"全部"列表混入 AAUIViewService、AirDropUI 之类不可交互条目
+            guard isLaunchable(bundleId: bid, path: path, proxy: p) else { return nil }
             return AppEntry(
                 bundleId: bid,
                 name: p.value(forKey: "localizedName") as? String ?? bid,
