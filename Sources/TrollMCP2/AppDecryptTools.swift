@@ -1,18 +1,19 @@
-﻿import Foundation
+import Foundation
 
-// v2.9.68：应用解密（砸壳）工具
-// 通过 task_for_pid 读取目标 App 进程内存，替换加密段为解密后的数据
-// 支持两种模式：
-// 1. clutch 模式：调用打包的 clutch 二进制（推荐，兼容性好）
-// 2. 内存 dump 模式：直接读取进程内存解密（简化版）
+// v2.9.128：应用解密（砸壳）工具 —— 引擎实现在 DecryptEngine.swift
+// 原理（对齐 TrollDecrypt 全量算法）：
+//   启动目标 App → task_for_pid → task_info(TASK_DYLD_INFO) 遍历 dyld 镜像
+//   → 找主二进制加载地址 → 读 LC_ENCRYPTION_INFO_64 → mach_vm_read_overwrite
+//   从进程内存读解密段 → 重建镜像并清 cryptid → 处理 Frameworks → 打包 IPA
+// 失败四分类（CLI 协议）：env（权限/环境）/ target（App/进程/启动）/ param / tool（解析/打包）
+
 final class AppDecryptTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.decrypt",
-        summary: "对已安装的 App 进行砸壳解密（去除 App Store 加密）。需要目标 App 正在运行。输出解密后的 IPA 到工作区。",
+        summary: "对已安装的 App 进行砸壳解密（去除 App Store 加密）。需要目标 App 正在运行（未运行会自动启动）。输出解密后的 IPA 到工作区 decrypted/ 目录。",
         parameters: [
             "bundle_id": "目标 App 的 Bundle ID（必填，可用 injection.list 搜索）",
-            "mode": "解密模式：clutch（调用打包的 clutch，默认）或 memory（内存 dump）",
-            "output_name": "输出文件名（可选，默认用 App 名称）"
+            "output_name": "输出文件名前缀（可选，默认用 App 名称）"
         ]
     )
 
@@ -20,167 +21,47 @@ final class AppDecryptTool: MCPTool {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
         }
-        let mode = (params["mode"] as? String)?.lowercased() ?? "clutch"
         let outputName = params["output_name"] as? String
 
-        // 查找目标 App
-        let apps = AppCatalog.list()
-        guard let target = apps.first(where: { $0.bundleId == bundleId }) else {
-            return ["error": "未找到 App: \(bundleId)", "hint": "用 injection.list 搜索目标 App 的 bundle_id"]
-        }
+        AuditLog.shared.log("app.decrypt", detail: bundleId)
+        let r = DecryptEngine.decryptApp(bundleId: bundleId, outputName: outputName)
 
-        // 检查目标是否正在运行
-        let pid = findProcess(by: bundleId)
-        guard pid > 0 else {
+        guard r.ok else {
             return [
-                "error": "目标 App 未运行",
+                "ok": false,
+                "error": [
+                    "code": r.errorCode,
+                    "reason": r.errorReason,
+                    "next_step": r.nextStep
+                ],
                 "bundle_id": bundleId,
-                "app_name": target.name,
-                "hint": "请先打开目标 App，保持在前台或后台运行，再执行砸壳"
+                "pid": r.pid,
+                "launch_errors": r.launchErrors
             ]
         }
-
-        AuditLog.shared.log("app.decrypt", detail: "\(bundleId) pid=\(pid) mode=\(mode)")
-
-        if mode == "clutch" {
-            return try decryptWithClutch(bundleId: bundleId, pid: pid, appName: target.name, outputName: outputName)
-        } else {
-            return try decryptWithMemoryDump(bundleId: bundleId, pid: pid, appName: target.name, outputName: outputName)
-        }
-    }
-
-    // MARK: - clutch 模式
-
-    private func decryptWithClutch(bundleId: String, pid: Int32, appName: String, outputName: String?) throws -> [String: Any] {
-        let clutchPath = Bundle.main.path(forResource: "clutch", ofType: nil, inDirectory: "bin")
-        guard let clutchPath = clutchPath, FileManager.default.fileExists(atPath: clutchPath) else {
-            return [
-                "error": "clutch 未内置",
-                "hint": "clutch 二进制未打包到 App 中，将在后续版本添加；当前可用 memory 模式",
-                "clutch_path": clutchPath ?? "not found"
-            ]
-        }
-
-        let workspace = NSHomeDirectory().appending("/Documents/Workspace")
-        let outputDir = workspace.appending("/decrypted")
-        try? FileManager.default.createDirectory(atPath: outputDir, withIntermediateDirectories: true)
-
-        let (exitCode, output) = InjectionManager.shared.spawnRoot(clutchPath, args: ["-d", bundleId, "--output", outputDir])
-
-        // 查找输出文件
-        let files = (try? FileManager.default.contentsOfDirectory(atPath: outputDir)) ?? []
-        let ipaFiles = files.filter { $0.hasSuffix(".ipa") }
 
         return [
-            "mode": "clutch",
-            "bundle_id": bundleId,
-            "app_name": appName,
-            "pid": pid,
-            "exit_code": exitCode,
-            "output": String(output.prefix(3000)),
-            "output_dir": outputDir,
-            "decrypted_files": ipaFiles,
-            "success": exitCode == 0 && !ipaFiles.isEmpty
-        ]
-    }
-
-    // MARK: - 内存 dump 模式（简化版）
-
-    private func decryptWithMemoryDump(bundleId: String, pid: Int32, appName: String, outputName: String?) throws -> [String: Any] {
-        // 通过 task_for_pid 获取进程端口
-        var task: UInt32 = 0
-        let kr = DeviceProbe.shared.tm_task_for_pid(DeviceProbe.shared.tm_mach_task_self(), pid, &task)
-        guard kr == KERN_SUCCESS, task != 0 else {
-            return [
-                "error": "task_for_pid 失败",
-                "kern_return": Int(kr),
-                "hint": "需要 task_for_pid-allow entitlement（TrollStore 开启编辑 Entitlements 后卸载重装）"
+            "ok": true,
+            "message": "砸壳完成：\(r.outputName)",
+            "data": [
+                "bundle_id": bundleId,
+                "pid": r.pid,
+                "output_path": r.outputPath,
+                "output_name": r.outputName,
+                "decrypted_binaries": r.decryptedBinaries,
+                "crypt_info": r.cryptInfo
             ]
-        }
-
-        // 读取 MachO 头，找到加密段
-        // 简化版：复制 App Bundle，用进程内存替换 __TEXT 段
-        let apps = AppCatalog.list()
-        guard let target = apps.first(where: { $0.bundleId == bundleId }) else {
-            return ["error": "未找到 App 路径"]
-        }
-
-        let bundlePath = target.path
-        let workspace = NSHomeDirectory().appending("/Documents/Workspace/decrypted")
-        try? FileManager.default.createDirectory(atPath: workspace, withIntermediateDirectories: true)
-
-        let safeName = (outputName ?? appName).replacingOccurrences(of: " ", with: "_")
-        let outputPath = workspace.appending("/\(safeName)-decrypted.ipa")
-
-        // 复制原始 Bundle
-        let tempDir = workspace.appending("/\(safeName)_temp")
-        try? FileManager.default.removeItem(atPath: tempDir)
-        do {
-            try FileManager.default.copyItem(atPath: bundlePath, toPath: tempDir)
-        } catch {
-            return ["error": "复制 App Bundle 失败: \(error.localizedDescription)", "bundle_path": bundlePath]
-        }
-
-        // 找到主二进制
-        let plistPath = tempDir.appending("/Info.plist")
-        let plist = NSDictionary(contentsOfFile: plistPath)
-        let executable = (plist?["CFBundleExecutable"] as? String) ?? appName
-        let binaryPath = tempDir.appending("/\(executable)")
-
-        // 用 ldid 检查是否有加密段
-        let ldidPath = InjectionManager.shared.binaryPath("ldid") ?? ""
-        if !ldidPath.isEmpty {
-            _ = InjectionManager.shared.spawnRootDetailed(ldidPath, args: ["-e", binaryPath], timeout: 30)
-        }
-
-        // 内存 dump 的核心逻辑：
-        // 1. 读取 MachO 头，找到 LC_ENCRYPTION_INFO_64
-        // 2. 通过 vm_read_overwrite 读取进程内存中对应地址的数据
-        // 3. 替换文件中的加密段
-        // 4. 清除 cryptid 标志
-        // 这个实现比较复杂，这里先返回框架状态
-        _ = DeviceProbe.shared.tm_mach_port_deallocate(DeviceProbe.shared.tm_mach_task_self(), task)
-
-        return [
-            "mode": "memory",
-            "bundle_id": bundleId,
-            "app_name": appName,
-            "pid": pid,
-            "task_port": task,
-            "bundle_path": bundlePath,
-            "temp_dir": tempDir,
-            "binary_path": binaryPath,
-            "output_path": outputPath,
-            "status": "框架已就绪，内存 dump 核心逻辑待完善",
-            "hint": "建议使用 clutch 模式（需打包 clutch 二进制），兼容性更好",
-            "success": false
         ]
-    }
-
-    // MARK: - 辅助方法
-
-    private func findProcess(by bundleId: String) -> Int32 {
-        // 通过 sysctl 获取进程列表，匹配 bundleId
-        // 简化：用 ps 命令查找（v2.9.126：只取 stdout，stderr 噪音不混入）
-        let output = InjectionManager.shared.spawnRootDetailed("/bin/ps", args: ["-ax"], timeout: 30).stdout
-        let lines = output.components(separatedBy: .newlines)
-        for line in lines {
-            if line.contains(bundleId) || line.contains(bundleId.replacingOccurrences(of: ".", with: "")) {
-                let parts = line.trimmingCharacters(in: .whitespaces).components(separatedBy: .whitespaces)
-                if let pidStr = parts.first, let pid = Int32(pidStr) {
-                    return pid
-                }
-            }
-        }
-        return 0
     }
 }
 
-// v2.9.68：查看 App 加密状态工具
+// v2.9.128：查看 App 加密状态工具（增强）
+// 目标 App 正在运行时：直接进进程读 LC_ENCRYPTION_INFO_64，返回精确 cryptid/cryptoff/cryptsize
+// 未运行时：otool -l 解析，且区分"解析失败（加密/特殊 mach-o）"vs"确实未加密"
 final class AppEncryptInfoTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.encrypt_info",
-        summary: "查看指定 App 的加密状态（是否砸壳、加密段信息、签名信息）。",
+        summary: "查看指定 App 的加密状态（cryptid/cryptoff/cryptsize、签名）。App 正在运行时读进程内存精确解析，未运行时用 otool 且区分解析失败与未加密。",
         parameters: [
             "bundle_id": "目标 App 的 Bundle ID（必填）"
         ]
@@ -193,7 +74,8 @@ final class AppEncryptInfoTool: MCPTool {
 
         let apps = AppCatalog.list()
         guard let target = apps.first(where: { $0.bundleId == bundleId }) else {
-            return ["error": "未找到 App: \(bundleId)"]
+            return ["ok": false, "error": ["code": "target", "reason": "未找到 App: \(bundleId)",
+                    "next_step": "用 injection.list 搜索目标 App 的 bundle_id"]]
         }
 
         let plistPath = target.path.appending("/Info.plist")
@@ -201,20 +83,70 @@ final class AppEncryptInfoTool: MCPTool {
         let executable = (plist?["CFBundleExecutable"] as? String) ?? target.name
         let binaryPath = target.path.appending("/\(executable)")
 
-        // 用 otool 或 ldid 检查加密段
-        let otoolPath = Bundle.main.path(forResource: "otool", ofType: nil, inDirectory: "bin") ?? "/usr/bin/otool"
-        var cryptInfo = "未知"
-        if FileManager.default.fileExists(atPath: otoolPath) {
-            // v2.9.126：只取 stdout——otool 警告/错误在 stderr，不混入解析结果
-            let output = InjectionManager.shared.spawnRootDetailed(otoolPath, args: ["-l", binaryPath], timeout: 60).stdout
-            if output.contains("LC_ENCRYPTION_INFO") {
-                cryptInfo = "已加密（App Store 下载）"
+        // 方式 A：进程内精确解析（App 正在运行）
+        var pid = findPidFor(by: bundleId)
+        var processInfo: [String: Any] = [:]
+        if pid > 0 {
+            var task: UInt32 = 0
+            let kr = DeviceProbe.shared.tm_task_for_pid(DeviceProbe.shared.tm_mach_task_self(), pid, &task)
+            if kr == 0, task != 0 {
+                defer { DeviceProbe.shared.tm_mach_port_deallocate(DeviceProbe.shared.tm_mach_task_self(), task) }
+                if let loadAddr = DecryptEngine.findImageLoadAddress(task: task, pid: pid, binaryPath: binaryPath) {
+                    if let enc = DecryptEngine.readEncryptionInfo(task: task, loadAddress: loadAddr) {
+                        processInfo = [
+                            "pid": pid,
+                            "load_address": String(format: "0x%llx", loadAddr),
+                            "cryptid": enc.cryptid,
+                            "cryptoff": enc.cryptoff,
+                            "cryptsize": enc.cryptsize,
+                            "encrypted": enc.cryptid != 0
+                        ]
+                    } else {
+                        processInfo = ["pid": pid, "parse_error": "读 Mach-O load commands 失败"]
+                    }
+                } else {
+                    processInfo = ["pid": pid, "parse_error": "dyld 镜像表未找到主二进制"]
+                }
             } else {
-                cryptInfo = "未加密（已砸壳或侧载）"
+                processInfo = ["pid": pid, "task_for_pid_error": "kern_return=\(Int(kr))"]
             }
         }
 
-        // 检查签名
+        // 方式 B：otool 静态解析（未运行或需要二次确认）
+        let otoolPath = Bundle.main.path(forResource: "otool", ofType: nil, inDirectory: "bin") ?? "/usr/bin/otool"
+        var staticInfo: [String: Any] = [:]
+        if FileManager.default.fileExists(atPath: otoolPath) {
+            // v2.9.126：只取 stdout——otool 警告/错误在 stderr，不混入解析结果
+            let out = InjectionManager.shared.spawnRootDetailed(otoolPath, args: ["-l", binaryPath], timeout: 60).stdout
+            if out.contains("LC_ENCRYPTION_INFO") {
+                // 提取 cryptid/cryptoff/cryptsize 具体值
+                var cryptid: Int32 = -1
+                var cryptoff: Int32 = -1
+                var cryptsize: Int32 = -1
+                let lines = out.components(separatedBy: .newlines)
+                for i in 0..<lines.count {
+                    let line = lines[i]
+                    if line.contains("cryptid") {
+                        cryptid = extractInt(line, "cryptid")
+                    } else if line.contains("cryptoff") {
+                        cryptoff = extractInt(line, "cryptoff")
+                    } else if line.contains("cryptsize") {
+                        cryptsize = extractInt(line, "cryptsize")
+                    }
+                }
+                staticInfo = ["has_encryption_cmd": true, "cryptid": cryptid,
+                              "cryptoff": cryptoff, "cryptsize": cryptsize,
+                              "encrypted": cryptid == 1]
+            } else if out.contains("LC_ENCRYPTION") {
+                staticInfo = ["has_encryption_cmd": true, "parse_error": "含加密命令但 otool 输出格式异常"]
+            } else {
+                staticInfo = ["has_encryption_cmd": false, "cryptid": 0, "encrypted": false]
+            }
+        } else {
+            staticInfo = ["otool": "not_found"]
+        }
+
+        // 签名检查
         let ldidPath = InjectionManager.shared.binaryPath("ldid") ?? ""
         var signInfo = "未知"
         if !ldidPath.isEmpty {
@@ -224,14 +156,64 @@ final class AppEncryptInfoTool: MCPTool {
         }
 
         return [
-            "bundle_id": bundleId,
-            "app_name": target.name,
-            "bundle_path": target.path,
-            "binary_path": binaryPath,
-            "encryption_status": cryptInfo,
-            "signature_status": signInfo,
-            "version": plist?["CFBundleShortVersionString"] as? String ?? "未知",
-            "build": plist?["CFBundleVersion"] as? String ?? "未知"
+            "ok": true,
+            "data": [
+                "bundle_id": bundleId,
+                "app_name": target.name,
+                "bundle_path": target.path,
+                "binary_path": binaryPath,
+                "version": plist?["CFBundleShortVersionString"] as? String ?? "未知",
+                "build": plist?["CFBundleVersion"] as? String ?? "未知",
+                "signature_status": signInfo,
+                "process_info": processInfo,
+                "static_info": staticInfo,
+                "conclusion": conclusion(processInfo: processInfo, staticInfo: staticInfo)
+            ]
         ]
+    }
+
+    private func conclusion(processInfo: [String: Any], staticInfo: [String: Any]) -> String {
+        if let pid = processInfo["pid"] as? Int32, pid > 0 {
+            if let enc = processInfo["encrypted"] as? Bool {
+                return enc ? "运行中进程检测到加密（cryptid=1），可用 app.decrypt 砸壳" : "运行中进程确认未加密（cryptid=0），无需砸壳"
+            }
+            if let _ = processInfo["parse_error"] {
+                return "进程解析失败（可能是加密+反调试拦截），静态结果见 static_info"
+            }
+        }
+        if let enc = staticInfo["encrypted"] as? Bool {
+            return enc ? "静态检测为已加密（cryptid=1），请启动目标 App 后用 app.decrypt 砸壳" : "静态检测为未加密（已砸壳或侧载）"
+        }
+        if let _ = staticInfo["parse_error"] {
+            return "静态解析异常（可能是加密二进制或特殊 Mach-O），启动 App 后用 app.decrypt 尝试进程内砸壳"
+        }
+        return "otool 不可用，无法静态判断；启动 App 后用 app.encrypt_info 复查（进程内解析）"
+    }
+
+    private func extractInt(_ line: String, _ key: String) -> Int32 {
+        let parts = line.components(separatedBy: key)
+        guard parts.count > 1 else { return -1 }
+        let rest = parts[1]
+        // 跳过非数字，取第一个数字串
+        var digits = ""
+        for ch in rest {
+            if ch.isNumber { digits.append(ch) }
+            else if !digits.isEmpty { break }
+        }
+        return Int32(digits) ?? -1
+    }
+
+    private func findPidFor(by bundleId: String) -> Int32 {
+        let output = InjectionManager.shared.spawnRootDetailed("/bin/ps", args: ["-ax"], timeout: 30).stdout
+        let lines = output.components(separatedBy: .newlines)
+        for line in lines {
+            if line.contains(bundleId) || line.contains(bundleId.replacingOccurrences(of: ".", with: "")) {
+                let parts = line.trimmingCharacters(in: .whitespaces).components(separatedBy: .whitespaces)
+                if let pidStr = parts.first, let pid = Int32(pidStr) {
+                    return pid
+                }
+            }
+        }
+        return 0
     }
 }
