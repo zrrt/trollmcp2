@@ -28,8 +28,10 @@ static NSArray<UIWindow *> *allWindows(void) {
         }
     }
     if (windows.count == 0) {
-        // fallback：旧 API
-        [windows addObjectsFromArray:allWindows()];
+        // fallback：旧 API（v2.9.128 修复：原实现递归调用自身导致无限递归栈溢出）
+        for (UIWindow *w in [UIApplication sharedApplication].windows) {
+            if (w) [windows addObject:w];
+        }
     }
     return windows;
 }
@@ -244,12 +246,28 @@ static NSDictionary *tapAt(CGFloat x, CGFloat y) {
     CGPoint point = CGPointMake(x, y);
     UIView *hitView = [keyWindow hitTest:point withEvent:nil];
 
+    // v2.9.128：优先 UIControl 直接触发（UIButton/UISwitch 等，可靠）
+    if ([hitView isKindOfClass:[UIControl class]]) {
+        UIControl *ctrl = (UIControl *)hitView;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [ctrl sendActionsForControlEvents:UIControlEventTouchUpInside];
+        });
+        return @{
+            @"tapped": @YES,
+            @"method": @"sendActions",
+            @"point": @{@"x": @(x), @"y": @(y)},
+            @"hit_view": NSStringFromClass([hitView class])
+        };
+    }
+
+    // 兜底：UITouch 私有 API 模拟
     dispatch_async(dispatch_get_main_queue(), ^{
         simulateTouchAtPoint(point, keyWindow);
     });
 
     return @{
         @"tapped": @YES,
+        @"method": @"uitouch",
         @"point": @{@"x": @(x), @"y": @(y)},
         @"hit_view": hitView ? NSStringFromClass([hitView class]) : @"nil"
     };
@@ -314,20 +332,14 @@ static NSDictionary *typeText(NSString *text) {
         if (firstResponder) break;
     }
 
-    // 更简单的方式：用 UIKeyInput 协议
-    if ([firstResponder isKindOfClass:[UITextField class]]) {
-        UITextField *tf = (UITextField *)firstResponder;
+    // v2.9.128：统一走 UITextInput insertText 协议（触发真实输入链：delegate/格式化/限制），
+    // 替代直接赋值 text（很多输入框直接赋值不生效，如带 format 的号码框、聊天输入框）
+    if ([firstResponder conformsToProtocol:@protocol(UITextInput)]) {
+        id<UITextInput> input = (id<UITextInput>)firstResponder;
         dispatch_async(dispatch_get_main_queue(), ^{
-            tf.text = [tf.text stringByAppendingString:text];
-            [tf sendActionsForControlEvents:UIControlEventEditingChanged];
+            [input insertText:text];
         });
-        return @{@"typed": @YES, @"text": text, @"target": @"UITextField"};
-    } else if ([firstResponder isKindOfClass:[UITextView class]]) {
-        UITextView *tv = (UITextView *)firstResponder;
-        dispatch_async(dispatch_get_main_queue(), ^{
-            tv.text = [tv.text stringByAppendingString:text];
-        });
-        return @{@"typed": @YES, @"text": text, @"target": @"UITextView"};
+        return @{@"typed": @YES, @"text": text, @"target": NSStringFromClass([firstResponder class]), @"method": @"insertText"};
     }
 
     // 没有第一响应者，复制到剪贴板
@@ -342,6 +354,10 @@ static NSDictionary *typeText(NSString *text) {
 }
 
 #pragma mark - HTTP 请求处理
+
+// v2.9.128：前向声明（定义在 handleRequest 之后）
+static NSDictionary *simulateBack(void);
+static UIView *findFirstResponder(void);
 
 static NSDictionary *parseJSONBody(NSData *body) {
     if (!body || body.length == 0) return @{};
@@ -407,20 +423,88 @@ static NSData *handleRequest(NSString *method, NSString *path, NSData *body) {
         NSDictionary *params = parseJSONBody(body);
         NSString *key = params[@"key"] ?: @"";
         if ([key isEqualToString:@"back"]) {
-            // 模拟返回（如果有导航控制器）
-            return jsonResponse(@{@"key": key, @"note": @"back not implemented generically"});
+            // v2.9.128：实现返回——优先 pop 导航栈，否则 dismiss 模态
+            return jsonResponse(simulateBack());
         } else if ([key isEqualToString:@"home"]) {
             // 模拟按 Home 键（私有 API）
             [[UIApplication sharedApplication] performSelector:@selector(suspend)];
             return jsonResponse(@{@"key": key, @"pressed": @YES});
         } else if ([key isEqualToString:@"enter"]) {
-            // 找到第一响应者，发送回车
-            return jsonResponse(@{@"key": key, @"note": @"enter sent to first responder"});
+            // 找到第一响应者，插入换行（走 UITextInput）
+            UIView *fr = findFirstResponder();
+            if ([fr conformsToProtocol:@protocol(UITextInput)]) {
+                id<UITextInput> input = (id<UITextInput>)fr;
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [input insertText:@"\n"];
+                });
+                return jsonResponse(@{@"key": key, @"pressed": @YES, @"target": NSStringFromClass([fr class])});
+            }
+            return jsonResponse(@{@"key": key, @"pressed": @NO, @"error": @"no text input responder"});
         }
         return jsonResponse(@{@"error": @"unknown key", @"supported": @[@"back", @"home", @"enter"]});
     }
 
     return httpResponse(404, @"text/plain", [@"not found" dataUsingEncoding:NSUTF8StringEncoding]);
+}
+
+// v2.9.128：模拟返回——遍历 key window 的 VC 层级找 UINavigationController pop / dismiss
+static NSDictionary *simulateBack(void) {
+    UIWindow *keyWindow = nil;
+    for (UIWindow *w in allWindows()) {
+        if (w.isKeyWindow) { keyWindow = w; break; }
+    }
+    if (!keyWindow && allWindows().count > 0) {
+        keyWindow = allWindows()[0];
+    }
+    if (!keyWindow) return @{@"key": @"back", @"pressed": @NO, @"error": @"no window"};
+
+    // 遍历所有可见 VC 层级找 navigationController / presented
+    __block BOOL handled = NO;
+    __block NSString *method = @"none";
+    __block void (^walkVC)(UIViewController *) = ^(UIViewController *vc) {
+        if (handled || !vc) return;
+        if (vc.presentedViewController) {
+            [vc dismissViewControllerAnimated:YES completion:nil];
+            handled = YES;
+            method = @"dismiss";
+            return;
+        }
+        UINavigationController *nav = vc.navigationController;
+        if (nav && nav.viewControllers.count > 1) {
+            [nav popViewControllerAnimated:YES];
+            handled = YES;
+            method = @"pop";
+            return;
+        }
+        if ([vc isKindOfClass:[UITabBarController class]]) {
+            UITabBarController *tab = (UITabBarController *)vc;
+            for (UIViewController *child in tab.viewControllers) {
+                walkVC(child);
+                if (handled) return;
+            }
+        }
+    };
+    UIViewController *root = keyWindow.rootViewController;
+    // v2.9.128：handleRequest 已被包在 dispatch_sync(main_queue) 里执行，
+    // 此处就在主线程，必须同步执行（异步会导致返回的 pressed/method 恒为初始值）
+    walkVC(root);
+    if (!handled) {
+        for (UIWindow *w in allWindows()) {
+            walkVC(w.rootViewController);
+            if (handled) break;
+        }
+    }
+    return @{@"key": @"back", @"pressed": @(handled), @"method": method};
+}
+
+static UIView *findFirstResponder(void) {
+    for (UIWindow *window in allWindows()) {
+        for (UIView *sub in window.subviews) {
+            UIView *found = [sub ca_findFirstResponder];
+            if (found) return found;
+        }
+    }
+    return nil;
 }
 
 #pragma mark - HTTP 服务器

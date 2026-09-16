@@ -128,14 +128,6 @@ struct SettingsView: View {
                             }
                         }
                         .accentColor(.tmCyan)
-                        // v2.9.76：开发者指令移到开发者模式下面
-                        SettingRow(
-                            title: L10n.t("row_guide"),
-                            subtitle: "7 步流程 · 新手引导",
-                            icon: "book.fill",
-                            color: .tmCyan,
-                            destination: GuideView()
-                        )
                         // v2.9.90：图标主题（4 套切换）
                         SettingRow(
                             title: L10n.t("row_icon_theme"),

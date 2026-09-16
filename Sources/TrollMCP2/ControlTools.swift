@@ -89,29 +89,48 @@ final class ControlAgentTools {
     }
 
     // MARK: - 状态检查
+    // v2.9.128：自动重试（ControlAgent 服务器在 App 启动后 ~1.5s 才监听 4789，
+    // 刚注入/刚启动立刻查会连接拒绝）——status 最多试 4 次，间隔 0.6s
 
-    func status() -> [String: Any] {
-        let (code, data, error) = request(path: "/status")
-        if code == 200 {
-            var result = parseJSON(data)
-            result["connected"] = true
-            return result
+    func status(retries: Int = 4) -> [String: Any] {
+        var lastErr: String? = nil
+        var lastCode = 0
+        for attempt in 0..<max(1, retries) {
+            let (code, data, error) = request(path: "/status")
+            if code == 200 {
+                var result = parseJSON(data)
+                result["connected"] = true
+                if attempt > 0 { result["retries"] = attempt }
+                return result
+            }
+            lastErr = error
+            lastCode = code
+            Thread.sleep(forTimeInterval: 0.6)
         }
         return [
             "connected": false,
-            "error": error ?? "HTTP \(code)",
-            "hint": "请确认：1. ControlAgent.dylib 已注入 2. 目标 App 正在运行 3. 注入后已重启目标 App"
+            "error": lastErr ?? "HTTP \(lastCode)",
+            "hint": "确认：1. ControlAgent.dylib 已注入 2. 目标 App 正在运行 3. 注入后已重启目标 App（服务器在启动后约 1.5s 就绪）"
         ]
     }
 
     // MARK: - UI 树
+    // v2.9.128：服务器刚就绪时首帧可能超时，轻量重试 2 次
 
     func uiTree() -> [String: Any] {
-        let (code, data, error) = request(path: "/ui_tree")
-        if code == 200 {
-            return parseJSON(data)
+        var lastErr: String? = nil
+        var lastCode = 0
+        for attempt in 0..<3 {
+            let (code, data, error) = request(path: "/ui_tree")
+            if code == 200 {
+                var result = parseJSON(data)
+                if attempt > 0 { result["retries"] = attempt }
+                return result
+            }
+            lastErr = error; lastCode = code
+            Thread.sleep(forTimeInterval: 0.5)
         }
-        return ["error": error ?? "HTTP \(code)"]
+        return ["error": lastErr ?? "HTTP \(lastCode)", "hint": "确认目标 App 正在运行且 ControlAgent 已注入并重启"]
     }
 
     // MARK: - 截图
