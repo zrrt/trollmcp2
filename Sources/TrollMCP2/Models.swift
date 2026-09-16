@@ -730,18 +730,44 @@ final class ConversationStore: ObservableObject {
         }
     }
 
+    /// v2.9.127：实时思考——把流式 reasoning 增量逐段追加到轨迹的"正在思考"步骤
+    /// （没有该步骤就新建，打字机式逐句累积）
+    func appendThinking(_ delta: String) {
+        DispatchQueue.main.async {
+            let trimmed = delta.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            var trail = self.liveTrail
+            if let idx = trail.lastIndex(where: { $0.kind == .think && $0.status == .running }) {
+                var step = trail[idx]
+                step.detail += delta
+                trail[idx] = step
+            } else {
+                trail.append(TrailStep.running(.think, "正在思考", detail: delta))
+            }
+            self.liveTrail = trail
+        }
+    }
+
     /// v2.9.127：把实时轨迹持久化到最后一条 assistant 消息（AI 回复完成后调用）
     /// thinking 非空时把"已思考"插到轨迹最前（对齐豆包流程第一步）。
+    /// 收尾：残留 running 步骤统一标成功/失败（消息报错则标失败）。
     func attachTrail(to messageId: UUID?, thinking: String? = nil) {
         guard let sid = messageId, !liveTrail.isEmpty else { return }
         DispatchQueue.main.async {
             if let idx = self.selectedIndex,
                let mi = self.conversations[idx].messages.firstIndex(where: { $0.id == sid }) {
-                self.conversations[idx].messages[mi].trail = self.liveTrail
-                if let th = thinking, !th.isEmpty {
-                    self.conversations[idx].messages[mi].trail?.insert(
-                        TrailStep.done(.think, "已思考", detail: String(th.prefix(300))), at: 0)
+                var trail = self.liveTrail
+                let isErr = self.conversations[idx].messages[mi].isError
+                for i in 0..<trail.count where trail[i].status == .running {
+                    var s = trail[i]
+                    s.status = isErr ? .failed : .success
+                    trail[i] = s
                 }
+                // 思考去重：实时流已产生 think 步骤则不重复插入
+                if let th = thinking, !th.isEmpty, !trail.contains(where: { $0.kind == .think }) {
+                    trail.insert(TrailStep.done(.think, "已思考", detail: String(th.prefix(300))), at: 0)
+                }
+                self.conversations[idx].messages[mi].trail = trail
                 self.save()
             }
         }
@@ -760,6 +786,7 @@ final class ConversationStore: ObservableObject {
             TaskNotify.shared.notifyIfBackground(title: "⏹ 任务已停止", body: "达到极端安全上限（60 轮），已停止。可点「停止」中断。")
             let stopMsg = ChatMessage(role: "assistant", content: "已达到极端安全上限（60 轮），已停止。若 AI 仍在循环，请点输入框旁的「停止」按钮中断。", isError: true)
             self.appendToCurrent(stopMsg)
+            self.liveTrail = []   // v2.9.127：停止分支先清空上轮残留轨迹再收尾
             self.trailStep(.done(.note, "任务停止", detail: "达到 60 轮上限", ok: false))
             self.attachTrail(to: stopMsg.id)
             return
@@ -811,6 +838,11 @@ final class ConversationStore: ObservableObject {
                 } else {
                     self.statusText = status
                 }
+            }
+        }, onThinking: { delta in
+            // v2.9.127：实时思考流式——逐段追加到轨迹的"正在思考"步骤
+            DispatchQueue.main.async {
+                self.appendThinking(delta)
             }
         }, onDelta: { delta in
             // v2.9.53：流式逐字显示

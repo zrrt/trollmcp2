@@ -83,7 +83,7 @@ final class OpenAIClient {
         activeTask?.cancel()
     }
 
-    func send(messages: [ChatMessage], tools: [[String: Any]]? = nil, onStatus: ((String) -> Void)? = nil, onDelta: ((String) -> Void)? = nil, completion: @escaping (Result<ChatResult, Error>) -> Void) {
+    func send(messages: [ChatMessage], tools: [[String: Any]]? = nil, onStatus: ((String) -> Void)? = nil, onDelta: ((String) -> Void)? = nil, onThinking: ((String) -> Void)? = nil, completion: @escaping (Result<ChatResult, Error>) -> Void) {
         cancelled = false
         requestStart = Date()
         overallDeadline = Date().addingTimeInterval(overallBudget)
@@ -132,7 +132,7 @@ final class OpenAIClient {
                 UsageRecorder.shared.end(config: self.config, ok: false, elapsedMs: el, error: e.localizedDescription)
             }
         }
-        attempt(level: start, isFirst: true, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, completion: wrappedCompletion)
+        attempt(level: start, isFirst: true, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking, completion: wrappedCompletion)
     }
 
     /// 降级顺序：L0→L1→L2→（带 tools 时优先 L5 Responses API，保住工具调用）→L3→L4→结束
@@ -146,7 +146,7 @@ final class OpenAIClient {
 
     // MARK: - 逐级试探
 
-    private func attempt(level: Int, isFirst: Bool, messages: [ChatMessage], tools: [[String: Any]]?, onStatus: ((String) -> Void)?, onDelta: ((String) -> Void)?, completion: @escaping (Result<ChatResult, Error>) -> Void) {
+    private func attempt(level: Int, isFirst: Bool, messages: [ChatMessage], tools: [[String: Any]]?, onStatus: ((String) -> Void)?, onDelta: ((String) -> Void)?, onThinking: ((String) -> Void)? = nil, completion: @escaping (Result<ChatResult, Error>) -> Void) {
         // v2.9.87：总预算检查——降级链整体超时直接失败，不再无限串行等
         if Date() > overallDeadline {
             let el = Int(Date().timeIntervalSince(requestStart) * 1000)
@@ -164,11 +164,11 @@ final class OpenAIClient {
         if level == 5 || config.apiProtocol == "OpenAI Responses" {
             // 手动选择协议时不回落；经降级链进入（L5）失败后回落 L3 纯对话
             let viaLadder = level == 5 && config.apiProtocol != "OpenAI Responses"
-            performResponsesStream(messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta) { [weak self] result in
+            performResponsesStream(messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking) { [weak self] result in
                 guard let self = self else { return }
                 if case .failure = result, viaLadder {
                     // 回落到已验证可用的纯对话模式
-                    self.attempt(level: 3, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, completion: completion)
+                    self.attempt(level: 3, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking, completion: completion)
                     return
                 }
                 completion(result)
@@ -224,7 +224,7 @@ final class OpenAIClient {
                         let remain = max(0, Int(self.overallDeadline.timeIntervalSinceNow))
                         NetworkLog.shared.log("\(self.config.name) L\(level) 请求超时 → 自动降级到 L\(next)（\(self.levelName(next))）")
                         onStatus?("请求超时，正在尝试简化参数（级别 \(next)/\(self.maxLevel)）· 总预算剩余 \(remain)s…")
-                        self.attempt(level: next, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, completion: completion)
+                        self.attempt(level: next, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking, completion: completion)
                         return
                     }
                 }
@@ -274,7 +274,7 @@ final class OpenAIClient {
                 let next = self.nextLevel(after: level, hasTools: tools != nil && !(tools?.isEmpty ?? true))
                 if next <= self.maxLevel {
                     NetworkLog.shared.log("\(self.config.name) 自动降级 → 级别 \(next)（\(self.levelName(next))）")
-                    self.attempt(level: next, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, completion: completion)
+                    self.attempt(level: next, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking, completion: completion)
                     return
                 }
             }
@@ -416,7 +416,7 @@ final class OpenAIClient {
     /// GPT-5.6 家族的 function tools 在 chat/completions 上不可用/极慢，
     /// 但 Responses API 正常——用户在相同中转上 Codex 可运行即为证据。
     /// v2.9.48：加自动重试（最多3次，指数退避 1s/2s）——网络错误/5xx/解析失败自动重试，不再需要手动点"继续"。
-    private func performResponses(messages: [ChatMessage], tools: [[String: Any]]?, onStatus: ((String) -> Void)?, completion: @escaping (Result<ChatResult, Error>) -> Void) {
+    private func performResponses(messages: [ChatMessage], tools: [[String: Any]]?, onStatus: ((String) -> Void)?, onThinking: ((String) -> Void)? = nil, completion: @escaping (Result<ChatResult, Error>) -> Void) {
         let base = config.baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         guard let url = URL(string: base + "/responses") else {
             completion(.failure(NSError(domain: "OpenAIClient", code: 0, userInfo: [NSLocalizedDescriptionKey: "无效的 baseURL"])))
@@ -827,6 +827,7 @@ final class OpenAIClient {
     private func performResponsesStream(messages: [ChatMessage], tools: [[String: Any]]?,
                                         onStatus: ((String) -> Void)?,
                                         onDelta: ((String) -> Void)?,
+                                        onThinking: ((String) -> Void)? = nil,
                                         completion: @escaping (Result<ChatResult, Error>) -> Void) {
         let base = config.baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         guard let url = URL(string: base + "/responses") else {
@@ -895,7 +896,7 @@ final class OpenAIClient {
                 NetworkLog.shared.log("\(self.config.name): 流式首字节超时（10s），自动降级非流式")
                 streamSession.invalidateAndCancel()
                 // 切回非流式 performResponses（completion 走 guardedCompletion，防双完成）
-                self.performResponses(messages: messages, tools: tools, onStatus: onStatus, completion: guardedCompletion)
+                self.performResponses(messages: messages, tools: tools, onStatus: onStatus, onThinking: onThinking, completion: guardedCompletion)
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 10, execute: firstByteTimer)
@@ -919,9 +920,11 @@ final class OpenAIClient {
                 fullText += ev.delta
                 DispatchQueue.main.async { onDelta?(ev.delta) }
             }
-            // 推理增量
+            // 推理增量 → v2.9.127 实时思考（打字机式逐句显示）
             if type == "response.reasoning.delta", !ev.delta.isEmpty {
                 fullThinking += ev.delta
+                let d = ev.delta
+                DispatchQueue.main.async { onThinking?(d) }
             }
             // 工具调用开始
             if type == "response.output_item.added",
@@ -1000,6 +1003,11 @@ final class OpenAIClient {
                     guardedCompletion(.success(.toolCalls(calls)))
                 } else {
                     let th = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
+                    // v2.9.127：非流式兜底——整段思考一次性推送（降级场景也能显示思考）
+                    if !th.isEmpty {
+                        let whole = th
+                        DispatchQueue.main.async { onThinking?(whole) }
+                    }
                     guardedCompletion(.success(.text(text, thinking: th.isEmpty ? nil : th)))
                 }
                 return
