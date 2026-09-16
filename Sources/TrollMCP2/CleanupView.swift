@@ -94,9 +94,9 @@ struct AppCleanupView: View {
                     Image(systemName: "sparkles.rectangle.stack")
                         .font(.system(size: 44))
                         .foregroundColor(.tmCyan)
-                    Text("扫描 \(name) 的可清理项")
+                    Text(L10n.t("ui_160", name))
                         .font(.headline)
-                    Text("缓存 · 钥匙串 · 广告符 · 数据容器 · 标识符")
+                    Text(L10n.t("ui_123"))
                         .font(.footnote).foregroundColor(.secondary)
                     Button {
                         scan()
@@ -120,8 +120,8 @@ struct AppCleanupView: View {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.system(size: 40))
                         .foregroundColor(.orange)
-                    Text("无法扫描 \(name)").font(.headline)
-                    Text("未找到该 App 或数据容器不可访问\n（TrollStore 需开启 AppDataContainers 权限）")
+                    Text(L10n.t("ui_161", name)).font(.headline)
+                    Text(L10n.t("ui_162"))
                         .font(.footnote).foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                     Button("重试") { scan() }
@@ -154,7 +154,7 @@ struct AppCleanupView: View {
                                 }
                                 Spacer()
                                 if item.id == "idfv" {
-                                    Text("只读").font(.caption2).foregroundColor(.secondary)
+                                    Text(L10n.t("ui_41")).font(.caption2).foregroundColor(.secondary)
                                 } else if selected.contains(item.id) {
                                     Image(systemName: "checkmark.circle.fill")
                                         .font(.system(size: 22)).foregroundColor(.green)

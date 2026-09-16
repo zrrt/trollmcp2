@@ -63,7 +63,7 @@ struct GitHubAccountView: View {
                 HStack {
                     Image(systemName: "person.crop.circle.badge.exclamationmark")
                         .foregroundColor(.secondary)
-                    Text("未登录").foregroundColor(.secondary)
+                    Text(L10n.t("ui_98")).foregroundColor(.secondary)
                     Spacer()
                 }
             }
@@ -146,7 +146,7 @@ struct GitHubAccountView: View {
             if store.isTriggering {
                 HStack {
                     ProgressView().scaleEffect(0.8)
-                    Text("触发中…").font(.caption).foregroundColor(.secondary)
+                    Text(L10n.t("ui_130")).font(.caption).foregroundColor(.secondary)
                 }
             }
 
@@ -161,7 +161,7 @@ struct GitHubAccountView: View {
                             .foregroundColor(.white)
                     }
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("仓库与 workflow 设置").font(.body)
+                        Text(L10n.t("ui_23")).font(.body)
                         Text("\(store.repoOwner)/\(store.repoName) · \(store.workflowId) · \(store.branch)")
                             .font(.caption).foregroundColor(.secondary)
                     }
@@ -174,7 +174,7 @@ struct GitHubAccountView: View {
         Section(header: SettingSectionHeader(title: "最近编译记录")) {
             if store.runs.isEmpty {
                 HStack {
-                    Text("暂无记录").font(.caption).foregroundColor(.secondary)
+                    Text(L10n.t("ui_92")).font(.caption).foregroundColor(.secondary)
                     Spacer()
                     Button("刷新") {
                         store.fetchRuns { _ in }
@@ -312,7 +312,7 @@ struct AddGitHubAccountView: View {
 
     @ViewBuilder private var webLoginSection: some View {
         Section(header: SettingSectionHeader(title: "网页登录（推荐）"),
-                footer: Text("零配置：点下方按钮，App 内置浏览器打开 GitHub 授权页，登录授权后自动完成，无需复制 Token、无需注册任何东西。任意 GitHub 账号都能用。")) {
+                footer: Text(L10n.t("ui_142"))) {
             if deviceStep == 0 {
                 SettingRowButton(
                     title: "在浏览器中登录",
@@ -324,7 +324,7 @@ struct AddGitHubAccountView: View {
                 }
             } else if deviceStep == 1, let dc = deviceCode {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("授权页已打开，验证码已自动复制到剪贴板").font(.footnote).foregroundColor(.secondary)
+                    Text(L10n.t("ui_71")).font(.footnote).foregroundColor(.secondary)
                     HStack {
                         Text(dc.user_code)
                             .font(.system(size: 24, weight: .bold, design: .monospaced))
@@ -336,7 +336,7 @@ struct AddGitHubAccountView: View {
                         }
                         .buttonStyle(BorderlessButtonStyle())
                     }
-                    Text("在授权页粘贴验证码并确认，成功后 App 会自动关闭浏览器并完成登录，无需手动操作。")
+                    Text(L10n.t("ui_43"))
                         .font(.caption).foregroundColor(.secondary)
                     SettingRowButton(
                         title: "再次打开授权页",
@@ -349,19 +349,19 @@ struct AddGitHubAccountView: View {
                     if store.isDevicePolling {
                         HStack {
                             ProgressView().scaleEffect(0.8)
-                            Text("等待授权…").font(.caption).foregroundColor(.secondary)
+                            Text(L10n.t("ui_120")).font(.caption).foregroundColor(.secondary)
                         }
                     }
                 }
             } else {
-                Text("登录成功 ✓").font(.footnote).foregroundColor(.green)
+                Text(L10n.t("ui_113")).font(.footnote).foregroundColor(.green)
             }
         }
     }
 
     @ViewBuilder private var patLoginSection: some View {
         Section(header: SettingSectionHeader(title: "手动 Token（备选）"),
-                footer: Text("github.com → Settings → Developer settings → Personal access tokens → Tokens (classic) 生成，勾选 repo 与 workflow 权限。")) {
+                footer: Text(L10n.t("ui_10"))) {
             SecureField("ghp_…", text: $token)
                 .autocapitalization(.none)
                 .disableAutocorrection(true)
@@ -452,7 +452,7 @@ struct GitHubRepoSettingsView: View {
     var body: some View {
         Form {
             Section(header: SettingSectionHeader(title: "OAuth App（网页登录用）"),
-                    footer: Text("已内置默认 Client ID，新手无需改动（留空 = 使用内置默认，删空保存也会自动恢复）。高级用户可覆盖为自己注册的 OAuth App：github.com → Settings → Developer settings → OAuth Apps → New OAuth App（勾选 Enable Device Flow），复制 Client ID 填入。")) {
+                    footer: Text(L10n.t("ui_53"))) {
                 TextField("OAuth App Client ID", text: $store.clientID)
                     .autocapitalization(.none)
                     .disableAutocorrection(true)
@@ -467,7 +467,7 @@ struct GitHubRepoSettingsView: View {
             }
 
             Section(header: SettingSectionHeader(title: "目标仓库"),
-                    footer: Text("线上编译在指定仓库的 Actions 中运行。仓库须包含 build-tweak workflow，且当前账号对该仓库有写权限。授权新账号成功后，Owner 会自动填入该账号（若此前仍是默认值）。")) {
+                    footer: Text(L10n.t("ui_122"))) {
                 TextField("仓库 Owner（用户名）", text: $store.repoOwner)
                     .autocapitalization(.none)
                     .disableAutocorrection(true)

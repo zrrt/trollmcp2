@@ -87,7 +87,7 @@ struct WorkspaceBrowserView: View {
                     Image(systemName: "folder")
                         .font(.system(size: 40))
                         .foregroundColor(.secondary)
-                    Text("此目录为空")
+                    Text(L10n.t("ui_102"))
                         .font(.footnote)
                         .foregroundColor(.secondary)
                 }
@@ -342,7 +342,7 @@ struct FilePreviewView: View {
                     Image(systemName: "doc")
                         .font(.system(size: 40))
                         .foregroundColor(.secondary)
-                    Text("文件过大（\(bytesLabel(item.size))），仅显示前 64KB")
+                    Text(L10n.t("ui_167", bytesLabel(item.size)))
                         .font(.footnote)
                         .foregroundColor(.secondary)
                     Button("仍要读取") { loadText(force: true) }

@@ -68,9 +68,9 @@ struct DownloadsView: View {
         )
         .alert(isPresented: $showConfirm) {
             Alert(
-                title: Text("删除所选"),
+                title: Text(L10n.t("ui_34")),
                 message: Text(confirmMessage),
-                primaryButton: .destructive(Text("删除")) {
+                primaryButton: .destructive(Text(L10n.t("ui_33"))) {
                     deleteSelected()
                 },
                 secondaryButton: .cancel()
@@ -84,9 +84,9 @@ struct DownloadsView: View {
             Image(systemName: "tray")
                 .font(.system(size: 44))
                 .foregroundColor(.secondary)
-            Text("暂无下载")
+            Text(L10n.t("ui_77"))
                 .font(.headline)
-            Text("线上编译产物会保存在\nDocuments/Workspace/downloads/")
+            Text(L10n.t("ui_166"))
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -157,7 +157,7 @@ struct DownloadsView: View {
                         confirmMessage = "将删除 \(cnt) 项，不可恢复"
                         showConfirm = true
                     }) {
-                        Text("删除所选")
+                        Text(L10n.t("ui_34"))
                             .font(.subheadline)
                             .fontWeight(.semibold)
                             .foregroundColor(selected.isEmpty ? .gray : .red)

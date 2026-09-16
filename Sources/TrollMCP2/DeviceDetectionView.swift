@@ -65,7 +65,7 @@ struct DeviceDetectionView: View {
 
                     // 环境自检卡片
                     VStack(alignment: .leading, spacing: 0) {
-                        Text("环境自检")
+                        Text(L10n.t("ui_111"))
                             .font(.headline)
                             .fontWeight(.semibold)
                             .padding(.horizontal, 16)
@@ -132,7 +132,7 @@ struct DeviceDetectionView: View {
                             Label("存储空间", systemImage: "internaldrive")
                                 .font(.subheadline)
                             Spacer()
-                            Text("可用 \(r.storageFree) / 总 \(r.storageTotal)")
+                            Text(L10n.t("ui_163", r.storageFree, r.storageTotal))
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
@@ -159,7 +159,7 @@ struct DeviceDetectionView: View {
                             Label("已安装应用", systemImage: "square.grid.2x2")
                                 .font(.subheadline)
                             Spacer()
-                            Text("\(r.appCount) 个")
+                            Text(L10n.t("ui_164", r.appCount))
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
@@ -227,7 +227,7 @@ struct DeviceDetectionView: View {
                     Button(action: runProbe) {
                         HStack {
                             Image(systemName: "arrow.clockwise")
-                            Text("重新检测")
+                            Text(L10n.t("ui_141"))
                                 .fontWeight(.semibold)
                         }
                         .frame(maxWidth: .infinity)
@@ -244,7 +244,7 @@ struct DeviceDetectionView: View {
                         ProgressView()
                             .scaleEffect(1.5)
                             .padding(.top, 80)
-                        Text("正在检测本机环境…")
+                        Text(L10n.t("ui_101"))
                             .font(.headline)
                             .foregroundColor(.secondary)
                     }

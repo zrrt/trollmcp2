@@ -87,7 +87,7 @@ struct RemoteControlView: View {
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(keepAliveOn ? .tmCyan : .secondary)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("真后台保活")
+                            Text(L10n.t("ui_114"))
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
                             Text(keepAliveOn ? "目标 App 切后台不挂起，4789 持续在线" : "远程控制时建议开启，防止目标 App 被系统挂起")
@@ -102,7 +102,7 @@ struct RemoteControlView: View {
                                 toggleKeepAlive(on)
                             }
                     }
-                    Text("TrollAgent 自身也会同步保活，切后台继续执行远程控制任务")
+                    Text(L10n.t("ui_8"))
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }

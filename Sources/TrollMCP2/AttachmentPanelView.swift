@@ -31,16 +31,16 @@ struct AttachmentPanelView: View {
         VStack(spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("添加内容")
+                    Text(L10n.t("ui_106"))
                         .font(.headline)
-                    Text("仅用于本轮请求，本机准备")
+                    Text(L10n.t("ui_22"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
                 Spacer()
                 // v2.9.35：已选数量徽标
                 if selectedCount > 0 {
-                    Text("已选 \(selectedCount)")
+                    Text(L10n.t("ui_171", selectedCount))
                         .font(.caption.weight(.medium))
                         .foregroundColor(.blue)
                         .padding(.horizontal, 10)

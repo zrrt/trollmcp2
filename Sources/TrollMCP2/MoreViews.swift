@@ -21,9 +21,9 @@ struct AuditLogView: View {
 
             // v2.9.128：三 Tab——调用记录 / 健康度（失败归因）/ 文件日志
             Picker("", selection: $tab) {
-                Text("调用记录").tag(0)
-                Text("健康度").tag(1)
-                Text("文件日志").tag(2)
+                Text(L10n.t("ui_135")).tag(0)
+                Text(L10n.t("ui_29")).tag(1)
+                Text(L10n.t("ui_75")).tag(2)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal, 16)
@@ -51,9 +51,9 @@ struct AuditLogView: View {
         }
         .onAppear { loadFileLog() }
         .alert(isPresented: $showExportAlert) {
-            Alert(title: Text("审计记录已导出"),
+            Alert(title: Text(L10n.t("ui_45")),
                   message: Text(exportPath ?? ""),
-                  dismissButton: .default(Text("好")))
+                  dismissButton: .default(Text(L10n.t("ui_44"))))
         }
     }
 
@@ -68,7 +68,7 @@ struct AuditLogView: View {
                             Image(systemName: "doc.text")
                                 .font(.system(size: 40))
                                 .foregroundColor(.secondary)
-                            Text("暂无审计日志")
+                            Text(L10n.t("ui_83"))
                                 .font(.footnote)
                                 .foregroundColor(.secondary)
                         }
@@ -114,12 +114,12 @@ struct AuditLogView: View {
                                         .font(.caption2)
                                         .foregroundColor(.secondary)
                                     if status == .failure, let reason = entry.errorReason, !reason.isEmpty {
-                                        Text("原因：\(reason)")
+                                        Text(L10n.t("ui_148", reason))
                                             .font(.caption2)
                                             .foregroundColor(.red)
                                             .lineLimit(2)
                                         if let next = entry.nextStep, !next.isEmpty {
-                                            Text("建议：\(next)")
+                                            Text(L10n.t("ui_149", next))
                                                 .font(.caption2)
                                                 .foregroundColor(.orange)
                                                 .lineLimit(2)
@@ -172,7 +172,7 @@ struct AuditLogView: View {
         return List {
             Section(header: SettingSectionHeader(title: "错误码分布（env=环境 / target=目标 / param=参数 / tool=工具自身）")) {
                 if dist.isEmpty {
-                    Text("暂无失败记录").font(.footnote).foregroundColor(.secondary)
+                    Text(L10n.t("ui_82")).font(.footnote).foregroundColor(.secondary)
                 } else {
                     HStack(spacing: 8) {
                         ForEach(dist) { d in
@@ -194,7 +194,7 @@ struct AuditLogView: View {
             }
             Section(header: SettingSectionHeader(title: "工具健康度排行（按失败次数）")) {
                 if summary.isEmpty {
-                    Text("暂无工具调用记录").font(.footnote).foregroundColor(.secondary)
+                    Text(L10n.t("ui_84")).font(.footnote).foregroundColor(.secondary)
                 } else {
                     ForEach(summary) { h in
                         VStack(alignment: .leading, spacing: 4) {
@@ -204,11 +204,11 @@ struct AuditLogView: View {
                                     .fontWeight(.semibold)
                                 Spacer()
                                 if h.failure > 0 {
-                                    Text("\(h.failure) 失败")
+                                    Text(L10n.t("ui_150", h.failure))
                                         .font(.caption2).fontWeight(.bold)
                                         .foregroundColor(.red)
                                 } else {
-                                    Text("全部成功")
+                                    Text(L10n.t("ui_30"))
                                         .font(.caption2).fontWeight(.semibold)
                                         .foregroundColor(.green)
                                 }
@@ -217,18 +217,18 @@ struct AuditLogView: View {
                                     .foregroundColor(h.failureRate > 0.5 ? .red : (h.failureRate > 0 ? .orange : .green))
                             }
                             HStack(spacing: 6) {
-                                Text("成功 \(h.success)")
+                                Text(L10n.t("ui_151", h.success))
                                     .font(.caption2).foregroundColor(.secondary)
-                                Text("·均耗 \(h.avgMs)ms")
+                                Text(L10n.t("ui_152", h.avgMs))
                                     .font(.caption2).foregroundColor(.secondary)
                                 if h.failure > 0 {
-                                    Text("主导错误 \(h.topCode)")
+                                    Text(L10n.t("ui_153", h.topCode))
                                         .font(.caption2).fontWeight(.semibold)
                                         .foregroundColor(codeColor(h.topCode))
                                 }
                             }
                             if h.failure > 0 && !h.lastFailureDetail.isEmpty {
-                                Text("最近失败：\(h.lastFailureDetail)")
+                                Text(L10n.t("ui_154", h.lastFailureDetail))
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                                     .lineLimit(2)
@@ -358,7 +358,7 @@ struct BuildView: View {
                 }
 
                 Section(header: SettingSectionHeader(title: "说明")) {
-                    Text("编译模式允许在 iPhone 上编译 dylib。需要已注入 TMBuildAgent.dylib 到 TrollMCP。编译令牌用于验证编译请求。")
+                    Text(L10n.t("ui_125"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.vertical, 2)
@@ -395,7 +395,7 @@ struct SystemCapabilitiesView: View {
                 }
 
                 Section(header: SettingSectionHeader(title: "说明")) {
-                    Text("首次调用系统能力时会请求对应权限。未授权的工具调用将返回错误信息。")
+                    Text(L10n.t("ui_143"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.vertical, 2)
@@ -531,7 +531,7 @@ struct ToolPermissionPoliciesView: View {
                     // v2.9.31：工具按需加载——初始请求只带常驻核心（标★），其余靠搜索加载；
                     // v2.9.32：去掉授权弹窗，AI 搜索到工具即自动放行本会话。
                     // v2.9.36：去掉开关——勾选不再影响速度与放行，此页改为只读清单。
-                    Text("初始请求只加载常驻核心工具（标 ★，无需搜索），其余工具由 AI 用「工具搜索」按需加载，搜索命中即自动放行本会话、无弹窗。常驻核心始终可用，无需在此配置。")
+                    Text(L10n.t("ui_32"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -540,7 +540,7 @@ struct ToolPermissionPoliciesView: View {
                 Section(header: SettingSectionHeader(title: "过滤")) {
                     Toggle("仅显示真实实现", isOn: $showOnlyReal)
                         .accentColor(.tmCyan)
-                    Text("「真实」= 有实际执行逻辑；「占位」= 仅注册了接口、未接入真实功能。")
+                    Text(L10n.t("ui_17"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -574,7 +574,7 @@ struct ToolPermissionPoliciesView: View {
                             // v2.9.36：去掉开关——按需加载下勾选已无实际作用（AI 搜索到即可调用）。
                             // 常驻核心标 ★，其余由 AI 按需搜索加载。
                             if isCore {
-                                Text("常驻")
+                                Text(L10n.t("ui_56"))
                                     .font(.caption2)
                                     .fontWeight(.semibold)
                                     .foregroundColor(.blue)
@@ -583,7 +583,7 @@ struct ToolPermissionPoliciesView: View {
                                     .background(Color.blue.opacity(0.12))
                                     .cornerRadius(6)
                             } else {
-                                Text("按需")
+                                Text(L10n.t("ui_70"))
                                     .font(.caption2)
                                     .fontWeight(.medium)
                                     .foregroundColor(.secondary)
@@ -776,7 +776,7 @@ struct DeveloperInstructionsView: View {
             List {
                 if items.isEmpty {
                     Section {
-                        Text("还没有开发者指令，点右上角 + 新建。")
+                        Text(L10n.t("ui_136"))
                             .foregroundColor(.secondary)
                     }
                 } else {
@@ -787,7 +787,7 @@ struct DeveloperInstructionsView: View {
                                     .font(.body)
                                     .foregroundColor(item.enabled ? .primary : .secondary)
                                 if item.isDefault {
-                                    Text("默认")
+                                    Text(L10n.t("ui_144"))
                                         .font(.caption2)
                                         .padding(.horizontal, 6)
                                         .padding(.vertical, 2)
@@ -842,7 +842,7 @@ struct DeveloperInstructionsView: View {
                         .accentColor(.tmCyan)
                         .disabled(true)
                     } footer: {
-                        Text("默认指令（标「默认」）会在每次 AI 请求时作为 system 消息注入，AI 将遵循其中的约定。长按指令可设默认/编辑/删除。")
+                        Text(L10n.t("ui_146"))
                     }
                 }
             }
@@ -941,7 +941,7 @@ struct DevInstructionEditorView: View {
                     }
                     VStack(alignment: .leading, spacing: 6) {
                         SettingSectionHeader(title: "说明")
-                        Text("默认指令会注入 AI 请求。可写：工程约定、代码风格、工具使用偏好、回复格式要求等。")
+                        Text(L10n.t("ui_145"))
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -949,7 +949,7 @@ struct DevInstructionEditorView: View {
                     Button(action: hideKeyboard) {
                         HStack(spacing: 6) {
                             Image(systemName: "keyboard.chevron.compact.down")
-                            Text("收起键盘")
+                            Text(L10n.t("ui_74"))
                         }
                         .font(.subheadline)
                         .foregroundColor(.blue)
@@ -1060,7 +1060,7 @@ struct KnowledgeBaseView: View {
 
                 Section(header: SettingSectionHeader(title: "已导入")) {
                     if files.isEmpty {
-                        Text("暂无知识库文件")
+                        Text(L10n.t("ui_89"))
                             .foregroundColor(.secondary)
                     } else {
                         ForEach(files) { item in
@@ -1166,14 +1166,14 @@ struct WebhooksView: View {
                     Button(action: save) {
                         HStack {
                             Image(systemName: "checkmark.circle")
-                            Text("保存配置")
+                            Text(L10n.t("ui_28"))
                                 .foregroundColor(.blue)
                         }
                     }
                     Button(action: test) {
                         HStack {
                             Image(systemName: "paperplane")
-                            Text("发送测试事件")
+                            Text(L10n.t("ui_39"))
                                 .foregroundColor(.blue)
                             Spacer()
                         }
@@ -1255,7 +1255,7 @@ struct AgentsAndSkillsView: View {
             List {
                 Section(header: SettingSectionHeader(title: "Skills")) {
                     if skills.isEmpty {
-                        Text("暂无技能，点右上角 + 新建")
+                        Text(L10n.t("ui_87"))
                             .foregroundColor(.secondary)
                     } else {
                         ForEach(skills) { s in
@@ -1292,7 +1292,7 @@ struct AgentsAndSkillsView: View {
 
                 Section(header: SettingSectionHeader(title: "Agents")) {
                     if agents.isEmpty {
-                        Text("暂无自定义 Agent")
+                        Text(L10n.t("ui_91"))
                             .foregroundColor(.secondary)
                     } else {
                         ForEach(agents) { a in
@@ -1312,10 +1312,10 @@ struct AgentsAndSkillsView: View {
                 }
 
                 Section(header: SettingSectionHeader(title: "说明")) {
-                    Text("技能是预置的工作流指令：AI 可用 skills.list 发现、skills.read 读取并执行。可在本页启用/停用/删除，或点 + 新建。")
+                    Text(L10n.t("ui_67"))
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    Text("Agents 通过 agents.json 配置，放入 KnowledgeBase 目录即可加载。")
+                    Text(L10n.t("ui_2"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

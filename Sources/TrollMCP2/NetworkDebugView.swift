@@ -33,12 +33,12 @@ struct NetworkDebugView: View {
             CardSectionHeader(icon: "list.number", title: "兼容级别说明", color: .orange)
             CardBox {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("App 会在请求被中转站拒绝或超时时自动逐级简化请求参数（降级），成功后记住可用级别。级别 5 走 Responses API（Codex 同款端点），可保留工具调用；级别 ≥3 表示仅可纯对话。")
+                    Text(L10n.t("ui_3"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                     ForEach([0, 1, 2, 5, 3, 4], id: \.self) { lv in
                         HStack {
-                            Text("级别 \(lv)")
+                            Text(L10n.t("ui_165", lv))
                                 .font(.system(.caption, design: .monospaced))
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 3)
@@ -97,7 +97,7 @@ struct NetworkDebugView: View {
             CardBox {
                 VStack(alignment: .leading, spacing: 6) {
                     if log.entries.isEmpty {
-                        Text("暂无记录。发起一次对话后，这里会显示每次请求的载荷级别与结果。")
+                        Text(L10n.t("ui_93"))
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }

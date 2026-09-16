@@ -101,6 +101,43 @@ struct SettingsView: View {
                     .accentColor(.tmCyan)   // v2.9.76：iOS14 用 accentColor（.tint 需 iOS15+）
                 }
 
+                // v2.9.136：后台常驻（全局静音保活 + BGTask 周期刷新，与远程控制临时保活互补）
+                Section {
+                    Toggle(isOn: Binding(
+                        get: { UserDefaults.standard.bool(forKey: "trollagent.keepalive_global") },
+                        set: { on in
+                            UserDefaults.standard.set(on, forKey: "trollagent.keepalive_global")
+                            if on {
+                                BackgroundKeepAlive.shared.start()
+                                BackgroundKeepAlive.scheduleRefresh()
+                            } else {
+                                BackgroundKeepAlive.shared.stop()
+                                BackgroundKeepAlive.cancelRefresh()
+                            }
+                        }
+                    )) {
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(LinearGradient(colors: [.tmCyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                    .frame(width: 34, height: 34)
+                                Image(systemName: "bolt.heart.fill")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(L10n.t("row_keepalive"))
+                                    .font(.body)
+                                    .foregroundColor(.primary)
+                                Text(L10n.t("row_keepalive_sub"))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .accentColor(.tmCyan)
+                }
+
                 if developerMode {
                     Section(header: SettingSectionHeader(title: L10n.t("sec_dev"))) {
                         // v2.9.82：任务完成通知开关
@@ -481,33 +518,33 @@ struct SSHSettingsView: View {
 
     var body: some View {
         Form {
-            Section(header: Text("连接信息")) {
+            Section(header: Text(L10n.t("ui_137"))) {
                 HStack {
-                    Text("主机地址").frame(width: 80, alignment: .leading)
+                    Text(L10n.t("ui_20")).frame(width: 80, alignment: .leading)
                     TextField("如 192.168.1.100", text: $host)
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
                 }
                 HStack {
-                    Text("端口").frame(width: 80, alignment: .leading)
+                    Text(L10n.t("ui_119")).frame(width: 80, alignment: .leading)
                     TextField("22", text: $port)
                         .keyboardType(.numberPad)
                 }
                 HStack {
-                    Text("用户名").frame(width: 80, alignment: .leading)
+                    Text(L10n.t("ui_112")).frame(width: 80, alignment: .leading)
                     TextField("如 root", text: $user)
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
                 }
             }
 
-            Section(header: Text("认证方式（二选一）")) {
+            Section(header: Text(L10n.t("ui_131"))) {
                 HStack {
-                    Text("密码").frame(width: 80, alignment: .leading)
+                    Text(L10n.t("ui_46")).frame(width: 80, alignment: .leading)
                     SecureField("密码", text: $password)
                 }
                 HStack {
-                    Text("私钥路径").frame(width: 80, alignment: .leading)
+                    Text(L10n.t("ui_117")).frame(width: 80, alignment: .leading)
                     TextField("可选，如 /var/mobile/.ssh/id_rsa", text: $keyPath)
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
@@ -527,8 +564,8 @@ struct SSHSettingsView: View {
                 .foregroundColor(.blue)
             }
 
-            Section(header: Text("使用说明")) {
-                Text("配置后，AI 可通过 ssh.exec 工具在远程 Linux 服务器执行命令，通过 ssh.scp 传输文件。适用于线上编译、服务器管理、文件同步等场景。")
+            Section(header: Text(L10n.t("ui_24"))) {
+                Text(L10n.t("ui_140"))
                     .font(.footnote)
                     .foregroundColor(.secondary)
             }

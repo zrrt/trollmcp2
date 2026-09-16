@@ -32,7 +32,7 @@ struct IconThemeView: View {
                 .ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("选择图标主题，立即生效（无需重新安装）")
+                    Text(L10n.t("ui_139"))
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .padding(.top, 8)
@@ -78,14 +78,14 @@ struct IconThemeView: View {
                     if switching {
                         HStack(spacing: 8) {
                             ProgressView()
-                            Text("切换中…")
+                            Text(L10n.t("ui_31"))
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
                         .padding(.vertical, 8)
                     }
                     if !appliedName.isEmpty {
-                        Text("✅ 已切换到「\(appliedName)」，主屏幕图标稍后更新")
+                        Text(L10n.t("ui_169", appliedName))
                             .font(.subheadline)
                             .foregroundColor(.green)
                             .padding(.vertical, 4)
@@ -97,7 +97,7 @@ struct IconThemeView: View {
                             .padding(.vertical, 4)
                     }
 
-                    Text("说明：TrollStore 安装的 App 同样支持动态图标切换（CFBundleAlternateIcons）。若切换后桌面图标未变，请重启一次桌面（锁屏重开）。")
+                    Text(L10n.t("ui_133"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.top, 8)

@@ -35,6 +35,15 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         window = UIWindow(frame: UIScreen.main.bounds)
         window?.rootViewController = UIHostingController(rootView: RootView())
         window?.makeKeyAndVisible()
+
+        // v2.9.136：全局后台常驻开关（设置页「后台常驻」）——开启后 App 启动即启动静音保活引擎，
+        // 与远程控制的临时保活互补，长任务/后台等待 AI 结果时不挂起。
+        if UserDefaults.standard.bool(forKey: "trollagent.keepalive_global") {
+            BackgroundKeepAlive.shared.start()
+        }
+        // v2.9.136：BGTask 周期唤醒（双保险，系统调度允许时后台刷新）
+        BackgroundKeepAlive.registerBGTask()
+
         return true
     }
 
@@ -50,6 +59,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
                 self.backgroundTask = .invalid
             }
         }
+        // v2.9.136：切后台提交 BGTask 周期刷新（系统调度窗口内保持存活）
+        BackgroundKeepAlive.scheduleRefresh()
     }
 
     func applicationWillEnterForeground(_ application: UIApplication) {
@@ -57,6 +68,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             application.endBackgroundTask(backgroundTask)
             backgroundTask = .invalid
         }
+        BackgroundKeepAlive.cancelRefresh()
     }
 
     // MARK: v2.9.126 —— 深链导入模型 API 配置（对齐 cc-switch DeepLinkImportDialog）

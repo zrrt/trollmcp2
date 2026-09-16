@@ -29,7 +29,7 @@ struct ModelsView: View {
                             Image(systemName: "cpu")
                                 .font(.system(size: 40))
                                 .foregroundColor(.secondary)
-                            Text("尚未添加模型配置")
+                            Text(L10n.t("ui_50"))
                                 .font(.footnote)
                                 .foregroundColor(.secondary)
                         }
@@ -45,7 +45,7 @@ struct ModelsView: View {
                         Text(g)
                             .font(.subheadline.weight(.semibold))
                         Spacer()
-                        Text("\(count(in: g)) 个")
+                        Text(L10n.t("ui_155", count(in: g)))
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }) {
@@ -136,7 +136,7 @@ struct ModelsView: View {
         }
         .fileExporter(isPresented: $showingExporter, document: exportDoc, contentType: .json, defaultFilename: "TrollAgent-models-\(Date().timeIntervalSince1970)") { _ in }
         .alert(isPresented: $showImportMessage) {
-            Alert(title: Text("模型配置导入"), message: Text(importMessage), dismissButton: .default(Text("好")))
+            Alert(title: Text(L10n.t("ui_100")), message: Text(importMessage), dismissButton: .default(Text(L10n.t("ui_44"))))
         }
     }
 
@@ -209,7 +209,7 @@ struct ModelRow: View {
                         .foregroundColor(.primary)
                         .lineLimit(1)
                     if config.isDefault {
-                        Text("默认")
+                        Text(L10n.t("ui_144"))
                             .font(.caption2)
                             .padding(.horizontal, 6).padding(.vertical, 2)
                             .background(Color.blue.opacity(0.15))
@@ -488,13 +488,13 @@ struct ModelEditorView: View {
                     Stepper("上下文预算: \(contextTokens)", value: $contextTokens, in: 4000...128000, step: 2000)
                 }
                 Section(header: sectionHeader("参数说明")) {
-                    Text("Max Tokens：单次回复最多生成的 token 数（输出上限，不限制上下文）。")
+                    Text(L10n.t("ui_7"))
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    Text("上下文预算：发送给模型的上下文 token 上限。会话超出时自动裁剪最早的历史消息（保留最近对话），避免长会话请求过大变慢或超时。")
+                    Text(L10n.t("ui_18"))
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    Text("提速提示：Max Tokens 是输出上限，值越大模型单次生成越长、等待越久。日常对话 2048 已够用；若回复慢，可调低 Max Tokens 或上下文预算。")
+                    Text(L10n.t("ui_72"))
                         .font(.caption)
                         .foregroundColor(.blue)
                 }
@@ -505,7 +505,7 @@ struct ModelEditorView: View {
                             Image(systemName: "arrow.down.circle")
                                 .font(.system(size: 20))
                                 .foregroundColor(.blue)
-                            Text("获取上游模型列表")
+                            Text(L10n.t("ui_128"))
                                 .foregroundColor(.blue)
                             Spacer()
                             if isTesting && fetchedModels.isEmpty {
@@ -516,13 +516,13 @@ struct ModelEditorView: View {
                     .disabled(isTesting)
 
                     Button(action: saveOnly) {
-                        Text("保存修改")
+                        Text(L10n.t("ui_26"))
                             .foregroundColor(.blue)
                     }
 
                     Button(action: saveAndTest) {
                         HStack {
-                            Text("保存并测试连接")
+                            Text(L10n.t("ui_27"))
                                 .foregroundColor(.blue)
                             Spacer()
                             if isTesting {
@@ -537,7 +537,7 @@ struct ModelEditorView: View {
                             Image(systemName: "gauge")
                                 .font(.system(size: 20))
                                 .foregroundColor(.orange)
-                            Text("测试接口延迟")
+                            Text(L10n.t("ui_105"))
                                 .foregroundColor(.orange)
                             Spacer()
                             if isTesting {
@@ -553,7 +553,7 @@ struct ModelEditorView: View {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundColor(.green)
-                            Text("已保存到本机")
+                            Text(L10n.t("ui_52"))
                                 .font(.caption)
                                 .foregroundColor(.green)
                         }
@@ -569,7 +569,7 @@ struct ModelEditorView: View {
                 }
 
                 Section(header: sectionHeader("说明")) {
-                    Text("适用于 OpenAI、DeepSeek OpenAI 格式和多数兼容网关。Base URL 通常以 /v1 结尾。")
+                    Text(L10n.t("ui_138"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -601,7 +601,7 @@ struct ModelEditorView: View {
                 Image(systemName: "sparkles")
                     .font(.system(size: 20))
                     .foregroundColor(.blue)
-                Text("供应商快速配置")
+                Text(L10n.t("ui_25"))
                     .foregroundColor(.blue)
                 Spacer()
             }
@@ -904,7 +904,7 @@ struct UsageStatsView: View {
         NavigationView {
             List {
                 let agg = aggregate()
-                Section(header: Text("总览")) {
+                Section(header: Text(L10n.t("ui_60"))) {
                     HStack {
                         statCell(title: "请求数", value: "\(agg.total)", color: .blue)
                         statCell(title: "成功率", value: agg.total > 0 ? "\(Int(Double(agg.ok) / Double(agg.total) * 100))%" : "-", color: .green)
@@ -914,13 +914,13 @@ struct UsageStatsView: View {
                 }
 
                 if !agg.byProvider.isEmpty {
-                    Section(header: Text("按供应商")) {
+                    Section(header: Text(L10n.t("ui_69"))) {
                         ForEach(agg.byProvider.sorted(by: { $0.total > $1.total }), id: \.self) { row in
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
                                     Text(row.name).font(.subheadline.weight(.medium))
                                     Spacer()
-                                    Text("\(row.total) 次 · 成功 \(row.ok)")
+                                    Text(L10n.t("ui_156", row.total, row.ok))
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
@@ -933,7 +933,7 @@ struct UsageStatsView: View {
                 }
 
                 if !records.isEmpty {
-                    Section(header: Text("最近请求（最多 30 条）")) {
+                    Section(header: Text(L10n.t("ui_96"))) {
                         ForEach(0..<min(records.count, 30), id: \.self) { i in
                             requestRow(records[i])
                         }

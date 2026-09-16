@@ -2,6 +2,7 @@
 import UIKit
 import ObjectiveC
 import AVFoundation
+import BackgroundTasks
 
 // v2.9.87：UIApplication.openURL 已弃用（iOS10+），统一走 open(_:options:)。
 // 工具在后台线程执行，这里用信号量同步等待结果，保持 invoke 的同步语义。
@@ -392,6 +393,38 @@ final class BackgroundKeepAlive {
         engine = nil
         running = false
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    // MARK: - v2.9.136 BGTask 周期刷新（与音频保活双保险）
+    // iOS 调度允许时周期性唤醒 App，Audio 保活被系统回收后仍有恢复机会。
+    // TrollStore 环境不受 BGTask 权限门槛限制，注册即生效。
+
+    static let refreshID = "com.trollagent.refresh"
+
+    static func registerBGTask() {
+        guard #available(iOS 13.0, *) else { return }
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: refreshID, using: nil) { task in
+            task.expirationHandler = { task.setTaskCompleted(success: false) }
+            // 唤醒后：若全局常驻开着且引擎已停（被系统回收），重启保活
+            if UserDefaults.standard.bool(forKey: "trollagent.keepalive_global") {
+                BackgroundKeepAlive.shared.start()
+            }
+            scheduleRefresh()
+            task.setTaskCompleted(success: true)
+        }
+    }
+
+    static func scheduleRefresh() {
+        guard #available(iOS 13.0, *) else { return }
+        guard UserDefaults.standard.bool(forKey: "trollagent.keepalive_global") else { return }
+        let request = BGAppRefreshTaskRequest(identifier: refreshID)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
+        try? BGTaskScheduler.shared.submit(request)
+    }
+
+    static func cancelRefresh() {
+        guard #available(iOS 13.0, *) else { return }
+        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: refreshID)
     }
 }
 

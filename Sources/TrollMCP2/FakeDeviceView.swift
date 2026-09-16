@@ -54,10 +54,10 @@ struct FakeDeviceView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     // 目标 App
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("① 选择目标 App")
+                        Text(L10n.t("ui_15"))
                             .font(.headline)
                         Picker("目标 App", selection: $selectedAppId) {
-                            Text("请选择").tag("")
+                            Text(L10n.t("ui_134")).tag("")
                             ForEach(apps, id: \.bundleId) { app in
                                 Text("\(app.name) (\(app.bundleId))").tag(app.bundleId)
                             }
@@ -70,10 +70,10 @@ struct FakeDeviceView: View {
 
                     // 机型
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("② 选择伪装机型")
+                        Text(L10n.t("ui_16"))
                             .font(.headline)
                         Picker("机型", selection: $selectedModel) {
-                            Text("请选择").tag("")
+                            Text(L10n.t("ui_134")).tag("")
                             ForEach(db.devices, id: \.identifier) { pair in
                                 Text(pair.spec.name).tag(pair.identifier)
                             }
@@ -87,7 +87,7 @@ struct FakeDeviceView: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 Label(spec.name, systemImage: "iphone")
                                     .font(.subheadline.bold())
-                                Text("型号标识 \(selectedModel) · \(spec.inch) · \(spec.resolution) · \(spec.ppi)")
+                                Text(L10n.t("ui_159", selectedModel, spec.inch, spec.resolution, spec.ppi))
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                 Text("\(spec.cpu) · \(spec.freq) · \(spec.battery)")
@@ -134,7 +134,7 @@ struct FakeDeviceView: View {
                     if busy {
                         HStack(spacing: 8) {
                             ProgressView()
-                            Text("注入 FakeDevice 并重启 App…")
+                            Text(L10n.t("ui_103"))
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
@@ -148,7 +148,7 @@ struct FakeDeviceView: View {
                             .background(RoundedRectangle(cornerRadius: 12).fill((resultOK ? Color.green : Color.red).opacity(0.08)))
                     }
 
-                    Text("原理（v2.9.93）：默认内存注入——App 运行时用 opainject 加载 FakeDevice.dylib，读取 fake_device.json 替换 UIDevice 返回的机型/名称/系统版本。不改任何文件、零残留，App 重启即还原；恢复 = 点还原（杀进程重启）。部分 App 通过 sysctl 读硬件标识，无法被 UIDevice 层覆盖。")
+                    Text(L10n.t("ui_38"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

@@ -47,7 +47,7 @@ struct OperationView: View {
             List {
                 Section(header: SettingSectionHeader(title: "待批准操作")) {
                     if approvals.pending.filter({ $0.decision == .pending }).isEmpty {
-                        Text("暂无待批准操作")
+                        Text(L10n.t("ui_85"))
                             .foregroundColor(.secondary)
                     } else {
                         ForEach(approvals.pending.filter { $0.decision == .pending }) { item in
@@ -67,7 +67,7 @@ struct OperationView: View {
                 Section(header: SettingSectionHeader(title: "运行中自动化")) {
                     let running = automations.tasks.filter { $0.enabled }
                     if running.isEmpty {
-                        Text("暂无启用的自动化任务")
+                        Text(L10n.t("ui_81"))
                             .foregroundColor(.secondary)
                     } else {
                         ForEach(running) { t in
@@ -133,10 +133,10 @@ struct ApprovalSheet: View {
                 }
                 Section {
                     Button(action: { center.approve(item) }) {
-                        Text("批准执行").foregroundColor(.green)
+                        Text(L10n.t("ui_65")).foregroundColor(.green)
                     }
                     Button(action: { center.deny(item) }) {
-                        Text("拒绝").foregroundColor(.red)
+                        Text(L10n.t("ui_68")).foregroundColor(.red)
                     }
                 }
             }
@@ -170,7 +170,7 @@ struct ConversationTranscriptView: View {
 
             List {
                 if messages.isEmpty {
-                    Text("暂无历史会话记录")
+                    Text(L10n.t("ui_80"))
                         .foregroundColor(.secondary)
                 } else {
                     ForEach(messages) { msg in
@@ -250,7 +250,7 @@ struct AssistantProfilesView: View {
         NavigationView {
             List {
                 if store.profiles.isEmpty {
-                    Text("暂无助手角色，点右上角 + 新建")
+                    Text(L10n.t("ui_79"))
                         .foregroundColor(.secondary)
                 } else {
                     ForEach(store.profiles) { p in
@@ -303,7 +303,7 @@ struct AssistantProfileEditor: View {
                 }
                 Section(header: SettingSectionHeader(title: "关联模型")) {
                     Picker("模型配置", selection: $profile.modelConfigId) {
-                        Text("默认").tag(UUID?.none)
+                        Text(L10n.t("ui_144")).tag(UUID?.none)
                         ForEach(models.configs) { c in
                             Text(c.name).tag(UUID?.some(c.id))
                         }
@@ -311,7 +311,7 @@ struct AssistantProfileEditor: View {
                 }
                 Section(header: SettingSectionHeader(title: "参数")) {
                     HStack {
-                        Text("温度")
+                        Text(L10n.t("ui_108"))
                         Slider(value: $profile.temperature, in: 0...2, step: 0.1)
                         Text(String(format: "%.1f", profile.temperature))
                             .font(.caption)
@@ -370,13 +370,13 @@ struct AttachmentBottomPanel: View {
                 }
                 Section(header: SettingSectionHeader(title: "已添加 (\(store.items.count))")) {
                     if store.items.isEmpty {
-                        Text("暂无附件").foregroundColor(.secondary)
+                        Text(L10n.t("ui_95")).foregroundColor(.secondary)
                     } else {
                         ForEach(store.items, id: \.self) { name in
                             Label(name, systemImage: "paperclip")
                         }
                         Button(action: { store.items.removeAll() }) {
-                            Text("清空").foregroundColor(.red)
+                            Text(L10n.t("ui_107")).foregroundColor(.red)
                         }
                     }
                 }
@@ -417,7 +417,7 @@ struct AutomationCenterView: View {
             List {
                 Section(header: SettingSectionHeader(title: "任务列表")) {
                     if store.tasks.isEmpty {
-                        Text("暂无自动化任务")
+                        Text(L10n.t("ui_90"))
                             .foregroundColor(.secondary)
                     } else {
                         ForEach(store.tasks) { t in
@@ -448,7 +448,7 @@ struct AutomationCenterView: View {
                 Section(header: SettingSectionHeader(title: "最近执行")) {
                     let history = store.history.prefix(20)
                     if history.isEmpty {
-                        Text("暂无执行记录").foregroundColor(.secondary)
+                        Text(L10n.t("ui_86")).foregroundColor(.secondary)
                     } else {
                         ForEach(Array(history), id: \.id) { e in
                             VStack(alignment: .leading, spacing: 2) {
@@ -528,7 +528,7 @@ struct AutomationPermissionsView: View {
                 }
                 Section(header: SettingSectionHeader(title: "按任务控制")) {
                     if store.tasks.isEmpty {
-                        Text("暂无任务").foregroundColor(.secondary)
+                        Text(L10n.t("ui_78")).foregroundColor(.secondary)
                     } else {
                         ForEach(store.tasks) { t in
                             Toggle(t.name, isOn: Binding(
@@ -591,7 +591,7 @@ struct GatewaySettingsView: View {
 
             List {
                 if store.servers.isEmpty {
-                    Text("暂无 Gateway 服务端，点右上角 + 添加")
+                    Text(L10n.t("ui_76"))
                         .foregroundColor(.secondary)
                 } else {
                     ForEach(store.servers) { s in
@@ -712,7 +712,7 @@ struct InjectionDetailView: View {
                 }
                 Section(header: SettingSectionHeader(title: "注入状态")) {
                     if info.isEmpty {
-                        Text("加载中…").foregroundColor(.secondary)
+                        Text(L10n.t("ui_35")).foregroundColor(.secondary)
                     } else {
                         ForEach(info.keys.sorted(), id: \.self) { key in
                             LabeledRow(label: key, value: String(describing: info[key] ?? "-"))
@@ -726,21 +726,21 @@ struct InjectionDetailView: View {
                             message = "已启用注入"
                             reload()
                         } catch { message = "失败: \(error.localizedDescription)" }
-                    }) { Text("启用注入").foregroundColor(.green) }
+                    }) { Text(L10n.t("ui_42")).foregroundColor(.green) }
                     Button(action: {
                         do {
                             _ = try InjectionManager.shared.disable(bundleId: bundleId)
                             message = "已禁用注入"
                             reload()
                         } catch { message = "失败: \(error.localizedDescription)" }
-                    }) { Text("禁用注入").foregroundColor(.orange) }
+                    }) { Text(L10n.t("ui_116")).foregroundColor(.orange) }
                     Button(action: {
                         do {
                             _ = try InjectionRemoveTool().invoke(["bundle_id": bundleId])
                             message = "已彻底移除"
                             reload()
                         } catch { message = "失败: \(error.localizedDescription)" }
-                    }) { Text("彻底移除").foregroundColor(.red) }
+                    }) { Text(L10n.t("ui_57")).foregroundColor(.red) }
                 }
                 if !message.isEmpty {
                     Section { Text(message).font(.caption).foregroundColor(.secondary) }
@@ -770,7 +770,7 @@ struct SettingsActivityView: View {
                 Section(header: SettingSectionHeader(title: "活动记录")) {
                     let entries = filter.isEmpty ? audit.entries : audit.entries.filter { $0.category.contains(filter) }
                     if entries.isEmpty {
-                        Text("暂无记录").foregroundColor(.secondary)
+                        Text(L10n.t("ui_92")).foregroundColor(.secondary)
                     } else {
                         ForEach(entries) { e in
                             VStack(alignment: .leading, spacing: 2) {
@@ -821,7 +821,7 @@ struct SkillEditorView: View {
                     }
                 }
                 Section(header: SettingSectionHeader(title: "说明")) {
-                    Text("技能是预置的工作流指令。保存后 AI 可用 skills.list 发现、skills.read 读取并按指令执行。")
+                    Text(L10n.t("ui_66"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -926,7 +926,7 @@ struct APIKeyRecoverySheet: View {
             List {
                 Section(header: SettingSectionHeader(title: "已保存的密钥")) {
                     if models.configs.isEmpty {
-                        Text("暂无模型配置").foregroundColor(.secondary)
+                        Text(L10n.t("ui_88")).foregroundColor(.secondary)
                     } else {
                         ForEach(models.configs) { c in
                             HStack {
@@ -948,7 +948,7 @@ struct APIKeyRecoverySheet: View {
                     }
                 }
                 Section {
-                    Text("密钥仅保存在本机 UserDefaults，不会上传。恢复到新设备需重新输入。")
+                    Text(L10n.t("ui_47"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -987,7 +987,7 @@ struct UpstreamModelPickerView: View {
                 } else if !errorText.isEmpty {
                     Text(errorText).foregroundColor(.red).font(.caption)
                 } else if upstream.isEmpty {
-                    Text("点右上角刷新获取上游模型列表").foregroundColor(.secondary)
+                    Text(L10n.t("ui_109")).foregroundColor(.secondary)
                 } else {
                     Section(header: SettingSectionHeader(title: "上游模型")) {
                         ForEach(upstream, id: \.self) { id in

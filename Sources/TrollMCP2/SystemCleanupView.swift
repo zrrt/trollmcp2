@@ -224,14 +224,14 @@ struct SystemCleanupView: View {
                     .foregroundColor(.white)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text("系统清理")
+                Text(L10n.t("ui_121"))
                     .font(.title3).fontWeight(.bold)
-                Text("专业释放设备存储空间")
+                Text(L10n.t("ui_19"))
                     .font(.caption).foregroundColor(.secondary)
             }
             Spacer()
             Button(action: { quickCleanAll() }) {
-                Text("快速清理")
+                Text(L10n.t("ui_58"))
                     .font(.subheadline.weight(.semibold))
                     .padding(.horizontal, 14).padding(.vertical, 7)
                     .background(Color.tmCyan)
@@ -261,7 +261,7 @@ struct SystemCleanupView: View {
                 VStack(spacing: 0) {
                     Text("\(storage["used_percent"] as? Int ?? 0)%")
                         .font(.system(size: 20, weight: .bold))
-                    Text("已用")
+                    Text(L10n.t("ui_54"))
                         .font(.system(size: 10)).foregroundColor(.secondary)
                 }
             }
@@ -275,7 +275,7 @@ struct SystemCleanupView: View {
                 Text(storage["system"] as? String ?? "—")
                     .font(.caption).foregroundColor(.secondary)
                 if storage["trollstore"] as? Bool == true {
-                    Text("TrollStore 已安装 · 清理能力可用")
+                    Text(L10n.t("ui_9"))
                         .font(.system(size: 10, weight: .semibold))
                         .padding(.horizontal, 8).padding(.vertical, 2)
                         .background(Color.tmCyan.opacity(0.14))
@@ -295,7 +295,7 @@ struct SystemCleanupView: View {
     // MARK: 缓存占用汇总（6 类）
     private var categorySummary: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("缓存占用").font(.subheadline.bold())
+            Text(L10n.t("ui_124")).font(.subheadline.bold())
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                 summaryCell("系统缓存", quickItems.first(where: { $0.id == "sys_cache" })?.size ?? 0, "internaldrive")
                 summaryCell("应用缓存", quickItems.first(where: { $0.id == "app_cache" })?.size ?? 0, "app.fill")

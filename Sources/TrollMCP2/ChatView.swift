@@ -443,7 +443,7 @@ struct ChatView: View {
                                     .padding(.trailing, 16)
                             }
                             if store.requestRound > 0 {
-                                Text("第 \(store.requestRound)/\(store.requestRounds) 轮")
+                                Text(L10n.t("ui_157", store.requestRound, store.requestRounds))
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                                     .padding(.trailing, 16)
@@ -1038,7 +1038,7 @@ struct MessageBubble: View {
                 HStack(spacing: 6) {
                     Image(systemName: thinkingExpanded ? "chevron.down.circle" : "chevron.right.circle")
                         .font(.system(size: 13))
-                    Text("思考过程")
+                    Text(L10n.t("ui_59"))
                         .font(.caption)
                         .fontWeight(.medium)
                         .foregroundColor(.orange)
@@ -1100,7 +1100,7 @@ struct MessageBubble: View {
                 Image(systemName: message.isError ? "exclamationmark.circle" : "checkmark.circle")
                     .font(.system(size: 18))
                     .foregroundColor(message.isError ? .red : .green)
-                Text("工具结果")
+                Text(L10n.t("ui_51"))
                     .font(.subheadline)
                     .fontWeight(.medium)
                 Spacer()
@@ -1194,7 +1194,7 @@ struct TrailCard: View {
                 HStack(spacing: 6) {
                     Image(systemName: expanded ? "chevron.down.circle" : "chevron.right.circle")
                         .font(.system(size: 13))
-                    Text("执行过程（\(steps.count) 步）")
+                    Text(L10n.t("ui_158", steps.count))
                         .font(.caption.weight(.medium))
                         .foregroundColor(.blue)
                     Spacer()
@@ -1246,7 +1246,7 @@ struct TrailRow: View {
                     .foregroundColor(step.status == .running ? .primary : (step.status == .failed ? .red : .primary))
                     .lineLimit(1)
                 if step.status == .running {
-                    Text("执行中…")
+                    Text(L10n.t("ui_64"))
                         .font(.caption2)
                         .foregroundColor(.blue)
                 } else if !step.detail.isEmpty {

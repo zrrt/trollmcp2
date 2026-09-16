@@ -52,7 +52,7 @@ struct SystemPromptsView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(L10n.t("row_sys_prompts"))
                     .font(.headline)
-                Text("App 内置行为规范 · 不可编辑 · 切换立即生效")
+                Text(L10n.t("ui_4"))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -162,13 +162,13 @@ struct SystemPromptsView: View {
             Label("系统指令 vs 开发者指令", systemImage: "info.circle.fill")
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(.tmCyan)
-            Text("• 系统指令：App 内置，不可编辑，优先级最高，控制 AI 的基本行为模式")
+            Text(L10n.t("ui_14"))
                 .font(.caption)
                 .foregroundColor(.secondary)
-            Text("• 开发者指令：用户可自建/编辑，作为补充规范")
+            Text(L10n.t("ui_13"))
                 .font(.caption)
                 .foregroundColor(.secondary)
-            Text("• 两者同时生效，系统指令先注入，开发者指令后注入")
+            Text(L10n.t("ui_12"))
                 .font(.caption)
                 .foregroundColor(.secondary)
         }

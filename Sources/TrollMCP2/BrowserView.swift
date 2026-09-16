@@ -47,7 +47,7 @@ struct BrowserView: View {
                             bm.lastError = result.replacingOccurrences(of: "ERR: ", with: "")
                         }
                     }) {
-                        Text("打开")
+                        Text(L10n.t("ui_62"))
                             .font(.footnote.weight(.medium))
                             .foregroundColor(.white)
                             .padding(.horizontal, 12)
@@ -70,7 +70,7 @@ struct BrowserView: View {
                         Image(systemName: "highlighter")
                             .font(.caption)
                             .foregroundColor(bm.highlighted ? .blue : .secondary)
-                        Text("蓝框")
+                        Text(L10n.t("ui_129"))
                             .font(.caption)
                             .foregroundColor(bm.highlighted ? .blue : .secondary)
                     }
@@ -83,7 +83,7 @@ struct BrowserView: View {
                         toggleHighlight()
                     }
                     if bm.elementCount > 0 {
-                        Text("\(bm.elementCount) 元素")
+                        Text(L10n.t("ui_168", bm.elementCount))
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
@@ -133,7 +133,7 @@ struct BrowserView: View {
                             .foregroundColor(.secondary)
                             .lineLimit(1)
                         Spacer()
-                        Text("AI 可用 browser.snapshot")
+                        Text(L10n.t("ui_0"))
                             .font(.caption2)
                             .foregroundColor(.blue)
                     }
@@ -157,7 +157,7 @@ struct BrowserView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: { _ = bm.open("https://www.bing.com") }) {
-                        Text("主页")
+                        Text(L10n.t("ui_21"))
                             .font(.footnote)
                     }
                 }

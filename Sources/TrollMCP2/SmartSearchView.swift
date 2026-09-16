@@ -18,7 +18,7 @@ struct SmartSearchView: View {
             CardBox {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Text("机制")
+                        Text(L10n.t("ui_99"))
                             .font(.caption)
                             .foregroundColor(.secondary)
                         Spacer()
@@ -30,7 +30,7 @@ struct SmartSearchView: View {
                             .background(Color.tmCyan.opacity(0.1))
                             .cornerRadius(6)
                     }
-                    Text("v2.9.79：双引擎检索——Bing 优先，失败自动回退 DuckDuckGo（均免 Key）。AI 可先用 web.search 拿标题/链接/摘要，再用 web.fetch 抓取网页原文深入阅读，回答时效性问题更准确。")
+                    Text(L10n.t("ui_11"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -55,7 +55,7 @@ struct SmartSearchView: View {
                         Image(systemName: "quote.bubble.fill")
                             .font(.system(size: 12))
                             .foregroundColor(.tmCyan)
-                        Text("帮我搜一下 2026 年最新的 iPhone 发布消息")
+                        Text(L10n.t("ui_55"))
                             .font(.caption)
                             .foregroundColor(.primary)
                     }
@@ -72,7 +72,7 @@ struct SmartSearchView: View {
                     Image(systemName: "hand.raised.fill")
                         .font(.system(size: 13))
                         .foregroundColor(.orange)
-                    Text("搜索词会发送到 Bing / DuckDuckGo，用于返回检索结果。不会上传对话历史。")
+                    Text(L10n.t("ui_73"))
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

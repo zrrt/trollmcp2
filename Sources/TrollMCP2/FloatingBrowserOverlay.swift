@@ -124,7 +124,7 @@ struct FloatingBrowserOverlay: View {
                 .background(Color(.secondarySystemBackground))
                 .cornerRadius(16)
                 Button(action: submitURL) {
-                    Text("打开")
+                    Text(L10n.t("ui_62"))
                         .font(.footnote.weight(.medium))
                         .foregroundColor(.white)
                         .padding(.horizontal, 12)
@@ -152,7 +152,7 @@ struct FloatingBrowserOverlay: View {
                     Image(systemName: "highlighter")
                         .font(.caption2)
                         .foregroundColor(bm.highlighted ? .blue : .secondary)
-                    Text("蓝框")
+                    Text(L10n.t("ui_129"))
                         .font(.caption2)
                         .foregroundColor(bm.highlighted ? .blue : .secondary)
                 }
@@ -169,7 +169,7 @@ struct FloatingBrowserOverlay: View {
                     }
                 }
                 if bm.elementCount > 0 {
-                    Text("\(bm.elementCount) 元素")
+                    Text(L10n.t("ui_168", bm.elementCount))
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -216,7 +216,7 @@ struct FloatingBrowserOverlay: View {
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                     Spacer()
-                    Text("AI 用 browser.* 控制")
+                    Text(L10n.t("ui_1"))
                         .font(.caption2)
                         .foregroundColor(.blue)
                 }

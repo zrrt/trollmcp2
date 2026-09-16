@@ -667,6 +667,7 @@ public final class ToolRegistry: ObservableObject {
         // v2.9.131：AI 安装/卸载 App（trollstorehelper 优先）——补全下载→安装→注入→控制链路
         register(AppInstallTool())
         register(AppUninstallTool())
+        register(AppDuplicateTool())
         // v2.9.132：失败边界一条龙——注入健康检查 + 启动失败判因
         register(InjectionVerifyTool())
         register(AppDiagnoseTool())

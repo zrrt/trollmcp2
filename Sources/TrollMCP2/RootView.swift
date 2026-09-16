@@ -86,10 +86,10 @@ struct RootView: View {
         )) {
             if let cfg = pendingImport.staged {
                 return Alert(
-                    title: Text("导入模型配置？"),
-                    message: Text("名称: \(cfg.name)\n模型: \(cfg.model)\n接口: \(cfg.baseURL)\n\n确认导入并立即使用？"),
-                    primaryButton: .default(Text("导入"), action: { pendingImport.confirm() }),
-                    secondaryButton: .cancel(Text("取消"), action: { pendingImport.cancel() })
+                    title: Text(L10n.t("ui_49")),
+                    message: Text(L10n.t("ui_170", cfg.name, cfg.model, cfg.baseURL)),
+                    primaryButton: .default(Text(L10n.t("ui_48")), action: { pendingImport.confirm() }),
+                    secondaryButton: .cancel(Text(L10n.t("ui_40")), action: { pendingImport.cancel() })
                 )
             }
             return Alert(title: Text(""), dismissButton: .default(Text("OK")))

@@ -82,7 +82,7 @@ struct InjectionView: View {
                     Image(systemName: "cross.case.fill")
                         .font(.system(size: 15))
                         .foregroundColor(.orange)
-                    Text("🚑 紧急恢复（Residue 式）")
+                    Text(L10n.t("ui_147"))
                         .font(.subheadline.bold())
                         .foregroundColor(.orange)
                     Spacer()
@@ -154,7 +154,7 @@ struct InjectionView: View {
                         .padding(8)
                         .background(RoundedRectangle(cornerRadius: 10).fill(Color(.tertiarySystemBackground)))
                     }
-                    Text("App 注入后打不开 → 先「一键全恢复」；仍不行再「清理残留」。不要卸载重装（会丢数据）。")
+                    Text(L10n.t("ui_5"))
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -164,14 +164,14 @@ struct InjectionView: View {
         }
         .padding(.horizontal, 16)
         .alert(isPresented: $rescueAlert) {
-            Alert(title: Text("确认执行"),
+            Alert(title: Text(L10n.t("ui_115")),
                   message: Text(pendingRescue == "recover_all"
                                 ? "将扫描并自动恢复所有存在注入痕迹/损坏二进制的 App（还原到注入前状态）。确定继续？"
                                 : "将删除注入标记、孤儿备份与 Frameworks 内非系统 dylib。确定继续？"),
-                  primaryButton: .destructive(Text("执行")) {
+                  primaryButton: .destructive(Text(L10n.t("ui_63"))) {
                       if let p = pendingRescue { runRescue(p) }
                   },
-                  secondaryButton: .cancel(Text("取消")))
+                  secondaryButton: .cancel(Text(L10n.t("ui_40"))))
         }
         // v2.9.94：单个 App 的恢复/清理操作
         .actionSheet(isPresented: .init(get: { pendingFinding != nil }, set: { if !$0 { pendingFinding = nil } })) {
@@ -179,9 +179,9 @@ struct InjectionView: View {
                 title: Text(pendingFinding?.name ?? ""),
                 message: Text(badgeText(pendingFinding)),
                 buttons: [
-                    .default(Text("单独恢复（还原注入前）")) { if let f = pendingFinding { runSingle("restore", f) } },
-                    .default(Text("单独清理残留")) { if let f = pendingFinding { runSingle("cleanup", f) } },
-                    .cancel(Text("取消"))
+                    .default(Text(L10n.t("ui_36"))) { if let f = pendingFinding { runSingle("restore", f) } },
+                    .default(Text(L10n.t("ui_37"))) { if let f = pendingFinding { runSingle("cleanup", f) } },
+                    .cancel(Text(L10n.t("ui_40")))
                 ]
             )
         }
@@ -376,14 +376,14 @@ struct AppDetailView: View {
                         HStack(spacing: 8) {
                             if busy { ProgressView() }
                             Image(systemName: "syringe")
-                            Text("注入 TrollMCPAgent v4（安全版）")
+                            Text(L10n.t("ui_104"))
                         }
                     }
                     .disabled(busy || injected)
                     Button(action: { doRemove() }) {
                         HStack(spacing: 8) {
                             Image(systemName: "arrow.uturn.backward")
-                            Text("移除注入（还原）")
+                            Text(L10n.t("ui_118"))
                         }
                     }
                     .disabled(busy || !injected)
@@ -391,7 +391,7 @@ struct AppDetailView: View {
                     Button(action: { doRestore() }) {
                         HStack(spacing: 8) {
                             Image(systemName: "cross.case.fill")
-                            Text("恢复备份（.troll-fools.bak）")
+                            Text(L10n.t("ui_61"))
                         }
                     }
                     .disabled(busy)
