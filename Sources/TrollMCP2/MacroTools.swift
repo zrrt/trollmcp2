@@ -180,7 +180,7 @@ final class MacroRunner {
                 x2: Float(params["x2"] as? Double ?? 0), y2: Float(params["y2"] as? Double ?? 0),
                 durationMs: params["duration_ms"] as? Int ?? 300)
         case "ui.clipboard":
-            UIPasteboard.general.string = params["text"] as? String ?? ""
+            UIThreadBridge.paste(params["text"] as? String ?? "")
             return true
         default:
             return false

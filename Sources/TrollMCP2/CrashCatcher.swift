@@ -59,10 +59,19 @@ enum CrashCatcher {
         let dir = crashDir.path
         _ = mkdir(dir, 0o755)
         let path = "\(dir)/sig_\(ts).txt"
-        let msg = "signal \(sigName(s)) @ \(ts)\n"
         let fd = open(path, O_CREAT | O_WRONLY | O_APPEND, 0o644)
         if fd >= 0 {
+            let msg = "signal \(sigName(s)) @ \(ts)\n"
             msg.withCString { write(fd, $0, strlen($0)) }
+            // v2.9.147：信号安全调用栈——backtrace_symbols_fd 是 async-signal-safe，
+            // 下次 SIGSEGV 直接拿到崩溃点栈，不用再猜
+            var frames = [UnsafeMutableRawPointer?](repeating: nil, count: 64)
+            let n = backtrace(&frames, 64)
+            frames.withUnsafeBufferPointer { buf in
+                if let base = buf.baseAddress {
+                    backtrace_symbols_fd(base, n, fd)
+                }
+            }
             close(fd)
         }
         // 恢复默认处理并重发，让系统也生成官方崩溃报告

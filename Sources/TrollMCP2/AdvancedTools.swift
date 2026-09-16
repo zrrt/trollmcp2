@@ -837,14 +837,7 @@ enum ProcessHelper {
             dlclose(handle)
         }
         if let url = URL(string: "trollmcp2://") {
-            var opened = false
-            let sem = DispatchSemaphore(value: 0)
-            UIApplication.shared.open(url, options: [:]) { success in
-                opened = success
-                sem.signal()
-            }
-            _ = sem.wait(timeout: .now() + 3)
-            if opened { return (true, "openURL 启动成功") }
+            if UIThreadBridge.openURL(url, timeout: 3) { return (true, "openURL 启动成功") }
         }
         return (false, "无法自动启动（SBS 不可用且 App 无 URL scheme），请在桌面手动打开目标 App")
     }

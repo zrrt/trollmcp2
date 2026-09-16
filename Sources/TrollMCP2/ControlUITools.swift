@@ -292,7 +292,7 @@ final class UIClipboardTool: MCPTool {
         ControlSession.shared.addThink(reason)
         ControlSession.shared.addAction("ui.clipboard: \(text.count) 字符")
         MacroRecorder.shared.capture(tool: "ui.clipboard", params: ["text": text, "reason": reason])
-        UIPasteboard.general.string = text
+        UIThreadBridge.paste(text)
         ControlSession.shared.addResult("✅ 已写入剪贴板，下一步长按输入框+点粘贴")
         return ["message": "已写入剪贴板 \(text.count) 字符，请用 ui.long_press 长按输入框后点击「粘贴」", "copied": text.count]
     }

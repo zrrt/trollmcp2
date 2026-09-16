@@ -311,7 +311,7 @@ final class ClipboardReadTool: MCPTool {
         parameters: [:]
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let text = UIPasteboard.general.string ?? ""
+        let text = UIThreadBridge.readClipboard()
         if text.isEmpty {
             return ["text": "", "empty": true, "hint": "剪贴板为空（无可读文本）"]
         }
@@ -329,7 +329,7 @@ final class ClipboardWriteTool: MCPTool {
         guard let text = params["text"] as? String, !text.isEmpty else {
             throw MCPError.invalidParams("text required")
         }
-        UIPasteboard.general.string = text
+        UIThreadBridge.paste(text)
         return ["ok": true, "length": text.count]
     }
 }

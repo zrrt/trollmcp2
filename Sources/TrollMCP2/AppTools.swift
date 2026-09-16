@@ -7,14 +7,8 @@ import BackgroundTasks
 // v2.9.87：UIApplication.openURL 已弃用（iOS10+），统一走 open(_:options:)。
 // 工具在后台线程执行，这里用信号量同步等待结果，保持 invoke 的同步语义。
 private func openURLSync(_ url: URL) -> Bool {
-    var opened = false
-    let sem = DispatchSemaphore(value: 0)
-    UIApplication.shared.open(url, options: [:]) { success in
-        opened = success
-        sem.signal()
-    }
-    _ = sem.wait(timeout: .now() + 5)
-    return opened
+    // v2.9.147：UIApplication.open 必须在主线程，后台调用 SIGSEGV 闪退
+    return UIThreadBridge.openURL(url, timeout: 5)
 }
 
 // MARK: - App 缓存扫描
@@ -321,7 +315,7 @@ final class WeChatPrepareMessageTool: MCPTool {
         guard let text = params["text"] as? String else {
             throw MCPError.invalidParams("text required")
         }
-        UIPasteboard.general.string = text
+        UIThreadBridge.paste(text)
         let recipient = params["recipient"] as? String ?? ""
         var opened = false
         if !recipient.isEmpty, let url = URL(string: "weixin://dl/chat?\(recipient.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")") {
