@@ -465,7 +465,8 @@ static NSDictionary *dumpDecryptedImage(uint32_t index) {
     fclose(fp);
 
     NSDictionary *attrs = [[NSFileManager defaultManager] attributesOfItemAtPath:outPath error:nil];
-    return @{@"path": pathStr, @"output": outPath, @"cryptid": @(cryptid), @"decrypted": @YES, @"size": attrs.fileSize ?: @0};
+    return @{@"path": pathStr, @"output": outPath, @"cryptid": @(cryptid), @"decrypted": @YES,
+             @"size": attrs ? [attrs[NSFileSize] unsignedLongLongValue] : 0};
 }
 
 static NSDictionary *decryptAllImages(void) {
