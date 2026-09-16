@@ -95,6 +95,52 @@ struct BrowserSubmitTool: MCPTool {
     }
 }
 
+struct BrowserFormFieldsTool: MCPTool {
+    var definition = ToolDefinition(
+        name: "browser.form_fields",
+        summary: "扫描当前页面全部表单字段（input/textarea/select，不限快照条数），返回每个字段的 name/placeholder/标签/类型/当前值/下拉选项/绝对 xpath。填表前先调用本工具看有哪些字段。",
+        parameters: [:]
+    )
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        let r = BrowserManager.shared.formFields()
+        AuditLog.shared.log("browser.form_fields", detail: "count=\(r["count"] ?? 0)")
+        return r
+    }
+}
+
+struct BrowserFillFormTool: MCPTool {
+    var definition = ToolDefinition(
+        name: "browser.fill_form",
+        summary: "自动填充整个表单：values 传 {\"字段名或占位符或标签\":\"值\"}，自动匹配页面所有输入框/下拉框/勾选框（React/Vue 受控组件兼容）。下拉框传选项文字，勾选框传 true/false。需要精确指定时用 {\"__xpath\":\"元素xpath\",\"__value\":\"值\"}。填完可 submit=true 自动提交表单。适合登录/注册/搜索/下单填表。",
+        parameters: ["values": "{\"字段\":\"值\"} 映射（必填）", "submit": "是否自动提交表单（默认 false）"]
+    )
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let values = params["values"] as? [String: String] else {
+            throw MCPError.invalidParams("browser.fill_form 需要 values 参数，如 {\"用户名\":\"me\",\"密码\":\"xx\"}")
+        }
+        let submit = params["submit"] as? Bool ?? false
+        let r = BrowserManager.shared.fillForm(values: values, submit: submit)
+        AuditLog.shared.log("browser.fill_form", detail: "filled=\(r["filled"] ?? 0) missed=\(r["missed"] ?? [])")
+        return r
+    }
+}
+
+struct BrowserWaitForTool: MCPTool {
+    var definition = ToolDefinition(
+        name: "browser.wait_for",
+        summary: "等待页面出现目标：selector 传 CSS 选择器（如 .result、#content），或 text 传正文文本关键词（如 \"搜索结果\"）。用于 open 后等待结果页加载完成、登录后等待用户名出现。返回 found 是否出现。",
+        parameters: ["selector": "CSS 选择器（与 text 二选一）", "text": "正文文本关键词（与 selector 二选一）", "timeout": "最多等待秒数（默认 15）"]
+    )
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        let text = params["text"] as? String
+        let selector = params["selector"] as? String
+        let timeout = params["timeout"] as? Int ?? 15
+        let r = BrowserManager.shared.waitFor(text: text, selector: selector, timeout: timeout)
+        AuditLog.shared.log("browser.wait_for", detail: "found=\(r["found"] ?? false)")
+        return r
+    }
+}
+
 struct BrowserSnapshotTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.snapshot",

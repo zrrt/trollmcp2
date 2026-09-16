@@ -266,6 +266,190 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
         return r
     }
 
+    // MARK: - v2.9.130 表单整表填充 / 字段扫描 / 元素等待（对齐 Playwright fill + waitFor 设计）
+
+    /// 扫描页面全部表单字段（不限 snapshot 30 条），返回 name/placeholder/label/type/xpath
+    func formFields() -> [String: Any] {
+        ensureWebView()
+        FloatingBrowser.shared.show()
+        beginAction("扫描表单字段…")
+        let js = """
+        (function(){
+          function xpath(e){
+            if(e&&e.nodeType===1&&e.id){ return '//*[@id="'+e.id.replace(/"/g,'\\\\"')+'"]'; }
+            var parts=[];
+            while(e&&e.nodeType===1){
+              var sib=e.parentNode?Array.prototype.filter.call(e.parentNode.children,function(c){return c.tagName===e.tagName;}):[];
+              var nth=sib.length>1?'['+(sib.indexOf(e)+1)+']':'';
+              parts.unshift(e.tagName.toLowerCase()+nth);
+              if(e.id){parts.unshift('//*[@id="'+e.id.replace(/"/g,'\\\\"')+'"]');break;}
+              e=e.parentNode;
+            }
+            return parts.length?'//'+parts.join('/'):'';
+          }
+          var out=[];
+          document.querySelectorAll('input,textarea,select').forEach(function(e){
+            var r=e.getBoundingClientRect();
+            var st=window.getComputedStyle(e);
+            if(!r||r.width<3||r.height<3)return;
+            if(st.display==='none'||st.visibility==='hidden'||st.opacity==='0')return;
+            var lab='';
+            if(e.labels&&e.labels[0])lab=(e.labels[0].innerText||'').trim().replace(/\\s+/g,' ').slice(0,40);
+            var opts=[];
+            if(e.tagName==='SELECT'){ Array.prototype.forEach.call(e.options,function(o){opts.push((o.text||'').trim().slice(0,30));}); }
+            out.push({name:e.getAttribute('name')||'',placeholder:e.getAttribute('placeholder')||'',type:e.getAttribute('type')||(e.tagName==='TEXTAREA'?'textarea':(e.tagName==='SELECT'?'select':'text')),label:lab,value:(e.value||'').slice(0,40),checked:!!e.checked,options:opts,xpath:xpath(e),tag:e.tagName});
+          });
+          return JSON.stringify(out);
+        })();
+        """
+        let json = evalSync(js, timeout: 10)
+        endAction()
+        if json.hasPrefix("ERR:") { return ["ok": false, "error": json] }
+        var fields: [[String: Any]] = []
+        if let data = json.data(using: .utf8),
+           let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+            fields = arr
+        }
+        return ["ok": true, "count": fields.count, "fields": fields,
+                "hint": "用 browser.fill_form 传 {\"字段名或占位符或标签\":\"值\"}，如 {\"用户名\":\"me\",\"密码\":\"xx\"}；下拉框传选项文字；勾选框传 true/false；需要精确时传 {\"__xpath\":\"//*[@id='x'\",\"__value\":\"v\"}"]
+    }
+
+    /// 整表自动填充：values 键匹配 name/placeholder/label，填完可选提交表单
+    /// v2.9.130：React/Vue 受控组件用 native value setter + input/change 事件（同 Playwright fill）；
+    /// select 按选项文字/值匹配；checkbox/radio 按 true/false 点击；支持 __xpath 精确指定
+    func fillForm(values: [String: String], submit: Bool) -> [String: Any] {
+        ensureWebView()
+        FloatingBrowser.shared.show()
+        beginAction("自动填充表单…")
+        var js = """
+        (function(){
+          function xpath(e){
+            if(e&&e.nodeType===1&&e.id){ return '//*[@id="'+e.id.replace(/"/g,'\\\\"')+'"]'; }
+            var parts=[];
+            while(e&&e.nodeType===1){
+              var sib=e.parentNode?Array.prototype.filter.call(e.parentNode.children,function(c){return c.tagName===e.tagName;}):[];
+              var nth=sib.length>1?'['+(sib.indexOf(e)+1)+']':'';
+              parts.unshift(e.tagName.toLowerCase()+nth);
+              if(e.id){parts.unshift('//*[@id="'+e.id.replace(/"/g,'\\\\"')+'"]');break;}
+              e=e.parentNode;
+            }
+            return parts.length?'//'+parts.join('/'):'';
+          }
+          function setVal(e,val){
+            if(!e)return false;
+            if(e.tagName==='SELECT'){
+              var found=false;
+              Array.prototype.forEach.call(e.options,function(o){ if(o.value===val||(o.text||'').indexOf(val)>=0){e.value=o.value;found=true;} });
+              e.dispatchEvent(new Event('change',{bubbles:true}));
+              return found||val==='';
+            }
+            if(e.type==='checkbox'||e.type==='radio'){
+              var want=(val==='true'||val==='1'||val==='yes'||val==='on'||val==='勾选'||val==='选中'||val==='true');
+              if(e.checked!==want){e.click();}
+              e.dispatchEvent(new Event('change',{bubbles:true}));
+              return true;
+            }
+            e.focus();
+            var proto=e instanceof HTMLTextAreaElement?window.HTMLTextAreaElement.prototype:(e instanceof HTMLInputElement?window.HTMLInputElement.prototype:null);
+            if(proto){var setter=Object.getOwnPropertyDescriptor(proto,'value').set;setter.call(e,val);}else{e.value=val;}
+            e.dispatchEvent(new Event('input',{bubbles:true}));
+            e.dispatchEvent(new Event('change',{bubbles:true}));
+            return true;
+          }
+          var fields=[];
+          document.querySelectorAll('input,textarea,select').forEach(function(e){
+            var r=e.getBoundingClientRect();
+            var st=window.getComputedStyle(e);
+            if(!r||r.width<3||r.height<3)return;
+            if(st.display==='none'||st.visibility==='hidden'||st.opacity==='0')return;
+            var lab='';
+            if(e.labels&&e.labels[0])lab=(e.labels[0].innerText||'').trim();
+            fields.push({name:e.getAttribute('name')||'',placeholder:e.getAttribute('placeholder')||'',label:lab,xpath:xpath(e)});
+          });
+          var map=MAP;
+          var filled=0, missed=[];
+          if(map.__xpath&&('__value' in map)){
+            if(setVal(document.querySelector(map.__xpath),map.__value)){filled++;}
+            else{missed.push('__xpath');}
+          }
+          Object.keys(map).forEach(function(key){
+            if(key==='__xpath'||key==='__value')return;
+            var target=null;
+            for(var i=0;i<fields.length;i++){
+              var f=fields[i];
+              if(f.name===key||f.placeholder===key||f.label===key){target=f;break;}
+            }
+            if(!target){
+              for(var j=0;j<fields.length;j++){
+                var ff=fields[j];
+                if((ff.name+' '+ff.placeholder+' '+ff.label).indexOf(key)>=0){target=ff;break;}
+              }
+            }
+            if(target&&setVal(document.querySelector(target.xpath),map[key])){filled++;}
+            else{missed.push(key);}
+          });
+          var submitted=false;
+          if(SUBMIT){
+            var first=document.querySelector('input[type="submit"],button[type="submit"],form');
+            if(first){if(first.tagName==='FORM'){first.requestSubmit();}else{var fm=first.closest('form');if(fm){fm.requestSubmit();}else{first.click();}}submitted=true;}
+          }
+          return JSON.stringify({filled:filled,missed:missed,submitted:submitted});
+        })();
+        """
+        js = js.replacingOccurrences(of: "MAP", with: JSONString(mapString(values)))
+        js = js.replacingOccurrences(of: "SUBMIT", with: submit ? "true" : "false")
+        let r = evalSync(js, timeout: 15)
+        endAction()
+        if r.hasPrefix("ERR:") { return ["ok": false, "error": r] }
+        if let data = r.data(using: .utf8), let o = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            var result: [String: Any] = ["ok": true]
+            result["filled"] = o["filled"]
+            result["missed"] = o["missed"]
+            result["submitted"] = o["submitted"]
+            return result
+        }
+        return ["ok": true, "raw": r]
+    }
+
+    /// 等待元素出现（selector 或正文文本），用于 open 后等搜索结果/登录态
+    func waitFor(text: String? = nil, selector: String? = nil, timeout: Int = 15) -> [String: Any] {
+        ensureWebView()
+        FloatingBrowser.shared.show()
+        beginAction("等待目标出现…")
+        if let s = selector, !s.isEmpty {
+            let sj = JSONString(s)
+            let deadline = Date().addingTimeInterval(TimeInterval(timeout))
+            var found = false
+            while Date() < deadline {
+                if evalSync("!!document.querySelector(\(sj))", timeout: 5) == "true" { found = true; break }
+                Thread.sleep(forTimeInterval: 0.5)
+            }
+            endAction()
+            return ["ok": true, "found": found, "selector": s, "waited_seconds": timeout]
+        }
+        if let t = text, !t.isEmpty {
+            let tj = JSONString(t)
+            let deadline = Date().addingTimeInterval(TimeInterval(timeout))
+            var found = false
+            while Date() < deadline {
+                let hit = evalSync("(document.body.innerText||'').indexOf(\(tj))>=0", timeout: 5)
+                if hit == "true" { found = true; break }
+                Thread.sleep(forTimeInterval: 0.5)
+            }
+            endAction()
+            return ["ok": true, "found": found, "text": t, "waited_seconds": timeout]
+        }
+        endAction()
+        return ["ok": false, "error": "需要 selector 或 text 参数"]
+    }
+
+    private func mapString(_ d: [String: String]) -> String {
+        if let data = try? JSONSerialization.data(withJSONObject: d), let s = String(data: data, encoding: .utf8) {
+            return s
+        }
+        return "{}"
+    }
+
     // MARK: - JS 同步执行（工具线程调用）
 
     /// 在后台线程同步等待 evaluateJavaScript 结果（主线程执行，避免死锁）
@@ -303,9 +487,22 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     /// v2.9.129：去掉"只抓视口内元素"的过滤——小悬浮窗里 Bing 搜索结果第一屏只有 1 条链接，
     /// 其余结果在视口外被裁剪导致 snapshot 只返回 1 条。改为只过滤尺寸/显示，全页可点元素入列，
     /// 靠 prefix(30) 截断；JS click 对不可见元素同样有效，AI 拿到 idx 即可操作
+    /// v2.9.130：每个元素带绝对 xpath——idx 因页面变化失效时可用 xpath 兜底定位
     static let highlightScript = """
     (function(){
       try{
+        function xpath(e){
+          if(e&&e.nodeType===1&&e.id){ return '//*[@id="'+e.id.replace(/"/g,'\\\\"')+'"]'; }
+          var parts=[];
+          while(e&&e.nodeType===1){
+            var sib=e.parentNode?Array.prototype.filter.call(e.parentNode.children,function(c){return c.tagName===e.tagName;}):[];
+            var nth=sib.length>1?'['+(sib.indexOf(e)+1)+']':'';
+            parts.unshift(e.tagName.toLowerCase()+nth);
+            if(e.id){parts.unshift('//*[@id="'+e.id.replace(/"/g,'\\\\"')+'"]');break;}
+            e=e.parentNode;
+          }
+          return parts.length?'//'+parts.join('/'):'';
+        }
         var old=document.querySelectorAll('[data-browser-idx]');
         for(var i=0;i<old.length;i++){ old[i].style.outline=''; old[i].removeAttribute('data-browser-idx'); }
         var els=document.querySelectorAll('a,button,input,textarea,select,[role="button"],[role="link"],[contenteditable="true"],summary,label,[onclick]');
@@ -320,7 +517,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
           e.style.outline='2px solid rgba(10,132,255,0.95)';
           e.style.outlineOffset='1px';
           var txt=(e.innerText||e.value||'').trim().replace(/\\s+/g,' ').slice(0,60);
-          out.push({idx:idx,tag:e.tagName,text:txt,type:e.getAttribute('type')||'',name:e.getAttribute('name')||'',href:(e.getAttribute('href')||'').slice(0,90),placeholder:e.getAttribute('placeholder')||'',value:(e.value||'').slice(0,40),x:Math.round(r.left),y:Math.round(r.top),w:Math.round(r.width),h:Math.round(r.height)});
+          out.push({idx:idx,tag:e.tagName,text:txt,type:e.getAttribute('type')||'',name:e.getAttribute('name')||'',href:(e.getAttribute('href')||'').slice(0,90),placeholder:e.getAttribute('placeholder')||'',value:(e.value||'').slice(0,40),x:Math.round(r.left),y:Math.round(r.top),w:Math.round(r.width),h:Math.round(r.height),xpath:xpath(e)});
           idx++;
         }
         return JSON.stringify(out);

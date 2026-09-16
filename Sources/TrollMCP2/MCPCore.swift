@@ -615,6 +615,10 @@ public final class ToolRegistry: ObservableObject {
         register(BrowserTextTool())
         register(BrowserScrollTool())
         register(BrowserEvalTool())
+        // v2.9.130：表单整表填充 / 字段扫描 / 元素等待（对齐 Playwright fill + waitFor）
+        register(BrowserFormFieldsTool())
+        register(BrowserFillFormTool())
+        register(BrowserWaitForTool())
         register(BrowserNavigateTool())
 
         // M6 编译模式 + 模型配置 + 工作区输出（原版命名）
