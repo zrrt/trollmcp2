@@ -845,12 +845,18 @@ final class ToolSearchTool: MCPTool {
             guard let n = h["name"], !n.isEmpty else { continue }
             ToolRegistry.shared.approveForSession(n)
         }
+        // v2.9.165：去冗余——query 是 AI 自己刚发的（回显浪费）；authorized 与 tools[].name
+        // 完全重复；hint 精简；summary 截 120 字。单次搜索省 ~180 token，且是每轮最高频元工具。
         return [
-            "query": query,
             "total": hits.count,
-            "tools": hits,
-            "authorized": hits.map { $0["name"] ?? "" },
-            "hint": "搜索到的工具已自动授权本会话，可直接调用（无需弹窗确认）。"
+            "tools": hits.map { h -> [String: String] in
+                var d = h
+                if let s = d["summary"], s.count > 120 {
+                    d["summary"] = String(s.prefix(120)) + "…"
+                }
+                return d
+            },
+            "hint": "已授权，可直接调用"
         ]
     }
 }
