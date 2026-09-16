@@ -74,6 +74,9 @@ final class RemoteTerminalServer {
         isRunning = true
         acceptThread = Thread { [weak self] in self?.acceptLoop() }
         acceptThread?.start()
+        // v2.9.183：远程终端开启即自动启动后台保活（静音音频），
+        // 目标 App 在前台时 TrollAgent 退后台仍保持服务在线，避免 iOS 挂起断线。
+        BackgroundKeepAlive.shared.start()
         return true
     }
 
@@ -81,6 +84,8 @@ final class RemoteTerminalServer {
         isRunning = false
         if serverSocket >= 0 { close(serverSocket); serverSocket = -1 }
         acceptThread = nil
+        // v2.9.183：服务关闭同步停止保活
+        BackgroundKeepAlive.shared.stop()
     }
 
     private func acceptLoop() {

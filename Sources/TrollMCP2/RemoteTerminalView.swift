@@ -13,7 +13,7 @@ struct RemoteTerminalView: View {
 
     var body: some View {
         Form {
-            Section(header: Text("服务"), footer: Text(running ? "服务运行中：0.0.0.0:\(portText)。请保持 App 在前台或开启后台常驻，否则被杀后服务不可达。" : "启动后监听 0.0.0.0:\(portText)，局域网与公网（经 N1 转发）均可访问。")) {
+            Section(header: Text("服务"), footer: Text(running ? "服务运行中：0.0.0.0:\(portText)。已自动开启后台保活，切后台仍在线；被系统杀进程后仍会断线。" : "启动后监听 0.0.0.0:\(portText)，局域网与公网（经 N1 转发）均可访问；开启服务将自动启动后台保活。")) {
                 Toggle("远程终端服务", isOn: $running)
                     .onChange(of: running) { on in
                         if on {
