@@ -278,3 +278,22 @@ tweaks/<Name>/
 3. 多步任务主动交叉验证（两个工具读同一件事，如 injection.enable + injection.inspect），最终给结论。
 4. 失败时优先用 `kb.query error=<错误信息>` 匹配已知原因，再给结论；不要重复尝试同一失败操作 3 次以上。
 5. 所有结论用中文一句话先说结果，再给细节。
+
+## 20. AI 控制任意 App（v2.9.139 四件套）
+
+**能力**：不依赖目标 App 写 dylib，用 HID 触摸注入直接操作任意前台 App UI（点/滑/长按/剪贴板/截图），唤醒用启动带参数，执行中发横幅汇报。
+
+**完整流程（强制三段式）：**
+1. **执行前（计划）**：先 `control.begin(target: 美团, bundle_id: ..., plan: [步骤数组])`，把计划展示给用户确认。
+2. **执行中（操作+汇报）**：
+   - 用 `app.launch` 唤醒目标 App 到前台（bundle_id 必须正确）。
+   - 用 `ui.screenshot` 截图 → 分析界面 → 用 `ui.tap(x, y)` / `ui.swipe` / `ui.long_press` 操作。坐标是 **points**（逻辑点，iPhone 全屏约 390x844，原点左上角），非像素。
+   - 每完成一个关键节点：`control.update(step: 序号, status: done, detail: 结果)` + `progress.notify(title: "✅ xxx", body: "xxx")`——通知横幅用户在任何界面顶部都能看到实时进度。
+   - 每步操作后截图验证，失败立即 `control.update(status: failed, detail: 原因)` 并停止，不要盲目重试。
+3. **执行后（报告）**：`control.finish(result: 完整总结)`——做了什么/卡在哪/下一步。用户回 AI 控制中心看完整报告+现场截图。
+
+**规则：**
+- 文本输入：iOS 无直接注入文本 API，用 `ui.clipboard(text:)` 写入剪贴板 → `ui.long_press` 长按输入框 → `ui.tap` 点「粘贴」（先截图确认菜单位置）。
+- 返回手势：`ui.swipe` 从左边缘向右滑，或截图找返回按钮坐标。
+- 定位模拟：`location.fake` 只写配置（需目标 App 注入坐标 Hook 才生效），**不要承诺**全局定位生效。
+- 目标 App 若 App Store 加密版启动后黑屏/闪退，先砸壳再控制。

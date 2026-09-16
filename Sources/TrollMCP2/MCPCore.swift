@@ -231,7 +231,12 @@ public final class ToolRegistry: ObservableObject {
         "artifact.list", "artifact.read_text", "artifact.find",  // 文件浏览/查找（AI 最常用，find 定位下载产物）
         "model.config",         // 当前模型配置
         "injection.status",     // 注入状态（用户主线常用）
-        "browser.status", "browser.open"   // v2.9.82：open 常驻核心，避免 AI 只 status 不打开网址
+        "browser.status", "browser.open",   // v2.9.82：open 常驻核心，避免 AI 只 status 不打开网址
+        // v2.9.139：AI 控制任意 App 闭环工具（每轮常驻，AI 连续控制不用反复 tool_search）
+        "app.launch",           // 启动目标 App（带 env/args）
+        "ui.tap", "ui.swipe", "ui.long_press", "ui.clipboard", "ui.screenshot",  // HID 触摸注入 + 验证
+        "progress.notify",      // 执行中节点横幅（用户实时看进度）
+        "control.begin", "control.update", "control.finish"  // 控制会话（计划→执行→报告）
     ]
 
     public func isEnabled(name: String) -> Bool {
