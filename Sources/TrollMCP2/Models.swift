@@ -686,7 +686,12 @@ final class ConversationStore: ObservableObject {
                 return true
             }
         }
-        runLoop(config: config, tools: baseTools, disclosed: [], depth: 0, reasoningLevel: reasoningLevel)
+        // v2.9.175：初始 disclosed = 本会话已授权工具（跨消息持久披露）。
+        // 旧版每轮重置为 []，AI 只能看到 coreToolNames；tool_search 搜到
+        // app.decrypt 授权后，下一轮新消息又"够不到"（schema 不再注入）。
+        // 现在每轮把会话内已授权的工具 schema 一并注入，AI 可随时直接调用。
+        let preDisclosed = ToolRegistry.shared.approvedToolNames()
+        runLoop(config: config, tools: baseTools, disclosed: preDisclosed, depth: 0, reasoningLevel: reasoningLevel)
     }
 
     // MARK: - v2.9.87 网络恢复自动重试
@@ -808,10 +813,12 @@ final class ConversationStore: ObservableObject {
         }
 
         // 动态合并：白名单 schema + 已披露工具的 schema（去重）
-        var effectiveTools = tools
-        if effectiveTools != nil, !disclosed.isEmpty {
+        // v2.9.175：tools 为 nil（Anthropic 协议）时也走空数组合并——Anthropic 通道
+        // 现在同样能拿到 coreTools + 已披露工具的 schema（OpenAIClient 已支持转换）。
+        var effectiveTools = tools ?? []
+        if !disclosed.isEmpty {
             var existing = Set<String>()
-            for t in effectiveTools ?? [] {
+            for t in effectiveTools {
                 if let fn = t["function"] as? [String: Any], let n = fn["name"] as? String {
                     existing.insert(n)
                 }
@@ -820,7 +827,7 @@ final class ConversationStore: ObservableObject {
                 let apiName = name.components(separatedBy: CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-").inverted).joined(separator: "_")
                 if existing.contains(apiName) { continue }
                 if let schema = ToolRegistry.shared.openAISchema(for: name) {
-                    effectiveTools?.append(schema)
+                    effectiveTools.append(schema)
                     existing.insert(apiName)
                 }
             }

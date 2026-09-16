@@ -255,6 +255,15 @@ public final class ToolRegistry: ObservableObject {
         lock.unlock()
     }
 
+    /// v2.9.175：本会话已授权工具名（原名，仅返回已注册的），
+    /// 供跨消息持久披露——AI 每轮新消息都能看到搜过/授权过的工具 schema，
+    /// 根治"tool_search 搜到 app.decrypt 但下一轮够不到"。
+    public func approvedToolNames() -> [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return Array(sessionApproved).filter { tools[$0] != nil }
+    }
+
     /// v2.9.22：清空会话授权（新会话时调用）。
     public func clearSessionApproval() {
         lock.lock()

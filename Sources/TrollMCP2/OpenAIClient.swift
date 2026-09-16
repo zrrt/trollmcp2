@@ -156,7 +156,7 @@ final class OpenAIClient {
             return
         }
         if config.apiProtocol == "Anthropic Messages" {
-            performAnthropic(messages: messages, completion: completion)
+            performAnthropic(messages: messages, tools: tools, completion: completion)
             return
         }
         // v2.9.0：手动选择 Responses 协议，或降级链走到 L5
@@ -647,7 +647,7 @@ final class OpenAIClient {
 
     // MARK: - Anthropic
 
-    private func performAnthropic(messages: [ChatMessage], completion: @escaping (Result<ChatResult, Error>) -> Void) {
+    private func performAnthropic(messages: [ChatMessage], tools: [[String: Any]]? = nil, completion: @escaping (Result<ChatResult, Error>) -> Void) {
         let base = config.baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         guard let url = URL(string: base + "/messages") else {
             completion(.failure(NSError(domain: "OpenAIClient", code: 0, userInfo: [NSLocalizedDescriptionKey: "无效的 baseURL"])))
@@ -663,6 +663,28 @@ final class OpenAIClient {
             "max_tokens": config.maxTokens,
             "messages": messages.map { messageDict($0) }
         ]
+        // v2.9.175：Anthropic 协议也传工具（此前完全没传 tools，AI 一个 schema 都看不到，
+        // 只能靠 system prompt 文字描述脑补工具名——"app.decrypt 够不到"的根因之一）。
+        // OpenAI function schema → Anthropic tools 格式转换。
+        if let tools, !tools.isEmpty {
+            var anthropicTools: [[String: Any]] = []
+            for t in tools {
+                guard let fn = t["function"] as? [String: Any],
+                      let name = fn["name"] as? String,
+                      let desc = fn["description"] as? String else { continue }
+                let params = fn["parameters"] as? [String: Any] ?? [:]
+                var inputSchema = params
+                inputSchema["type"] = "object"
+                anthropicTools.append([
+                    "name": name,
+                    "description": desc,
+                    "input_schema": inputSchema
+                ])
+            }
+            if !anthropicTools.isEmpty {
+                body["tools"] = anthropicTools
+            }
+        }
         // v2.9.107：Anthropic 标准协议 system 提至顶层（此前 role=system 混在 messages 里，
         // 部分严格中转会拒；同时为 cache_control 断点注入提供 system 块）
         if var msgs = body["messages"] as? [[String: Any]] {
