@@ -619,6 +619,9 @@ public final class ToolRegistry: ObservableObject {
         register(BrowserFormFieldsTool())
         register(BrowserFillFormTool())
         register(BrowserWaitForTool())
+        // v2.9.131：AI 安装/卸载 App（trollstorehelper 优先）——补全下载→安装→注入→控制链路
+        register(AppInstallTool())
+        register(AppUninstallTool())
         register(BrowserNavigateTool())
 
         // M6 编译模式 + 模型配置 + 工作区输出（原版命名）
