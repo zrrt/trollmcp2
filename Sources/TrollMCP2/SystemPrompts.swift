@@ -101,6 +101,14 @@ final class SystemPrompts {
                - probe.inspect 自动内存注入 ProbeAgent，探测目标 App 的 ObjC 类/方法/属性/UserDefaults（localhost:4791）
                - hook.apply 写 hook_config.json + 注入 ConfigHook，改配置重启即生效（UI 改动用它，不重新编译）
                - device.fake / device.restore 设备伪装（绿盾式，UIDevice 层）；注意 sysctl 读取的硬件标识不覆盖
+            10. v2.9.128 清理中心（对齐 Fuck 工具箱清理类能力 + AI 清理亮点）：
+               - cleanup.scan bundle_id=... 扫描可清理项（缓存/钥匙串/广告符/数据容器/标识符），
+                 返回风险分级 safe/warn/danger——先 scan 再决定清什么，别盲目清
+               - cleanup.execute bundle_id items=[...] 按项执行；dry_run=true 先预览
+               - cleanup.ai bundle_id=... AI 一键清理：默认只清安全项；auto=true 连警告级
+                 （钥匙串/广告符）一起清；confirm=true 才允许危险级（数据容器重置，自动备份可恢复）
+               - 清理影响提示：keychain=清登录态需重登；adid=广告符变化；container=清空本地数据
+            11. 隐藏环境：清理 + device.fake 设备伪装组合 = 一键新机效果（先清数据再改指纹）
             """
         ),
         Prompt(

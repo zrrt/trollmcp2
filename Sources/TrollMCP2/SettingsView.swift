@@ -253,6 +253,14 @@ struct SettingsView: View {
                         color: .blue,
                         destination: WorkspaceBrowserView()
                     )
+                    // v2.9.128：清理中心（对齐 Fuck 工具箱清理 + AI 清理）
+                    SettingRow(
+                        title: "清理中心",
+                        subtitle: "缓存 · 钥匙串 · 广告符 · 数据容器 · AI 清理",
+                        icon: "sparkles.rectangle.stack",
+                        color: .tmCyan,
+                        destination: CleanupCenterView()
+                    )
                     SettingRow(
                         title: L10n.t("row_apikeys"),
                         subtitle: "查看 · 显隐 · 恢复",

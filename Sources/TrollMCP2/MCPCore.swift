@@ -483,6 +483,10 @@ public final class ToolRegistry: ObservableObject {
         register(ControlKeyTool())
         register(WorkspaceInfoTool())
         register(ToolHealthTool())   // v2.9.128：工具健康度自查
+        // v2.9.128：清理中心（对齐 Fuck 工具箱清理能力 + AI 清理亮点）
+        register(CleanupScanTool())
+        register(CleanupExecuteTool())
+        register(CleanupAiTool())
 
         // M2 助理记忆（原版命名）
         register(AssistantMemorySetTool())
