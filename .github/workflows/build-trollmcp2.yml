@@ -53,10 +53,11 @@ jobs:
           ls -lh Resources/bin/sqlite_wipe
 
       - name: Build unsigned IPA
-        run: bash scripts/build-ipa.sh
-        env:
-          # v2.9.133: 用 git 描述注入产物版本，解决构建产物版本脱节
-          RELEASE_VERSION: v${{ github.run_number }}.${{ github.sha }}
+        # v2.9.145: RELEASE_VERSION 改用短 SHA（${GITHUB_SHA::7}），
+        # 此前塞完整 SHA 导致 CFBundleShortVersionString 变成 v55.60f703e... 超长畸形值
+        run: |
+          echo "RELEASE_VERSION=v${{ github.run_number }}.${GITHUB_SHA::7}" >> $GITHUB_ENV
+          bash scripts/build-ipa.sh
 
 
       - name: Upload artifact
