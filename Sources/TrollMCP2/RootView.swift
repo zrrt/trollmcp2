@@ -134,9 +134,14 @@ struct RootView: View {
 struct ConversationDrawerView: View {
     @ObservedObject private var store = ConversationStore.shared
     @ObservedObject private var ui = AppUIState.shared
+    @ObservedObject private var probe = DeviceProbe.shared
     @State private var searchText = ""
     @State private var showDevice = false
-    @State private var deviceReady: Bool?
+    // v2.9.166：deviceReady 改为计算属性直接读 DeviceProbe.shared.lastReport——
+    // 旧版 @State 只在 onAppear 读一次：用户点开检测页跑完（全绿）返回后，
+    // 左下角仍是旧感叹号，这就是"环境通过了还显示感叹号"的根因。
+    // @ObservedObject 观察 lastReport @Published，检测页/启动检测完成自动同步。
+    private var deviceReady: Bool? { probe.lastReport?.ready }
 
     private var filtered: [ChatConversation] {
         if searchText.isEmpty { return store.conversations }
@@ -311,9 +316,22 @@ struct ConversationDrawerView: View {
         return L10n.t("drawer_probe")
     }
 
+    /// v2.9.166：环境未就绪时显示首个失败项简短原因（如"Entitlements 未生效"），
+    /// 而不是笼统感叹号——用户要求"不打X✔只做简单提醒"。
+    private var failureHint: String {
+        if deviceReady == true { return L10n.t("drawer_ready_short") }
+        if let report = probe.lastReport {
+            for c in report.checks where !c.passed && !c.infoOnly {
+                return c.label
+            }
+        }
+        return "检测环境"
+    }
+
     private func refreshReadiness() {
         // 轻量读取缓存报告，避免每次打开抽屉都全量扫描
-        deviceReady = DeviceProbe.shared.lastReport?.ready
+        // （@ObservedObject 已自动同步，此方法仅用于首次出现时兜底）
+        _ = probe.lastReport?.ready
     }
 
     private var bottomWorkbench: some View {
@@ -341,9 +359,10 @@ struct ConversationDrawerView: View {
                             .font(.footnote)
                             .fontWeight(.medium)
                             .foregroundColor(deviceReady == true ? .green : .orange)
-                        Text(deviceReady == true ? L10n.t("drawer_ready_short") : "检测环境")
+                        Text(failureHint)
                             .font(.caption2)
                             .foregroundColor(.secondary)
+                            .lineLimit(1)
                     }
                 }
                 .contentShape(Rectangle())
