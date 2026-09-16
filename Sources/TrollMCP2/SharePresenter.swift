@@ -40,20 +40,14 @@ enum SharePresenter {
                 return
             }
 
-            // 找最顶层 presentedViewController（跳过正在 dismiss 的）
-            var top = root
-            while let p = top.presentedViewController, !p.isBeingDismissed {
-                top = p
+            // v2.9.172：无条件延时 0.45s 再弹——iOS 16 从 contextMenu / sheet 转场
+            // 动画未结束时弹出 UIActivityViewController 是已知白屏/崩溃源。
+            // contextMenu 不是 presentedViewController，旧 isBeingDismissed 检测不到，
+            // 所以改为一律等转场动画完全结束，牺牲 0.45s 换取稳定。
+            let top = root
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                presentFrom(top: top, vc: vc, window: window)
             }
-
-            // 顶层正在 dismiss（contextMenu 收起动画中）或视图已脱离窗口 → 延后重试
-            if top.isBeingDismissed || top.view.window == nil {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                    presentFrom(top: top, vc: vc, window: window)
-                }
-                return
-            }
-            presentFrom(top: top, vc: vc, window: window)
         }
     }
 
