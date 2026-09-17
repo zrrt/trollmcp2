@@ -12,6 +12,7 @@ import Darwin
 enum MachRaw {
     typealias TaskInfoFn = @convention(c) (UInt32, Int32, UnsafeMutableRawPointer, UnsafeMutablePointer<UInt32>) -> Int32
     typealias VMReadOverwriteFn = @convention(c) (UInt32, UInt64, UInt64, UInt64, UnsafeMutablePointer<UInt64>) -> Int32
+    typealias VMRegionFn = @convention(c) (UInt32, UnsafeMutablePointer<UInt64>, UnsafeMutablePointer<UInt64>, Int32, UnsafeMutableRawPointer, UnsafeMutablePointer<UInt32>, UnsafeMutablePointer<UInt32>) -> Int32
 
     private static let rtlDefault = UnsafeMutableRawPointer(bitPattern: -2) // RTLD_DEFAULT
 
@@ -23,6 +24,11 @@ enum MachRaw {
     static let vmReadOverwriteFn: VMReadOverwriteFn? = {
         guard let p = dlsym(rtlDefault, "mach_vm_read_overwrite") else { return nil }
         return unsafeBitCast(p, to: VMReadOverwriteFn.self)
+    }()
+
+    static let vmRegionFn: VMRegionFn? = {
+        guard let p = dlsym(rtlDefault, "mach_vm_region") else { return nil }
+        return unsafeBitCast(p, to: VMRegionFn.self)
     }()
 
     /// 直调 task_info（与 ObjC 同 ABI）。返回 KERN_SUCCESS(0) 且 count 由内核回写实际写入数。
@@ -37,5 +43,13 @@ enum MachRaw {
                                 data: UInt64, outsize: UnsafeMutablePointer<UInt64>) -> Int32 {
         guard let f = vmReadOverwriteFn else { return -999 }
         return f(task, address, size, data, outsize)
+    }
+
+    /// 直调 mach_vm_region（查区域权限/大小，诊断用）。
+    static func vmRegion(task: UInt32, address: UnsafeMutablePointer<UInt64>, size: UnsafeMutablePointer<UInt64>,
+                         flavor: Int32, info: UnsafeMutableRawPointer, infoCount: UnsafeMutablePointer<UInt32>,
+                         objectName: UnsafeMutablePointer<UInt32>) -> Int32 {
+        guard let f = vmRegionFn else { return -999 }
+        return f(task, address, size, flavor, info, infoCount, objectName)
     }
 }

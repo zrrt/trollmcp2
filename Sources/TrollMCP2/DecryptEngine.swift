@@ -176,6 +176,20 @@ enum DecryptEngine {
                 MachRaw.taskInfo(task: task, flavor: TASK_DYLD_INFO, info: raw.baseAddress!, count: &count)
             }
             let dyldInfoAddr = loadU64(Data(dyldBuf), 0)
+            // v2.9.215 诊断：对镜像表地址做 mach_vm_region 检查（区分不可读 vs 调用问题）
+            if kr == 0, dyldInfoAddr != 0 {
+                var regionAddr = dyldInfoAddr
+                var regionSize: UInt64 = 0
+                var regionInfo = [UInt8](repeating: 0, count: 160)
+                var regionCnt: UInt32 = 16
+                var objName: UInt32 = 0
+                let krRegion = regionInfo.withUnsafeMutableBytes { raw -> Int32 in
+                    MachRaw.vmRegion(task: task, address: &regionAddr, size: &regionSize,
+                                     flavor: 9 /* VM_REGION_BASIC_INFO_64 */, info: raw.baseAddress!,
+                                     infoCount: &regionCnt, objectName: &objName)
+                }
+                lastDiag = "mirror_addr=0x\(String(dyldInfoAddr, radix: 16)) region_kr=\(krRegion) region_size=\(regionSize) region_cnt=\(regionCnt)"
+            }
             guard kr == 0, dyldInfoAddr != 0 else {
                 lastDiag = (kr != 0) ? "task_info kr=\(kr)" : "all_image_info_addr=0"
                 Thread.sleep(forTimeInterval: 0.01); continue
