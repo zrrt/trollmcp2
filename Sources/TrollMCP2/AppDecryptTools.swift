@@ -89,7 +89,7 @@ final class AppReplaceDecryptedTool: MCPTool {
                 "bundle_id": bundleId,
                 "installed_main": installedMain,
                 "backup": backup,
-                "cryptID": mo?.cryptID ?? -1,
+                "cryptID": (mo?.cryptID).map { Int($0) } ?? -1,
                 "valid": mo?.valid ?? false,
                 "arch": mo?.arch ?? "",
                 "injectable": (mo?.cryptID ?? 1) == 0,
