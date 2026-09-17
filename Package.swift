@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "TrollMCP2",
-    platforms: [.iOS(.v14)   // v2.9.249: 部署目标16→14治本——Swift编译器按16编译会合法引用iOS16+符号(URLRequest.httpMethod/timeoutInterval等availability标注错误的overlay符号),在iOS15.6 dyld崩;降到14编译器自动避免iOS16+ API,只保留需手工处理的标注bug符号],
+    platforms: [.iOS(.v15)   // v2.9.250: 部署目标16→15治本——按16编译会引用iOS16+符号(URLRequest.httpMethod/timeoutInterval等availability标注错误的Swift setter)导致iOS15.6 dyld崩;15避开iOS16+ API且保留全部iOS15 API(safeAreaInset等),降14过度会报一堆iOS15 API错误],
     targets: [
         .executableTarget(
             name: "TrollMCP2",
