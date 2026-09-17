@@ -32,7 +32,7 @@ struct SettingsView: View {
     @AppStorage("settings.card_mode") private var cardMode = false
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             Group {
                 if cardMode {
                     cardBody

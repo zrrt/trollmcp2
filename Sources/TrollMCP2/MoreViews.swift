@@ -323,7 +323,7 @@ struct BuildView: View {
     @State private var token = ""
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             List {
                 Section(header: SettingSectionHeader(title: "编译模式")) {
                     SettingRowButton(
@@ -918,7 +918,7 @@ struct DevInstructionEditorView: View {
     @Environment(\.presentationMode) private var presentationMode
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             // v2.9.22：Form 里 TextEditor 滚动冲突/键盘遮挡导致"难往下滑"，
             // 改为 ScrollView + 大高度 TextEditor + 键盘高度避让
             ScrollView {

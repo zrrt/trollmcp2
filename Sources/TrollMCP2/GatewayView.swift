@@ -5,7 +5,7 @@ struct GatewayView: View {
     @State private var urlInput = ""
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             Form {
                 Section(header: Text(L10n.t("ui_97"))) {
                     TextField("WebSocket URL", text: $urlInput)
@@ -44,7 +44,7 @@ struct GatewayView: View {
 
 struct AutomationView: View {
     var body: some View {
-        NavigationView {
+        CompatNav {
             List {
                 Section(header: Text(L10n.t("ui_127"))) {
                     Text(L10n.t("ui_94"))

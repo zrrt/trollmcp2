@@ -21,7 +21,7 @@ struct ToolsView: View {
     }
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             List {
                 ForEach(grouped, id: \.0) { section in
                     Section(header: SettingSectionHeader(title: section.0)) {

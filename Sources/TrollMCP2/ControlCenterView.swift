@@ -9,7 +9,7 @@ struct ControlCenterView: View {
     @Environment(\.presentationMode) private var pm
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     // 头部：目标 + 状态

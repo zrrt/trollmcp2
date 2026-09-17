@@ -9,7 +9,7 @@ struct BrowserView: View {
     @Environment(\.presentationMode) var presentationMode
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             VStack(spacing: 0) {
                 if !isFullscreen {
                 // URL 栏

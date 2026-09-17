@@ -354,7 +354,7 @@ struct AppDetailView: View {
     }
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             List {
                 Section(header: SettingSectionHeader(title: "应用信息")) {
                     LabeledRow(label: "名称", value: app.name)

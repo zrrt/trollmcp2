@@ -146,3 +146,16 @@ extension Color {
     static let tmCyan = Color(red: 0.0, green: 0.741, blue: 0.949)
     static let tmBrown = Color(red: 0.588, green: 0.416, blue: 0.235)
 }
+
+// MARK: - v2.9.236 全局导航容器
+// iOS16+ 用 NavigationStack：修复 iOS16 NavigationView 已知 bug——
+// ① 切后台回前台导航栈丢失(自动返回上一页) ② NavigationLink(isActive:) 被弹回 ③ toolbar 取消/完成按钮点击无响应
+// iOS15 保持 NavigationView + stack 样式(行为不变)
+@ViewBuilder
+func CompatNav<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    if #available(iOS 16.0, *) {
+        NavigationStack { content() }
+    } else {
+        NavigationView { content() }.navigationViewStyle(.stack)
+    }
+}

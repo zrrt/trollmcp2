@@ -7,7 +7,7 @@ struct AppPickerView: View {
     var onSelect: ((AppCatalog.AppEntry) -> Void)?
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             AppBrowserContainer(
                 title: "选择应用",
                 subtitle: "搜索 · 分类 · 版本 · 索引",

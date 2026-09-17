@@ -162,7 +162,7 @@ struct ConversationDrawerView: View {
         .background(Color(.systemBackground))
         .onAppear(perform: refreshReadiness)
         .sheet(isPresented: $showDevice) {
-            NavigationView { DeviceDetectionView(showsDismissButton: true) }
+            CompatNav { DeviceDetectionView(showsDismissButton: true) }
         }
     }
 

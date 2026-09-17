@@ -12,7 +12,7 @@ struct MacroView: View {
     @Environment(\.presentationMode) private var pm
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             Group {
                 if MacroRecorder.shared.isRecording {
                     recordingBanner

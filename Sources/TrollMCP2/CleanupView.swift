@@ -23,7 +23,7 @@ struct CleanupCenterView: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showCleanup) {
             if let app = selected {
-                NavigationView {
+                CompatNav {
                     AppCleanupView(bundleId: app.bundleId, name: app.name)
                         .toolbar {
                             ToolbarItem(placement: .navigationBarLeading) {

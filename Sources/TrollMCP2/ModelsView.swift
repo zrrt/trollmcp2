@@ -457,7 +457,7 @@ struct ModelEditorView: View {
     }
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             List {
                 Section(header: sectionHeader(apiProtocol.uppercased())) {
                     quickConfigRow
@@ -803,7 +803,7 @@ struct QuickConfigPicker: View {
     let onSelect: (String) -> Void
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             List(ModelConfig.providerPresets, id: \.name) { preset in
                 Button(action: {
                     onSelect(preset.name)
@@ -848,7 +848,7 @@ struct ModelPickerSheet: View {
     @Environment(\.presentationMode) var presentationMode
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             List(models, id: \.self) { m in
                 Button(action: {
                     selected = m
@@ -899,7 +899,7 @@ struct UsageStatsView: View {
     @State private var records: [[String: Any]] = []
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             List {
                 let agg = aggregate()
                 Section(header: Text(L10n.t("ui_60"))) {

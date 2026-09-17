@@ -27,7 +27,7 @@ struct ChatView: View {
     @State private var toastText = "已复制"
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             VStack(spacing: 0) {
                 if modelStore.configs.isEmpty {
                     emptyState
@@ -850,7 +850,7 @@ struct ChatModelPickerSheet: View {
     let onSelect: (ModelConfig) -> Void
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             List {
                 Section(header: SettingSectionHeader(title: "选择上游模型")) {
                     ForEach(modelStore.configs) { cfg in

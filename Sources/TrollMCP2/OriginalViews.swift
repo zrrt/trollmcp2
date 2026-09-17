@@ -43,7 +43,7 @@ struct OperationView: View {
     @ObservedObject private var audit = AuditLog.shared
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             List {
                 Section(header: SettingSectionHeader(title: "待批准操作")) {
                     if approvals.pending.filter({ $0.decision == .pending }).isEmpty {
@@ -120,7 +120,7 @@ struct ApprovalSheet: View {
     let item: ApprovalCenter.Pending
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             List {
                 Section(header: SettingSectionHeader(title: "工具调用")) {
                     LabeledRow(label: "工具", value: item.toolName)
@@ -247,7 +247,7 @@ struct AssistantProfilesView: View {
     @State private var editing: AssistantProfile?
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             List {
                 if store.profiles.isEmpty {
                     Text(L10n.t("ui_79"))
@@ -292,7 +292,7 @@ struct AssistantProfileEditor: View {
     @Environment(\.presentationMode) private var presentationMode
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             Form {
                 Section(header: SettingSectionHeader(title: "基本信息")) {
                     TextField("名称", text: $profile.name)
@@ -355,7 +355,7 @@ struct AttachmentBottomPanel: View {
     @Binding var isPresented: Bool
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             List {
                 Section(header: SettingSectionHeader(title: "添加附件")) {
                     Button(action: { showImporter = true }) {
@@ -483,7 +483,7 @@ struct AutomationTaskEditor: View {
     @Environment(\.presentationMode) private var presentationMode
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             Form {
                 Section(header: SettingSectionHeader(title: "任务")) {
                     TextField("名称", text: $task.name)
@@ -521,7 +521,7 @@ struct AutomationPermissionsView: View {
     @State private var globalEnabled = true
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             List {
                 Section(header: SettingSectionHeader(title: "总开关")) {
                     Toggle("允许自动化执行", isOn: $globalEnabled)
@@ -631,7 +631,7 @@ struct GatewayEditorView: View {
     @Environment(\.presentationMode) private var presentationMode
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             Form {
                 Section(header: SettingSectionHeader(title: "服务端")) {
                     TextField("名称", text: $server.name)
@@ -673,7 +673,7 @@ struct InjectionDetailView: View {
     }
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             List {
                 if bundleId.isEmpty {
                     Section(header: SettingSectionHeader(title: "选择 App")) {
@@ -761,7 +761,7 @@ struct SettingsActivityView: View {
     @State private var filter = ""
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             List {
                 Section {
                     TextField("按类别过滤", text: $filter)
@@ -806,7 +806,7 @@ struct SkillEditorView: View {
     @Environment(\.presentationMode) private var presentationMode
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             Form {
                 Section(header: SettingSectionHeader(title: "Skill")) {
                     TextField("名称", text: $name)
@@ -861,7 +861,7 @@ struct AgentEditorView: View {
     @Environment(\.presentationMode) private var presentationMode
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             Form {
                 Section(header: SettingSectionHeader(title: "Agent")) {
                     TextField("名称", text: $name)
@@ -890,7 +890,7 @@ struct WebhookEditorView: View {
     @Environment(\.presentationMode) private var presentationMode
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             Form {
                 Section(header: SettingSectionHeader(title: "端点")) {
                     TextField("https://example.com/webhook", text: $url)
@@ -922,7 +922,7 @@ struct APIKeyRecoverySheet: View {
     @Environment(\.presentationMode) private var presentationMode
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             List {
                 Section(header: SettingSectionHeader(title: "已保存的密钥")) {
                     if models.configs.isEmpty {
@@ -980,7 +980,7 @@ struct UpstreamModelPickerView: View {
     @Environment(\.presentationMode) private var presentationMode
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             List {
                 if loading {
                     HStack { Spacer(); ProgressView(); Spacer() }

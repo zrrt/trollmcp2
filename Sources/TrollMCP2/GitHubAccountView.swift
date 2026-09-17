@@ -269,7 +269,7 @@ struct AddGitHubAccountView: View {
     @State private var copied = false   // 验证码已自动复制
 
     var body: some View {
-        NavigationView {
+        CompatNav {
             Form {
                 webLoginSection
                 patLoginSection
