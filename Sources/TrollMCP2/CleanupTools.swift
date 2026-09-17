@@ -105,8 +105,8 @@ final class CleanupScanner {
 final class CleanupScanTool: MCPTool {
     let definition = ToolDefinition(
         name: "cleanup.scan",
-        verified: true,
         summary: "扫描指定 App 的可清理项（缓存/钥匙串/广告符/数据容器/标识符），返回分项列表与风险分级（safe/warn/danger），供 cleanup.execute 或 cleanup.ai 使用",
+        verified: true,
         parameters: ["bundle_id": "目标 App Bundle ID（必填）"]
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

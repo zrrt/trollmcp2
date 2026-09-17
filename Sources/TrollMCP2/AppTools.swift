@@ -16,8 +16,8 @@ private func openURLSync(_ url: URL) -> Bool {
 final class AppCacheInspectTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.cache_inspect",
-        verified: true,
         summary: "扫描已安装应用的缓存大小",
+        verified: true,
         parameters: ["limit": "返回条数上限，默认 50", "bundle_id": "可选：只查某个 Bundle ID"]
     )
 

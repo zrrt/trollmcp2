@@ -9,8 +9,8 @@
 final class DiagnoseStartupTool: MCPTool {
     let definition = ToolDefinition(
         name: "diagnose.startup",
-        verified: true,
         summary: "自动诊断 App 启动失败原因。检查：签名、架构、依赖、entitlements、注入状态、进程缓存、崩溃日志。给出明确原因和修复步骤。",
+        verified: true,
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "auto_fix": "是否自动尝试修复（默认 false，仅诊断）"

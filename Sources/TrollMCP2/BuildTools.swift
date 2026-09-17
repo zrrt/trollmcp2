@@ -136,8 +136,9 @@ final class BuildRunner {
 
 /// build.environment：检查本机编译环境（toolchain/clang/make/theos/iOS SDK）
 final class BuildEnvironmentTool: MCPTool {
-    let definition = ToolDefinition(name: "build.environment", verified: true,
+    let definition = ToolDefinition(name: "build.environment", 
         summary: "检查本机编译环境：toolchain 目录、clang/make/perl/ldid、Theos、iOS SDK",
+        verified: true,
         parameters: ["toolchain": "工具链路径：相对（toolchain = Workspace/toolchain）或绝对（/usr/local/theos 等系统路径）"])
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

@@ -14,8 +14,8 @@ import Foundation
 final class AppStartTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.start",
-        verified: true,
         summary: "启动指定 App。多级策略：open -b → 注册表路径直接执行主二进制 → URL scheme，每级记录真实错误与 stderr，不再误导归因于 Bundle ID。",
+        verified: true,
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "wait_seconds": "启动后等待秒数（默认 3，用于确认进程存活）"
@@ -99,8 +99,8 @@ final class AppStartTool: MCPTool {
 final class AppStopTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.stop",
-        verified: true,
         summary: "停止（杀掉）指定 App 进程。返回是否成功、原 PID。",
+        verified: true,
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）"
         ]
@@ -132,8 +132,8 @@ final class AppStopTool: MCPTool {
 final class AppRestartTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.restart",
-        verified: true,
         summary: "重启指定 App（先杀后启）。返回新 PID、重启耗时。",
+        verified: true,
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "wait_seconds": "启动后等待秒数（默认 3）"
@@ -176,8 +176,8 @@ final class AppRestartTool: MCPTool {
 final class AppStatusTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.status",
-        verified: true,
         summary: "查看指定 App 的运行状态：是否运行、PID、前台/后台、CPU 占用、内存占用、线程数、运行时长。",
+        verified: true,
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）"
         ]

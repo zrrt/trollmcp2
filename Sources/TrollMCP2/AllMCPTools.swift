@@ -83,7 +83,7 @@ final class InjectionEnablePersistedTool: MCPTool {
 }
 
 final class InjectionStatusTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.status", verified: true, summary: "查看注入统计（应用总数/已注入数/工具链）；要拿具体 App 的 bundle_id 请调用 injection.list")
+    let definition = ToolDefinition(name: "injection.status", summary: "查看注入统计（应用总数/已注入数/工具链）；要拿具体 App 的 bundle_id 请调用 injection.list", verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         InjectionManager.shared.status()
     }
@@ -100,8 +100,9 @@ final class InjectionInspectTool: MCPTool {
 
 final class InjectionListTool: MCPTool {
     // v2.9.41：检索式——query 按名称/bundle_id 模糊匹配，只返回命中项，不再全量 266 条塞给 AI
-    let definition = ToolDefinition(name: "injection.list", verified: true,
+    let definition = ToolDefinition(name: "injection.list", 
         summary: "按关键字搜索设备已安装 App（返回 bundle_id + 名称，供 injection.enable 的 bundle_id 参数使用）；务必带 query 缩小范围，避免返回全量列表",
+        verified: true,
         parameters: ["query": "搜索关键字（App 名称或 bundle_id 片段，可选）；不带则只返回前 20 条"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let apps = AppCatalog.list()
@@ -147,7 +148,7 @@ final class ContainerWriteTextTool: MCPTool {
 // MARK: - M4 Gateway 工具
 
 final class GatewayStatusTool: MCPTool {
-    let definition = ToolDefinition(name: "gateway.status", verified: true, summary: "查看 Gateway 连接状态")
+    let definition = ToolDefinition(name: "gateway.status", summary: "查看 Gateway 连接状态", verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         [
             "connected": GatewayClient.shared.isConnected,
@@ -225,7 +226,7 @@ final class AutomationListTool: MCPTool {
 }
 
 final class AutomationJobsTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.jobs", verified: true, summary: "查看待触发的自动化任务与通知授权状态")
+    let definition = ToolDefinition(name: "automation.jobs", summary: "查看待触发的自动化任务与通知授权状态", verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let store = AutomationStore.shared
         let status = AutomationSchedulerStatus()
@@ -254,7 +255,7 @@ final class AutomationStopTool: MCPTool {
 }
 
 final class AutomationStatusTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.status", verified: true, summary: "查看自动化引擎运行状态：是否运行、当前任务、队列长度、最近执行记录。")
+    let definition = ToolDefinition(name: "automation.status", summary: "查看自动化引擎运行状态：是否运行、当前任务、队列长度、最近执行记录。", verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         [
             "engine": "UNUserNotificationCenter",
@@ -542,7 +543,7 @@ final class ToolHealthTool: MCPTool {
 }
 
 final class WorkspaceInfoTool: MCPTool {
-    let definition = ToolDefinition(name: "workspace.info", verified: true, summary: "查看工作区信息：路径、可用空间、目录结构。用于定位产物与下载目录。")
+    let definition = ToolDefinition(name: "workspace.info", summary: "查看工作区信息：路径、可用空间、目录结构。用于定位产物与下载目录。", verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let fm = FileManager.default
         let items = (try? fm.contentsOfDirectory(atPath: Workspace.root.path)) ?? []

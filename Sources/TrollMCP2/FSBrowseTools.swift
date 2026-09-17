@@ -89,8 +89,8 @@ private enum FSPolicy {
 final class FSTreeTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.tree",
-        verified: true,
         summary: "浏览文件目录树：App 数据容器（Documents/Library/Caches/Preferences）、App Bundle、工作区。返回条目名称/类型/大小/修改时间，支持深度递归。Filza 式文件浏览。",
+        verified: true,
         parameters: [
             "bundle_id": "目标 App Bundle ID（与 path 二选一；填了则浏览该 App 数据容器）",
             "path": "绝对路径（与 bundle_id 二选一；默认工作区根）",
@@ -174,8 +174,8 @@ final class FSTreeTool: MCPTool {
 final class FSReadTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.read",
-        verified: true,
         summary: "读取任意文件内容并智能识别格式：文本（UTF-8/UTF-16）、plist（XML/二进制→JSON）、SQLite（表清单）、二进制（提示改用 fs.hexdump）。Filza 式文件查看。",
+        verified: true,
         parameters: [
             "bundle_id": "目标 App Bundle ID（与 path 二选一；填了则相对容器路径）",
             "relative": "容器内相对路径（bundle_id 模式下用，如 Library/Preferences/xx.plist）",
@@ -340,8 +340,8 @@ final class FSReadTool: MCPTool {
 final class FSHexdumpTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.hexdump",
-        verified: true,
         summary: "二进制十六进制 + ASCII 查看：指定 offset/length 分段读取，适合分析 Mach-O 头、plist 二进制、配置缓存等。",
+        verified: true,
         parameters: [
             "bundle_id": "目标 App Bundle ID（与 path 二选一）",
             "relative": "容器内相对路径（bundle_id 模式下用）",

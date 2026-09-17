@@ -472,9 +472,9 @@ final class CompatibilityTool: MCPTool {
 
         name: "compat.check",
 
-        verified: true,
 
         summary: "查询/记录 App 版本 + iOS 版本 + dylib 的注入兼容矩阵。自动标记已知可用/不兼容/未测试。",
+        verified: true,
 
         parameters: [
 
@@ -1407,8 +1407,8 @@ final class KeychainWipeTool: MCPTool {
 final class KeychainResetTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.keychain_reset",
-        verified: true,
         summary: "清空整机钥匙串：删除 keychain-2.db 并重启 securityd（绿盾式一键新机核心）。⚠️ 所有 App 的密码/令牌/密钥全部失效，慎用",
+        verified: true,
         parameters: [:]
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -1429,8 +1429,8 @@ final class KeychainResetTool: MCPTool {
 final class AdvertisingTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.advertising",
-        verified: true,
         summary: "读取广告标识符 IDFA 与追踪限制状态；action=reset 尝试刷新广告符（私有 API，iOS14+ 受系统限制时如实返回）",
+        verified: true,
         parameters: ["action": "read（默认）/ reset"]
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -1460,8 +1460,8 @@ final class AdvertisingTool: MCPTool {
 final class IdfvTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.idfv",
-        verified: true,
         summary: "读取设备级 IDFV 与目标 App 的 identifierForVendor，可用于设备指纹核对/复制",
+        verified: true,
         parameters: ["bundle_id": "可选：目标 App Bundle ID"]
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
