@@ -93,7 +93,7 @@ final class ReminderScheduleRecurringTool: MCPTool {
 // MARK: - 设备快照（电池/存储/系统）
 
 final class DeviceSnapshotTool: MCPTool {
-    let definition = ToolDefinition(name: "device.snapshot", summary: "采集设备当前状态（电量/存储/系统）")
+    let definition = ToolDefinition(name: "device.snapshot", summary: "采集设备当前状态（电量/存储/系统）", verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         UIDevice.current.isBatteryMonitoringEnabled = true
         let battery = UIDevice.current.batteryLevel
@@ -120,7 +120,7 @@ final class DeviceSnapshotTool: MCPTool {
 final class WebSearchTool: MCPTool {
     let definition = ToolDefinition(name: "web.search",
         summary: "联网检索：Bing 优先，失败自动回退 DuckDuckGo，返回标题/链接/摘要",
-        parameters: ["query": "搜索关键词", "limit": "返回条数（默认 8）"])
+        parameters: ["query": "搜索关键词", "limit": "返回条数（默认 8）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let query = params["query"] as? String, !query.isEmpty else {
             throw MCPError.invalidParams("query required")
@@ -255,7 +255,7 @@ final class WebSearchTool: MCPTool {
 final class WebFetchTool: MCPTool {
     let definition = ToolDefinition(name: "web.fetch",
         summary: "抓取网页原文（HTML→纯文本），用于读取搜索结果链接的完整内容",
-        parameters: ["url": "目标链接", "maxChars": "最多返回字符数（默认 4000）"])
+        parameters: ["url": "目标链接", "maxChars": "最多返回字符数（默认 4000）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let urlString = params["url"] as? String, let url = URL(string: urlString) else {
             throw MCPError.invalidParams("url required")
@@ -485,7 +485,7 @@ final class KnowledgeImportFileTool: MCPTool {
 final class KnowledgeSearchTool: MCPTool {
     let definition = ToolDefinition(name: "knowledge.search",
         summary: "在本机知识库检索（BM25 加权相关度排序，语义优于关键词 contains；无命中自动回退关键词匹配）",
-        parameters: ["query": "查询内容", "limit": "最多返回条数（默认 15，最大 50）"])
+        parameters: ["query": "查询内容", "limit": "最多返回条数（默认 15，最大 50）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let query = params["query"] as? String, !query.isEmpty else { throw MCPError.invalidParams("query required") }
         KnowledgeStore.shared.ensure()

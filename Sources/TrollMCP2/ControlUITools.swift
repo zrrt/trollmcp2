@@ -222,7 +222,7 @@ final class UITapTool: MCPTool {
 final class UISwipeTool: MCPTool {
     let definition = ToolDefinition(name: "ui.swipe",
         summary: "在屏幕滑动（从 A 到 B），用于翻页/滚动/返回手势。调用时务必带 reason 说明判断依据。",
-        parameters: ["x1": "起点横坐标", "y1": "起点纵坐标", "x2": "终点横坐标", "y2": "终点纵坐标", "duration_ms": "时长毫秒（默认 300）", "reason": "判断依据（必填）"])
+        parameters: ["x1": "起点横坐标", "y1": "起点纵坐标", "x2": "终点横坐标", "y2": "终点纵坐标", "duration_ms": "时长毫秒（默认 300）", "reason": "判断依据（必填）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x1 = params["x1"] as? Double, let y1 = params["y1"] as? Double,
               let x2 = params["x2"] as? Double, let y2 = params["y2"] as? Double else {
@@ -285,7 +285,7 @@ final class UIClipboardTool: MCPTool {
 final class UIScreenshotTool: MCPTool {
     let definition = ToolDefinition(name: "ui.screenshot",
         summary: "截取当前屏幕（安全版，v2.9.182 弃用 ReplayKit：iOS16.3 侧载环境 ReplayKit 系统级崩溃）。优先走 ControlAgent 注入截图（目标 App 在线时），兜底截 TrollAgent 自身窗口。调用时务必带 reason 说明要验证什么。",
-        parameters: ["reason": "验证目的（必填，如：确认搜索框是否弹出）"])
+        parameters: ["reason": "验证目的（必填，如：确认搜索框是否弹出）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let reason = params["reason"] as? String ?? ""
         ControlSession.shared.addThink(reason.isEmpty ? "截屏验证当前界面" : reason)

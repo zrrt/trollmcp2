@@ -327,7 +327,8 @@ final class ClipboardWriteTool: MCPTool {
     let definition = ToolDefinition(
         name: "clipboard.write",
         summary: "写入系统剪贴板：把一段文本复制到剪贴板，供用户粘贴到其他 App",
-        parameters: ["text": "要复制到剪贴板的文本（必填）"]
+        parameters: ["text": "要复制到剪贴板的文本（必填）"],
+    verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let text = params["text"] as? String, !text.isEmpty else {

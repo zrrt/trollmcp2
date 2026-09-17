@@ -622,7 +622,8 @@ final class TaskTool: MCPTool {
             "bundle_id": "目标 App Bundle ID（不填则用当前项目）",
             "dylib_path": "dylib 路径（inject_verify 时必填）",
             "options": "模板参数（JSON）：network_probe 的 duration/limit、new_device 的 reset_keychain/refresh_idfa/name/model_identifier、ai_analyze 的 direction/custom_hint/max_classes/prefix"
-        ]
+        ],
+    verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

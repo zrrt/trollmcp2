@@ -32,8 +32,9 @@ final class BinarySymbolsTool: MCPTool {
 
             "limit": "返回数量上限（默认 100）"
 
-        ]
+        ],
 
+    verified: true,
     )
 
 
@@ -1641,7 +1642,8 @@ final class AiAnalyzeTool: MCPTool {
             "custom_hint": "direction=自定义 时的具体描述（如：找出会员判断逻辑）",
             "max_classes": "采集类上限（默认 80，最大 150；防 token 爆炸）",
             "prefix": "类名前缀过滤（可选，如 QQ，可大幅减少采集量）"
-        ]
+        ],
+    verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

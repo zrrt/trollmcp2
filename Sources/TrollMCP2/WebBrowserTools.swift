@@ -23,7 +23,8 @@ struct BrowserOpenTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.open",
         summary: "在内置浏览器打开网页。参数 url：完整网址（如 https://example.com，可省略 https://）。页面异步加载，打开后必须调用 browser.wait 等待加载完成，再 browser.snapshot 获取可交互元素。",
-        parameters: ["url": "string"]
+        parameters: ["url": "string"],
+    verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let url = params["url"] as? String else {
@@ -39,7 +40,8 @@ struct BrowserWaitTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.wait",
         summary: "等待浏览器页面加载完成（最多 timeout 秒）。browser.open 后必须先调用本工具等加载完，否则 snapshot 拿不到元素。返回 URL、标题、页面正文长度。",
-        parameters: ["timeout": "最多等待秒数（默认 15）"]
+        parameters: ["timeout": "最多等待秒数（默认 15）"],
+    verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let timeout = params["timeout"] as? Int ?? 15
@@ -53,7 +55,8 @@ struct BrowserTextTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.text",
         summary: "提取当前页面可见正文文本（最多 max_chars 字符）。用于 AI 阅读页面内容、验证操作结果（如登录后是否显示用户名、搜索结果是否出现）。可选 query 只返回关键词附近上下文。",
-        parameters: ["max_chars": "最大字符数（默认 3000）", "query": "可选：只返回包含该关键词的上下文片段"]
+        parameters: ["max_chars": "最大字符数（默认 3000）", "query": "可选：只返回包含该关键词的上下文片段"],
+    verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let maxChars = params["max_chars"] as? Int ?? 3000
@@ -68,7 +71,8 @@ struct BrowserScrollTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.scroll",
         summary: "滚动当前页面：direction 取 down（下翻一屏）/ up（上翻）/ top（回到顶部）/ bottom（到底部）。滚动后元素编号会刷新，操作前重新 snapshot。",
-        parameters: ["direction": "down/up/top/bottom"]
+        parameters: ["direction": "down/up/top/bottom"],
+    verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let direction = params["direction"] as? String else {
@@ -100,7 +104,8 @@ struct BrowserFormFieldsTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.form_fields",
         summary: "扫描当前页面全部表单字段（input/textarea/select，不限快照条数），返回每个字段的 name/placeholder/标签/类型/当前值/下拉选项/绝对 xpath。填表前先调用本工具看有哪些字段。",
-        parameters: [:]
+        parameters: [:],
+    verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let r = BrowserManager.shared.formFields()

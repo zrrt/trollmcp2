@@ -289,7 +289,7 @@ func AutomationSchedulerStatus() -> String {
 
 final class ContactsSearchTool: MCPTool {
     let definition = ToolDefinition(name: "contacts.search", summary: "搜索通讯录联系人",
-        parameters: ["query": "搜索关键词"])
+        parameters: ["query": "搜索关键词"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let query = params["query"] as? String ?? ""
         let store = CNContactStore()
@@ -477,7 +477,7 @@ final class ProjectGenerateTweakTool: MCPTool {
 
 final class ModelConfigTool: MCPTool {
     let definition = ToolDefinition(name: "model.config", summary: "查看/管理模型配置",
-        parameters: ["action": "list 或 default"])
+        parameters: ["action": "list 或 default"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = params["action"] as? String ?? "list"
         if action == "default", let cfg = ModelStore.shared.defaultConfig {
@@ -497,7 +497,8 @@ final class ToolHealthTool: MCPTool {
         summary: "查看工具健康度：失败排行、错误码分布（env/target/param/tool）、最近失败明细。用于自查哪些工具有问题及失败原因，避免反复执行失败工具。",
         parameters: [
             "limit": "最多返回多少个工具的健康数据（默认 20）"
-        ]
+        ],
+    verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let limit = max(1, min((params["limit"] as? Int) ?? 20, 100))

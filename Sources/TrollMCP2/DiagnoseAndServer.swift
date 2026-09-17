@@ -138,7 +138,8 @@ final class DiagnoseCrashTool: MCPTool {
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "count": "分析最近几次崩溃（默认 1）"
-        ]
+        ],
+    verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

@@ -326,7 +326,7 @@ final class AutomationSetEnabledTool: MCPTool {
 // MARK: - 原版缺失工具：model.*
 
 final class ModelAuthenticationTool: MCPTool {
-    let definition = ToolDefinition(name: "model.authentication", summary: "查看当前模型的鉴权方式与密钥状态")
+    let definition = ToolDefinition(name: "model.authentication", summary: "查看当前模型的鉴权方式与密钥状态", verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let config = ModelStore.shared.defaultConfig else {
             throw MCPError.failed("no model configured")
@@ -348,7 +348,7 @@ final class ModelAuthenticationTool: MCPTool {
 
 final class ModelSelectedProfileIDTool: MCPTool {
     let definition = ToolDefinition(name: "model.selectedProfileID", summary: "获取/设置当前选中的模型配置 ID",
-        parameters: ["profile_id": "可选：要切换到的配置 UUID"])
+        parameters: ["profile_id": "可选：要切换到的配置 UUID"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let store = ModelStore.shared
         if let newId = params["profile_id"] as? String,
@@ -370,7 +370,7 @@ final class ModelSelectedProfileIDTool: MCPTool {
 
 final class WorkspaceOutputBookmarkTool: MCPTool {
     let definition = ToolDefinition(name: "workspace.outputBookmark", summary: "获取/设置工作区输出目录书签",
-        parameters: ["bookmark": "可选：要保存的书签名"])
+        parameters: ["bookmark": "可选：要保存的书签名"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let key = "trollmcp2.output_bookmark"
         if let bookmark = params["bookmark"] as? String {
@@ -384,7 +384,7 @@ final class WorkspaceOutputBookmarkTool: MCPTool {
 
 final class WorkspaceOutputNameTool: MCPTool {
     let definition = ToolDefinition(name: "workspace.outputName", summary: "获取/设置工作区输出产物命名",
-        parameters: ["name": "可选：输出名称"])
+        parameters: ["name": "可选：输出名称"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let key = "trollmcp2.output_name"
         if let name = params["name"] as? String {

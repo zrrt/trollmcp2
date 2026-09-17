@@ -300,7 +300,8 @@ final class TestRunTool: MCPTool {
             "wait_seconds": "启动后等待稳定秒数（默认 5）",
             "stats_duration": "性能采样时长（默认 10）",
             "report_name": "报告名称（默认 test_report_时间戳）"
-        ]
+        ],
+    verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

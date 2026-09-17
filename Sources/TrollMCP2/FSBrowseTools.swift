@@ -603,7 +603,8 @@ final class FSGrepTool: MCPTool {
             "pattern": "搜索关键词（必填，不区分大小写）",
             "ext": "文件扩展名过滤（如 plist/json/log/txt，逗号分隔，可选）",
             "limit": "最多返回匹配条数（默认 60）"
-        ]
+        ],
+    verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -980,7 +981,8 @@ final class FSFindTool: MCPTool {
             "name": "文件名关键词（必填，不区分大小写）",
             "ext": "扩展名过滤（如 plist/db/dylib，逗号分隔，可选）",
             "limit": "最多返回条数（默认 60）"
-        ]
+        ],
+    verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -1264,7 +1266,8 @@ final class FSContainerTool: MCPTool {
         summary: "按 bundle_id 返回 App 的完整路径四件套：数据容器、Bundle 目录、Documents、Library、Caches、tmp。AI 定位文件先调它，替代盲目 fs.find。",
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）"
-        ]
+        ],
+    verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -1302,7 +1305,8 @@ final class FSCrashTool: MCPTool {
             "bundle_id": "按进程名或 Bundle ID 过滤（可选）",
             "limit": "返回最近崩溃条数（默认 3，最大 10）",
             "dir": "崩溃日志目录（默认系统 CrashReporter）"
-        ]
+        ],
+    verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

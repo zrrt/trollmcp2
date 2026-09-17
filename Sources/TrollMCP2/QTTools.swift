@@ -429,7 +429,8 @@ final class LogCollectTool: MCPTool {
             "bundle_id": "目标 App 的 Bundle ID（可选，不填则收集 TrollAgent 自身日志）",
             "type": "日志类型：system（系统日志）、crash（崩溃报告）、injection（注入日志）、all（全部，默认）",
             "lines": "收集行数（默认 200）"
-        ]
+        ],
+    verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
