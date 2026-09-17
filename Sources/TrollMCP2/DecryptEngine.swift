@@ -240,6 +240,17 @@ enum DecryptEngine {
                 }
             }
             lastDiag = "表项\(infos.infoArrayCount)条无路径匹配(目标 \(want))"
+                // v2.9.225 诊断: dump 表里含 Frameworks 的路径,确认是未加载还是路径形式差异
+                var fwPaths = [String]()
+                for j in 0..<min(Int(infos.infoArrayCount), 947) {
+                    let off = j * itemSize
+                    let fp = loadU64(arrData, off + 8)
+                    if fp != 0, let pth = vmReadString(task: task, address: fp, maxLen: 2048),
+                       pth.contains("Frameworks") { fwPaths.append(pth) }
+                }
+                lastDiag += " fw["
+                for fp in fwPaths.prefix(6) { lastDiag += fp + " | " }
+                lastDiag += "]"
             Thread.sleep(forTimeInterval: 0.01)
         }
         return (nil, lastDiag)
