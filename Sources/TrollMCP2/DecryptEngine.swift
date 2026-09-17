@@ -763,7 +763,7 @@ enum ZipStorer {
             var crcVal: uLong = 0
             var totalComp = 0
             while true {
-                let n = src.read(into: &inBuf, count: chunk)
+                let n = src.read(into: &inBuf, upToCount: chunk)
                 let have = max(0, n)
                 crcVal = inBuf.withUnsafeBytes { raw in
                     crc32(crcVal, raw.bindMemory(to: UInt8.self).baseAddress!, uInt(have))
@@ -787,7 +787,7 @@ enum ZipStorer {
 
             // 回写 LFH 的 crc(14) + compSize(18)
             var fix = Data()
-            appendU32(&fix, crcVal)
+            appendU32(&fix, UInt32(crcVal))
             appendU32(&fix, compSize)
             try? out.seek(toFileOffset: lfhPos + 14)
             out.write(fix)
@@ -802,7 +802,7 @@ enum ZipStorer {
             appendU16(&cd, 8)
             appendU16(&cd, 0)            // time
             appendU16(&cd, 0)            // date
-            appendU32(&cd, crcVal)
+            appendU32(&cd, UInt32(crcVal))
             appendU32(&cd, compSize)
             appendU32(&cd, size)
             appendU16(&cd, UInt16(nameData.count))
