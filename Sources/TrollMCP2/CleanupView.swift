@@ -160,9 +160,11 @@ struct AppCleanupView: View {
         .navigationTitle(name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if !items.isEmpty {
-                ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                if !items.isEmpty {
                     Button("重新扫描") { scan() }
+                } else {
+                    EmptyView()
                 }
             }
         }
@@ -180,6 +182,8 @@ struct AppCleanupView: View {
                             withAnimation { self.toast = nil }
                         }
                     }
+            } else {
+                EmptyView()
             }
         }
         .animation(.easeInOut(duration: 0.2), value: toast)
