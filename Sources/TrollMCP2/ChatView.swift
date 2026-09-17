@@ -39,6 +39,9 @@ struct ChatView: View {
                 // v2.9.72：工作流可视化步骤条
                 WorkflowProgressView()
                 currentModelBar
+            }
+            // v2.9.244：输入框改用 safeAreaInset 挂底部——标准键盘避让，不再手动 padding 双重压缩内容区
+            .safeAreaInset(edge: .bottom, spacing: 0) {
                 inputBar
             }
             .navigationTitle(selectionMode ? "已选 \(selectedIds.count) 条" : store.currentTitle)
@@ -83,8 +86,9 @@ struct ChatView: View {
                     }
                 }
             }
-            .padding(.bottom, keyboardHeight > 0 ? keyboardHeight - 34 : 0)
-            // v2.9.235：键盘监听挂外层 VStack（空会话无 messageList 也能避让键盘）
+            // v2.9.244：删除手动 keyboardHeight padding（会与键盘避让叠加导致内容区被拉高/压缩），键盘避让交给 safeAreaInset
+            // v2.9.235：键盘监听仍保留——用于键盘弹出时消息列表滚到底部
+
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { note in
                 let h = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect)?.height ?? 0
                 withAnimation(.easeOut(duration: 0.25)) { keyboardHeight = h }
