@@ -930,7 +930,7 @@ final class InjectionManager {
     func enable(bundleId: String, dylibName: String = "@executable_path/TrollMCPAgent.dylib",
                 dylibSourcePath: String? = nil, weakReference: Bool = false,
                 injectStrategy: String = "lexicographic", preferredTarget: String? = nil,
-                skipProbe: Bool = false) throws -> [String: Any] {
+                skipProbe: Bool = false, allowMain: Bool = false) throws -> [String: Any] {
         _ = dylibName
         guard let app = AppCatalog.find(bundleId) else {
             throw MCPError.failed("app not found: \(bundleId)")
@@ -999,12 +999,18 @@ final class InjectionManager {
         // 2. 选注入目标 Mach-O：对齐 TrollFools——有 Frameworks 时只注入 Frameworks/ 内的 Mach-O
         //（TrollFools 的 modified 判定 = Frameworks/ 内带 .troll-fools.bak 的 Mach-O；
         //  注入主二进制 TrollFools 无法识别也无法关闭，用户会被卡死，故有 Frameworks 时强制拒绝主二进制）
+        // v2.9.260：control.inject 传 allowMain=true 时强制选主二进制——懒加载 framework(AppsFlyerLib/BGM)
+        // 实测导致 ControlAgent constructor 永不执行、4789 永不监听；主二进制 LC_LOAD_DYLIB 启动必加载
+        //（加密 App 的 load commands 区不加密，insert_dylib + 伪签 + ct_bypass 可改；TrollStore fake sign 绕过校验）
         let frameworksDirPath = (app.path as NSString).appendingPathComponent("Frameworks")
         let hasFrameworks = FileManager.default.fileExists(atPath: frameworksDirPath)
         let allCandidates = collectInjectableMachOs(app, strategy: injectStrategy)
         let fwCandidates = hasFrameworks ? allCandidates.filter { $0.hasPrefix(frameworksDirPath + "/") } : []
         let targetMachO: String
-        if hasFrameworks {
+        if allowMain {
+            // v2.9.260：强制主二进制（启动必加载），绕开"有 Frameworks 拒绝主二进制"的 TrollFools 兼容限制
+            targetMachO = executablePath(app)
+        } else if hasFrameworks {
             guard !fwCandidates.isEmpty else {
                 throw MCPError.failed("Frameworks 内没有可注入的 Mach-O（全部加密或不可读）。为避免 TrollFools 无法识别和关闭的注入，已拒绝注入主二进制；请先处理加密/重签后重试。")
             }

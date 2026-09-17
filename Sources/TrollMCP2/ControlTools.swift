@@ -66,12 +66,16 @@ final class ControlAgentTools {
 
     private func doInject(bundleId: String, dylibPath: String, target: String? = nil, skipProbe: Bool = false) -> [String: Any] {
         do {
+            // v2.9.260：控制代理必须注入主二进制（启动必加载）——懒加载 framework 实测
+            // ControlAgent constructor 不执行、4789 不监听（小红书 AppsFlyerLib 实锤）。
+            // 主二进制加密的 load commands 不加密，insert_dylib+伪签+ct_bypass 可改。
             let result = try InjectionManager.shared.enable(
                 bundleId: bundleId,
                 dylibName: "@executable_path/ControlAgent.dylib",
                 dylibSourcePath: dylibPath,
                 preferredTarget: target,
-                skipProbe: skipProbe
+                skipProbe: skipProbe,
+                allowMain: true
             )
             // v2.9.109：注入成功自动开启真后台保活（目标 App + TrollAgent 自身），
             // 防止目标 App 切后台被系统挂起导致 4789 断连
