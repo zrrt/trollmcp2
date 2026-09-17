@@ -518,6 +518,15 @@ enum DecryptEngine {
         var decrypted: [String] = []
         var cryptInfo: [String: Any] = [:]
         for r in results {
+            // v2.9.199：未加密（cryptid=0/无加密段）也记入 cryptInfo，不再静默过滤成"假完成"
+            if let out = r["output"] as? String, !out.isEmpty,
+               (r["decrypted"] as? Bool) != true,
+               let cryptid = r["cryptid"] as? Int, cryptid == 0 {
+                let name = (out as NSString).lastPathComponent
+                let note = (r["note"] as? String) ?? "未加密"
+                cryptInfo[name == execName ? "main" : name] = ["cryptid": 0, "decrypted": false, "reason": note, "method": "controlagent"]
+                continue
+            }
             guard let out = r["output"] as? String, !out.isEmpty,
                   (r["decrypted"] as? Bool) == true else { continue }
             let name = (out as NSString).lastPathComponent

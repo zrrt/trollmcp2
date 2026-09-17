@@ -830,10 +830,11 @@ static void setupKeepAlive(void) {
 
 __attribute__((constructor))
 static void controlAgentInitialize(void) {
-    // v2.9.195：不再安装 FBSWorkspaceScenesClient scene hook（保活）——该 hook 拦截
-    // scene 后台更新，在任何 App（含无防护小 App）里都可能触发系统级异常 → 注入后 App
-    // "无法启动"（真机实测顶级弓箭手/哔哩哔哩全部闪退，与 dylib 无关，与 scene hook 强相关）。
-    // 保活改由 TrollAgent 侧 BackgroundKeepAlive + 通知通道承担；此处只起 HTTP server。
+    // v2.9.199：恢复 setupKeepAlive 保活（v2.9.195 误杀——当时"注入后闪退"实为
+    // kill 后立即启动的缓冲期误判，非 scene hook 导致；实测注入后 App 可正常启动）。
+    // 保活机制：hook FBSWorkspaceScenesClient 拦截 scene 后台更新，目标 App 切后台
+    // 不挂起 → 4789 远程控制持续在线（实测后台挂起时 4789 断连）。
+    setupKeepAlive();
     // 延迟到主线程 runloop 启动后再启动服务器
     dispatch_async(dispatch_get_main_queue(), ^{
         // 再延迟一点，等 App 完全启动
