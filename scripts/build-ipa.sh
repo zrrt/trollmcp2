@@ -115,3 +115,8 @@ cp -R "$APP" Payload/
 
 zip -qry "$IPA" Payload
 echo ">>> built: $IPA ($(du -h "$IPA" | cut -f1))"
+
+# v2.9.206: 同时输出 TrollStore 原生 .tipa（TrollDecrypt/TrollFools 同款格式，
+# TrollStore 对自家格式签名/entitlements 处理最完整）。tipa 即 zip（内含 Payload）。
+cp "$IPA" TrollMCP2.tipa
+echo ">>> built: TrollMCP2.tipa ($(du -h "TrollMCP2.tipa" | cut -f1))"
