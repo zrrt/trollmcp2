@@ -335,17 +335,33 @@ enum DecryptEngine {
                                  nextStep: "用 injection.list 搜索目标 App 的 bundle_id")
         }
 
-        // —— 拿进程：已在运行直接用，否则启动 ——
-        var pid = findPid(by: bundleId)
+        // —— 拿进程：v2.9.202 launchd SubmitAndStart 优先（TrollDecrypt 同款）——
+        // 实测：open -b / 已运行进程（含前台活跃）的 task_info(TASK_DYLD_INFO) 恒 kr=4；
+        // 只有 launchd 直接托管的 job 进程，dyld 镜像表才对 task_for_pid 客户端可读。
+        var pid: Int32 = 0
         var launchErrors: [[String: Any]] = []
-        if pid <= 0 {
+        let plist0 = NSDictionary(contentsOfFile: app.path + "/Info.plist")
+        let execName0 = (plist0?["CFBundleExecutable"] as? String) ?? "App"
+        let mainBinary0 = app.path + "/" + execName0
+        if FileManager.default.fileExists(atPath: mainBinary0) {
+            let label = String(format: "UIKitApplication:%@[%06x]", bundleId, arc4random() & 0xffffff)
+            let lr = LaunchdLauncher.launch(bundleId: bundleId, executablePath: mainBinary0, label: label)
+            if lr.pid > 0 {
+                pid = lr.pid
+            } else {
+                launchErrors.append(["step": "launchd_submit", "kern_return": Int(lr.kr)])
+                let r = launchApp(bundleId: bundleId)
+                pid = r.pid
+                launchErrors += r.errors
+            }
+        } else {
             let r = launchApp(bundleId: bundleId)
             pid = r.pid
             launchErrors = r.errors
         }
         guard pid > 0 else {
             return DecryptResult(ok: false, errorCode: "target",
-                                 errorReason: "目标 App 未运行且启动失败（open -b / direct_exec 均无效）",
+                                 errorReason: "目标 App 启动失败（launchd SubmitAndStart + open -b 均无效）",
                                  nextStep: "手动打开目标 App 后再执行砸壳；或在 TrollStore 里确认该 App 可正常启动",
                                  pid: 0, launchErrors: launchErrors)
         }
