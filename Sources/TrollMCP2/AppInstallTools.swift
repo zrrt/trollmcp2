@@ -31,14 +31,16 @@ final class AppInstallTool: MCPTool {
             for v in variants where FileManager.default.fileExists(atPath: v) { helper = v; helperExist = true; break }
         }
 
-        // v2.9.274：加 force——TrollStore installApp 对"已装但非 TrollStore App"（无
+        // v2.9.274/275：加 force——TrollStore installApp 对"已装但非 TrollStore App"（无
         // TS_ACTIVE_MARKER 的 App Store 版）无 force 直接返回 171 拒绝覆盖（实测小红书）
-        let (c, out) = im.spawnRoot(helper, args: ["install", path, "force"], timeout: 180)
+        // ⚠️ 关键：trollstorehelper 源码用 args.lastObject 取 ipaPath，force 必须放在
+        //  path 之前！否则 ipaPath="force" 装空气（274 首版踩坑，275 修复参数顺序）
+        let (c, out) = im.spawnRoot(helper, args: ["install", "force", path], timeout: 180)
         if c == 0 {
             AuditLog.shared.log("app.install", detail: "\(path) → \(helper) 成功")
             AppCatalog.invalidateCache()   // v2.9.135: 安装后失效应用缓存
-            // 安装后刷新 LaunchServices 注册（避免 SBSLaunch 启动旧注册/旧进程）
-            _ = im.spawnRoot(helper, args: ["refresh"], timeout: 60)
+            // v2.9.275：refresh-all 强刷新 LaunchServices 数据库 + 重建图标缓存 + backboardd
+            _ = im.spawnRoot(helper, args: ["refresh-all"], timeout: 90)
             return ["ok": true, "method": "trollstorehelper", "output": out,
                     "message": "已静默安装 \(path)"]
         }
