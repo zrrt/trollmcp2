@@ -1094,7 +1094,8 @@ final class FSPropertyListTool: MCPTool {
             "key": "键路径，点号分隔，如 Root.Foo.Bar",
             "value": "set 时的值（自动识别 true/false/数字/JSON/字符串）",
             "backup": "写操作前是否备份 .bak（默认 true）"
-        ]
+        ],
+    verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

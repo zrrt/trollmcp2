@@ -126,7 +126,7 @@ final class LocationFakeTool: MCPTool {
 final class LocationFakeStatusTool: MCPTool {
     let definition = ToolDefinition(name: "location.fake_status",
         summary: "查看当前模拟定位配置（坐标/启用状态）。",
-        parameters: [:])
+        parameters: [:], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let cfg = FakeLocationStore.read() else {
             return ["enabled": false, "message": "当前未设置模拟定位"]

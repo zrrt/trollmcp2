@@ -155,7 +155,8 @@ final class KnowledgeBaseTool: MCPTool {
             "keyword": "add 时的关键词",
             "cause": "add 时的原因",
             "fix": "add 时的修复方案"
-        ]
+        ],
+    verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -197,7 +198,8 @@ final class WorkspaceCleanupTool: MCPTool {
             "max_age_days": "删除超过 N 天的文件（默认 7）",
             "max_size_mb": "单个目录超过 N MB 时清理旧文件（默认 500）",
             "targets": "清理目标：downloads,logs,reports,all（默认 all）"
-        ]
+        ],
+    verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

@@ -91,7 +91,7 @@ final class InjectionStatusTool: MCPTool {
 
 final class InjectionInspectTool: MCPTool {
     let definition = ToolDefinition(name: "injection.inspect", summary: "检查指定 App 的 dylib 加载状态",
-        parameters: ["bundle_id": "目标 App Bundle ID"])
+        parameters: ["bundle_id": "目标 App Bundle ID"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
         return InjectionManager.shared.inspect(bid)
@@ -159,7 +159,7 @@ final class GatewayStatusTool: MCPTool {
 
 final class GatewayConnectTool: MCPTool {
     let definition = ToolDefinition(name: "gateway.connect", summary: "连接到 Gateway 服务端",
-        parameters: ["url": "WebSocket URL ws://...", "token": "配对令牌（可选）"])
+        parameters: ["url": "WebSocket URL ws://...", "token": "配对令牌（可选）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let url = params["url"] as? String else { throw MCPError.invalidParams("url required") }
         GatewayClient.shared.pairedToken = params["token"] as? String
@@ -206,7 +206,7 @@ final class AutomationRunNowTool: MCPTool {
 }
 
 final class AutomationListTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.list", summary: "列出自动化任务（含调度信息）")
+    let definition = ToolDefinition(name: "automation.list", summary: "列出自动化任务（含调度信息）", verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let tasks = AutomationStore.shared.tasks.map { t in
             [
@@ -318,7 +318,7 @@ final class ContactsSearchTool: MCPTool {
 
 final class CalendarListTool: MCPTool {
     let definition = ToolDefinition(name: "calendar.list", summary: "列出近期日历事件",
-        parameters: ["days": "往后多少天，默认 7"])
+        parameters: ["days": "往后多少天，默认 7"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let days = params["days"] as? Int ?? 7
         let store = EKEventStore()
@@ -354,7 +354,7 @@ final class ReminderCreateTool: MCPTool {
 }
 
 final class LocationGetTool: MCPTool {
-    let definition = ToolDefinition(name: "location.get", summary: "获取当前设备位置")
+    let definition = ToolDefinition(name: "location.get", summary: "获取当前设备位置", verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let mgr = LocationProvider.shared
         return [
@@ -367,7 +367,7 @@ final class LocationGetTool: MCPTool {
 
 final class NotificationSendTool: MCPTool {
     let definition = ToolDefinition(name: "notification.send", summary: "发送一条本地通知：标题/正文/延迟秒数。用于任务完成提醒。",
-        parameters: ["title": "标题", "body": "内容"])
+        parameters: ["title": "标题", "body": "内容"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let title = params["title"] as? String ?? "TrollMCP"
         let body = params["body"] as? String ?? ""
@@ -402,7 +402,7 @@ final class ScanQRTool: MCPTool {
 }
 
 final class ProcessListTool: MCPTool {
-    let definition = ToolDefinition(name: "process.list", summary: "枚举正在运行的进程")
+    let definition = ToolDefinition(name: "process.list", summary: "枚举正在运行的进程", verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         var procs: [[String: Any]] = []
         for app in AppCatalog.list() {

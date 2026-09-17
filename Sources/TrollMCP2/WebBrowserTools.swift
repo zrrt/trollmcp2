@@ -146,7 +146,8 @@ struct BrowserSnapshotTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.snapshot",
         summary: "获取当前页面可交互元素快照：给每个按钮/链接/输入框加蓝色边框并编号（idx），返回 [{idx,tag,text,type,href,placeholder,value}]。可带 query 关键字按文本/标签/占位符过滤（如 query=\"登录\"），避免长页面全量返回。AI 按 idx 用 browser.click / browser.type / browser.submit 操作。",
-        parameters: ["query": "过滤关键字（按元素文本/标签/占位符/href/name 模糊匹配，可选，不带则返回前 20 个）"]
+        parameters: ["query": "过滤关键字（按元素文本/标签/占位符/href/name 模糊匹配，可选，不带则返回前 20 个）"],
+    verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let q = params["query"] as? String
@@ -195,7 +196,8 @@ struct BrowserEvalTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.eval",
         summary: "在当前页面执行任意 JavaScript，返回结果字符串。高级操作（读取 DOM、提交表单、滚动等）。",
-        parameters: ["js": "string"]
+        parameters: ["js": "string"],
+    verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let js = params["js"] as? String else {
@@ -211,7 +213,8 @@ struct BrowserNavigateTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.navigate",
         summary: "浏览器导航：传 url 打开新网址；或 action 取 back（后退）/ forward（前进）/ reload（刷新）。AI 常误用 navigate 开网址，兼容 url 参数。",
-        parameters: ["url": "string（可选）打开新网址", "action": "string（可选）back/forward/reload"]
+        parameters: ["url": "string（可选）打开新网址", "action": "string（可选）back/forward/reload"],
+    verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         // v2.9.251: 兼容 url 参数——AI 常用 browser.navigate {url} 开网页,此前只认 action 导致"打开失败"

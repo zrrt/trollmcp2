@@ -230,7 +230,8 @@ final class AppStatsTool: MCPTool {
             "bundle_id": "目标 App Bundle ID（必填）",
             "duration": "采样时长秒数（默认 10）",
             "interval": "采样间隔秒数（默认 1）"
-        ]
+        ],
+    verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

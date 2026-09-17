@@ -142,7 +142,8 @@ final class AppOpenTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.open",
         summary: "打开指定 App",
-        parameters: ["bundle_id": "目标 App Bundle ID"]
+        parameters: ["bundle_id": "目标 App Bundle ID"],
+    verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

@@ -431,7 +431,8 @@ final class ServerStatusTool: MCPTool {
     let definition = ToolDefinition(
         name: "server.status",
         summary: "查看本地 HTTP 服务状态：是否运行、端口、可用工具数量。",
-        parameters: [:]
+        parameters: [:],
+    verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

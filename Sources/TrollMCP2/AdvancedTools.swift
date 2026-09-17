@@ -308,8 +308,9 @@ final class PluginTool: MCPTool {
 
             "name": "插件名称（enable/disable 时必填）"
 
-        ]
+        ],
 
+    verified: true,
     )
 
 
@@ -575,8 +576,9 @@ final class CrashReproTool: MCPTool {
 
             "bundle_id": "目标 App Bundle ID（用于生成 filter）"
 
-        ]
+        ],
 
+    verified: true,
     )
 
 
@@ -1287,7 +1289,8 @@ final class AppEntitlementsTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.entitlements",
         summary: "查看指定 App 的权限声明（entitlements，ldid -e 解析）：keychain 组、沙箱、task_for_pid、平台应用等",
-        parameters: ["bundle_id": "目标 App Bundle ID（必填）"]
+        parameters: ["bundle_id": "目标 App Bundle ID（必填）"],
+    verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -1560,7 +1563,8 @@ final class NewDeviceTool: MCPTool {
             "system_version": "伪装系统版本（默认 18.0）",
             "reset_keychain": "是否清空整机 keychain（默认 true）",
             "refresh_idfa": "是否尝试刷新广告符（默认 true）"
-        ]
+        ],
+    verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

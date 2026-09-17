@@ -299,7 +299,7 @@ final class AutomationCancelTool: MCPTool {
 }
 
 final class AutomationHistoryTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.history", summary: "查询自动化任务执行历史")
+    let definition = ToolDefinition(name: "automation.history", summary: "查询自动化任务执行历史", verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let entries = AutomationStore.shared.history.prefix(50)
         return [
