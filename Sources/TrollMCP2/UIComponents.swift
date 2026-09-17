@@ -159,3 +159,12 @@ func CompatNav<Content: View>(@ViewBuilder content: () -> Content) -> some View 
         NavigationView { content() }.navigationViewStyle(.stack)
     }
 }
+
+// v2.9.241：iOS 15.6 兼容——URLRequest.httpMethod 的 Swift setter 是 iOS16+ ABI 符号
+// (dyld: Symbol not found _$s10Foundation10URLRequestV10httpMethodSSSgvs)，iOS 15.6 的 Foundation 缺失导致启动闪退。
+// 改用 NSMutableURLRequest 的 ObjC 属性设置，ObjC 消息跨 iOS 14-17 稳定。
+func setHTTPMethod(_ method: String, on request: inout URLRequest) {
+    let mutable = (request as NSURLRequest).mutableCopy() as! NSMutableURLRequest
+    mutable.httpMethod = method
+    request = mutable as! URLRequest
+}

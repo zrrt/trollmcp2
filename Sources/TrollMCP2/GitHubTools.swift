@@ -42,7 +42,7 @@ private enum GHAPI {
         var result: (Int, [String: Any]?, Data?) = (0, nil, nil)
         guard let url = URL(string: urlString) else { return (0, nil, nil) }
         var req = URLRequest(url: url, timeoutInterval: 30)
-        req.httpMethod = "GET"
+        setHTTPMethod("GET", on: &req)
         if let t = token { req.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization") }
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         let sem = DispatchSemaphore(value: 0)
@@ -60,7 +60,7 @@ private enum GHAPI {
         var result: (Int, [String: Any]?) = (0, nil)
         guard let url = URL(string: urlString) else { return result }
         var req = URLRequest(url: url, timeoutInterval: 30)
-        req.httpMethod = "POST"
+        setHTTPMethod("POST", on: &req)
         if let t = token { req.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization") }
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -218,7 +218,7 @@ final class GitHubDownloadArtifactTool: MCPTool {
             throw MCPError.failed("无效 URL")
         }
         var req = URLRequest(url: url, timeoutInterval: 60)
-        req.httpMethod = "GET"
+        setHTTPMethod("GET", on: &req)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         let sem = DispatchSemaphore(value: 0)
         URLSession.shared.dataTask(with: req) { d, resp, _ in

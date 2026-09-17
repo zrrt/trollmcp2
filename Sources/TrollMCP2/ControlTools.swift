@@ -14,7 +14,7 @@ final class ControlAgentTools {
     private func request(path: String, method: String = "GET", body: [String: Any]? = nil) -> (Int, Data?, String?) {
         let url = URL(string: "http://127.0.0.1:\(port)\(path)")!
         var request = URLRequest(url: url, timeoutInterval: timeout)
-        request.httpMethod = method
+        setHTTPMethod(method, on: &request)
         if let body = body {
             request.httpBody = try? JSONSerialization.data(withJSONObject: body)
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")

@@ -40,12 +40,14 @@ struct SettingsView: View {
                     listBody
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)   // v2.9.241：外层强制撑满——修复iOS16 NavigationStack+fullScreenCover下内容高度被裁剪(只有中间一小块能滚动/可视范围缩小)
             .navigationTitle(L10n.t("settings"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
+                    // v2.9.241：全屏设置页左上角用"完成"文字（明确=关闭设置回聊天），避免返回箭头被误解为返回上一页
                     Button(action: { presentationMode.wrappedValue.dismiss() }) {
-                        Image(systemName: "chevron.left")
+                        Text(L10n.t("done"))
                             .font(.system(size: 17, weight: .semibold))
                     }
                 }

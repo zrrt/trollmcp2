@@ -167,7 +167,7 @@ final class GitHubAccountStore: ObservableObject {
             ? Self.defaultClientID
             : clientID.trimmingCharacters(in: .whitespacesAndNewlines)
         var req = URLRequest(url: URL(string: "\(loginBase)/login/device/code")!, timeoutInterval: 30)
-        req.httpMethod = "POST"
+        setHTTPMethod("POST", on: &req)
         req.setValue("application/json", forHTTPHeaderField: "Accept")
         req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         // scope：repo（读仓库+触发 workflow）+ workflow（workflow dispatch 必须）
@@ -252,7 +252,7 @@ final class GitHubAccountStore: ObservableObject {
                                      completion: @escaping (String?, String?) -> Void) {
         let cid = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
         var req = URLRequest(url: URL(string: "\(loginBase)/login/oauth/access_token")!, timeoutInterval: 20)
-        req.httpMethod = "POST"
+        setHTTPMethod("POST", on: &req)
         req.setValue("application/json", forHTTPHeaderField: "Accept")
         req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         let body = "client_id=\(cid.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? cid)&device_code=\(deviceCode.device_code.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? deviceCode.device_code)&grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code"
@@ -278,7 +278,7 @@ final class GitHubAccountStore: ObservableObject {
     /// 统一登录落库：验证 token 身份 → 加入/更新账号
     private func finishLoginWith(token: String, completion: @escaping (Bool, String?) -> Void) {
         var req = URLRequest(url: URL(string: "\(apiBase)/user")!, timeoutInterval: 30)
-        req.httpMethod = "GET"
+        setHTTPMethod("GET", on: &req)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         URLSession.shared.dataTask(with: req) { [weak self] data, resp, err in
@@ -331,7 +331,7 @@ final class GitHubAccountStore: ObservableObject {
         }
         isVerifying = true
         var req = URLRequest(url: URL(string: "\(apiBase)/user")!, timeoutInterval: 30)
-        req.httpMethod = "GET"
+        setHTTPMethod("GET", on: &req)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
 
@@ -409,7 +409,7 @@ final class GitHubAccountStore: ObservableObject {
         }
         isTriggering = true
         var req = URLRequest(url: URL(string: "\(apiBase)/repos/\(repoOwner)/\(repoName)/actions/workflows/\(workflowId)/dispatches")!, timeoutInterval: 60)
-        req.httpMethod = "POST"
+        setHTTPMethod("POST", on: &req)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -450,7 +450,7 @@ final class GitHubAccountStore: ObservableObject {
     func fetchRuns(completion: ((Bool) -> Void)? = nil) {
         guard let token = activeToken else { completion?(false); return }
         var req = URLRequest(url: URL(string: "\(apiBase)/repos/\(repoOwner)/\(repoName)/actions/runs?per_page=10&event=workflow_dispatch")!, timeoutInterval: 30)
-        req.httpMethod = "GET"
+        setHTTPMethod("GET", on: &req)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
 

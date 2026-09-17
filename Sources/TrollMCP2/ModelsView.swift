@@ -333,7 +333,7 @@ struct ModelRow: View {
             return
         }
         var req = URLRequest(url: url, timeoutInterval: 8)
-        req.httpMethod = "GET"
+        setHTTPMethod("GET", on: &req)
         let key = config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         if config.authMethod == "API Key" {
             req.setValue(key, forHTTPHeaderField: "x-api-key")
@@ -773,7 +773,7 @@ struct ModelEditorView: View {
             return
         }
         var req = URLRequest(url: url, timeoutInterval: 8)
-        req.httpMethod = "GET"
+        setHTTPMethod("GET", on: &req)
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         if authMethod == "API Key" {
             req.setValue(key, forHTTPHeaderField: "x-api-key")

@@ -259,7 +259,7 @@ public final class RemoteAgent: ObservableObject {
         }
         isReporting = true
         var req = URLRequest(url: base.appendingPathComponent(path))
-        req.httpMethod = "POST"
+        setHTTPMethod("POST", on: &req)
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 10
         req.httpBody = try? JSONSerialization.data(withJSONObject: body, options: [])

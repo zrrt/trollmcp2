@@ -50,7 +50,7 @@ final class DeviceReporter {
         ]
 
         var request = URLRequest(url: url)
-        request.httpMethod = "POST"
+        setHTTPMethod("POST", on: &request)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
         request.timeoutInterval = 10

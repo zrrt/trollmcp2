@@ -324,7 +324,7 @@ final class ModelAPIClient {
             return
         }
         var request = URLRequest(url: url, timeoutInterval: 30)
-        request.httpMethod = "POST"
+        setHTTPMethod("POST", on: &request)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         applyAuth(config: config, to: &request)
 
@@ -394,7 +394,7 @@ final class ModelAPIClient {
             return
         }
         var request = URLRequest(url: url, timeoutInterval: timeout)
-        request.httpMethod = "POST"
+        setHTTPMethod("POST", on: &request)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         applyAuth(config: config, to: &request)
 

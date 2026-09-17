@@ -269,7 +269,7 @@ final class MemoryTweakTool: MCPTool {
     private func httpRequest(method: String, path: String, body: [String: Any]) throws -> [String: Any] {
         let url = URL(string: "http://127.0.0.1:\(port)\(path)")!
         var request = URLRequest(url: url)
-        request.httpMethod = method
+        setHTTPMethod(method, on: &request)
         request.timeoutInterval = 30
 
         if method == "POST" {

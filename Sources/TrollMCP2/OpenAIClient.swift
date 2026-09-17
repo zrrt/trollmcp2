@@ -189,7 +189,7 @@ final class OpenAIClient {
         // v2.9.96：试探级统一 25s——正常中转 5s 内响应，卡死就是永远卡死，
         // 25s 判定足够，把时间预算留给 L5 Responses 流式（Codex 同款端点）。
         var request = URLRequest(url: url, timeoutInterval: 25)
-        request.httpMethod = "POST"
+        setHTTPMethod("POST", on: &request)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         applyAuth(to: &request)
 
@@ -438,7 +438,7 @@ final class OpenAIClient {
 
         func fire(attempt: Int) {
             var request = URLRequest(url: url, timeoutInterval: 90)
-            request.httpMethod = "POST"
+            setHTTPMethod("POST", on: &request)
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             applyAuth(to: &request)
 
@@ -654,7 +654,7 @@ final class OpenAIClient {
             return
         }
         var request = URLRequest(url: url, timeoutInterval: 30)
-        request.httpMethod = "POST"
+        setHTTPMethod("POST", on: &request)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         applyAuth(to: &request)
 
@@ -858,7 +858,7 @@ final class OpenAIClient {
         }
 
         var request = URLRequest(url: url, timeoutInterval: 90)
-        request.httpMethod = "POST"
+        setHTTPMethod("POST", on: &request)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         applyAuth(to: &request)

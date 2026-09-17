@@ -1215,7 +1215,7 @@ struct WebhooksView: View {
             return
         }
         var req = URLRequest(url: target, timeoutInterval: 15)
-        req.httpMethod = "POST"
+        setHTTPMethod("POST", on: &req)
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let payload = ["event": "test", "timestamp": ISO8601DateFormatter().string(from: Date()), "app": "TrollMCP2"] as [String: Any]
         req.httpBody = try? JSONSerialization.data(withJSONObject: payload)
