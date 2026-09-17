@@ -277,9 +277,6 @@ struct AddGitHubAccountView: View {
             .navigationTitle("登录 GitHub")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("取消") { presentationMode.wrappedValue.dismiss() }
-                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if loading {
                         ProgressView().scaleEffect(0.8)

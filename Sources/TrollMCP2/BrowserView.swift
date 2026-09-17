@@ -155,14 +155,12 @@ struct BrowserView: View {
             .navigationTitle("内置浏览器")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: { _ = bm.open("https://www.bing.com") }) {
-                        Text(L10n.t("ui_21"))
-                            .font(.footnote)
-                    }
-                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 12) {
+                        Button(action: { _ = bm.open("https://www.bing.com") }) {
+                            Text(L10n.t("ui_21"))
+                                .font(.footnote)
+                        }
                         Button(action: { isFullscreen.toggle() }) {
                             Image(systemName: isFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
                                 .font(.footnote)

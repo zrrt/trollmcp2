@@ -65,7 +65,8 @@ struct ModelsView: View {
         .listStyle(.insetGrouped)
         .navigationTitle("模型 API")
         .toolbar {
-            ToolbarItemGroup(placement: .navigationBarLeading) {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+
                 Button(action: { showingImporter = true }) {
                     Image(systemName: "square.and.arrow.down")
                 }
@@ -79,8 +80,8 @@ struct ModelsView: View {
                     Image(systemName: "square.and.arrow.up")
                 }
                 .help("导出配置")
-            }
-            ToolbarItemGroup(placement: .navigationBarTrailing) {
+            
+
                 Button(action: { showingUsage = true }) {
                     Image(systemName: "chart.bar.fill")
                 }
