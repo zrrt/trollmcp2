@@ -22,6 +22,7 @@ enum LaunchdLauncher {
         let launchJob = unsafeBitCast(fn, to: LaunchJobFn.self)
         let cfxpc = unsafeBitCast(cfFn, to: CFXPCFn.self)
 
+        // TrollDecrypt 原样：请求必须包 {monitor, plist} 两层，直接传 plist 会被 launchd 拒（kr=22 EINVAL）
         let plist: [String: Any] = [
             "UserName": "mobile",
             "CFBundleIdentifier": bundleId,
@@ -30,7 +31,8 @@ enum LaunchdLauncher {
             "ProgramArguments": [executablePath],
             "Program": executablePath,
         ]
-        guard let request = cfxpc(plist as CFDictionary) else { return (-1, -3) }
+        let requestDict: [String: Any] = ["monitor": false, "plist": plist]
+        guard let request = cfxpc(requestDict as CFDictionary) else { return (-1, -3) }
         xpc_dictionary_set_uint64(request, "handle", 0)
         xpc_dictionary_set_uint64(request, "type", 7)
 
