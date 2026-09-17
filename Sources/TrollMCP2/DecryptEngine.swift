@@ -787,7 +787,11 @@ enum ZipStorer {
         if FileManager.default.fileExists(atPath: "/usr/bin/zip") {
             // 先删旧包，避免 zip 追加模式把新旧内容混一起
             try? FileManager.default.removeItem(atPath: zipPath)
-            let (zcode, zout) = InjectionManager.shared.spawn("/usr/bin/zip", args: ["-r", "-q", "-y", zipPath, dirName], cwd: parentDir, timeout: 600)
+            // 用 Swift chdir 代替 posix_spawn cwd（addchdir_np 在 iOS SDK 不可用，编译失败实测）
+            let savedCwd = FileManager.default.currentDirectoryPath
+            _ = FileManager.default.changeCurrentDirectoryPath(parentDir)
+            let (zcode, zout) = InjectionManager.shared.spawn("/usr/bin/zip", args: ["-r", "-q", "-y", zipPath, dirName], timeout: 600)
+            _ = FileManager.default.changeCurrentDirectoryPath(savedCwd)
             if zcode == 0, FileManager.default.fileExists(atPath: zipPath) {
                 return true
             }
