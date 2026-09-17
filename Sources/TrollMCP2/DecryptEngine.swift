@@ -914,7 +914,12 @@ enum ZipStorer {
             appendU32(&fix, compSize)
             try? out.seek(toFileOffset: lfhPos + 14)
             out.write(fix)
-            try? out.seek(toFileOffset: offset)
+            // v2.9.271 修复核心 bug：写完数据后必须 seek 到"LFH+数据"末尾，
+            // 且 offset 更新为数据末尾——旧代码 seek 回 LFH 末尾，导致下一个文件
+            // 的 LFH 覆盖在数据开头、centralDir/EOCD 写在文件中间（unzip 找不到）。
+            let dataEnd = lfhPos + UInt64(lfh.count) + UInt64(compSize)
+            try? out.seek(toFileOffset: dataEnd)
+            offset = dataEnd
 
             // Central Directory Entry
             var cd = Data()
