@@ -28,48 +28,33 @@ struct SettingsView: View {
     @State private var showLanguagePicker = false
     // v2.9.84：聊天框「在设置中管理模型」→ 打开设置并自动跳到模型 API 页
     @State private var jumpToModels = false
-    // v2.9.144：双视图切换（列表 ↔ 分组卡片），右上角切换，持久化
-    @AppStorage("settings.card_mode") private var cardMode = false
 
     var body: some View {
         CompatNav {
-            Group {
-                if cardMode {
-                    cardBody
-                } else {
-                    listBody
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)   // v2.9.241：外层强制撑满——修复iOS16 NavigationStack+fullScreenCover下内容高度被裁剪(只有中间一小块能滚动/可视范围缩小)
-            .navigationTitle(L10n.t("settings"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    // v2.9.241：全屏设置页左上角用"完成"文字（明确=关闭设置回聊天），避免返回箭头被误解为返回上一页
-                    Button(action: { presentationMode.wrappedValue.dismiss() }) {
-                        Text(L10n.t("done"))
-                            .font(.system(size: 17, weight: .semibold))
+            listBody
+                .frame(maxWidth: .infinity, maxHeight: .infinity)   // v2.9.245：撑满全屏——List底层UITableView自适应所有iPhone机型(XS 375pt→Pro Max 430pt+)，彻底摆脱卡片模式的渲染不稳定
+                .navigationTitle(L10n.t("settings"))
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        // v2.9.241：全屏设置页左上角"完成"=关闭设置回聊天
+                        Button(action: { presentationMode.wrappedValue.dismiss() }) {
+                            Text(L10n.t("done"))
+                                .font(.system(size: 17, weight: .semibold))
+                        }
                     }
+                    // v2.9.245：移除右上角卡片/列表切换按钮——卡片模式在部分机型(iPhone XS等小屏)渲染不稳定(图标/文字显示不全/内容裁剪),统一为列表模式
                 }
-                // v2.9.144：右上角切换展示方式
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { cardMode.toggle() }) {
-                        Image(systemName: cardMode ? "list.bullet" : "square.grid.2x2")
-                            .font(.system(size: 16, weight: .semibold))
+                // v2.9.234：跳转模型API页——iOS16 navigationDestination(修被弹回), iOS15 NavigationLink兜底
+                .background(
+                    Group {
+                        if #available(iOS 16.0, *) {
+                            EmptyView()
+                        } else {
+                            NavigationLink(destination: ModelsView(), isActive: $jumpToModels) { EmptyView() }.hidden()
+                        }
                     }
-                    .accessibilityLabel(cardMode ? "切换为列表" : "切换为卡片")
-                }
-            }
-            // v2.9.234：跳转模型API页——iOS16 navigationDestination(修被弹回), iOS15 NavigationLink兜底
-            .background(
-                Group {
-                    if #available(iOS 16.0, *) {
-                        EmptyView()
-                    } else {
-                        NavigationLink(destination: ModelsView(), isActive: $jumpToModels) { EmptyView() }.hidden()
-                    }
-                }
-            )
+                )
             if #available(iOS 16.0, *) {
                 Color.clear.navigationDestination(isPresented: $jumpToModels) { ModelsView() }
             }
@@ -350,87 +335,6 @@ struct SettingsView: View {
             }
         } else {
             SettingRowContent(item: item)
-        }
-    }
-
-    // MARK: - 卡片模式（分组卡片，对齐 Fuck 工具箱"更多"页）
-
-    private var cardBody: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                ForEach(makeGroups(), id: \.header) { group in
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(group.header)
-                            .font(.footnote)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 4)
-                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                            ForEach(group.items) { item in
-                                card(item)
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(16)
-        }
-        .background(Color(.systemGroupedBackground))
-        .frame(maxWidth: .infinity, maxHeight: .infinity)   // v2.9.240：同上，卡片模式也强制撑满
-        .actionSheet(isPresented: $showLanguagePicker) {
-            ActionSheet(
-                title: Text(L10n.t("row_lang")),
-                buttons: AppLanguage.allCases.map { lang in
-                    .default(Text(lang.displayName)) {
-                        LanguageManager.shared.language = lang
-                    }
-                } + [.cancel(Text(L10n.t("cancel")))]
-            )
-        }
-    }
-
-    @ViewBuilder
-    private func card(_ item: SettingsItem) -> some View {
-        let content = VStack(alignment: .leading, spacing: 8) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(item.color.opacity(0.16))
-                    .frame(width: 40, height: 40)
-                Image(systemName: item.icon)
-                    .font(.system(size: 19, weight: .semibold))
-                    .foregroundColor(item.color)
-            }
-            Text(item.title)
-                .font(.subheadline)
-                .fontWeight(.medium)
-                .foregroundColor(.primary)
-                .lineLimit(1)
-            if !item.subtitle.isEmpty {
-                Text(item.subtitle)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
-            }
-            if item.isOn != nil, let isOn = item.isOn {
-                Toggle("", isOn: Binding(get: isOn, set: item.onToggle ?? { _ in }))
-                    .labelsHidden()
-                    .scaleEffect(0.85)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-        if let dest = item.destination {
-            NavigationLink(destination: dest) { content }
-                .buttonStyle(.plain)
-        } else if let action = item.action {
-            Button(action: action) { content }
-                .buttonStyle(.plain)
-        } else {
-            content
         }
     }
 
