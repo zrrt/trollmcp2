@@ -542,7 +542,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     /// v2.9.44：支持 query 关键字过滤（按文本/标签/占位符/name/href 模糊匹配），长页面不爆 token
     /// v2.9.80：元素带 x/y/w/h 坐标
     func snapshot(query: String? = nil) -> [String: Any] {
-        guard ensureWebView() else { return errInit() }
+        guard ensureWebView() else { return ["ok": false, "error": "浏览器初始化超时"] }
         FloatingBrowser.shared.show()
         beginAction("扫描页面可交互元素…")
         let json = evalSync(Self.highlightScript)
@@ -637,7 +637,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
 
     /// 当前状态
     func status() -> [String: Any] {
-        guard ensureWebView() else { return errInit() }
+        guard ensureWebView() else { return ["ok": false, "error": "浏览器初始化超时"] }
         var r: [String: Any] = [
             "url": currentURL,
             "title": pageTitle,
