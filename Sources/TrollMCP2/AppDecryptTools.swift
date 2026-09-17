@@ -49,7 +49,8 @@ final class AppDecryptTool: MCPTool {
                 "output_path": r.outputPath,
                 "output_name": r.outputName,
                 "decrypted_binaries": r.decryptedBinaries,
-                "crypt_info": r.cryptInfo
+                "crypt_info": r.cryptInfo,
+                "launch_errors": r.launchErrors
             ]
         ]
     }
