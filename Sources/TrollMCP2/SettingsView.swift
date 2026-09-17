@@ -59,6 +59,8 @@ struct SettingsView: View {
                 Color.clear.navigationDestination(isPresented: $jumpToModels) { ModelsView() }
             }
         }
+        // v2.9.246：frame 挂 NavigationStack 外层（关键）——iOS16 NavigationStack 根内容高度=内容高度(不满一屏时不撑满),内层(List上)的 frame(maxHeight:.infinity)无效,导致列表只占上半屏、下半全空白。外层 frame 强制 NavigationStack 撑满全屏,List 随之铺满
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationViewStyle(.stack)
         .onAppear {
             // v2.9.242：进设置页彻底隐藏悬浮浏览器（不只是收成胶囊），杜绝任何遮挡
@@ -305,7 +307,6 @@ struct SettingsView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)   // v2.9.240：修复iOS16 NavigationStack+fullScreenCover下List高度被裁剪(只有中间一小块能滚动)
         .actionSheet(isPresented: $showLanguagePicker) {
             ActionSheet(
                 title: Text(L10n.t("row_lang")),
