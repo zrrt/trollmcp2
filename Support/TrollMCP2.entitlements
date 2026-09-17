@@ -207,6 +207,16 @@
 	<array>
 		<string>TROLLTROLL.dev.trollmcp2.app</string>
 	</array>
+	<key>com.apple.private.xpc.launchd.job-manager</key>
+	<string>com.apple.runningboard</string>
+	<key>com.apple.private.xpc.domain-extension</key>
+	<true/>
+	<key>com.apple.private.xpc.domain-extension.proxy</key>
+	<true/>
+	<key>com.apple.springboard.launchapplications</key>
+	<true/>
+	<key>com.apple.runningboard.process-state</key>
+	<true/>
 	<key>platform-application</key>
 	<true/>
 	<key>task_for_pid-allow</key>
