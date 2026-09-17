@@ -905,7 +905,7 @@ final class InjectionManager {
 
     /// 目标 App 真实 TeamID：从主二进制既有签名的 entitlements（application-identifier = TEAMID.bundleId）
     /// 提取前缀——零外部依赖（不用 LSApplicationProxy），对齐 TrollFools teamID() 的效果
-    private func realTeamID(for bundleId: String, appPath: String?) -> String {
+    func realTeamID(for bundleId: String, appPath: String?) -> String {
         guard let main = appPath else { return "TROLLTROLL" }
         // v2.9.126：runAsRootStdout——entitlements 解析只读 stdout，stderr 噪音（如 ldid 警告）不混入
         let (c, o) = runAsRootStdout("ldid", args: ["-e", main], timeout: 30)
