@@ -409,6 +409,19 @@ enum DecryptEngine {
             basicDiag["kr"] = Int(krBasic)
             basicDiag["count_after"] = Int(basicCount)
         }
+        // v2.9.212：TASK_DYLD_INFO 多参数变体全测（count=4/5/6/8 + 64B 缓冲）
+        // 定位：TASK_BASIC_INFO kr=0（调用链通）但 TASK_DYLD_INFO 恒 kr=4 → flavor 特有。
+        // 逐个 count 试，若某组合 kr=0 → 找到内核接受参数；全 kr=4 → 进程类型被拒，转注入式/前台激活。
+        var dyldDiag: [String: Any] = ["flavor": "TASK_DYLD_INFO(2)"]
+        for c in [4, 5, 6, 8] {
+            var dyldBuf = [UInt8](repeating: 0, count: 64)
+            var dyldCnt: UInt32 = UInt32(c)
+            let krD = dyldBuf.withUnsafeMutableBytes { raw -> Int32 in
+                MachRaw.taskInfo(task: task, flavor: 2, info: raw.baseAddress!, count: &dyldCnt)
+            }
+            dyldDiag["count_\(c)"] = ["kr": Int(krD), "count_after": Int(dyldCnt)]
+        }
+        basicDiag["task_dyld_variants"] = dyldDiag
 
         // —— 准备输出目录 ——
         let workspace = NSHomeDirectory().appending("/Documents/Workspace/decrypted")
