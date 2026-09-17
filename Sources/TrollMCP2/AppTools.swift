@@ -4,6 +4,80 @@ import ObjectiveC
 import AVFoundation
 import BackgroundTasks
 
+// MARK: - App 二进制依赖树（v2.9.261）
+// 用途：找出"启动必加载"的 framework——主二进制 LC_LOAD_DYLIB 直接依赖的 App 内 framework
+// 才是启动时加载的（注入它 ControlAgent constructor 必执行）；仅被其他 framework 依赖的
+// 是懒加载（注入无效）。小红书 AppsFlyerLib/B 站 BGM 均实测为懒加载，注入后 4789 不监听。
+final class AppDepsTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "app.deps",
+        summary: "读取目标 App 主二进制与所有 framework 的 Mach-O 依赖树（load commands），输出哪些 framework 是主二进制直接依赖（启动必加载、可注入）vs 仅被二级引用（懒加载、注入无效）",
+        parameters: ["bundle_id": "目标 App Bundle ID"],
+        verified: true
+    )
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let bundleId = params["bundle_id"] as? String else {
+            throw MCPError.invalidParams("bundle_id required")
+        }
+        guard let app = AppCatalog.find(bundleId) else {
+            throw MCPError.failed("未找到 App: \(bundleId)")
+        }
+        let exec = (NSDictionary(contentsOfFile: app.path + "/Info.plist")?["CFBundleExecutable"] as? String) ?? ""
+        guard !exec.isEmpty else {
+            return ["bundle_id": bundleId, "error": "Info.plist 无 CFBundleExecutable"]
+        }
+        let mainPath = app.path + "/" + exec
+
+        var out: [String: Any] = ["bundle_id": bundleId, "main": mainPath]
+        if let mo = MachOAnalyzer.analyze(mainPath) {
+            out["main_arch"] = mo.arch
+            out["main_valid"] = mo.valid
+            out["main_cryptID"] = mo.cryptID
+            out["main_protected"] = mo.cryptID > 0
+            out["main_dylibs"] = mo.dylibs
+        }
+
+        // 主二进制直接依赖的"App 内 framework"名集合
+        let mainDeps = (out["main_dylibs"] as? [String]) ?? []
+        let frameworksDir = app.path + "/Frameworks"
+        var frameworkDeps: [[String: Any]] = []
+        var bootCandidates: [String] = []
+        var lazyCandidates: [String] = []
+
+        if let items = try? FileManager.default.contentsOfDirectory(atPath: frameworksDir) {
+            for item in items.sorted() where item.hasSuffix(".framework") {
+                let fwName = (item as NSString).deletingPathExtension
+                let fwExe = frameworksDir + "/" + item + "/" + fwName
+                var entry: [String: Any] = ["framework": item]
+                if let fmo = MachOAnalyzer.analyze(fwExe) {
+                    entry["arch"] = fmo.arch
+                    entry["valid"] = fmo.valid
+                    entry["cryptID"] = fmo.cryptID
+                    entry["protected"] = fmo.cryptID > 0
+                    entry["dylibs"] = fmo.dylibs
+                    let isBoot = mainDeps.contains { d in d.contains(fwName) }
+                    entry["boot_loaded"] = isBoot
+                    if fmo.cryptID == 0 {
+                        if isBoot { bootCandidates.append(fwExe) } else { lazyCandidates.append(fwExe) }
+                    }
+                } else {
+                    entry["error"] = "MachOAnalyzer 解析失败"
+                }
+                frameworkDeps.append(entry)
+            }
+        }
+
+        out["frameworks"] = frameworkDeps
+        out["inject_boot_candidates"] = bootCandidates
+        out["inject_lazy_candidates"] = lazyCandidates
+        out["recommendation"] = bootCandidates.isEmpty
+            ? "主二进制直接依赖里没有可注入的 App 内 framework；需 app.decrypt 砸壳后注入主二进制，或改用 HID/ui.* 界面自动化"
+            : "优先注入: \(bootCandidates)"
+        return out
+    }
+}
+
 // v2.9.87：UIApplication.openURL 已弃用（iOS10+），统一走 open(_:options:)。
 // 工具在后台线程执行，这里用信号量同步等待结果，保持 invoke 的同步语义。
 private func openURLSync(_ url: URL) -> Bool {
