@@ -176,24 +176,23 @@ enum DecryptEngine {
                 MachRaw.taskInfo(task: task, flavor: TASK_DYLD_INFO, info: raw.baseAddress!, count: &count)
             }
             let dyldInfoAddr = loadU64(Data(dyldBuf), 0)
-            // v2.9.215 诊断：对镜像表地址做 mach_vm_region 检查（区分不可读 vs 调用问题）
+            // v2.9.219 诊断：dump 32 字节 + 每个 8 字节偏移 region 检查（定位 iOS16 布局）
             var regionDiagStr = ""
-            if kr == 0, dyldInfoAddr != 0 {
-                var regionAddr = dyldInfoAddr
-                var regionSize: UInt64 = 0
-                var regionInfo = [UInt8](repeating: 0, count: 160)
-                var regionCnt: UInt32 = 16
-                var objName: UInt32 = 0
-                let krRegion = regionInfo.withUnsafeMutableBytes { raw -> Int32 in
-                    MachRaw.vmRegion(task: task, address: &regionAddr, size: &regionSize,
-                                     flavor: 9 /* VM_REGION_BASIC_INFO_64 */, info: raw.baseAddress!,
-                                     infoCount: &regionCnt, objectName: &objName)
-                }
-                if krRegion == 0 {
-                    let prot = Int(regionInfo[8]) | (Int(regionInfo[9]) << 8) | (Int(regionInfo[10]) << 16) | (Int(regionInfo[11]) << 24)
-                    regionDiagStr = "region_kr=0 region_size=\(regionSize) prot=0x\(String(prot, radix: 16))"
-                } else {
-                    regionDiagStr = "region_kr=\(krRegion) region_cnt=\(regionCnt)"
+            if kr == 0 {
+                regionDiagStr = "buf=0x" + dyldBuf.map { String(format: "%02x", $0) }.joined()
+                for off in [0, 8, 16, 24] {
+                    var probe = loadU64(Data(dyldBuf), off)
+                    guard probe != 0 else { continue }
+                    var regionSize: UInt64 = 0
+                    var regionInfo = [UInt8](repeating: 0, count: 160)
+                    var regionCnt: UInt32 = 16
+                    var objName: UInt32 = 0
+                    let krRegion = regionInfo.withUnsafeMutableBytes { raw -> Int32 in
+                        MachRaw.vmRegion(task: task, address: &probe, size: &regionSize,
+                                         flavor: 9, info: raw.baseAddress!,
+                                         infoCount: &regionCnt, objectName: &objName)
+                    }
+                    regionDiagStr += " off\(off)=0x\(String(probe, radix: 16)) r=\(krRegion)"
                 }
             }
             guard kr == 0, dyldInfoAddr != 0 else {
