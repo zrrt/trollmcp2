@@ -34,7 +34,11 @@ private enum FSPolicy {
             "/var/mobile/Documents/Workspace",
             "/var/mobile/Containers/Data/Application",
             "/var/mobile/Containers/Bundle/Application",
-            "/var/mobile/Library"
+            "/var/mobile/Library",
+            // v2.9.251: 真机实际路径无 /mobile 前缀（/var/containers/Bundle/Application/<UUID>/xxx.app），
+            // 此前只允许 /var/mobile/Containers/... 导致 fs.tree/read/hexdump 等全部读不了 App Bundle
+            "/var/containers/Data/Application",
+            "/var/containers/Bundle/Application"
         ]
         var ok = allowed.contains { s2.hasPrefix($0) }
         if !ok { ok = allowed.contains { s.hasPrefix($0) } }

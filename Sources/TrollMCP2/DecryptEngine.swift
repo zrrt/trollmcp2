@@ -722,8 +722,10 @@ enum ZipStorer {
         var centralDir = Data()
         var offset: UInt64 = 0
 
+        var skipped = 0
         for f in files {
-            guard let src = FileHandle(forReadingAtPath: f.abs) else { return false }
+            // v2.9.251: 容错——打不开的文件(悬空符号链接/特殊文件)跳过并计数,不整体失败
+            guard let src = FileHandle(forReadingAtPath: f.abs) else { skipped += 1; continue }
             defer { try? src.close() }
             let fileSize = (try? src.seekToEnd()) ?? 0
             try? src.seek(toFileOffset: 0)
@@ -735,7 +737,7 @@ enum ZipStorer {
             var strm = z_stream()
             let initCode = deflateInit2_(&strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED, -15, 8,
                                          Z_DEFAULT_STRATEGY, ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size))
-            guard initCode == Z_OK else { return false }
+            guard initCode == Z_OK else { skipped += 1; continue }
             defer { deflateEnd(&strm) }
 
             // Local File Header 占位(crc/csize 写完数据后回写)
@@ -778,7 +780,7 @@ enum ZipStorer {
                     strm.next_out = outBuf.withUnsafeMutableBytes { $0.bindMemory(to: UInt8.self).baseAddress }
                     strm.avail_out = uInt(outCap)
                     let r = deflate(&strm, flush)
-                    if r == Z_STREAM_ERROR { return false }
+                    if r == Z_STREAM_ERROR { skipped += 1; break }
                     let produced = outCap - Int(strm.avail_out)
                     if produced > 0 { out.write(Data(outBuf[0..<produced])); totalComp += produced }
                     if strm.avail_out != 0 { break }
@@ -832,7 +834,8 @@ enum ZipStorer {
         out.write(centralDir)
         out.write(eocd)
         try? out.synchronize()
-        return true
+        // v2.9.251: 全部文件都被跳过才算失败;部分跳过(悬空链接)仍出包
+        return skipped < files.count
     }
 
     // MARK: CRC32（查表法）

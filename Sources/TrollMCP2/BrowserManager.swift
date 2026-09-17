@@ -31,14 +31,22 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
 
     // MARK: - WKWebView 创建
 
-    func ensureWebView() {
-        guard webView == nil else { return }
+    /// v2.9.251: 返回 Bool——主线程 busy 时 main.sync 死锁(远程终端后台线程调用浏览器工具挂起),
+    /// 改 main.async + 5s 超时信号量,超时返回 false 由调用方报错而非死锁
+    @discardableResult
+    func ensureWebView() -> Bool {
+        guard webView == nil else { return true }
         if Thread.isMainThread {
             createWebView()
-        } else {
-            // WKWebView 必须在主线程创建；工具在后台线程调用，这里同步切主线程
-            DispatchQueue.main.sync { createWebView() }
+            return webView != nil
         }
+        let sem = DispatchSemaphore(value: 0)
+        DispatchQueue.main.async {
+            self.createWebView()
+            sem.signal()
+        }
+        _ = sem.wait(timeout: .now() + 5)
+        return webView != nil
     }
 
     private func createWebView() {
@@ -57,6 +65,11 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
             ucc.addUserScript(script)
         }
         webView = wv
+    }
+
+    // v2.9.251: ensureWebView 超时/失败的统一错误返回（String 返回型工具）
+    private func errInit() -> String {
+        return "ERR: 浏览器 WebView 初始化超时（主线程忙或系统限制），请重试"
     }
 
     // MARK: - 操作进度（AI 工具调用时设置，悬浮窗底部显示）
@@ -79,7 +92,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
 
     /// 打开网页（v2.9.81：URL 规范化 + 明确报错 + hasLoadedAny 标记，修自动 Bing 覆盖用户输入的竞态）
     func open(_ urlString: String) -> String {
-        ensureWebView()
+        guard ensureWebView() else { return errInit() }
         // v2.9.39：AI 打开网页时自动浮现悬浮窗，用户实时看到操作
         FloatingBrowser.shared.show()
         var u = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -125,7 +138,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     }
 
     func goBack() -> String {
-        ensureWebView()
+        guard ensureWebView() else { return errInit() }
         FloatingBrowser.shared.show()
         hasLoadedAny = true
         beginAction("后退")
@@ -136,7 +149,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     }
 
     func goForward() -> String {
-        ensureWebView()
+        guard ensureWebView() else { return errInit() }
         FloatingBrowser.shared.show()
         hasLoadedAny = true
         beginAction("前进")
@@ -147,7 +160,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     }
 
     func reload() -> String {
-        ensureWebView()
+        guard ensureWebView() else { return errInit() }
         FloatingBrowser.shared.show()
         hasLoadedAny = true
         beginAction("刷新页面")
@@ -163,7 +176,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
 
     /// 等待页面加载完成（最多 timeout 秒）。open 后必须 wait，否则 snapshot 拿不到元素。
     func wait(timeout: Int = 15) -> [String: Any] {
-        ensureWebView()
+        guard ensureWebView() else { return ["ok": false, "error": "浏览器初始化超时"] }
         FloatingBrowser.shared.show()
         beginAction("等待页面加载…")
         let deadline = Date().addingTimeInterval(TimeInterval(timeout))
@@ -196,7 +209,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
 
     /// 提取页面可见正文（供 AI 阅读/总结页面内容）。可选 query 做关键词上下文截取。
     func getText(maxChars: Int = 3000, query: String? = nil) -> String {
-        ensureWebView()
+        guard ensureWebView() else { return errInit() }
         FloatingBrowser.shared.show()
         beginAction("提取页面正文…")
         let js = """
@@ -225,7 +238,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
 
     /// 页面滚动：down / up / top / bottom
     func scroll(_ direction: String) -> String {
-        ensureWebView()
+        guard ensureWebView() else { return errInit() }
         FloatingBrowser.shared.show()
         beginAction("滚动页面（\(direction)）")
         let js: String
@@ -270,7 +283,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
 
     /// 扫描页面全部表单字段（不限 snapshot 30 条），返回 name/placeholder/label/type/xpath
     func formFields() -> [String: Any] {
-        ensureWebView()
+        guard ensureWebView() else { return ["ok": false, "error": "浏览器初始化超时"] }
         FloatingBrowser.shared.show()
         beginAction("扫描表单字段…")
         let js = """
@@ -318,7 +331,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     /// v2.9.130：React/Vue 受控组件用 native value setter + input/change 事件（同 Playwright fill）；
     /// select 按选项文字/值匹配；checkbox/radio 按 true/false 点击；支持 __xpath 精确指定
     func fillForm(values: [String: String], submit: Bool) -> [String: Any] {
-        ensureWebView()
+        guard ensureWebView() else { return ["ok": false, "error": "浏览器初始化超时"] }
         FloatingBrowser.shared.show()
         beginAction("自动填充表单…")
         var js = """
@@ -413,7 +426,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
 
     /// 等待元素出现（selector 或正文文本），用于 open 后等搜索结果/登录态
     func waitFor(text: String? = nil, selector: String? = nil, timeout: Int = 15) -> [String: Any] {
-        ensureWebView()
+        guard ensureWebView() else { return ["ok": false, "error": "浏览器初始化超时"] }
         FloatingBrowser.shared.show()
         beginAction("等待目标出现…")
         if let s = selector, !s.isEmpty {
@@ -454,7 +467,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
 
     /// 在后台线程同步等待 evaluateJavaScript 结果（主线程执行，避免死锁）
     func evalSync(_ js: String, timeout: TimeInterval = 15) -> String {
-        ensureWebView()
+        guard ensureWebView() else { return errInit() }
         guard let wv = webView else { return "ERR: 浏览器未初始化" }
         // v2.9.44：主线程调用会死锁（main.async 排队 + semaphore.wait 阻塞主线程），安全返回
         if Thread.isMainThread {
@@ -529,7 +542,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     /// v2.9.44：支持 query 关键字过滤（按文本/标签/占位符/name/href 模糊匹配），长页面不爆 token
     /// v2.9.80：元素带 x/y/w/h 坐标
     func snapshot(query: String? = nil) -> [String: Any] {
-        ensureWebView()
+        guard ensureWebView() else { return errInit() }
         FloatingBrowser.shared.show()
         beginAction("扫描页面可交互元素…")
         let json = evalSync(Self.highlightScript)
@@ -624,7 +637,7 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
 
     /// 当前状态
     func status() -> [String: Any] {
-        ensureWebView()
+        guard ensureWebView() else { return errInit() }
         var r: [String: Any] = [
             "url": currentURL,
             "title": pageTitle,

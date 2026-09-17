@@ -209,12 +209,18 @@ struct BrowserEvalTool: MCPTool {
 struct BrowserNavigateTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.navigate",
-        summary: "浏览器导航：action 取 back（后退）/ forward（前进）/ reload（刷新）。",
-        parameters: ["action": "string"]
+        summary: "浏览器导航：传 url 打开新网址；或 action 取 back（后退）/ forward（前进）/ reload（刷新）。AI 常误用 navigate 开网址，兼容 url 参数。",
+        parameters: ["url": "string（可选）打开新网址", "action": "string（可选）back/forward/reload"]
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        // v2.9.251: 兼容 url 参数——AI 常用 browser.navigate {url} 开网页,此前只认 action 导致"打开失败"
+        if let url = params["url"] as? String, !url.isEmpty {
+            let msg = BrowserManager.shared.open(url)
+            AuditLog.shared.log("browser.navigate", detail: "url=\(url)")
+            return ["ok": !msg.hasPrefix("ERR"), "message": msg, "used": "open"]
+        }
         guard let action = params["action"] as? String else {
-            throw MCPError.invalidParams("browser.navigate 需要 action 参数")
+            throw MCPError.invalidParams("browser.navigate 需要 url 或 action 参数")
         }
         let msg: String
         switch action {

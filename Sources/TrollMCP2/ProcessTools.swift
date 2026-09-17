@@ -144,14 +144,17 @@ final class AppRestartTool: MCPTool {
         let wait = (params["wait_seconds"] as? Int) ?? 3
 
         let start = Date()
-        // 杀掉旧进程
+        // 杀掉旧进程——v2.9.251: spawnRoot 在 TrollStore 无 root shell(/bin/sh not found)下 kill 不执行,
+        // App 没真正重启导致 ControlAgent.dylib 不重新加载、4789 服务器起不来;改普通 spawn(用户态可杀自己进程)
         let oldPid = findPid(by: bundleId)
         if oldPid > 0 {
-            let _ = InjectionManager.shared.spawnRoot("/bin/kill", args: ["-9", "\(oldPid)"])
+            let (kexit, kout) = InjectionManager.shared.spawn("/bin/kill", args: ["-9", "\(oldPid)"])
+            if kexit != 0 { NSLog("[app.restart] kill pid \(oldPid) exit=\(kexit) \(kout)") }
             Thread.sleep(forTimeInterval: 1)
         }
-        // 启动
-        let _ = InjectionManager.shared.spawnRoot("/usr/bin/open", args: [bundleId])
+        // 启动——v2.9.251: /usr/bin/open 在 TrollStore 不可靠,改 SBSLaunch(验证可用)
+        let (launched, launchMsg) = ProcessHelper.launchApp(bundleId: bundleId)
+        if !launched { NSLog("[app.restart] launch failed: \(launchMsg)") }
         Thread.sleep(forTimeInterval: TimeInterval(wait))
 
         let newPid = findPid(by: bundleId)
