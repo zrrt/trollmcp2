@@ -248,9 +248,11 @@ enum DecryptEngine {
                     if fp != 0, let pth = vmReadString(task: task, address: fp, maxLen: 2048),
                        pth.contains("Frameworks") { fwPaths.append(pth) }
                 }
-                lastDiag += " fw["
-                for fp in fwPaths.prefix(6) { lastDiag += fp + " | " }
-                lastDiag += "]"
+                if let d = lastDiag {
+                    var nd = d + " fw["
+                    for fp in fwPaths.prefix(6) { nd += fp + " | " }
+                    lastDiag = nd + "]"
+                }
             Thread.sleep(forTimeInterval: 0.01)
         }
         return (nil, lastDiag)
