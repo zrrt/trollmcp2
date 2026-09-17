@@ -102,8 +102,7 @@ final class InjectionListTool: MCPTool {
     // v2.9.41：检索式——query 按名称/bundle_id 模糊匹配，只返回命中项，不再全量 266 条塞给 AI
     let definition = ToolDefinition(name: "injection.list", 
         summary: "按关键字搜索设备已安装 App（返回 bundle_id + 名称，供 injection.enable 的 bundle_id 参数使用）；务必带 query 缩小范围，避免返回全量列表",
-        verified: true,
-        parameters: ["query": "搜索关键字（App 名称或 bundle_id 片段，可选）；不带则只返回前 20 条"])
+        parameters: ["query": "搜索关键字（App 名称或 bundle_id 片段，可选）；不带则只返回前 20 条"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let apps = AppCatalog.list()
         let q = (params["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

@@ -90,13 +90,13 @@ final class FSTreeTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.tree",
         summary: "浏览文件目录树：App 数据容器（Documents/Library/Caches/Preferences）、App Bundle、工作区。返回条目名称/类型/大小/修改时间，支持深度递归。Filza 式文件浏览。",
-        verified: true,
         parameters: [
             "bundle_id": "目标 App Bundle ID（与 path 二选一；填了则浏览该 App 数据容器）",
             "path": "绝对路径（与 bundle_id 二选一；默认工作区根）",
             "depth": "递归深度（默认 1，最大 3）",
             "limit": "每层最多条目数（默认 60）"
         ]
+        verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -175,7 +175,6 @@ final class FSReadTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.read",
         summary: "读取任意文件内容并智能识别格式：文本（UTF-8/UTF-16）、plist（XML/二进制→JSON）、SQLite（表清单）、二进制（提示改用 fs.hexdump）。Filza 式文件查看。",
-        verified: true,
         parameters: [
             "bundle_id": "目标 App Bundle ID（与 path 二选一；填了则相对容器路径）",
             "relative": "容器内相对路径（bundle_id 模式下用，如 Library/Preferences/xx.plist）",
@@ -185,6 +184,7 @@ final class FSReadTool: MCPTool {
             "line_start": "文本从第几行开始返回（1-based，默认 1）",
             "line_end": "文本返回到第几行（默认全部）"
         ]
+        verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -341,7 +341,6 @@ final class FSHexdumpTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.hexdump",
         summary: "二进制十六进制 + ASCII 查看：指定 offset/length 分段读取，适合分析 Mach-O 头、plist 二进制、配置缓存等。",
-        verified: true,
         parameters: [
             "bundle_id": "目标 App Bundle ID（与 path 二选一）",
             "relative": "容器内相对路径（bundle_id 模式下用）",
@@ -349,6 +348,7 @@ final class FSHexdumpTool: MCPTool {
             "offset": "起始字节偏移（默认 0）",
             "length": "读取字节数（默认 256，最大 4096）"
         ]
+        verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
