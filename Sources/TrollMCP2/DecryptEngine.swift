@@ -68,6 +68,7 @@ struct DecryptResult {
     var outputName: String = ""
     var decryptedBinaries: [String] = []
     var cryptInfo: [String: Any] = [:]
+    var diag: [String: Any] = [:]   // v2.9.209 诊断字段（task_basic_info 等）
 }
 
 // MARK: - 砸壳引擎
@@ -393,6 +394,22 @@ enum DecryptEngine {
         }
         defer { DeviceProbe.shared.tm_mach_port_deallocate(DeviceProbe.shared.tm_mach_task_self(), task) }
 
+        // —— v2.9.209 诊断：TASK_BASIC_INFO 对照 ——
+        // 用途：区分"task_info 调用本身挂"（ABI/权限）vs"TASK_DYLD_INFO 特有被拒"（进程类型）。
+        // TrollDecrypt 同环境成功 → 我们 task_info(TASK_DYLD_INFO) 恒 kr=4 必有实现差异。
+        // krBasic==0 说明 task_info 调用链通，问题在 TASK_DYLD_INFO 的进程/权限；
+        // krBasic==4 说明整个 task_info 调用都挂（调用约定/端口值）。
+        var basicDiag: [String: Any] = ["flavor": "TASK_BASIC_INFO(4)"]
+        do {
+            var basicBuf = [UInt8](repeating: 0, count: 128)
+            var basicCount: UInt32 = 32 // TASK_BASIC_INFO_COUNT 上限
+            let krBasic = basicBuf.withUnsafeMutableBytes { raw -> Int32 in
+                MachRaw.taskInfo(task: task, flavor: 4, info: raw.baseAddress!, count: &basicCount)
+            }
+            basicDiag["kr"] = Int(krBasic)
+            basicDiag["count_after"] = Int(basicCount)
+        }
+
         // —— 准备输出目录 ——
         let workspace = NSHomeDirectory().appending("/Documents/Workspace/decrypted")
         try? FileManager.default.createDirectory(atPath: workspace, withIntermediateDirectories: true)
@@ -472,7 +489,8 @@ enum DecryptEngine {
 
         return DecryptResult(ok: true, pid: pid, launchErrors: launchErrors,
                              outputPath: ipaPath, outputName: ipaName,
-                             decryptedBinaries: decrypted, cryptInfo: cryptInfo)
+                             decryptedBinaries: decrypted, cryptInfo: cryptInfo,
+                             diag: ["task_basic_info": basicDiag])
     }
 
     // MARK: - v2.9.186 注入式砸壳（ControlAgent 进程内自解密，绕开 task_for_pid）
@@ -585,7 +603,8 @@ enum DecryptEngine {
 
         return DecryptResult(ok: true, pid: pid, launchErrors: launchErrors,
                              outputPath: ipaPath, outputName: ipaName,
-                             decryptedBinaries: decrypted, cryptInfo: cryptInfo)
+                             decryptedBinaries: decrypted, cryptInfo: cryptInfo,
+                             diag: ["task_basic_info": basicDiag])
     }
 }
 
