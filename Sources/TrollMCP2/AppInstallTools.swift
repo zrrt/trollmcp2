@@ -88,11 +88,14 @@ final class AppUninstallTool: MCPTool {
         // v2.9.274：与 app.install 一致的 helper 定位（TrollStore.app bundle 内）
         let tsPath = AppCatalog.list().first { $0.bundleId == "com.opa334.TrollStore" }?.path ?? ""
         let helper = tsPath.isEmpty ? "/var/usr/bin/trollstorehelper" : tsPath + "/trollstorehelper"
-        let (c, out) = im.spawnRoot(helper, args: ["uninstall", bid], timeout: 120)
+        // v2.9.276：custom 卸载——系统方法(LSApplicationWorkspace)对 App Store 版
+        // 返回 0 但实际不删 bundle（实测小红书 7DA17D81 残留，导致双注册）。
+        // custom 直接删路径+注销。注意：custom 必须在 bid 前（lastObject=bid）
+        let (c, out) = im.spawnRoot(helper, args: ["uninstall", "custom", bid], timeout: 120)
         AuditLog.shared.log("app.uninstall", detail: "\(bid) c=\(c)")
         if c == 0 {
             AppCatalog.invalidateCache()   // v2.9.135: 卸载后失效应用缓存
-            _ = im.spawnRoot(helper, args: ["refresh"], timeout: 60)
+            _ = im.spawnRoot(helper, args: ["refresh-all"], timeout: 90)
         }
         return ["ok": c == 0, "bundle_id": bid, "output": out,
                 "message": c == 0 ? "已卸载 \(bid)" : "卸载失败: \(out)"]
