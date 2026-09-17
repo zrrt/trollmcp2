@@ -44,7 +44,7 @@ final class AppReplaceDecryptedTool: MCPTool {
         _ = im.runAsRoot("rm", args: ["-rf", workDir])
         _ = im.runAsRoot("mkdir", args: ["-p", workDir])
         do {
-            try ZipExtractor.unzip(ipaPath, to: URL(fileURLWithPath: workDir, isDirectory: true))
+            try ZipExtractor.unzip(URL(fileURLWithPath: ipaPath), to: URL(fileURLWithPath: workDir, isDirectory: true))
         } catch {
             return ["ok": false, "error": "解压 ipa 失败: \(error.localizedDescription)"]
         }
