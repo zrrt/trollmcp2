@@ -361,40 +361,37 @@ enum DecryptEngine {
                                  nextStep: "用 injection.list 搜索目标 App 的 bundle_id")
         }
 
-        // —— 拿进程：v2.9.202 launchd SubmitAndStart 优先（TrollDecrypt 同款）——
-        // 实测：open -b / 已运行进程（含前台活跃）的 task_info(TASK_DYLD_INFO) 恒 kr=4；
-        // 只有 launchd 直接托管的 job 进程，dyld 镜像表才对 task_for_pid 客户端可读。
+        // —— 拿进程：v2.9.218 open -b 前台启动优先 ——
+        // 实测结论（v2.9.214-217）：launchd SubmitAndStart 启动的进程虽然 pid 存活，
+        // 但 dyld 镜像表一直无效（region_kr=1 KERN_INVALID_ADDRESS，等 3s/重试 300 次都无效），
+        // 说明该 job 进程 dyld 根本没完成初始化（不是时序问题，是启动方式问题）。
+        // 改 open -b 前台激活：完整 App 进程 dyld 必然初始化，count=8（v2.9.213 修复）可读到镜像表。
+        // （注：v2.9.184 记录"open -b 进程 task_info kr=4"是 24 字节 count=6 的错误结论，已被 count=8 推翻）
         var pid: Int32 = 0
         var launchErrors: [[String: Any]] = []
-        let plist0 = NSDictionary(contentsOfFile: app.path + "/Info.plist")
-        let execName0 = (plist0?["CFBundleExecutable"] as? String) ?? "App"
-        let mainBinary0 = app.path + "/" + execName0
-        if FileManager.default.fileExists(atPath: mainBinary0) {
-            let label = String(format: "UIKitApplication:%@[%06x]", bundleId, arc4random() & 0xffffff)
-            let lr = LaunchdLauncher.launch(bundleId: bundleId, executablePath: mainBinary0, label: label)
-            if lr.pid > 0 {
-                pid = lr.pid
-            } else {
-                launchErrors.append(["step": "launchd_submit", "kern_return": Int(lr.kr)])
-                let r = launchApp(bundleId: bundleId)
-                pid = r.pid
-                launchErrors += r.errors
+        let r0 = launchApp(bundleId: bundleId)
+        pid = r0.pid
+        launchErrors = r0.errors
+        if pid <= 0 {
+            // launchd 兜底（TrollDecrypt 同款机制）
+            let plist0 = NSDictionary(contentsOfFile: app.path + "/Info.plist")
+            let execName0 = (plist0?["CFBundleExecutable"] as? String) ?? "App"
+            let mainBinary0 = app.path + "/" + execName0
+            if FileManager.default.fileExists(atPath: mainBinary0) {
+                let label = String(format: "UIKitApplication:%@[%06x]", bundleId, arc4random() & 0xffffff)
+                let lr = LaunchdLauncher.launch(bundleId: bundleId, executablePath: mainBinary0, label: label)
+                if lr.pid > 0 { pid = lr.pid }
+                launchErrors.append(["step": "launchd_submit_fallback", "kern_return": Int(lr.kr)])
             }
-        } else {
-            let r = launchApp(bundleId: bundleId)
-            pid = r.pid
-            launchErrors = r.errors
         }
         guard pid > 0 else {
             return DecryptResult(ok: false, errorCode: "target",
-                                 errorReason: "目标 App 启动失败（launchd SubmitAndStart + open -b 均无效）",
+                                 errorReason: "目标 App 启动失败（open -b + launchd SubmitAndStart 均无效）",
                                  nextStep: "手动打开目标 App 后再执行砸壳；或在 TrollStore 里确认该 App 可正常启动",
                                  pid: 0, launchErrors: launchErrors)
         }
-        // v2.9.217：TrollDecrypt launchd 启动后先复制 App bundle（耗时数秒）再读 dyld 镜像表，
-        // 那段时间正是进程 exec/dyld 初始化窗口。我们 launchd 后立即读 → dyld 映射未建 →
-        // all_image_info_addr 无效（实测 region_kr=1 KERN_INVALID_ADDRESS）。补 3 秒对齐。
-        Thread.sleep(forTimeInterval: 3.0)
+        // v2.9.217：launchd 复制 bundle 的初始化窗口；open -b 前台启动也等 5 秒让 dyld 完整初始化。
+        Thread.sleep(forTimeInterval: 5.0)
 
         // —— v2.9.198：注入式优先 ——
         // 实测 task_for_pid 虽成功（kr=0）但 task_info(TASK_DYLD_INFO) 恒 kr=4（跨进程读镜像表死路，
