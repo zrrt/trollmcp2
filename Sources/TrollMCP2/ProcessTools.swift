@@ -153,12 +153,18 @@ final class AppRestartTool: MCPTool {
         // 普通 spawn /bin/kill 在 TrollStore 沙盒无 task_for_pid 杀不掉其他 App 进程。
         // 改调 SpringBoardServices 私有 API SBTerminateApplication（platform-application entitlement 可调，
         // iOS 全版本存在），失败再兜底 /bin/kill。
+        // v2.9.257: SBTerminateApplication 实测也无效(需 springboard.debug entitlement)。对齐 TrollFools
+        // TFUtilKillAll——直接进程内调 kill() 系统调用(platform-application 权限足够),这才是验证过的可靠方式。
         let oldPid = findPid(by: bundleId)
         if oldPid > 0 {
-            let terminated = Self.terminateApplication(bundleId: bundleId)
-            if !terminated {
-                let (kexit, kout) = InjectionManager.shared.spawn("/bin/kill", args: ["-9", "\(oldPid)"])
-                if kexit != 0 { NSLog("[app.restart] kill pid \(oldPid) exit=\(kexit) \(kout)") }
+            let killRet = kill(oldPid, SIGKILL)
+            if killRet != 0 {
+                NSLog("[app.restart] kill(\(oldPid),SIGKILL) errno=\(errno)")
+                let terminated = Self.terminateApplication(bundleId: bundleId)
+                if !terminated {
+                    let (kexit, kout) = InjectionManager.shared.spawn("/bin/kill", args: ["-9", "\(oldPid)"])
+                    if kexit != 0 { NSLog("[app.restart] fallback kill pid \(oldPid) exit=\(kexit) \(kout)") }
+                }
             }
             Thread.sleep(forTimeInterval: 1.5)
         }
