@@ -1075,7 +1075,11 @@ final class InjectionManager {
         // 用户插件 → standardizeLoadCommandDylibToSubstrate（substrate 引用重定向内置）+ ct_bypass + chown；
         // 内置 agent → ct_bypass + chown（agent 无 substrate 依赖）
         let frameworksDir = (app.path as NSString).appendingPathComponent("Frameworks")
-        let useFramework = FileManager.default.fileExists(atPath: frameworksDir)
+        // v2.9.266：allowMain 时强制 useFramework=false——dylib 直接放 App 根目录、
+        // load command 用 @executable_path/ControlAgent.dylib（永远有效）。
+        // 之前 allowMain 时 useFramework=true → dylib 拷 Frameworks/ + @rpath 依赖 LC_RPATH，
+        // 小红书主二进制 rpath 未加成时 dyld 找不到 dylib → 启动闪退（实测）。
+        let useFramework = allowMain ? false : FileManager.default.fileExists(atPath: frameworksDir)
         let isUserPlugin = !(dylibSourcePath?.isEmpty ?? true)
         var injectNameMap: [String: String] = [:]
         for asset in preparedAssets {
