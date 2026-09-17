@@ -32,7 +32,9 @@ private let MH_MAGIC: UInt32 = 0xfeedface
 private let MH_MAGIC_64: UInt32 = 0xfeedfacf
 private let LC_ENCRYPTION_INFO: UInt32 = 0x21
 private let LC_ENCRYPTION_INFO_64: UInt32 = 0x2C
-private let TASK_DYLD_INFO: Int32 = 2
+// ★v2.9.222 根因★: iOS 的 TASK_DYLD_INFO = 25 (macOS 才是 2)！
+// flavor=2 在 iOS 上是 TASK_EVENTS_INFO(事件计数,8×natural_t) → 之前全在读事件计数,dyld地址从没读到
+private let TASK_DYLD_INFO: Int32 = 25
 private let MAX_DYLD_RETRIES = 3000 // v2.9.221: 30秒重试窗口(dyld镜像表可能晚初始化,实测3秒内恒垃圾值)
 
 /// dyld_all_image_infos 只读前 3 个字段（16 字节，布局稳定）
@@ -167,20 +169,27 @@ enum DecryptEngine {
     static func findImageLoadAddressDiag(task: UInt32, pid: Int32, binaryPath: String) -> (UInt64?, String?) {
         var lastDiag: String? = nil
         for _ in 0..<MAX_DYLD_RETRIES {
-            // v2.9.213 真根因：iOS16 的 TASK_DYLD_INFO 需要 32 字节缓冲（count=8）！
-            // 实测真机：count=4/5/6 全部 kr=4（KERN_FAILURE），count=8 kr=0 成功。
-            // 之前 24 字节 count=6（macOS 尺寸）在 iOS16 恒 kr=4 —— 这就是跨进程砸壳失败的全部原因。
-            var dyldBuf = [UInt8](repeating: 0, count: 32)
-            var count: UInt32 = 8 // iOS16 TASK_DYLD_INFO_COUNT=8（32字节）
-            let kr = dyldBuf.withUnsafeMutableBytes { raw -> Int32 in
-                MachRaw.taskInfo(task: task, flavor: TASK_DYLD_INFO, info: raw.baseAddress!, count: &count)
+            // ★v2.9.222 根因★：iOS 的 TASK_DYLD_INFO=25（macOS 才是 2）！
+            // flavor=2 在 iOS 是 TASK_EVENTS_INFO（事件计数，8×natural_t，count=8）
+            // → 之前所有版本 dump 全是"事件计数"（0x1195恒定=reactivations=4501），dyld 地址从没读到过。
+            // count 扫描 6/8/10/12/16 找 kr=0，再验证 off0 是否为有效用户地址。
+            var dyldBuf = [UInt8](repeating: 0, count: 64)
+            var kr: Int32 = -99
+            var chosenCount: UInt32 = 0
+            for c: UInt32 in [6, 8, 10, 12, 16] {
+                var tmp = [UInt8](repeating: 0, count: 64)
+                var cnt = c
+                let k = tmp.withUnsafeMutableBytes { raw -> Int32 in
+                    MachRaw.taskInfo(task: task, flavor: TASK_DYLD_INFO, info: raw.baseAddress!, count: &cnt)
+                }
+                if k == 0 && cnt >= 8 { dyldBuf = tmp; kr = 0; chosenCount = c; break }
             }
             let dyldInfoAddr = loadU64(Data(dyldBuf), 0)
-            // v2.9.219 诊断：dump 32 字节 + 每个 8 字节偏移 region 检查（定位 iOS16 布局）
             var regionDiagStr = ""
             if kr == 0 {
-                regionDiagStr = "buf=0x" + dyldBuf.map { String(format: "%02x", $0) }.joined()
-                for off in [0, 8, 16, 24] {
+                let n = min(Int(chosenCount) * 4, dyldBuf.count)
+                regionDiagStr = "cnt=\(chosenCount) buf=0x" + dyldBuf[0..<n].map { String(format: "%02x", $0) }.joined()
+                for off in stride(from: 0, to: n, by: 8) {
                     var probe = loadU64(Data(dyldBuf), off)
                     guard probe != 0 else { continue }
                     var regionSize: UInt64 = 0
