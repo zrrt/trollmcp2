@@ -22,7 +22,8 @@ struct SettingsGroup {
 struct SettingsView: View {
     @Environment(\.presentationMode) var presentationMode
     // v2.9.72：开发者模式开关，开启后显示高级选项
-    @State private var developerMode = UserDefaults.standard.bool(forKey: "developer_mode")
+    // v2.9.234：@AppStorage 持久化——之前 @State 只在创建时读一次,view重建会读到旧值(开发者模式偶发自动关闭)
+    @AppStorage("developer_mode") private var developerMode = false
     // v2.9.76：语言选择弹窗
     @State private var showLanguagePicker = false
     // v2.9.84：聊天框「在设置中管理模型」→ 打开设置并自动跳到模型 API 页
@@ -57,12 +58,22 @@ struct SettingsView: View {
                     .accessibilityLabel(cardMode ? "切换为列表" : "切换为卡片")
                 }
             }
+            // v2.9.234：跳转模型API页——iOS16 navigationDestination(修被弹回), iOS15 NavigationLink兜底
+            .background(
+                Group {
+                    if #available(iOS 16.0, *) {
+                        EmptyView()
+                    } else {
+                        NavigationLink(destination: ModelsView(), isActive: $jumpToModels) { EmptyView() }.hidden()
+                    }
+                }
+            )
+            if #available(iOS 16.0, *) {
+                Color.clear.navigationDestination(isPresented: $jumpToModels) { ModelsView() }
+            }
         }
         .navigationViewStyle(.stack)
         .onAppear { triggerProbe() }   // v2.9.18：进入设置页自动探测一次，更新环境状态色
-        .background(
-            NavigationLink(destination: ModelsView(), isActive: $jumpToModels) { EmptyView() }
-        )
         .onAppear {
             if AppUIState.shared.settingsJumpToModels {
                 AppUIState.shared.settingsJumpToModels = false

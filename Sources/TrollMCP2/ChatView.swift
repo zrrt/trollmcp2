@@ -6,8 +6,10 @@ struct ChatView: View {
     @ObservedObject private var modelStore = ModelStore.shared
 
     @State private var inputText = ""
-    @State private var reasoning = 0          // v2.9.49：默认 low（0=低 1=中 2=高），medium/high 推理显著增加延迟
-    @State private var smartSearch = true
+    // v2.9.234：推理强度/智能搜索持久化(@AppStorage)——之前纯@State,关app重开必丢
+    @AppStorage("chat_reasoning") private var reasoning = 0   // 0=低 1=中 2=高
+    @AppStorage("chat_smart_search") private var smartSearch = true
+    @State private var keyboardHeight: CGFloat = 0   // v2.9.234：键盘高度(消息列表跟随上移)
     @State private var attachmentSheet: AttachmentSheet?
     @State private var showModelPicker = false  // v2.9.36：聊天框切换上游模型
 
@@ -81,6 +83,7 @@ struct ChatView: View {
                     }
                 }
             }
+            .padding(.bottom, keyboardHeight > 0 ? keyboardHeight - 34 : 0)
             .overlay(Group {
                 if showToast {
                     Text(toastText)
@@ -483,6 +486,19 @@ struct ChatView: View {
                     WorkflowManager.shared.finishRun(success: true)
                 }
             }
+            // v2.9.234：键盘弹起→消息列表跟随上移+自动滚到底(修复被键盘挡住)
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { note in
+                let h = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect)?.height ?? 0
+                withAnimation(.easeOut(duration: 0.25)) { keyboardHeight = h }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    if let last = store.currentMessages.last {
+                        proxy.scrollTo(last.id, anchor: .bottom)
+                    }
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                withAnimation(.easeOut(duration: 0.25)) { keyboardHeight = 0 }
+            }
         }
     }
 
@@ -572,8 +588,10 @@ struct ChatView: View {
 
             HStack(spacing: 8) {
                 HStack(spacing: 0) {
-                    TextField("发消息…", text: $inputText)
-                        .font(.body)
+                    ChatInputTextView(text: $inputText, onSend: {
+                        if !inputText.isEmpty { send() }
+                    })
+                        .frame(height: 40)
                         .padding(.leading, 12)
                     if !inputText.isEmpty {
                         Button(action: { inputText = "" }) {
@@ -1273,6 +1291,50 @@ struct TrailRow: View {
         case .running: return .blue
         case .success: return .green
         case .failed: return .red
+        }
+    }
+}
+
+// MARK: - v2.9.234 输入框：UITextView 包装(检测 markedText，修复"没打完自动回车")
+// SwiftUI TextField 读不到输入法 markedText(拼音未上屏)，iOS16+第三方输入法组合下
+// 按回车会直接 submit → 发出去一串拼音。UITextView delegate 可读 markedTextRange：
+// 组词中按回车=上屏候选词(return true)，无组词按回车=发送(return false)。
+
+struct ChatInputTextView: UIViewRepresentable {
+    @Binding var text: String
+    var onSend: () -> Void
+
+    func makeUIView(context: Context) -> UITextView {
+        let tv = UITextView()
+        tv.font = .systemFont(ofSize: 16)
+        tv.backgroundColor = .clear
+        tv.isScrollEnabled = false
+        tv.textContainerInset = UIEdgeInsets(top: 9, left: 2, bottom: 7, right: 2)
+        tv.returnKeyType = .send
+        tv.enablesReturnKeyAutomatically = true
+        tv.delegate = context.coordinator
+        return tv
+    }
+    func updateUIView(_ uiView: UITextView, context: Context) {
+        if uiView.text != text { uiView.text = text }
+    }
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        var parent: ChatInputTextView
+        init(_ p: ChatInputTextView) { parent = p }
+        func textViewDidChange(_ tv: UITextView) {
+            parent.text = tv.text
+        }
+        func textView(_ tv: UITextView, shouldChangeTextIn range: NSRange, replacementText t: String) -> Bool {
+            if t == "\n" {
+                // 输入法组词中(拼音未上屏)按回车 → 上屏候选词，不发送
+                if tv.markedTextRange != nil { return true }
+                // 无组词按回车 → 发送
+                parent.onSend()
+                return false
+            }
+            return true
         }
     }
 }
