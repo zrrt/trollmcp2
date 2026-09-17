@@ -603,8 +603,7 @@ enum DecryptEngine {
 
         return DecryptResult(ok: true, pid: pid, launchErrors: launchErrors,
                              outputPath: ipaPath, outputName: ipaName,
-                             decryptedBinaries: decrypted, cryptInfo: cryptInfo,
-                             diag: ["task_basic_info": basicDiag])
+                             decryptedBinaries: decrypted, cryptInfo: cryptInfo)
     }
 }
 
