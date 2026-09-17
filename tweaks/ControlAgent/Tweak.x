@@ -16,6 +16,30 @@
 #define kControlAgentPort 4789
 #define kMaxUITreeNodes 500
 
+// v2.9.259: 文件日志——远程 fs.read 可直接读 /var/mobile/Documents/Workspace/control_agent.log，
+// 定位 dylib 是否加载/keepalive hook 是否成功/4789 bind 是否失败
+#define CA_LOG_PATH "/var/mobile/Documents/Workspace/control_agent.log"
+static void caLog(NSString *msg) {
+    NSLog(@"[ControlAgent] %@", msg);
+    @try {
+        NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:@CA_LOG_PATH];
+        if (!fh) {
+            [[NSFileManager defaultManager] createFileAtPath:@CA_LOG_PATH contents:nil attributes:nil];
+            fh = [NSFileHandle fileHandleForWritingAtPath:@CA_LOG_PATH];
+        }
+        if (fh) {
+            [fh seekToEndOfFile];
+            NSString *line = [NSString stringWithFormat:@"%@ %@\n",
+                [NSDateFormatter localizedStringFromDate:[NSDate date] dateStyle:NSDateFormatterShortStyle timeStyle:NSDateFormatterMediumStyle],
+                msg];
+            [fh writeData:[line dataUsingEncoding:NSUTF8StringEncoding]];
+            [fh closeFile];
+        }
+    } @catch (NSException *e) {
+        NSLog(@"[ControlAgent] caLog failed: %@", e);
+    }
+}
+
 static int g_serverSocket = -1;
 static dispatch_source_t g_acceptSource = nil;
 static NSMutableSet *g_clientSockets = nil;
@@ -723,7 +747,7 @@ static void startHTTPServer(void) {
 
     g_serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (g_serverSocket < 0) {
-        NSLog(@"[ControlAgent] socket create failed");
+        caLog(@"socket create failed");
         return;
     }
 
@@ -737,14 +761,14 @@ static void startHTTPServer(void) {
     addr.sin_port = htons(kControlAgentPort);
 
     if (bind(g_serverSocket, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        NSLog(@"[ControlAgent] bind failed on port %d", kControlAgentPort);
+        caLog([NSString stringWithFormat:@"bind failed on port %d (errno=%d)", kControlAgentPort, errno]);
         close(g_serverSocket);
         g_serverSocket = -1;
         return;
     }
 
     if (listen(g_serverSocket, 16) < 0) {
-        NSLog(@"[ControlAgent] listen failed");
+        caLog(@"listen failed");
         close(g_serverSocket);
         g_serverSocket = -1;
         return;
@@ -761,7 +785,7 @@ static void startHTTPServer(void) {
     });
     dispatch_resume(g_acceptSource);
 
-    NSLog(@"[ControlAgent] HTTP server started on 127.0.0.1:%d", kControlAgentPort);
+    caLog(@"HTTP server STARTED on 127.0.0.1:4789");
 }
 
 #pragma mark - 真后台保活（v2.9.109，借鉴 ImmortalizerJailed 机制）
@@ -807,13 +831,13 @@ static void hookSceneUpdate(id self, SEL _cmd, id sceneID, id settingsDiff, id t
 static void setupKeepAlive(void) {
     Class cls = objc_getClass("FBSWorkspaceScenesClient");
     if (!cls) {
-        NSLog(@"[ControlAgent] FBSWorkspaceScenesClient not found, keepalive disabled");
+        caLog(@"FBSWorkspaceScenesClient not found, keepalive disabled");
         return;
     }
     SEL sel = @selector(sceneID:updateWithSettingsDiff:transitionContext:completion:);
     Method m = class_getInstanceMethod(cls, sel);
     if (!m) {
-        NSLog(@"[ControlAgent] scene update selector not found, keepalive disabled");
+        caLog(@"scene update selector not found, keepalive disabled");
         return;
     }
     orig_sceneUpdate = (void (*)(id, SEL, id, id, id, id))method_getImplementation(m);
@@ -823,7 +847,7 @@ static void setupKeepAlive(void) {
                                     onDarwinKeepAlive,
                                     CFSTR("com.trollagent.keepalive"),
                                     NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
-    NSLog(@"[ControlAgent] keepalive hook installed (initial=%@)", g_keepAlive ? @"ON" : @"OFF");
+    caLog([NSString stringWithFormat:@"keepalive hook installed (initial=%@)", g_keepAlive ? @"ON" : @"OFF"]);
 }
 
 #pragma mark - 构造函数
@@ -834,9 +858,11 @@ static void controlAgentInitialize(void) {
     // kill 后立即启动的缓冲期误判，非 scene hook 导致；实测注入后 App 可正常启动）。
     // 保活机制：hook FBSWorkspaceScenesClient 拦截 scene 后台更新，目标 App 切后台
     // 不挂起 → 4789 远程控制持续在线（实测后台挂起时 4789 断连）。
+    caLog(@"constructor 进入");
     setupKeepAlive();
     // 延迟到主线程 runloop 启动后再启动服务器
     dispatch_async(dispatch_get_main_queue(), ^{
+        caLog(@"主线程回调,准备延迟启动4789");
         // 再延迟一点，等 App 完全启动
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             startHTTPServer();
