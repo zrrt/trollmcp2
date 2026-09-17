@@ -8,6 +8,7 @@ import Foundation
 final class InjectionVerifyTool: MCPTool {
     let definition = ToolDefinition(
         name: "injection.verify",
+        verified: true,
         summary: "注入后健康检查：确认 dylib 是否真的加载生效，而不是只看注入标记。检查①Mach-O 加载命令 ②目标进程是否存活 ③最近是否有崩溃记录。返回 healthy / crashed / not_injected / injected_but_dead 结论。",
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",

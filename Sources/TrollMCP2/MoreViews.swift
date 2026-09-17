@@ -564,6 +564,17 @@ struct ToolPermissionPoliciesView: View {
                                         .background((realTools.contains(def.name) ? Color.green : Color.orange).opacity(0.15))
                                         .foregroundColor(realTools.contains(def.name) ? .green : .orange)
                                         .cornerRadius(4)
+                                    // v2.9.252: 真机 HTTP 实测通过的工具加 ✅已检验 徽标
+                                    if def.verified {
+                                        Text("✅已检验")
+                                            .font(.caption2)
+                                            .fontWeight(.medium)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color(red: 0.25, green: 0.65, blue: 0.35).opacity(0.15))
+                                            .foregroundColor(Color(red: 0.25, green: 0.65, blue: 0.35))
+                                            .cornerRadius(4)
+                                    }
                                 }
                                 Text(def.summary)
                                     .font(.caption)

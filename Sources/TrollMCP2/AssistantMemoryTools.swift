@@ -50,6 +50,7 @@ final class AssistantMemorySetTool: MCPTool {
 final class AssistantMemoryListTool: MCPTool {
     let definition = ToolDefinition(
         name: "assistant.memory_list",
+        verified: true,
         summary: "列出所有 Assistant 记忆",
         parameters: ["query": "可选：关键词过滤"]
     )

@@ -24,6 +24,8 @@ public enum JSONRPC {
                     "name": def.name,
                     "description": def.summary,
                     "parameters": def.parameters,
+                    // v2.9.252: 真机实测通过标记——AI 优先用已验证工具
+                    "verified": def.verified,
                 ]
             }
             return encode(response(id: id, result: ["tools": list]))

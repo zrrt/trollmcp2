@@ -27,8 +27,10 @@ struct ToolsView: View {
                     Section(header: SettingSectionHeader(title: section.0)) {
                         ForEach(section.1, id: \.name) { def in
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(def.name)
+                                // v2.9.252: 真机实测通过的工具显示 ✅已检验(绿色),未验证保持原色
+                                Text(def.verifiedMark + def.name)
                                     .font(.system(.body, design: .monospaced))
+                                    .foregroundColor(def.verified ? Color(red: 0.25, green: 0.65, blue: 0.35) : .primary)
                                 Text(def.summary)
                                     .font(.caption)
                                     .foregroundColor(.secondary)

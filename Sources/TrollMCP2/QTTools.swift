@@ -241,6 +241,7 @@ private func machOArch(_ path: String) -> String {
 final class InjectionDiagnoseTool: MCPTool {
     let definition = ToolDefinition(
         name: "injection.diagnose",
+        verified: true,
         summary: "诊断 dylib 注入失败的具体原因。检查：目标进程状态、dylib 架构/签名、依赖缺失、加载路径、权限、备份文件、Mach-O 完整性。给出明确的修复建议。",
         parameters: [
             "bundle_id": "目标 App 的 Bundle ID（必填）",
@@ -497,6 +498,7 @@ final class LogCollectTool: MCPTool {
 final class NetworkCaptureTool: MCPTool {
     let definition = ToolDefinition(
         name: "network.capture",
+        verified: true,
         summary: "HTTP 抓包与分析。需要先注入 NetworkTweak.dylib 到目标 App（内置），注入后 App 的所有 HTTP/HTTPS 请求会记录到本地文件。支持查看请求列表、URL、方法、状态码、Header、JSON 字段分析。",
         parameters: [
             "action": "操作类型：status（查看抓包状态）、start（开始抓包）、stop（停止抓包）、requests（查看请求列表）、analyze（分析请求统计）",

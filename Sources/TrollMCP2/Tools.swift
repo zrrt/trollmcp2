@@ -151,7 +151,7 @@ final class PingTool: MCPTool {
 }
 
 final class DeviceInfoTool: MCPTool {
-    let definition = ToolDefinition(name: "device.info", summary: "查看设备与应用信息：系统版本、机型、TrollAgent 版本、工作区路径。")
+    let definition = ToolDefinition(name: "device.info", verified: true, summary: "查看设备与应用信息：系统版本、机型、TrollAgent 版本、工作区路径。")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         [
@@ -167,6 +167,7 @@ final class DeviceInfoTool: MCPTool {
 final class DeviceProbeTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.probe",
+        verified: true,
         summary: "检测本机环境：TrollStore/TrollFools、task_for_pid、App 容器读写、注入二进制、amfid 绕过推断")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -307,6 +308,7 @@ final class MemoryTweakTool: MCPTool {
 final class ClipboardReadTool: MCPTool {
     let definition = ToolDefinition(
         name: "clipboard.read",
+        verified: true,
         summary: "读取系统剪贴板文本（用户复制的验证码、链接、token 等最近一次复制内容）",
         parameters: [:]
     )

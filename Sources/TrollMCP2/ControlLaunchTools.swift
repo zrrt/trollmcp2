@@ -80,7 +80,7 @@ enum FakeLocationStore {
 // MARK: - MCP 工具
 
 final class AppLaunchOptionsTool: MCPTool {
-    let definition = ToolDefinition(name: "app.launch",
+    let definition = ToolDefinition(name: "app.launch", verified: true,
         summary: "启动指定 App 并可注入环境变量/启动参数（SBSLaunchApplicationWithOptions）。env 可传 DYLD_INSERT_LIBRARIES 预加载 hook 库。调用时务必带 reason 说明为何唤醒该 App。",
         parameters: ["bundle_id": "目标 App Bundle ID", "env": "环境变量字典（可选，如 {\"DYLD_INSERT_LIBRARIES\": \"/path/hook.dylib\"}）", "args": "启动参数数组（可选）", "reason": "判断依据（必填）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
