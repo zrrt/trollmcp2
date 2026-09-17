@@ -1,5 +1,6 @@
 import Foundation
 import Compression
+import zlib
 
 // v2.9.128：砸壳引擎（对齐 TrollDecrypt 的 memory dump 算法，全量移植）
 // 原理：启动目标 App → task_for_pid 拿端口 → task_info(TASK_DYLD_INFO) 遍历 dyld 镜像
@@ -722,34 +723,75 @@ enum ZipStorer {
         var offset: UInt64 = 0
 
         for f in files {
-            guard let data = try? Data(contentsOf: URL(fileURLWithPath: f.abs)) else { return false }
+            guard let src = FileHandle(forReadingAtPath: f.abs) else { return false }
+            defer { try? src.close() }
+            let fileSize = (try? src.seekToEnd()) ?? 0
+            try? src.seek(toFileOffset: 0)
+            let size = UInt32(fileSize)
             let nameData = Data(f.rel.utf8)
-            let crc = crc32(data)
-            let size = UInt32(data.count)
 
-            // v2.9.229: 回退store(228的deflate在真机大文件内存峰值>1GB→createZip失败,ipa 0字节)
-            // 后续用流式分块deflate解决体积(每次读1MB压缩,避免整文件缓冲)
-            let method: UInt16 = 0
-            let compData = data
-            let compSize = size
+            // v2.9.230: zlib 流式 deflate(单遍IO+C级crc32,内存~1MB,对齐SSZipArchive)
+            // 228整文件deflate崩溃→改1MB分块; 229 store太慢太大→恢复压缩但流式
+            var strm = z_stream()
+            let initCode = deflateInit2_(&strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED, -15, 8,
+                                         Z_DEFAULT_STRATEGY, ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size))
+            guard initCode == Z_OK else { return false }
+            defer { deflateEnd(&strm) }
 
-            // Local File Header
+            // Local File Header 占位(crc/csize 写完数据后回写)
+            let lfhPos = offset
             var lfh = Data()
             appendU32(&lfh, 0x04034b50)
             appendU16(&lfh, 20)          // version needed
             appendU16(&lfh, 0x0800)      // flags: UTF-8
-            appendU16(&lfh, method)
+            appendU16(&lfh, 8)           // method: deflate
             appendU16(&lfh, 0)           // mod time
             appendU16(&lfh, 0)           // mod date
-            appendU32(&lfh, crc)
-            appendU32(&lfh, compSize)
+            appendU32(&lfh, 0)           // crc 占位
+            appendU32(&lfh, 0)           // compSize 占位
             appendU32(&lfh, size)
             appendU16(&lfh, UInt16(nameData.count))
             appendU16(&lfh, 0)           // extra len
             lfh.append(nameData)
             out.write(lfh)
-            out.write(compData)
-            offset += UInt64(lfh.count + compData.count)
+            offset += UInt64(lfh.count)
+
+            // 流式 deflate 写数据
+            let chunk = 1 << 20
+            var inBuf = [UInt8](repeating: 0, count: chunk)
+            var outBuf = [UInt8](repeating: 0, count: chunk + chunk / 2 + 256)
+            var crcVal: uLong = 0
+            var totalComp = 0
+            while true {
+                let n = src.read(into: &inBuf, count: chunk)
+                let have = max(0, n)
+                crcVal = inBuf.withUnsafeBytes { raw in
+                    crc32(crcVal, raw.bindMemory(to: UInt8.self).baseAddress!, uInt(have))
+                }
+                strm.next_in = inBuf.withUnsafeMutableBytes { $0.bindMemory(to: UInt8.self).baseAddress }
+                strm.avail_in = uInt(have)
+                let flush: Int32 = (n <= 0) ? Z_FINISH : Z_NO_FLUSH
+                while true {
+                    let outCap = outBuf.count
+                    strm.next_out = outBuf.withUnsafeMutableBytes { $0.bindMemory(to: UInt8.self).baseAddress }
+                    strm.avail_out = uInt(outCap)
+                    let r = deflate(&strm, flush)
+                    if r == Z_STREAM_ERROR { return false }
+                    let produced = outCap - Int(strm.avail_out)
+                    if produced > 0 { out.write(Data(outBuf[0..<produced])); totalComp += produced }
+                    if strm.avail_out != 0 { break }
+                }
+                if flush == Z_FINISH { break }
+            }
+            let compSize = UInt32(totalComp)
+
+            // 回写 LFH 的 crc(14) + compSize(18)
+            var fix = Data()
+            appendU32(&fix, crcVal)
+            appendU32(&fix, compSize)
+            try? out.seek(toFileOffset: lfhPos + 14)
+            out.write(fix)
+            try? out.seek(toFileOffset: offset)
 
             // Central Directory Entry
             var cd = Data()
@@ -757,10 +799,10 @@ enum ZipStorer {
             appendU16(&cd, 20)           // version made by
             appendU16(&cd, 20)           // version needed
             appendU16(&cd, 0x0800)
-            appendU16(&cd, method)
+            appendU16(&cd, 8)
             appendU16(&cd, 0)            // time
             appendU16(&cd, 0)            // date
-            appendU32(&cd, crc)
+            appendU32(&cd, crcVal)
             appendU32(&cd, compSize)
             appendU32(&cd, size)
             appendU16(&cd, UInt16(nameData.count))
@@ -769,7 +811,7 @@ enum ZipStorer {
             appendU16(&cd, 0)            // disk start
             appendU16(&cd, 0)            // internal attrs
             appendU32(&cd, 0)            // external attrs
-            appendU32(&cd, UInt32(offset - UInt64(lfh.count + data.count)))  // local header offset
+            appendU32(&cd, UInt32(lfhPos))
             cd.append(nameData)
             centralDir.append(cd)
         }
