@@ -35,9 +35,15 @@ enum MachOAnalyzer {
     static let lcEncryptionInfo64: UInt32 = 0x2C
 
     /// 解析 Mach-O 信息；非 Mach-O 或读取失败返回 nil
+    /// v2.9.265：大文件只读头 8MB（fat header + load commands 区足够解析 cryptID/dylibs）——
+    /// 全量 mmap 394MB 主二进制 + 6 个 framework 会压垮 TrollAgent（实测多次断连/被杀）。
     static func analyze(_ path: String) -> Info? {
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe),
-              data.count >= 8 else { return nil }
+        let size = (try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? NSNumber
+        let total = size?.int64Value ?? 0
+        let readLen = Int(min(total, 8 * 1024 * 1024))
+        guard let fh = try? FileHandle(forReadingFrom: URL(fileURLWithPath: path)) else { return nil }
+        defer { try? fh.close() }
+        guard let data = try? fh.read(upToCount: readLen), data.count >= 8 else { return nil }
         let magic = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 0, as: UInt32.self) }
 
         var offset = 0
@@ -526,9 +532,13 @@ final class InjectionManager {
     }
 
     /// 通过扫描二进制内是否含 "TrollMCPAgent" 字符串判断注入状态（LC_LOAD_DYLIB 名字会被写入）
+    /// v2.9.265：只读前 1MB——load commands 区在文件头 64KB 内，全量读 394MB 主二进制的
+    /// Data(contentsOf:) 会压垮 TrollAgent（实测多次内存被杀/断连）。
     func isInjected(_ mainBinary: String) -> Bool {
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: mainBinary)) else { return false }
-        return data.range(of: "TrollMCPAgent".data(using: .utf8)!) != nil
+        guard let fh = try? FileHandle(forReadingFrom: URL(fileURLWithPath: mainBinary)) else { return false }
+        defer { try? fh.close() }
+        let head = (try? fh.read(upToCount: 1024 * 1024)) ?? Data()
+        return head.range(of: "TrollMCPAgent".data(using: .utf8)!) != nil
     }
 
     // MARK: - 公共 API
