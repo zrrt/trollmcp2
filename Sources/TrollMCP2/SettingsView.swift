@@ -76,8 +76,8 @@ struct SettingsView: View {
         }
         .navigationViewStyle(.stack)
         .onAppear {
-            // v2.9.239：进设置页收起悬浮浏览器，避免遮挡设置项点击
-            FloatingBrowser.shared.collapse()
+            // v2.9.242：进设置页彻底隐藏悬浮浏览器（不只是收成胶囊），杜绝任何遮挡
+            FloatingBrowser.shared.hide()
             triggerProbe()   // v2.9.18：进入设置页自动探测一次，更新环境状态色
         }
         .onAppear {
