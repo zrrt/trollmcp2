@@ -149,11 +149,18 @@ final class AppRestartTool: MCPTool {
         let start = Date()
         // 杀掉旧进程——v2.9.251: spawnRoot 在 TrollStore 无 root shell(/bin/sh not found)下 kill 不执行,
         // App 没真正重启导致 ControlAgent.dylib 不重新加载、4789 服务器起不来;改普通 spawn(用户态可杀自己进程)
+        // v2.9.256: 实测 app.restart 返回 old_pid==new_pid（PID 未变=假重启）——
+        // 普通 spawn /bin/kill 在 TrollStore 沙盒无 task_for_pid 杀不掉其他 App 进程。
+        // 改调 SpringBoardServices 私有 API SBTerminateApplication（platform-application entitlement 可调，
+        // iOS 全版本存在），失败再兜底 /bin/kill。
         let oldPid = findPid(by: bundleId)
         if oldPid > 0 {
-            let (kexit, kout) = InjectionManager.shared.spawn("/bin/kill", args: ["-9", "\(oldPid)"])
-            if kexit != 0 { NSLog("[app.restart] kill pid \(oldPid) exit=\(kexit) \(kout)") }
-            Thread.sleep(forTimeInterval: 1)
+            let terminated = Self.terminateApplication(bundleId: bundleId)
+            if !terminated {
+                let (kexit, kout) = InjectionManager.shared.spawn("/bin/kill", args: ["-9", "\(oldPid)"])
+                if kexit != 0 { NSLog("[app.restart] kill pid \(oldPid) exit=\(kexit) \(kout)") }
+            }
+            Thread.sleep(forTimeInterval: 1.5)
         }
         // 启动——v2.9.251: /usr/bin/open 在 TrollStore 不可靠,改 SBSLaunch(验证可用)
         let (launched, launchMsg) = ProcessHelper.launchApp(bundleId: bundleId)
@@ -170,6 +177,25 @@ final class AppRestartTool: MCPTool {
             "restarted": newPid > 0,
             "restart_ms": elapsed
         ]
+    }
+
+    /// v2.9.256: 真终止 App——SpringBoardServices 私有 API SBTerminateApplication。
+    /// TrollStore 的 App 带 platform-application entitlement，可调该符号终止任意前台 App；
+    /// 比 /bin/kill 可靠（kill 需 task_for_pid/root，TrollStore 非越狱下不可用）。
+    static func terminateApplication(bundleId: String) -> Bool {
+        guard let handle = dlopen("/System/Library/PrivateFrameworks/SpringBoardServices.framework/SpringBoardServices", RTLD_LAZY) else {
+            return false
+        }
+        defer { dlclose(handle) }
+        guard let sym = dlsym(handle, "SBTerminateApplication") else {
+            NSLog("[app.restart] SBTerminateApplication symbol not found")
+            return false
+        }
+        typealias TermFn = @convention(c) (CFString) -> Int32
+        let fn = unsafeBitCast(sym, to: TermFn.self)
+        let ret = fn(bundleId as CFString)
+        if ret != 0 { NSLog("[app.restart] SBTerminateApplication ret=\(ret)") }
+        return ret == 0
     }
 }
 
