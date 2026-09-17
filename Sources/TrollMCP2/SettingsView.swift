@@ -30,10 +30,12 @@ struct SettingsView: View {
     @State private var jumpToModels = false
 
     var body: some View {
-        CompatNav {
-            listBody
-                .frame(maxWidth: .infinity, maxHeight: .infinity)   // v2.9.245：撑满全屏——List底层UITableView自适应所有iPhone机型(XS 375pt→Pro Max 430pt+)，彻底摆脱卡片模式的渲染不稳定
-                .navigationTitle(L10n.t("settings"))
+        // v2.9.247：GeometryReader 拿真实全屏尺寸——fullScreenCover+NavigationStack 组合下 List 高度被解析为内容高度(内容不满一屏时列表只占上半屏、下半空白),外层 frame 也无效;改用几何尺寸显式强制 List 与 NavigationStack 铺满全屏,所有机型一致
+        GeometryReader { geo in
+            CompatNav {
+                listBody
+                    .frame(minHeight: geo.size.height)
+                    .navigationTitle(L10n.t("settings"))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
@@ -59,8 +61,8 @@ struct SettingsView: View {
                 Color.clear.navigationDestination(isPresented: $jumpToModels) { ModelsView() }
             }
         }
-        // v2.9.246：frame 挂 NavigationStack 外层（关键）——iOS16 NavigationStack 根内容高度=内容高度(不满一屏时不撑满),内层(List上)的 frame(maxHeight:.infinity)无效,导致列表只占上半屏、下半全空白。外层 frame 强制 NavigationStack 撑满全屏,List 随之铺满
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(width: geo.size.width, height: geo.size.height)   // NavigationStack 显式全屏
+        }
         .navigationViewStyle(.stack)
         .onAppear {
             // v2.9.242：进设置页彻底隐藏悬浮浏览器（不只是收成胶囊），杜绝任何遮挡
