@@ -22,7 +22,36 @@ enum SharePresenter {
         completion: ((Bool, Error?) -> Void)? = nil
     ) {
         DispatchQueue.main.async {
-            let vc = UIActivityViewController(activityItems: items, applicationActivities: nil)
+            // v2.9.255: 分享前校验 items——文件 URL 不存在/不可读时直接返回明确错误，
+            // 避免 UIActivityViewController 收到无效文件后白屏/无反应（用户多轮反馈"分享打开半天空白"）
+            var validItems: [Any] = []
+            var invalidCount = 0
+            for item in items {
+                if let url = item as? URL {
+                    if url.isFileURL {
+                        if FileManager.default.fileExists(atPath: url.path) {
+                            validItems.append(item)
+                        } else {
+                            invalidCount += 1
+                            AuditLog.shared.log("share.invalid_url", detail: url.path)
+                        }
+                    } else {
+                        validItems.append(item)
+                    }
+                } else {
+                    validItems.append(item)
+                }
+            }
+            guard !validItems.isEmpty else {
+                AuditLog.shared.log("share.all_invalid", detail: "items=\(items.count)")
+                completion?(false, NSError(
+                    domain: "SharePresenter",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "分享内容无效（文件不存在或不可读）"]
+                ))
+                return
+            }
+            let vc = UIActivityViewController(activityItems: validItems, applicationActivities: nil)
             if !excluded.isEmpty {
                 vc.excludedActivityTypes = excluded
             }
