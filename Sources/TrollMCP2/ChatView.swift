@@ -126,7 +126,7 @@ struct ChatView: View {
                             self.attachmentSheet = pick
                         }
                     }, selectedCount: pendingAttachments.count)
-                        .sheetDetents([.height(340)])   // v2.9.37：4 入口 2×2 网格需更高
+                        .sheetDetentsHeight(340)   // v2.9.37：4 入口 2×2 网格需更高
                 } else {
                     AttachmentPanelView(onPick: { pick in
                         if pick == .browser {
@@ -212,7 +212,7 @@ struct ChatView: View {
                     showModelPicker = false
                     showToast("已切换：\(cfg.name)")
                 }
-                .sheetDetents([.height(360)])
+                .sheetDetentsHeight(360)
             } else {
                 ChatModelPickerSheet { cfg in
                     var c = cfg

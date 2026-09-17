@@ -170,16 +170,12 @@ func setHTTPMethod(_ method: String, on request: inout URLRequest) {
 }
 
 // v2.9.250：iOS15 兼容——presentationDetents 仅 iOS16+；部署目标降15后 iOS16 分支正常半屏、iOS15 保持默认 sheet。
-// 参数用 Any 避免签名处裸引用 iOS16 类型(PresentationDetent)导致部署15编译报错；#available 分支内 cast
+// 参数直接传高度 CGFloat，避免调用处裸引用 iOS16 类型(PresentationDetent/.height 字面量推断失败)
 extension View {
     @ViewBuilder
-    func sheetDetents(_ detents: Any) -> some View {
+    func sheetDetentsHeight(_ height: CGFloat) -> some View {
         if #available(iOS 16.0, *) {
-            if let detents = detents as? Set<PresentationDetent> {
-                self.presentationDetents(detents)
-            } else {
-                self
-            }
+            self.presentationDetents([.height(height)])
         } else {
             self
         }
