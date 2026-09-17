@@ -556,6 +556,78 @@ enum DecryptEngine {
                              diag: ["task_basic_info": basicDiag])
     }
 
+    // MARK: - v2.9.262 只解密主二进制到指定文件（跳过 IPA 打包）
+    // 背景：app.decrypt 的 ZipStorer 对大型 ipa 有写坏 bug（小红书 163MB ipa "不是有效 ZIP"），
+    // 但 decryptBinary 本身成功。此函数复用启动+task_for_pid+decryptBinary，直接输出解密主二进制文件，
+    // 供 app.replace_decrypted 就地替换（不重装、不丢数据）。
+    static func decryptMainBinaryToFile(bundleId: String, outputPath: String) -> DecryptResult {
+        guard !bundleId.isEmpty else {
+            return DecryptResult(ok: false, errorCode: "param", errorReason: "bundle_id 为空",
+                                 nextStep: "传入目标 App 的 Bundle ID")
+        }
+        guard let app = AppCatalog.list().first(where: { $0.bundleId == bundleId }) else {
+            return DecryptResult(ok: false, errorCode: "target", errorReason: "未找到 App: \(bundleId)",
+                                 nextStep: "用 injection.list 搜索目标 App 的 bundle_id")
+        }
+        var pid: Int32 = 0
+        var launchErrors: [[String: Any]] = []
+        let r0 = launchApp(bundleId: bundleId)
+        pid = r0.pid
+        launchErrors = r0.errors
+        if pid <= 0 {
+            let plist0 = NSDictionary(contentsOfFile: app.path + "/Info.plist")
+            let execName0 = (plist0?["CFBundleExecutable"] as? String) ?? "App"
+            let mainBinary0 = app.path + "/" + execName0
+            if FileManager.default.fileExists(atPath: mainBinary0) {
+                let label = String(format: "UIKitApplication:%@[%06x]", bundleId, arc4random() & 0xffffff)
+                let lr = LaunchdLauncher.launch(bundleId: bundleId, executablePath: mainBinary0, label: label)
+                if lr.pid > 0 { pid = lr.pid }
+                launchErrors.append(["step": "launchd_submit_fallback", "kern_return": Int(lr.kr)])
+            }
+        }
+        guard pid > 0 else {
+            return DecryptResult(ok: false, errorCode: "target",
+                                 errorReason: "目标 App 启动失败（open -b + launchd SubmitAndStart 均无效）",
+                                 nextStep: "手动打开目标 App 后再执行砸壳", pid: 0, launchErrors: launchErrors)
+        }
+        Thread.sleep(forTimeInterval: 5.0)
+
+        var task: UInt32 = 0
+        let kr = DeviceProbe.shared.tm_task_for_pid(DeviceProbe.shared.tm_mach_task_self(), pid, &task)
+        guard kr == 0, task != 0 else {
+            return DecryptResult(ok: false, errorCode: "env",
+                                 errorReason: "task_for_pid 失败（kern_return=\(Int(kr))）",
+                                 nextStep: "用 ControlAgent 注入式砸壳（4789 在线时自动走）", pid: pid, launchErrors: launchErrors)
+        }
+        defer { DeviceProbe.shared.tm_mach_port_deallocate(DeviceProbe.shared.tm_mach_task_self(), task) }
+
+        let execName = (NSDictionary(contentsOfFile: app.path + "/Info.plist")?["CFBundleExecutable"] as? String) ?? "App"
+        let mainBinary = app.path + "/" + execName
+        try? FileManager.default.createDirectory(atPath: (outputPath as NSString).deletingLastPathComponent,
+                                                 withIntermediateDirectories: true)
+        let result: DecryptResult
+        switch decryptBinary(sourcePath: mainBinary, task: task, pid: pid, outputPath: outputPath) {
+        case .ok:
+            result = DecryptResult(ok: true, pid: pid, launchErrors: launchErrors,
+                                   outputPath: outputPath, outputName: (outputPath as NSString).lastPathComponent,
+                                   decryptedBinaries: [mainBinary],
+                                   cryptInfo: ["main": ["cryptid": 0, "decrypted": true]])
+        case .notEncrypted:
+            result = DecryptResult(ok: true, pid: pid, launchErrors: launchErrors,
+                                   outputPath: outputPath, outputName: (outputPath as NSString).lastPathComponent,
+                                   decryptedBinaries: [mainBinary],
+                                   cryptInfo: ["main": ["cryptid": 0, "decrypted": false, "reason": "未加密"]])
+        case .failed(let k, let msg):
+            result = DecryptResult(ok: false, errorCode: "tool",
+                                   errorReason: "解密主二进制失败: \(msg)",
+                                   nextStep: "目标 App 需保持运行且未崩溃", pid: pid, launchErrors: launchErrors)
+        }
+        if !launchErrors.isEmpty {
+            _ = InjectionManager.shared.spawnRoot("/bin/kill", args: ["-9", "\(pid)"])
+        }
+        return result
+    }
+
     // MARK: - v2.9.186 注入式砸壳（ControlAgent 进程内自解密，绕开 task_for_pid）
     // 流程：注入 ControlAgent.dylib → 重启目标 App → 4789 在线 → /decrypt 进程内遍历
     // dyld 镜像（dyld 已把加密页解密到内存，从内存读已解密段写副本）→ 从目标 App 容器

@@ -39,24 +39,31 @@ final class AppReplaceDecryptedTool: MCPTool {
             return ["ok": false, "error": "ipa 不存在: \(ipaPath)"]
         }
 
-        // 2. 解压
-        let workDir = workspace + "/replace_tmp_" + bundleId.replacingOccurrences(of: ".", with: "_")
-        _ = im.runAsRoot("rm", args: ["-rf", workDir])
-        _ = im.runAsRoot("mkdir", args: ["-p", workDir])
-        do {
-            try ZipExtractor.unzip(URL(fileURLWithPath: ipaPath), to: URL(fileURLWithPath: workDir, isDirectory: true))
-        } catch {
-            return ["ok": false, "error": "解压 ipa 失败: \(error.localizedDescription)"]
+        // 2. 优先：直接解密主二进制到工作区（跳过 ipa 解压——ZipStorer 对大 ipa 有写坏 bug）
+        // v2.9.262：decryptMainBinaryToFile 复用启动+task_for_pid+decryptBinary，直出解密主二进制
+        let mainOut = workspace + "/replace_main_" + bundleId.replacingOccurrences(of: ".", with: "_") + ".bin"
+        let decRes = DecryptEngine.decryptMainBinaryToFile(bundleId: bundleId, outputPath: mainOut)
+        var decryptedMain = ""
+        if decRes.ok, FileManager.default.fileExists(atPath: mainOut) {
+            decryptedMain = mainOut
+        } else {
+            // 3. 降级：解压 ipa
+            let workDir = workspace + "/replace_tmp_" + bundleId.replacingOccurrences(of: ".", with: "_")
+            _ = im.runAsRoot("rm", args: ["-rf", workDir])
+            _ = im.runAsRoot("mkdir", args: ["-p", workDir])
+            do {
+                try ZipExtractor.unzip(URL(fileURLWithPath: ipaPath), to: URL(fileURLWithPath: workDir, isDirectory: true))
+            } catch {
+                return ["ok": false, "error": "解密直出失败: \(decRes.errorReason) 且解压 ipa 失败: \(error.localizedDescription)", "next_step": "保持目标 App 前台运行后重试"]
+            }
+            let payloadRoot = workDir + "/Payload"
+            let appDirs = (try? FileManager.default.contentsOfDirectory(atPath: payloadRoot)) ?? []
+            guard let appDirName = appDirs.first(where: { $0.hasSuffix(".app") }) else {
+                return ["ok": false, "error": "解压后无 Payload/*.app", "payload": payloadRoot]
+            }
+            let execName2 = (NSDictionary(contentsOfFile: payloadRoot + "/" + appDirName + "/Info.plist")?["CFBundleExecutable"] as? String)
+            decryptedMain = payloadRoot + "/" + appDirName + "/" + (execName2 ?? "")
         }
-
-        // 3. 找 Payload 内主二进制
-        let payloadRoot = workDir + "/Payload"
-        let appDirs = (try? FileManager.default.contentsOfDirectory(atPath: payloadRoot)) ?? []
-        guard let appDirName = appDirs.first(where: { $0.hasSuffix(".app") }) else {
-            return ["ok": false, "error": "解压后无 Payload/*.app", "payload": payloadRoot]
-        }
-        let execName = (NSDictionary(contentsOfFile: payloadRoot + "/" + appDirName + "/Info.plist")?["CFBundleExecutable"] as? String)
-        let decryptedMain = payloadRoot + "/" + appDirName + "/" + (execName ?? "")
         guard FileManager.default.fileExists(atPath: decryptedMain) else {
             return ["ok": false, "error": "解密主二进制不存在: \(decryptedMain)"]
         }
