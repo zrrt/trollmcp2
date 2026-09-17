@@ -84,6 +84,14 @@ struct ChatView: View {
                 }
             }
             .padding(.bottom, keyboardHeight > 0 ? keyboardHeight - 34 : 0)
+            // v2.9.235：键盘监听挂外层 VStack（空会话无 messageList 也能避让键盘）
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { note in
+                let h = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect)?.height ?? 0
+                withAnimation(.easeOut(duration: 0.25)) { keyboardHeight = h }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                withAnimation(.easeOut(duration: 0.25)) { keyboardHeight = 0 }
+            }
             .overlay(Group {
                 if showToast {
                     Text(toastText)
@@ -486,18 +494,15 @@ struct ChatView: View {
                     WorkflowManager.shared.finishRun(success: true)
                 }
             }
-            // v2.9.234：键盘弹起→消息列表跟随上移+自动滚到底(修复被键盘挡住)
-            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { note in
-                let h = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect)?.height ?? 0
-                withAnimation(.easeOut(duration: 0.25)) { keyboardHeight = h }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                    if let last = store.currentMessages.last {
-                        proxy.scrollTo(last.id, anchor: .bottom)
+            // v2.9.235：键盘高度变化→自动滚到底（高度本身由外层 VStack 监听，空会话也能避让键盘）
+            .onChange(of: keyboardHeight) { _ in
+                if keyboardHeight > 0 {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        if let last = store.currentMessages.last {
+                            proxy.scrollTo(last.id, anchor: .bottom)
+                        }
                     }
                 }
-            }
-            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-                withAnimation(.easeOut(duration: 0.25)) { keyboardHeight = 0 }
             }
         }
     }
@@ -591,7 +596,7 @@ struct ChatView: View {
                     ChatInputTextView(text: $inputText, onSend: {
                         if !inputText.isEmpty { send() }
                     })
-                        .frame(height: 40)
+                        .frame(maxWidth: .infinity, maxHeight: 40)
                         .padding(.leading, 12)
                     if !inputText.isEmpty {
                         Button(action: { inputText = "" }) {

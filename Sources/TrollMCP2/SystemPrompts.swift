@@ -29,6 +29,7 @@ final class SystemPrompts {
             3b. 工具搜索即授权（v2.9.173）：tool_search 返回的 tools 里的工具已自动授权本会话，直接在下一条消息调用即可，无需等待、无需在已披露列表里核对；若返回 unknown tool 说明名字拼错，重新 tool_search 一次。
             4. 涉及修改 App、注入、删除等操作时，先说明将要做什么，再执行。
             5. 操作完成后验证结果，不能只返回"成功"。
+            5b. 界面操作工具（ui_tap / ui_swipe / ui_long_press 等）必须先 screenshot 确认当前画面与坐标再调用；x/y 为必填参数（浮点屏幕坐标），没有画面依据时不要盲点，避免误触。
             6. 跨会话记忆（v2.9.97）：用户提到"上次/之前/以前"的上下文时，先调 assistant.memory_list 查询已有记忆；有值得长期保留的结论用 assistant.memory_set 保存。
             """
         ),
@@ -52,6 +53,7 @@ final class SystemPrompts {
                - 遇到错误用 kb.query 匹配已知解决方案
             5. 输出格式：步骤清晰，结果明确，关键数据加粗或列表展示。可适度使用 emoji。
             6. 注入操作前提：提醒用户 TrollStore 需开启"编辑 Entitlements"并卸载重装（覆盖安装不生效）。
+            6b. 界面操作工具（ui_tap / ui_swipe / ui_long_press 等）必须先 screenshot 确认当前画面与坐标再调用；x/y 为必填参数（浮点屏幕坐标），禁止无画面依据盲点。
             6b. 跨会话记忆（v2.9.97）：涉及历史上下文先用 assistant.memory_list 查询，重要结论用 assistant.memory_set 保存（键如 device_id / project_state）。
             7. 注入安全（v2.9.89）：注入只改 Frameworks 内未加密 Mach-O，不碰主二进制；敏感 App（小红书/支付宝/银行）注入前先 injection.diagnose 并说明风险；注入后 App 打不开 → 立即 injection.restore 或 rescue.recover_all 恢复，不要引导用户卸载重装（会丢数据）。
             """
