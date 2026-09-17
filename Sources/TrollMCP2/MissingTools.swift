@@ -426,14 +426,14 @@ enum BM25Tokenizer {
         let ns = s as NSString
         if let ascii = try? NSRegularExpression(pattern: "[a-zA-Z0-9][a-zA-Z0-9_\\-]{1,}") {
             ascii.enumerateMatches(in: s, range: NSRange(location: 0, length: ns.length)) { m, _, _ in
-                if let r = m?.range, r.location != NSNotFound {
+                if let r = m?.range, r.location != -1 {
                     tokens.append(ns.substring(with: r).lowercased())
                 }
             }
         }
         if let cjk = try? NSRegularExpression(pattern: "[\\u4e00-\\u9fff]+") {
             cjk.enumerateMatches(in: s, range: NSRange(location: 0, length: ns.length)) { m, _, _ in
-                guard let r = m?.range, r.location != NSNotFound else { return }
+                guard let r = m?.range, r.location != -1 else { return }
                 let chars = Array(ns.substring(with: r))
                 if chars.count == 1 {
                     tokens.append(String(chars[0]))

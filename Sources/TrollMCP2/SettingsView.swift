@@ -73,7 +73,11 @@ struct SettingsView: View {
             }
         }
         .navigationViewStyle(.stack)
-        .onAppear { triggerProbe() }   // v2.9.18：进入设置页自动探测一次，更新环境状态色
+        .onAppear {
+            // v2.9.239：进设置页收起悬浮浏览器，避免遮挡设置项点击
+            FloatingBrowser.shared.collapse()
+            triggerProbe()   // v2.9.18：进入设置页自动探测一次，更新环境状态色
+        }
         .onAppear {
             if AppUIState.shared.settingsJumpToModels {
                 AppUIState.shared.settingsJumpToModels = false
