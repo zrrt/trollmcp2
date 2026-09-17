@@ -1,4 +1,5 @@
 import Foundation
+import Compression
 
 // v2.9.128：砸壳引擎（对齐 TrollDecrypt 的 memory dump 算法，全量移植）
 // 原理：启动目标 App → task_for_pid 拿端口 → task_info(TASK_DYLD_INFO) 遍历 dyld 镜像
@@ -686,6 +687,23 @@ private struct TaskDyldInfoBuf {
 
 enum ZipStorer {
 
+
+    // v2.9.227: raw deflate (zip method 8) — 用 Compression 框架, 剥离 zlib 头(2B)+adler32尾(4B)
+    static func deflateRaw(_ data: Data) -> Data? {
+        guard !data.isEmpty else { return nil }
+        let dstCap = data.count + data.count / 2 + 256
+        var dst = Data(count: dstCap)
+        let written = dst.withUnsafeMutableBytes { dstRaw -> Int in
+            data.withUnsafeBytes { srcRaw -> Int in
+                compression_encode_buffer(dstRaw.bindMemory(to: UInt8.self).baseAddress!, dstCap,
+                                         srcRaw.bindMemory(to: UInt8.self).baseAddress!, data.count,
+                                         COMPRESSION_ZLIB)
+            }
+        }
+        guard written > 4, written < data.count else { return nil }
+        return Data(dst.prefix(written).dropFirst(2).dropLast(4))
+    }
+
     static func createZip(at zipPath: String, fromDirectory dirPath: String) -> Bool {
         var files: [(rel: String, abs: String)] = []
         let fm = FileManager.default
@@ -709,23 +727,31 @@ enum ZipStorer {
             let crc = crc32(data)
             let size = UInt32(data.count)
 
+            // v2.9.227: DEFLATE 压缩(与TrollDecrypt SSZipArchive一致, 421MB→~188MB)
+            var method: UInt16 = 0
+            var compData = data
+            var compSize = size
+            if let c = deflateRaw(data), c.count < data.count {
+                method = 8; compData = c; compSize = UInt32(c.count)
+            }
+
             // Local File Header
             var lfh = Data()
             appendU32(&lfh, 0x04034b50)
             appendU16(&lfh, 20)          // version needed
             appendU16(&lfh, 0x0800)      // flags: UTF-8
-            appendU16(&lfh, 0)           // method: store
+            appendU16(&lfh, method)
             appendU16(&lfh, 0)           // mod time
             appendU16(&lfh, 0)           // mod date
             appendU32(&lfh, crc)
-            appendU32(&lfh, size)
+            appendU32(&lfh, compSize)
             appendU32(&lfh, size)
             appendU16(&lfh, UInt16(nameData.count))
             appendU16(&lfh, 0)           // extra len
             lfh.append(nameData)
             out.write(lfh)
-            out.write(data)
-            offset += UInt64(lfh.count + data.count)
+            out.write(compData)
+            offset += UInt64(lfh.count + compData.count)
 
             // Central Directory Entry
             var cd = Data()
@@ -733,11 +759,11 @@ enum ZipStorer {
             appendU16(&cd, 20)           // version made by
             appendU16(&cd, 20)           // version needed
             appendU16(&cd, 0x0800)
-            appendU16(&cd, 0)            // method
+            appendU16(&cd, method)
             appendU16(&cd, 0)            // time
             appendU16(&cd, 0)            // date
             appendU32(&cd, crc)
-            appendU32(&cd, size)
+            appendU32(&cd, compSize)
             appendU32(&cd, size)
             appendU16(&cd, UInt16(nameData.count))
             appendU16(&cd, 0)            // extra
