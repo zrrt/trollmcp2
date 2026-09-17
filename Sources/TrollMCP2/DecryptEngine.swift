@@ -32,9 +32,11 @@ private let MH_MAGIC: UInt32 = 0xfeedface
 private let MH_MAGIC_64: UInt32 = 0xfeedfacf
 private let LC_ENCRYPTION_INFO: UInt32 = 0x21
 private let LC_ENCRYPTION_INFO_64: UInt32 = 0x2C
-// ★v2.9.222 根因★: iOS 的 TASK_DYLD_INFO = 25 (macOS 才是 2)！
-// flavor=2 在 iOS 上是 TASK_EVENTS_INFO(事件计数,8×natural_t) → 之前全在读事件计数,dyld地址从没读到
-private let TASK_DYLD_INFO: Int32 = 25
+// ★v2.9.223 终极根因★: iOS 16(XNU-7195)官方头文件 osfmk/mach/task_info.h 实锤:
+//   TASK_DYLD_INFO = 17 !!! (macOS 才是 2; 25 也不对)
+//   struct task_dyld_info { mach_vm_address_t all_image_info_addr(8); mach_vm_size_t all_image_info_size(8); integer_t all_image_info_format(4); } = 20字节 = TASK_DYLD_INFO_COUNT=5
+// 错误链: flavor=2(macOS值,iOS上是TASK_EVENTS_INFO事件计数) → 25(猜错) → 17(XNU实锤)
+private let TASK_DYLD_INFO: Int32 = 17
 private let MAX_DYLD_RETRIES = 3000 // v2.9.221: 30秒重试窗口(dyld镜像表可能晚初始化,实测3秒内恒垃圾值)
 
 /// dyld_all_image_infos 只读前 3 个字段（16 字节，布局稳定）
@@ -176,7 +178,7 @@ enum DecryptEngine {
             var dyldBuf = [UInt8](repeating: 0, count: 64)
             var kr: Int32 = -99
             var chosenCount: UInt32 = 0
-            for c: UInt32 in [6, 8, 10, 12, 16] {
+            for c: UInt32 in [5, 6, 8, 10, 12, 16] { // XNU: TASK_DYLD_INFO_COUNT=5(20字节)
                 var tmp = [UInt8](repeating: 0, count: 64)
                 var cnt = c
                 let k = tmp.withUnsafeMutableBytes { raw -> Int32 in
