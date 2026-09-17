@@ -31,10 +31,14 @@ final class AppInstallTool: MCPTool {
             for v in variants where FileManager.default.fileExists(atPath: v) { helper = v; helperExist = true; break }
         }
 
-        let (c, out) = im.spawnRoot(helper, args: ["install", path], timeout: 180)
+        // v2.9.274：加 force——TrollStore installApp 对"已装但非 TrollStore App"（无
+        // TS_ACTIVE_MARKER 的 App Store 版）无 force 直接返回 171 拒绝覆盖（实测小红书）
+        let (c, out) = im.spawnRoot(helper, args: ["install", path, "force"], timeout: 180)
         if c == 0 {
             AuditLog.shared.log("app.install", detail: "\(path) → \(helper) 成功")
             AppCatalog.invalidateCache()   // v2.9.135: 安装后失效应用缓存
+            // 安装后刷新 LaunchServices 注册（避免 SBSLaunch 启动旧注册/旧进程）
+            _ = im.spawnRoot(helper, args: ["refresh"], timeout: 60)
             return ["ok": true, "method": "trollstorehelper", "output": out,
                     "message": "已静默安装 \(path)"]
         }
@@ -79,15 +83,16 @@ final class AppUninstallTool: MCPTool {
             throw MCPError.invalidParams("app.uninstall 需要 bundle_id 参数")
         }
         let im = InjectionManager.shared
-        let helper = "/var/usr/bin/trollstorehelper"
-        if FileManager.default.isExecutableFile(atPath: helper) {
-            let (c, out) = im.spawnRoot(helper, args: ["uninstall", bid], timeout: 120)
-            AuditLog.shared.log("app.uninstall", detail: "\(bid) c=\(c)")
-            if c == 0 { AppCatalog.invalidateCache() }   // v2.9.135: 卸载后失效应用缓存
-            return ["ok": c == 0, "bundle_id": bid, "output": out,
-                    "message": c == 0 ? "已卸载 \(bid)" : "卸载失败: \(out)"]
+        // v2.9.274：与 app.install 一致的 helper 定位（TrollStore.app bundle 内）
+        let tsPath = AppCatalog.list().first { $0.bundleId == "com.opa334.TrollStore" }?.path ?? ""
+        let helper = tsPath.isEmpty ? "/var/usr/bin/trollstorehelper" : tsPath + "/trollstorehelper"
+        let (c, out) = im.spawnRoot(helper, args: ["uninstall", bid], timeout: 120)
+        AuditLog.shared.log("app.uninstall", detail: "\(bid) c=\(c)")
+        if c == 0 {
+            AppCatalog.invalidateCache()   // v2.9.135: 卸载后失效应用缓存
+            _ = im.spawnRoot(helper, args: ["refresh"], timeout: 60)
         }
-        return ["ok": false, "bundle_id": bid,
-                "message": "trollstorehelper 不可用，请手动在 TrollStore 中卸载"]
+        return ["ok": c == 0, "bundle_id": bid, "output": out,
+                "message": c == 0 ? "已卸载 \(bid)" : "卸载失败: \(out)"]
     }
 }
