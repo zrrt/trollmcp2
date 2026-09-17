@@ -178,7 +178,7 @@ private func agentHTTP(_ method: String, _ path: String, body: [String: Any]? = 
     var req = URLRequest(url: url)
     setHTTPMethod(method, on: &req)
     setTimeoutInterval(timeout, on: &req)
-    if let body {
+    if let body = body {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
     }

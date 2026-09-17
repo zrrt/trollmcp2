@@ -192,7 +192,7 @@ struct WorkspaceBrowserView: View {
             Button("取消", role: .cancel) { newFolderName = "" }
         }
         .overlay(alignment: .bottom) {
-            if let toast {
+            if let toast = toast {
                 Text(toast)
                     .font(.caption)
                     .padding(.horizontal, 14)
@@ -322,7 +322,7 @@ struct FilePreviewView: View {
                         .padding(12)
                 }
             case .image:
-                if let image {
+                if let image = image {
                     ScrollView([.horizontal, .vertical]) {
                         Image(uiImage: image)
                             .resizable()

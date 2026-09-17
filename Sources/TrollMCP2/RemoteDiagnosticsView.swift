@@ -44,7 +44,7 @@ struct RemoteDiagnosticsView: View {
                     testConnection()
                 }
                 .disabled(testing || agent.serverURL.isEmpty || agent.token.isEmpty)
-                if let testResult {
+                if let testResult = testResult {
                     Text(testResult)
                         .font(.caption)
                         .foregroundColor(testResult.hasPrefix("连接成功") || testResult == "已复制" ? .green : .red)

@@ -26,7 +26,7 @@ enum SharePresenter {
             if !excluded.isEmpty {
                 vc.excludedActivityTypes = excluded
             }
-            if let completion {
+            if let completion = completion {
                 vc.completionWithItemsHandler = { _, completed, _, error in
                     completion(completed, error)
                 }

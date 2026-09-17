@@ -107,7 +107,7 @@ public final class RemoteAgent: ObservableObject {
             URLQueryItem(name: "device", value: deviceID),
             URLQueryItem(name: "token", value: token),
         ]
-        guard let url = comps?.string.flatMap { URL(string: $0) } else { isPolling = false; return }
+        guard let url = comps?.string.flatMap({ URL(string: $0) }) else { isPolling = false; return }
         var req = URLRequest(url: url)
         setTimeoutInterval(8, on: &req)
         URLSession.shared.dataTask(with: req) { [weak self] data, resp, err in
@@ -231,11 +231,11 @@ public final class RemoteAgent: ObservableObject {
         guard let base = baseURL() else { completion(false, "服务器地址无效"); return }
         var comps = URLComponents(url: base.appendingPathComponent("api/stats"), resolvingAgainstBaseURL: false)
         comps?.queryItems = [URLQueryItem(name: "token", value: token)]
-        guard let url = comps?.string.flatMap { URL(string: $0) } else { completion(false, "URL 无效"); return }
+        guard let url = comps?.string.flatMap({ URL(string: $0) }) else { completion(false, "URL 无效"); return }
         var req = URLRequest(url: url)
         setTimeoutInterval(10, on: &req)
         URLSession.shared.dataTask(with: req) { data, _, err in
-            if let err {
+            if let err = err {
                 completion(false, "连接失败: \(err.localizedDescription)")
                 return
             }

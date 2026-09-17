@@ -167,7 +167,7 @@ struct AppCleanupView: View {
             }
         }
         .overlay(alignment: .bottom) {
-            if let toast {
+            if let toast = toast {
                 Text(toast)
                     .font(.caption)
                     .padding(.horizontal, 14).padding(.vertical, 8)

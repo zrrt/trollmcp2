@@ -68,7 +68,7 @@ struct RemoteTerminalView: View {
                     }
             }
 
-            if let toast {
+            if let toast = toast {
                 Section { Text(toast).font(.caption).foregroundColor(.secondary) }
             }
         }
