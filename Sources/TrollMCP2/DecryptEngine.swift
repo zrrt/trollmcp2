@@ -166,7 +166,7 @@ enum DecryptEngine {
         var lastDiag: String? = nil
         for _ in 0..<MAX_DYLD_RETRIES {
             var dyldInfo = TaskDyldInfoBuf()
-            var count: UInt32 = UInt32(MemoryLayout<TaskDyldInfoBuf>.size / 4)
+            var count: UInt32 = 6 // TASK_DYLD_INFO_COUNT（sizeof(task_dyld_info_data_t)/sizeof(natural_t)=24/4）
             let kr = withUnsafeMutableBytes(of: &dyldInfo) { raw -> Int32 in
                 DeviceProbe.shared.tm_task_info(task, TASK_DYLD_INFO, raw.baseAddress!, &count)
             }
@@ -588,12 +588,16 @@ enum DecryptEngine {
     }
 }
 
-// MARK: - task_dyld_info 缓冲（20 字节：addr + size + format）
-
+// MARK: - task_dyld_info 缓冲（v2.9.205 修复：必须 24 字节！）
+// task_dyld_info_data_t = {mach_vm_address_t(8), mach_vm_size_t(8), boolean_t(4)} + 4 字节尾部 padding = 24
+// TASK_DYLD_INFO_COUNT = 24/4 = 6。
+// 之前只声明 20 字节（UInt64+UInt64+Int32），MemoryLayout.size=20 → count=20/4=5 ≠ 6
+// → task_info 直接 KERN_FAILURE(4)，且缓冲区越界写 4 字节 —— 这就是"跨进程恒 kr=4"的真根因。
 private struct TaskDyldInfoBuf {
     var all_image_info_addr: UInt64 = 0
     var all_image_info_size: UInt64 = 0
     var all_image_info_format: Int32 = 0
+    var _pad: Int32 = 0   // 显式补齐到 24 字节，确保 MemoryLayout.size == 24，count == 6
 }
 
 // MARK: - 纯 Swift Zip 打包器（Store 方法，零外部依赖）
