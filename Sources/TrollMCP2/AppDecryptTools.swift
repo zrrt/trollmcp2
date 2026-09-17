@@ -88,6 +88,13 @@ final class AppReplaceDecryptedTool: MCPTool {
             if c0 != 0 { return ["ok": false, "error": "备份主二进制失败(\(c0)): \(o0)"] }
         }
 
+        // 4.5 删除 SC_Info（对齐 TrollDecrypt：砸壳后旧 App Store 签名目录与解密二进制不匹配，
+        // 残留会导致就地替换后目标 App 启动闪退——实测小红书 cryptID=0 后重启闪退无崩溃日志）
+        let scInfo = app.path + "/SC_Info"
+        if FileManager.default.fileExists(atPath: scInfo) {
+            _ = im.runAsRoot("rm", args: ["-rf", scInfo])
+        }
+
         // 5. 替换 + 重签
         let (c1, o1) = im.runAsRoot("cp", args: ["-p", decryptedMain, installedMain])
         if c1 != 0 { return ["ok": false, "error": "替换主二进制失败(\(c1)): \(o1)"] }
