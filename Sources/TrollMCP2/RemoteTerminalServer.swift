@@ -220,8 +220,53 @@ final class RemoteTerminalServer {
             handleAudit(client, req)
         case ("GET", "/api/crash"):
             handleCrash(client, req)
+        case ("GET", "/api/file"):
+            // v2.9.258: 文件下载端点——AI 远程调试拉取截图/日志/ipa/文本
+            // 白名单目录：工作区(Documents/Workspace)、文档(Documents)、临时
+            handleFile(client, req)
         default:
             sendResponse(client, status: 404, body: json(["ok": false, "error": "no_route"]))
+        }
+    }
+
+    /// v2.9.258: GET /api/file?path=<绝对路径>——白名单目录内文件直接返回字节
+    private func handleFile(_ client: Int32, _ req: HTTPRequest) {
+        guard let p = req.query["path"], !p.isEmpty else {
+            sendResponse(client, status: 400, body: json(["ok": false, "error": "path_required"]))
+            return
+        }
+        let allowedPrefixes: [String] = [
+            NSHomeDirectory() + "/Documents/Workspace/",
+            NSHomeDirectory() + "/Documents/",
+        ]
+        let expanded = (p as NSString).expandingTildeInPath
+        guard allowedPrefixes.contains(where: { expanded.hasPrefix($0) }) else {
+            sendResponse(client, status: 403, body: json(["ok": false, "error": "path_denied", "hint": "仅允许 Documents/Workspace 与 Documents 目录"]))
+            return
+        }
+        guard let data = FileManager.default.contents(atPath: expanded) else {
+            sendResponse(client, status: 404, body: json(["ok": false, "error": "not_found", "path": expanded]))
+            return
+        }
+        let ext = (expanded as NSString).pathExtension.lowercased()
+        let mime: String
+        switch ext {
+        case "png": mime = "image/png"
+        case "jpg", "jpeg": mime = "image/jpeg"
+        case "json": mime = "application/json"
+        case "log", "txt", "md": mime = "text/plain; charset=utf-8"
+        case "ipa", "tipa": mime = "application/octet-stream"
+        case "zip": mime = "application/zip"
+        default: mime = "application/octet-stream"
+        }
+        var head = "HTTP/1.1 200 OK\r\n"
+        head += "Content-Type: \(mime)\r\n"
+        head += "Content-Length: \(data.count)\r\n"
+        head += "Connection: close\r\n\r\n"
+        let headData = Data(head.utf8)
+        _ = headData.withUnsafeBytes { send(client, $0.baseAddress, headData.count, 0) }
+        if data.count > 0 {
+            _ = data.withUnsafeBytes { send(client, $0.baseAddress, data.count, 0) }
         }
     }
 
