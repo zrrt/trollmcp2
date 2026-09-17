@@ -8,12 +8,13 @@ cd "$(dirname "$0")/.."
 SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
 echo ">>> iphoneos SDK: $SDK"
 
-echo ">>> swift build (arm64-apple-ios16.0, release)"
+# v2.9.249: 部署目标 16→14 治本——按 ios16 编译会引用 iOS16+ 符号(URLRequest.httpMethod/timeoutInterval 等 availability 标注错误的 Swift setter),iOS 15.6 dyld 启动崩;降到 ios14 后编译器自动避免 iOS16+ API
+echo ">>> swift build (arm64-apple-ios14.0, release)"
 swift build -c release \
     -Xswiftc -sdk -Xswiftc "$SDK" \
-    -Xswiftc -target -Xswiftc arm64-apple-ios16.0 \
+    -Xswiftc -target -Xswiftc arm64-apple-ios14.0 \
     -Xcc -isysroot -Xcc "$SDK" \
-    -Xcc -target -Xcc arm64-apple-ios16.0
+    -Xcc -target -Xcc arm64-apple-ios14.0
 
 BIN=".build/release/TrollMCP2"
 test -f "$BIN"

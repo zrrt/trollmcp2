@@ -169,6 +169,18 @@ func setHTTPMethod(_ method: String, on request: inout URLRequest) {
     request = mutable as! URLRequest
 }
 
+// v2.9.249：iOS15 兼容——presentationDetents 仅 iOS16+；部署目标降至14后 iOS16 分支正常半屏、iOS15 保持默认 sheet
+extension View {
+    @ViewBuilder
+    func sheetDetents(_ detents: Set<PresentationDetent>) -> some View {
+        if #available(iOS 16.0, *) {
+            self.presentationDetents(detents)
+        } else {
+            self
+        }
+    }
+}
+
 // v2.9.248：iOS 15.6 兼容——URLRequest.timeoutInterval 的 Swift setter 是 iOS16+ ABI 符号
 // (dyld: Symbol not found _$s10Foundation10URLRequestV15timeoutIntervalSdvs)，iOS 15.6 Foundation 缺失导致启动闪退。
 // 改用 NSMutableURLRequest 的 ObjC 属性，ObjC 消息跨 iOS 14-17 稳定。
