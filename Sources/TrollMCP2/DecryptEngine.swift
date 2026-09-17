@@ -175,7 +175,7 @@ enum DecryptEngine {
             let kr = dyldBuf.withUnsafeMutableBytes { raw -> Int32 in
                 MachRaw.taskInfo(task: task, flavor: TASK_DYLD_INFO, info: raw.baseAddress!, count: &count)
             }
-            let dyldInfoAddr = loadU64(dyldBuf, 0)
+            let dyldInfoAddr = loadU64(Data(dyldBuf), 0)
             guard kr == 0, dyldInfoAddr != 0 else {
                 lastDiag = (kr != 0) ? "task_info kr=\(kr)" : "all_image_info_addr=0"
                 Thread.sleep(forTimeInterval: 0.01); continue
