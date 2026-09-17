@@ -15,39 +15,17 @@ struct FloatingBrowserOverlay: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
+                // v2.9.243：删掉折叠小圆球——悬浮窗只保留展开态(AI调浏览器时弹卡片,可关闭/全屏),不再折叠成右侧胶囊
                 if fb.isVisible {
-                    if fb.isCollapsed {
-                        capsuleView
-                            .position(fb.center)
-                            .gesture(dragGesture(minimumDistance: 12))
-                    } else {
-                        expandedView
-                            .frame(width: isFullscreen ? geo.size.width * 0.98 : geo.size.width * 0.92,
-                                   height: isFullscreen ? geo.size.height * 0.94 : geo.size.height * 0.60)
-                            .position(fb.center)
-                    }
+                    expandedView
+                        .frame(width: isFullscreen ? geo.size.width * 0.98 : geo.size.width * 0.92,
+                               height: isFullscreen ? geo.size.height * 0.94 : geo.size.height * 0.60)
+                        .position(fb.center)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .allowsHitTesting(fb.isVisible)
-    }
-
-    // MARK: - 缩小胶囊（v2.9.43：右缘半露悬浮球，中心 x=屏宽-22 → 左半圆露出、可点击展开）
-
-    private var capsuleView: some View {
-        ZStack {
-            Circle()
-                .fill(LinearGradient(colors: [Color.blue, Color.tmCyan], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .frame(width: 46, height: 46)
-                .shadow(color: .black.opacity(0.3), radius: 6, x: 0, y: 2)
-            Image(systemName: "safari.fill")
-                .font(.system(size: 19))
-                .foregroundColor(.white)
-        }
-        .frame(width: 46, height: 46)
-        .contentShape(Circle())
-        .onTapGesture { withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) { fb.expand() } }
     }
 
     // MARK: - 展开态浏览器

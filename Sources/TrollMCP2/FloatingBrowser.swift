@@ -38,7 +38,6 @@ final class FloatingBrowser: ObservableObject {
     private var screen: CGSize { UIScreen.main.bounds.size }
 
     // v2.9.43：胶囊半露悬浮球——中心贴在屏幕右缘，右半圆裁到屏外，露出左半圆可点击
-    private var capsuleX: CGFloat { screen.width }
 
     /// AI 操作 / 用户打开：显示并展开（自动浮现，用户可看到 AI 操作）
     func show() {
@@ -53,11 +52,9 @@ final class FloatingBrowser: ObservableObject {
         isVisible = false
     }
 
-    /// 缩小为右侧边缘胶囊（仅主线程 UI 调用）
+    /// v2.9.243：折叠=直接隐藏（胶囊已删，不再有折叠态）
     func collapse() {
-        lastExpandedCenter = center
-        isCollapsed = true
-        center = CGPoint(x: capsuleX, y: center.y)
+        isVisible = false
     }
 
     /// 从胶囊展开回浏览器（仅主线程 UI 调用）
@@ -80,33 +77,16 @@ final class FloatingBrowser: ObservableObject {
     }
 
     func drag(by delta: CGSize) {
-        if isCollapsed {
-            // 缩小态：x 固定贴右缘，仅上下移动
-            center = CGPoint(x: capsuleX, y: dragStart.y + delta.height)
-        } else {
-            center = CGPoint(x: dragStart.x + delta.width, y: dragStart.y + delta.height)
-        }
+        // v2.9.243：胶囊已删，只有展开态拖动
+        center = CGPoint(x: dragStart.x + delta.width, y: dragStart.y + delta.height)
     }
 
     func endDrag() {
-        if isCollapsed {
-            // 缩小态：贴右缘，y 夹在屏幕内
-            center.x = capsuleX
-            center.y = min(max(center.y, 60), screen.height - 60)
-            persistCenter()
-        } else {
-            // 展开态：拖到屏幕右侧边缘附近 → 自动缩成胶囊；否则夹在屏幕内
-            if center.x > screen.width * 0.82 {
-                lastExpandedCenter = center
-                isCollapsed = true
-                center.x = capsuleX
-            } else {
-                let halfW = screen.width * 0.46
-                let halfH = screen.height * 0.30
-                center.x = min(max(center.x, halfW), screen.width - halfW)
-                center.y = min(max(center.y, halfH), screen.height - halfH)
-                persistCenter()
-            }
-        }
+        // v2.9.243：胶囊已删，展开态直接夹在屏幕内
+        let halfW = screen.width * 0.46
+        let halfH = screen.height * 0.30
+        center.x = min(max(center.x, halfW), screen.width - halfW)
+        center.y = min(max(center.y, halfH), screen.height - halfH)
+        persistCenter()
     }
 }
