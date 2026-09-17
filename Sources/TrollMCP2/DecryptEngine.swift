@@ -391,6 +391,10 @@ enum DecryptEngine {
                                  nextStep: "手动打开目标 App 后再执行砸壳；或在 TrollStore 里确认该 App 可正常启动",
                                  pid: 0, launchErrors: launchErrors)
         }
+        // v2.9.217：TrollDecrypt launchd 启动后先复制 App bundle（耗时数秒）再读 dyld 镜像表，
+        // 那段时间正是进程 exec/dyld 初始化窗口。我们 launchd 后立即读 → dyld 映射未建 →
+        // all_image_info_addr 无效（实测 region_kr=1 KERN_INVALID_ADDRESS）。补 3 秒对齐。
+        Thread.sleep(forTimeInterval: 3.0)
 
         // —— v2.9.198：注入式优先 ——
         // 实测 task_for_pid 虽成功（kr=0）但 task_info(TASK_DYLD_INFO) 恒 kr=4（跨进程读镜像表死路，
