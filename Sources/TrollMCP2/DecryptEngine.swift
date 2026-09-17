@@ -33,7 +33,7 @@ private let MH_MAGIC_64: UInt32 = 0xfeedfacf
 private let LC_ENCRYPTION_INFO: UInt32 = 0x21
 private let LC_ENCRYPTION_INFO_64: UInt32 = 0x2C
 private let TASK_DYLD_INFO: Int32 = 2
-private let MAX_DYLD_RETRIES = 300
+private let MAX_DYLD_RETRIES = 3000 // v2.9.221: 30秒重试窗口(dyld镜像表可能晚初始化,实测3秒内恒垃圾值)
 
 /// dyld_all_image_infos 只读前 3 个字段（16 字节，布局稳定）
 private struct DyldAllImageInfos {
