@@ -177,6 +177,7 @@ enum DecryptEngine {
             }
             let dyldInfoAddr = loadU64(Data(dyldBuf), 0)
             // v2.9.215 诊断：对镜像表地址做 mach_vm_region 检查（区分不可读 vs 调用问题）
+            var regionDiagStr = ""
             if kr == 0, dyldInfoAddr != 0 {
                 var regionAddr = dyldInfoAddr
                 var regionSize: UInt64 = 0
@@ -188,7 +189,12 @@ enum DecryptEngine {
                                      flavor: 9 /* VM_REGION_BASIC_INFO_64 */, info: raw.baseAddress!,
                                      infoCount: &regionCnt, objectName: &objName)
                 }
-                lastDiag = "mirror_addr=0x\(String(dyldInfoAddr, radix: 16)) region_kr=\(krRegion) region_size=\(regionSize) region_cnt=\(regionCnt)"
+                if krRegion == 0 {
+                    let prot = Int(regionInfo[8]) | (Int(regionInfo[9]) << 8) | (Int(regionInfo[10]) << 16) | (Int(regionInfo[11]) << 24)
+                    regionDiagStr = "region_kr=0 region_size=\(regionSize) prot=0x\(String(prot, radix: 16))"
+                } else {
+                    regionDiagStr = "region_kr=\(krRegion) region_cnt=\(regionCnt)"
+                }
             }
             guard kr == 0, dyldInfoAddr != 0 else {
                 lastDiag = (kr != 0) ? "task_info kr=\(kr)" : "all_image_info_addr=0"
@@ -196,7 +202,7 @@ enum DecryptEngine {
             }
             guard let infosData = vmRead(task: task, address: dyldInfoAddr,
                                          size: MemoryLayout<DyldAllImageInfos>.size) else {
-                lastDiag = "vmRead dyld_all_image_infos 失败 addr=\(dyldInfoAddr)"
+                lastDiag = "vmRead dyld_all_image_infos 失败 addr=0x\(String(dyldInfoAddr, radix: 16)) \(regionDiagStr)"
                 Thread.sleep(forTimeInterval: 0.01); continue
             }
             let infos = DyldAllImageInfos(version: loadU32(infosData, 0),
