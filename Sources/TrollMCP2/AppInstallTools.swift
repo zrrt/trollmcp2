@@ -21,24 +21,21 @@ final class AppInstallTool: MCPTool {
         let im = InjectionManager.shared
         let helper = "/var/usr/bin/trollstorehelper"
 
-        // 方式1：trollstorehelper 静默安装
-        if FileManager.default.isExecutableFile(atPath: helper) {
-            let (c, out) = im.spawnRoot(helper, args: ["install", path], timeout: 180)
-            if c == 0 {
-                AuditLog.shared.log("app.install", detail: "\(path) → trollstorehelper 成功")
-                AppCatalog.invalidateCache()   // v2.9.135: 安装后失效应用缓存
-                return ["ok": true, "method": "trollstorehelper", "output": out,
-                        "message": "已静默安装 \(path)"]
-            }
-            // 失败降级 URL scheme
-            let msg = installViaScheme(path)
-            return ["ok": msg.ok, "method": msg.ok ? "trollstore://" : "trollstorehelper_failed",
-                    "output": out, "message": "trollstorehelper 失败：\(out.trimmingCharacters(in: .whitespacesAndNewlines))。\(msg.message)"]
+        // v2.9.272：沙盒内 isExecutableFile 对 /var/usr/bin 返回 false（权限检查失败），
+        // 但 posix_spawn 可直接 exec——改为无条件 spawn，失败再降级 URL scheme
+        let (c, out) = im.spawnRoot(helper, args: ["install", path], timeout: 180)
+        if c == 0 {
+            AuditLog.shared.log("app.install", detail: "\(path) → trollstorehelper 成功")
+            AppCatalog.invalidateCache()   // v2.9.135: 安装后失效应用缓存
+            return ["ok": true, "method": "trollstorehelper", "output": out,
+                    "message": "已静默安装 \(path)"]
         }
-
-        // 方式2：URL scheme 调起 TrollStore
+        // 失败降级 URL scheme（记录 spawn 真实错误，便于远程诊断）
         let msg = installViaScheme(path)
-        return ["ok": msg.ok, "method": msg.ok ? "trollstore://" : "none", "message": msg.message]
+        let cOut = out.trimmingCharacters(in: .whitespacesAndNewlines)
+        return ["ok": msg.ok, "method": msg.ok ? "trollstore://" : "trollstorehelper_failed",
+                "output": cOut.isEmpty ? "(spawn 退出码 \(c)，无输出)" : cOut,
+                "message": "trollstorehelper 失败（exit=\(c)）。\(msg.message)"]
     }
 
     private func installViaScheme(_ path: String) -> (ok: Bool, message: String) {
