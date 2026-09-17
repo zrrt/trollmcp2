@@ -763,14 +763,16 @@ enum ZipStorer {
             var crcVal: uLong = 0
             var totalComp = 0
             while true {
-                let n = src.read(into: &inBuf, upToCount: chunk)
-                let have = max(0, n)
+                // 老API readData(ofLength:) (theos Swift 不认 read(into:upToCount:))
+                let dataChunk = src.readData(ofLength: chunk)
+                let have = dataChunk.count
+                if have > 0 { dataChunk.copyBytes(to: &inBuf, count: have) }
                 crcVal = inBuf.withUnsafeBytes { raw in
                     crc32(crcVal, raw.bindMemory(to: UInt8.self).baseAddress!, uInt(have))
                 }
                 strm.next_in = inBuf.withUnsafeMutableBytes { $0.bindMemory(to: UInt8.self).baseAddress }
                 strm.avail_in = uInt(have)
-                let flush: Int32 = (n <= 0) ? Z_FINISH : Z_NO_FLUSH
+                let flush: Int32 = (have == 0) ? Z_FINISH : Z_NO_FLUSH
                 while true {
                     let outCap = outBuf.count
                     strm.next_out = outBuf.withUnsafeMutableBytes { $0.bindMemory(to: UInt8.self).baseAddress }
