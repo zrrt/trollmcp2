@@ -778,6 +778,22 @@ enum ZipStorer {
     }
 
     static func createZip(at zipPath: String, fromDirectory dirPath: String) -> Bool {
+        // v2.9.268：优先系统 /usr/bin/zip（单次 spawn 完成，快+可靠+不会中断在中央目录写入）。
+        // 背景：ZipStorer 流式打包 163MB ipa 在 iOS 上需 30-60s，期间 TrollAgent 被系统杀
+        // → central directory 未写入 → ipa 坏（实测小红书 163MB "End-of-central-directory not found"）。
+        // 系统 zip 用压缩线程+整包原子写，中断概率极低；失败再回退 ZipStorer。
+        let dirName = (dirPath as NSString).lastPathComponent
+        let parentDir = (dirPath as NSString).deletingLastPathComponent
+        if FileManager.default.fileExists(atPath: "/usr/bin/zip") {
+            // 先删旧包，避免 zip 追加模式把新旧内容混一起
+            try? FileManager.default.removeItem(atPath: zipPath)
+            let (zcode, zout) = InjectionManager.shared.spawn("/usr/bin/zip", args: ["-r", "-q", "-y", zipPath, dirName], cwd: parentDir, timeout: 600)
+            if zcode == 0, FileManager.default.fileExists(atPath: zipPath) {
+                return true
+            }
+            NSLog("[ZipStorer] 系统 zip 失败(\(zcode)): \(zout) 回退 ZipStorer")
+        }
+
         var files: [(rel: String, abs: String)] = []
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(atPath: dirPath) else { return false }

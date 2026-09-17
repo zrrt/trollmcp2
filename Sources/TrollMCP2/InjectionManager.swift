@@ -292,7 +292,7 @@ final class InjectionManager {
 
     /// 非 root 版 posix_spawn（部分场景需要 mobile 身份执行）。
     /// v2.9.126：加 timeout（默认 60s，超时 SIGKILL 返回 code=-2），防命令挂起卡死。
-    func spawn(_ path: String, args: [String], timeout: Double = 60) -> (Int32, String) {
+    func spawn(_ path: String, args: [String], timeout: Double = 60, cwd: String? = nil) -> (Int32, String) {
         var argv: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) }
         argv.append(nil)
         defer { for p in argv where p != nil { free(p) } }
@@ -309,6 +309,9 @@ final class InjectionManager {
         posix_spawn_file_actions_adddup2(&fileActions, errPipe[1], 2)
         posix_spawn_file_actions_addclose(&fileActions, outPipe[0])
         posix_spawn_file_actions_addclose(&fileActions, errPipe[0])
+        if let c = cwd {
+            posix_spawn_file_actions_addchdir_np(&fileActions, c)
+        }
 
         var env: [UnsafeMutablePointer<CChar>?] = [
             strdup("PATH=/usr/bin:/bin:/usr/sbin:/sbin"),
