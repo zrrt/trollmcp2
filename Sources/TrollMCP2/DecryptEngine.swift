@@ -768,7 +768,7 @@ enum ZipStorer {
                 let have = dataChunk.count
                 if have > 0 { dataChunk.copyBytes(to: &inBuf, count: have) }
                 crcVal = inBuf.withUnsafeBytes { raw in
-                    crc32(crcVal, raw.bindMemory(to: UInt8.self).baseAddress!, uInt(have))
+                    zlib.crc32(crcVal, raw.bindMemory(to: UInt8.self).baseAddress!, uInt(have))
                 }
                 strm.next_in = inBuf.withUnsafeMutableBytes { $0.bindMemory(to: UInt8.self).baseAddress }
                 strm.avail_in = uInt(have)
