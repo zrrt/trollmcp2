@@ -1,5 +1,104 @@
 import Foundation
 
+// v2.9.262：就地替换已安装 App 的加密主二进制为砸壳版（不重装、不丢数据）
+// 流程：找工作区 decrypted/ 下砸壳 ipa → ZipExtractor 解压 → 取 Payload 内主二进制
+//     → 备份已安装主二进制(.troll-fools.bak) → root cp 替换 → ct_bypass 重签 + chown
+//     → 返回可注入状态（cryptID 应为 0，之后 control.inject allowMain 可注入主二进制）
+final class AppReplaceDecryptedTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "app.replace_decrypted",
+        summary: "把 app.decrypt 砸壳产出的解密主二进制就地替换到已安装 App（不重装、保留数据容器）。替换后主二进制 cryptID=0，control.inject 即可注入主二进制（启动必加载）。替换前自动备份 .troll-fools.bak，可 injection.disable 恢复。",
+        parameters: [
+            "bundle_id": "目标 App Bundle ID（必填）",
+            "ipa_path": "砸壳 ipa 绝对路径（可选；缺省自动找工作区 decrypted/ 下匹配的 ipa）"
+        ]
+    )
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
+            throw MCPError.invalidParams("bundle_id required")
+        }
+        guard let app = AppCatalog.find(bundleId) else {
+            throw MCPError.failed("未找到 App: \(bundleId)")
+        }
+        let im = InjectionManager.shared
+        let workspace = "/var/mobile/Documents/Workspace"
+
+        // 1. 定位砸壳 ipa
+        var ipaPath = params["ipa_path"] as? String ?? ""
+        if ipaPath.isEmpty {
+            let decDir = workspace + "/decrypted"
+            let files = (try? FileManager.default.contentsOfDirectory(atPath: decDir)) ?? []
+            let cands = files.filter { $0.contains(bundleId) && $0.hasSuffix(".ipa") }.sorted()
+            guard let hit = cands.last else {
+                return ["ok": false, "error": "工作区 decrypted/ 下未找到 \(bundleId) 的砸壳 ipa", "next_step": "先 app.decrypt \(bundleId)"]
+            }
+            ipaPath = decDir + "/" + hit
+        }
+        guard FileManager.default.fileExists(atPath: ipaPath) else {
+            return ["ok": false, "error": "ipa 不存在: \(ipaPath)"]
+        }
+
+        // 2. 解压
+        let workDir = workspace + "/replace_tmp_" + bundleId.replacingOccurrences(of: ".", with: "_")
+        _ = im.runAsRoot("rm", args: ["-rf", workDir])
+        _ = im.runAsRoot("mkdir", args: ["-p", workDir])
+        do {
+            try ZipExtractor.unzip(ipaPath, to: URL(fileURLWithPath: workDir, isDirectory: true))
+        } catch {
+            return ["ok": false, "error": "解压 ipa 失败: \(error.localizedDescription)"]
+        }
+
+        // 3. 找 Payload 内主二进制
+        let payloadRoot = workDir + "/Payload"
+        let appDirs = (try? FileManager.default.contentsOfDirectory(atPath: payloadRoot)) ?? []
+        guard let appDirName = appDirs.first(where: { $0.hasSuffix(".app") }) else {
+            return ["ok": false, "error": "解压后无 Payload/*.app", "payload": payloadRoot]
+        }
+        let execName = (NSDictionary(contentsOfFile: payloadRoot + "/" + appDirName + "/Info.plist")?["CFBundleExecutable"] as? String)
+        let decryptedMain = payloadRoot + "/" + appDirName + "/" + (execName ?? "")
+        guard FileManager.default.fileExists(atPath: decryptedMain) else {
+            return ["ok": false, "error": "解密主二进制不存在: \(decryptedMain)"]
+        }
+
+        // 4. 已安装主二进制 + 备份
+        let exec = (NSDictionary(contentsOfFile: app.path + "/Info.plist")?["CFBundleExecutable"] as? String) ?? ""
+        guard !exec.isEmpty else {
+            return ["ok": false, "error": "已安装 App Info.plist 无 CFBundleExecutable"]
+        }
+        let installedMain = app.path + "/" + exec
+        let backup = installedMain + ".troll-fools.bak"
+        if !FileManager.default.fileExists(atPath: backup) {
+            let (c0, o0) = im.runAsRoot("cp", args: ["-p", installedMain, backup])
+            if c0 != 0 { return ["ok": false, "error": "备份主二进制失败(\(c0)): \(o0)"] }
+        }
+
+        // 5. 替换 + 重签
+        let (c1, o1) = im.runAsRoot("cp", args: ["-p", decryptedMain, installedMain])
+        if c1 != 0 { return ["ok": false, "error": "替换主二进制失败(\(c1)): \(o1)"] }
+        _ = im.coreTrustBypass(installedMain, teamID: im.realTeamID(for: bundleId, appPath: app.path))
+        _ = im.runAsRoot("chown", args: ["33:33", installedMain])
+
+        // 6. 验证 cryptID
+        let mo = MachOAnalyzer.analyze(installedMain)
+        AppCatalog.invalidateCache()
+        return [
+            "ok": true,
+            "message": "主二进制已就地替换为砸壳版（保留数据容器，未重装）",
+            "data": [
+                "bundle_id": bundleId,
+                "installed_main": installedMain,
+                "backup": backup,
+                "cryptID": mo?.cryptID ?? -1,
+                "valid": mo?.valid ?? false,
+                "arch": mo?.arch ?? "",
+                "injectable": (mo?.cryptID ?? 1) == 0,
+                "next_step": (mo?.cryptID ?? 1) == 0 ? "用 control.inject 注入主二进制 → app.restart → 验证 4789" : "cryptID 仍非 0，替换可能失败"
+            ]
+        ]
+    }
+}
+
 // v2.9.128：应用解密（砸壳）工具 —— 引擎实现在 DecryptEngine.swift
 // 原理（对齐 TrollDecrypt 全量算法）：
 //   启动目标 App → task_for_pid → task_info(TASK_DYLD_INFO) 遍历 dyld 镜像

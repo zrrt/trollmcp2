@@ -896,7 +896,7 @@ final class InjectionManager {
     /// v2.9.104：teamID 用目标 App 真实 TeamID（TrollFools 用 LSApplicationProxy.teamID()），
     /// fallback TROLLTROLL——部分 App 对签名 TeamID 有校验，固定 TROLLTROLL 会被拒启动
     @discardableResult
-    private func coreTrustBypass(_ target: String, teamID: String = "TROLLTROLL") -> (Int32, String) {
+    func coreTrustBypass(_ target: String, teamID: String = "TROLLTROLL") -> (Int32, String) {
         _ = pseudoSign(target)
         let (c, o) = runAsRoot("ct_bypass", args: ["-r", "-i", target, "-t", teamID])
         _ = runAsRoot("chown", args: ["33:33", target])

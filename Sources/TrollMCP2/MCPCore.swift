@@ -692,6 +692,7 @@ public final class ToolRegistry: ObservableObject {
         register(SSHTool())
         register(SCPTool())
         register(AppDecryptTool())
+        register(AppReplaceDecryptedTool())
         register(AppEncryptInfoTool())
 
         // v2.9.69：质量与诊断工具
