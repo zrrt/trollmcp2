@@ -103,7 +103,6 @@ struct OperationView: View {
             .listStyle(.insetGrouped)
             .navigationTitle("操作")
         }
-        .navigationViewStyle(.stack)
     }
 
     static let timeFormatter: DateFormatter = {
@@ -143,7 +142,6 @@ struct ApprovalSheet: View {
             .listStyle(.insetGrouped)
             .navigationTitle("审批")
         }
-        .navigationViewStyle(.stack)
     }
 }
 
@@ -281,7 +279,6 @@ struct AssistantProfilesView: View {
                 AssistantProfileEditor(profile: profile)
             }
         }
-        .navigationViewStyle(.stack)
     }
 }
 
@@ -292,7 +289,7 @@ struct AssistantProfileEditor: View {
     @Environment(\.presentationMode) private var presentationMode
 
     var body: some View {
-        CompatNav {
+        
             Form {
                 Section(header: SettingSectionHeader(title: "基本信息")) {
                     TextField("名称", text: $profile.name)
@@ -332,7 +329,7 @@ struct AssistantProfileEditor: View {
                 }
             }
             .navigationTitle(profile.name.isEmpty ? "新角色" : profile.name)
-        }
+        
         .navigationViewStyle(.stack)
     }
 }
@@ -483,7 +480,7 @@ struct AutomationTaskEditor: View {
     @Environment(\.presentationMode) private var presentationMode
 
     var body: some View {
-        CompatNav {
+        
             Form {
                 Section(header: SettingSectionHeader(title: "任务")) {
                     TextField("名称", text: $task.name)
@@ -509,7 +506,7 @@ struct AutomationTaskEditor: View {
                 }
             }
             .navigationTitle(task.name.isEmpty ? "新任务" : task.name)
-        }
+        
         .navigationViewStyle(.stack)
     }
 }
@@ -631,7 +628,7 @@ struct GatewayEditorView: View {
     @Environment(\.presentationMode) private var presentationMode
 
     var body: some View {
-        CompatNav {
+        
             Form {
                 Section(header: SettingSectionHeader(title: "服务端")) {
                     TextField("名称", text: $server.name)
@@ -656,7 +653,7 @@ struct GatewayEditorView: View {
                 }
             }
             .navigationTitle(server.name.isEmpty ? "新服务端" : server.name)
-        }
+        
         .navigationViewStyle(.stack)
     }
 }

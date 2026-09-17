@@ -149,7 +149,7 @@ struct WorkspaceBrowserView: View {
         .onAppear { reload() }
         .onChange(of: currentPath) { _ in reload() }
         .sheet(item: $previewItem) { item in
-            CompatNav { FilePreviewView(item: item) }
+             FilePreviewView(item: item) 
         }
         .sheet(isPresented: $showShare) {
             if let url = shareURL {

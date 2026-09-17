@@ -23,15 +23,13 @@ struct CleanupCenterView: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showCleanup) {
             if let app = selected {
-                CompatNav {
+                
                     AppCleanupView(bundleId: app.bundleId, name: app.name)
                         .toolbar {
                             ToolbarItem(placement: .navigationBarLeading) {
                                 Button("完成") { showCleanup = false }
                             }
                         }
-                }
-                .navigationViewStyle(.stack)
             }
         }
     }
