@@ -350,6 +350,18 @@ enum DecryptEngine {
                                  pid: 0, launchErrors: launchErrors)
         }
 
+        // —— v2.9.198：注入式优先 ——
+        // 实测 task_for_pid 虽成功（kr=0）但 task_info(TASK_DYLD_INFO) 恒 kr=4（跨进程读镜像表死路，
+        // v2.9.184 已证），原降级条件只认 task_for_pid 失败 → 永远走不进注入式。
+        // 现改为：ControlAgent(4789) 在线 → 直接注入式（进程内自解密）；否则回退跨进程。
+        if (ControlAgentTools.shared.status(retries: 2)["connected"] as? Bool) == true {
+            let viaCA = decryptViaControlAgent(app: app, bundleId: bundleId, pid: pid, launchErrors: launchErrors)
+            if viaCA.ok { return viaCA }
+            return DecryptResult(ok: false, errorCode: "env",
+                                 errorReason: "注入式砸壳不可用: \(viaCA.errorReason)",
+                                 nextStep: viaCA.nextStep, pid: pid, launchErrors: launchErrors)
+        }
+
         // —— task_for_pid ——
         var task: UInt32 = 0
         let kr = DeviceProbe.shared.tm_task_for_pid(DeviceProbe.shared.tm_mach_task_self(), pid, &task)
