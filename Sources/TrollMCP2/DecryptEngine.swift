@@ -83,8 +83,9 @@ enum DecryptEngine {
         var outSize: UInt64 = 0
         let kr = buf.withUnsafeMutableBytes { raw -> Int32 in
             guard let base = raw.baseAddress else { return -1 }
-            return DeviceProbe.shared.tm_mach_vm_read_overwrite(
-                task, address, UInt64(size), UInt64(UInt(bitPattern: base)), &outSize)
+            return MachRaw.vmReadOverwrite(
+                task: task, address: address, size: UInt64(size),
+                data: UInt64(UInt(bitPattern: base)), outsize: &outSize)
         }
         guard kr == 0, outSize == UInt64(size) else { return nil }
         return Data(buf)
@@ -168,7 +169,7 @@ enum DecryptEngine {
             var dyldInfo = TaskDyldInfoBuf()
             var count: UInt32 = 6 // TASK_DYLD_INFO_COUNT（sizeof(task_dyld_info_data_t)/sizeof(natural_t)=24/4）
             let kr = withUnsafeMutableBytes(of: &dyldInfo) { raw -> Int32 in
-                DeviceProbe.shared.tm_task_info(task, TASK_DYLD_INFO, raw.baseAddress!, &count)
+                MachRaw.taskInfo(task: task, flavor: TASK_DYLD_INFO, info: raw.baseAddress!, count: &count)
             }
             guard kr == 0, dyldInfo.all_image_info_addr != 0 else {
                 lastDiag = (kr != 0) ? "task_info kr=\(kr)" : "all_image_info_addr=0"
