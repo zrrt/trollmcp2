@@ -318,6 +318,7 @@ struct SettingsView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)   // v2.9.240：修复iOS16 NavigationStack+fullScreenCover下List高度被裁剪(只有中间一小块能滚动)
         .actionSheet(isPresented: $showLanguagePicker) {
             ActionSheet(
                 title: Text(L10n.t("row_lang")),
@@ -373,6 +374,7 @@ struct SettingsView: View {
             .padding(16)
         }
         .background(Color(.systemGroupedBackground))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)   // v2.9.240：同上，卡片模式也强制撑满
         .actionSheet(isPresented: $showLanguagePicker) {
             ActionSheet(
                 title: Text(L10n.t("row_lang")),
