@@ -543,6 +543,13 @@ enum DecryptEngine {
                                  nextStep: "工作区临时文件保留在 \(workingRoot)，可手动打包",
                                  pid: pid, launchErrors: launchErrors)
         }
+        // v2.9.270：打包后验证 EOCD——createZip 可能"返回成功但 zip 坏"（进程中断/系统zip未生效）
+        if !ZipStorer.zipHasEOCD(ipaPath) {
+            return DecryptResult(ok: false, errorCode: "tool",
+                                 errorReason: "打包 IPA 无 EOCD（打包中断或系统 zip 未生效），见 Workspace/zip_diag.log",
+                                 nextStep: "工作区临时文件保留在 \(workingRoot)，可手动打包",
+                                 pid: pid, launchErrors: launchErrors)
+        }
         try? FileManager.default.removeItem(atPath: workingRoot)
 
         // —— 杀掉砸壳时启动的进程（仅当是我们启动的）——
@@ -777,6 +784,20 @@ enum ZipStorer {
         return Data(dst.prefix(written).dropFirst(2).dropLast(4))
     }
 
+    /// v2.9.270：验证 zip 末尾 EOCD 签名（0x06054b50）。createZip 可能"返回成功但 zip 坏"
+    /// （进程被打断/系统 zip 未生效），decryptApp 打包后调用，坏包立即发现。
+    static func zipHasEOCD(_ path: String) -> Bool {
+        guard let h = FileHandle(forReadingAtPath: path) else { return false }
+        defer { try? h.close() }
+        let size = (try? h.seekToEnd()) ?? 0
+        guard size >= 22 else { return false }
+        try? h.seek(toFileOffset: size - 22)
+        let d = h.readData(ofLength: 22)
+        guard d.count == 22 else { return false }
+        let b = [UInt8](d)
+        return b[0] == 0x50 && b[1] == 0x4b && b[2] == 0x05 && b[3] == 0x06
+    }
+
     static func createZip(at zipPath: String, fromDirectory dirPath: String) -> Bool {
         // v2.9.268：优先系统 /usr/bin/zip（单次 spawn 完成，快+可靠+不会中断在中央目录写入）。
         // 背景：ZipStorer 流式打包 163MB ipa 在 iOS 上需 30-60s，期间 TrollAgent 被系统杀
@@ -792,10 +813,16 @@ enum ZipStorer {
             _ = FileManager.default.changeCurrentDirectoryPath(parentDir)
             let (zcode, zout) = InjectionManager.shared.spawn("/usr/bin/zip", args: ["-r", "-q", "-y", zipPath, dirName], timeout: 600)
             _ = FileManager.default.changeCurrentDirectoryPath(savedCwd)
+            // v2.9.270：系统 zip 结果写盘诊断（TrollAgent 内 NSLog 不可达，写文件可远程读）
+            let zipSize = (try? FileManager.default.attributesOfItem(atPath: zipPath)[.size] as? Int) ?? -1
+            let diag = "zip_exists=1 zcode=\(zcode) zout=\(String(zout.prefix(300))) zipSize=\(zipSize)"
+            try? diag.write(toFile: "/var/mobile/Documents/Workspace/zip_diag.log", atomically: true, encoding: .utf8)
             if zcode == 0, FileManager.default.fileExists(atPath: zipPath) {
                 return true
             }
             NSLog("[ZipStorer] 系统 zip 失败(\(zcode)): \(zout) 回退 ZipStorer")
+        } else {
+            try? "zip_exists=0".write(toFile: "/var/mobile/Documents/Workspace/zip_diag.log", atomically: true, encoding: .utf8)
         }
 
         var files: [(rel: String, abs: String)] = []
