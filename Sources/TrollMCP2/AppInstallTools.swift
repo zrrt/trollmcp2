@@ -19,13 +19,21 @@ final class AppInstallTool: MCPTool {
             return ["ok": false, "error": "文件不存在: \(path)"]
         }
         let im = InjectionManager.shared
-        let helper = "/var/usr/bin/trollstorehelper"
+        // v2.9.273：trollstorehelper 在 TrollStore.app bundle 内（TrollStore 源码 TSUtil.m
+        // rootHelperPath = NSBundle.mainBundle.bundlePath/trollstorehelper），不在 /var/usr/bin！
+        let tsPath = AppCatalog.list().first { $0.bundleId == "com.opa334.TrollStore" }?.path ?? ""
+        var helper = tsPath.isEmpty ? "/var/usr/bin/trollstorehelper" : tsPath + "/trollstorehelper"
+        var helperExist = FileManager.default.fileExists(atPath: helper)
+        if !helperExist, !tsPath.isEmpty {
+            let variants = [tsPath + "/trollstorehelper",
+                            tsPath + "/TrollStore.app/trollstorehelper",
+                            (tsPath as NSString).deletingLastPathComponent + "/trollstorehelper"]
+            for v in variants where FileManager.default.fileExists(atPath: v) { helper = v; helperExist = true; break }
+        }
 
-        // v2.9.272：沙盒内 isExecutableFile 对 /var/usr/bin 返回 false（权限检查失败），
-        // 但 posix_spawn 可直接 exec——改为无条件 spawn，失败再降级 URL scheme
         let (c, out) = im.spawnRoot(helper, args: ["install", path], timeout: 180)
         if c == 0 {
-            AuditLog.shared.log("app.install", detail: "\(path) → trollstorehelper 成功")
+            AuditLog.shared.log("app.install", detail: "\(path) → \(helper) 成功")
             AppCatalog.invalidateCache()   // v2.9.135: 安装后失效应用缓存
             return ["ok": true, "method": "trollstorehelper", "output": out,
                     "message": "已静默安装 \(path)"]
@@ -34,7 +42,7 @@ final class AppInstallTool: MCPTool {
         let msg = installViaScheme(path)
         let cOut = out.trimmingCharacters(in: .whitespacesAndNewlines)
         return ["ok": msg.ok, "method": msg.ok ? "trollstore://" : "trollstorehelper_failed",
-                "output": cOut.isEmpty ? "(spawn 退出码 \(c)，无输出)" : cOut,
+                "output": cOut.isEmpty ? "(spawn 退出码 \(c)，helper=\(helper) exist=\(helperExist))" : cOut,
                 "message": "trollstorehelper 失败（exit=\(c)）。\(msg.message)"]
     }
 
