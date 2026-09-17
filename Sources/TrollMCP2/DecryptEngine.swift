@@ -167,18 +167,22 @@ enum DecryptEngine {
     static func findImageLoadAddressDiag(task: UInt32, pid: Int32, binaryPath: String) -> (UInt64?, String?) {
         var lastDiag: String? = nil
         for _ in 0..<MAX_DYLD_RETRIES {
-            var dyldInfo = TaskDyldInfoBuf()
-            var count: UInt32 = 6 // TASK_DYLD_INFO_COUNT（sizeof(task_dyld_info_data_t)/sizeof(natural_t)=24/4）
-            let kr = withUnsafeMutableBytes(of: &dyldInfo) { raw -> Int32 in
+            // v2.9.213 真根因：iOS16 的 TASK_DYLD_INFO 需要 32 字节缓冲（count=8）！
+            // 实测真机：count=4/5/6 全部 kr=4（KERN_FAILURE），count=8 kr=0 成功。
+            // 之前 24 字节 count=6（macOS 尺寸）在 iOS16 恒 kr=4 —— 这就是跨进程砸壳失败的全部原因。
+            var dyldBuf = [UInt8](repeating: 0, count: 32)
+            var count: UInt32 = 8 // iOS16 TASK_DYLD_INFO_COUNT=8（32字节）
+            let kr = dyldBuf.withUnsafeMutableBytes { raw -> Int32 in
                 MachRaw.taskInfo(task: task, flavor: TASK_DYLD_INFO, info: raw.baseAddress!, count: &count)
             }
-            guard kr == 0, dyldInfo.all_image_info_addr != 0 else {
+            let dyldInfoAddr = loadU64(dyldBuf, 0)
+            guard kr == 0, dyldInfoAddr != 0 else {
                 lastDiag = (kr != 0) ? "task_info kr=\(kr)" : "all_image_info_addr=0"
                 Thread.sleep(forTimeInterval: 0.01); continue
             }
-            guard let infosData = vmRead(task: task, address: dyldInfo.all_image_info_addr,
+            guard let infosData = vmRead(task: task, address: dyldInfoAddr,
                                          size: MemoryLayout<DyldAllImageInfos>.size) else {
-                lastDiag = "vmRead dyld_all_image_infos 失败 addr=\(dyldInfo.all_image_info_addr)"
+                lastDiag = "vmRead dyld_all_image_infos 失败 addr=\(dyldInfoAddr)"
                 Thread.sleep(forTimeInterval: 0.01); continue
             }
             let infos = DyldAllImageInfos(version: loadU32(infosData, 0),
@@ -625,11 +629,13 @@ enum DecryptEngine {
 // TASK_DYLD_INFO_COUNT = 24/4 = 6。
 // 之前只声明 20 字节（UInt64+UInt64+Int32），MemoryLayout.size=20 → count=20/4=5 ≠ 6
 // → task_info 直接 KERN_FAILURE(4)，且缓冲区越界写 4 字节 —— 这就是"跨进程恒 kr=4"的真根因。
+// v2.9.213：该结构不再用于 task_info（改 32 字节数组 + count=8，见 findImageLoadAddressDiag）。
+// iOS16 TASK_DYLD_INFO 需要 32 字节（count=8），24 字节 count=6 恒 KERN_FAILURE(4)。
 private struct TaskDyldInfoBuf {
     var all_image_info_addr: UInt64 = 0
     var all_image_info_size: UInt64 = 0
     var all_image_info_format: Int32 = 0
-    var _pad: Int32 = 0   // 显式补齐到 24 字节，确保 MemoryLayout.size == 24，count == 6
+    var _pad: Int32 = 0
 }
 
 // MARK: - 纯 Swift Zip 打包器（Store 方法，零外部依赖）
