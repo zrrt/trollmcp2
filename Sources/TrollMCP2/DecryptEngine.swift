@@ -697,7 +697,7 @@ enum ZipStorer {
             data.withUnsafeBytes { srcRaw -> Int in
                 compression_encode_buffer(dstRaw.bindMemory(to: UInt8.self).baseAddress!, dstCap,
                                          srcRaw.bindMemory(to: UInt8.self).baseAddress!, data.count,
-                                         COMPRESSION_ZLIB)
+                                         nil, COMPRESSION_ZLIB)
             }
         }
         guard written > 4, written < data.count else { return nil }
