@@ -12,7 +12,7 @@ final class InjectionVerifyTool: MCPTool {
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "dylib": "要核对的 dylib 文件名（可选，不填自动检测所有注入资产）"
-        ]
+        ],
         verified: true,
     )
 

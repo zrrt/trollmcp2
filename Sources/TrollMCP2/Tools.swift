@@ -309,7 +309,7 @@ final class ClipboardReadTool: MCPTool {
     let definition = ToolDefinition(
         name: "clipboard.read",
         summary: "读取系统剪贴板文本（用户复制的验证码、链接、token 等最近一次复制内容）",
-        parameters: [:]
+        parameters: [:],
         verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

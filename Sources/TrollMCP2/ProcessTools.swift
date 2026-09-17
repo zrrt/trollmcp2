@@ -18,7 +18,7 @@ final class AppStartTool: MCPTool {
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "wait_seconds": "启动后等待秒数（默认 3，用于确认进程存活）"
-        ]
+        ],
         verified: true,
     )
 
@@ -102,7 +102,7 @@ final class AppStopTool: MCPTool {
         summary: "停止（杀掉）指定 App 进程。返回是否成功、原 PID。",
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）"
-        ]
+        ],
         verified: true,
     )
 
@@ -136,7 +136,7 @@ final class AppRestartTool: MCPTool {
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "wait_seconds": "启动后等待秒数（默认 3）"
-        ]
+        ],
         verified: true,
     )
 
@@ -179,7 +179,7 @@ final class AppStatusTool: MCPTool {
         summary: "查看指定 App 的运行状态：是否运行、PID、前台/后台、CPU 占用、内存占用、线程数、运行时长。",
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）"
-        ]
+        ],
         verified: true,
     )
 

@@ -66,7 +66,7 @@ final class AppEncryptInfoTool: MCPTool {
         summary: "查看指定 App 的加密状态（cryptid/cryptoff/cryptsize、签名）。App 正在运行时读进程内存精确解析，未运行时用 otool 且区分解析失败与未加密。",
         parameters: [
             "bundle_id": "目标 App 的 Bundle ID（必填）"
-        ]
+        ],
         verified: true,
     )
 

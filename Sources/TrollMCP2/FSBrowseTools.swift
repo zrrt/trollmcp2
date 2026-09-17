@@ -95,7 +95,7 @@ final class FSTreeTool: MCPTool {
             "path": "绝对路径（与 bundle_id 二选一；默认工作区根）",
             "depth": "递归深度（默认 1，最大 3）",
             "limit": "每层最多条目数（默认 60）"
-        ]
+        ],
         verified: true,
     )
 
@@ -183,7 +183,7 @@ final class FSReadTool: MCPTool {
             "as": "强制格式：auto（默认）/ text / json / hex",
             "line_start": "文本从第几行开始返回（1-based，默认 1）",
             "line_end": "文本返回到第几行（默认全部）"
-        ]
+        ],
         verified: true,
     )
 
@@ -347,7 +347,7 @@ final class FSHexdumpTool: MCPTool {
             "path": "绝对路径（与 bundle_id 二选一）",
             "offset": "起始字节偏移（默认 0）",
             "length": "读取字节数（默认 256，最大 4096）"
-        ]
+        ],
         verified: true,
     )
 

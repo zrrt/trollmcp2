@@ -245,7 +245,7 @@ final class InjectionDiagnoseTool: MCPTool {
         parameters: [
             "bundle_id": "目标 App 的 Bundle ID（必填）",
             "dylib_path": "要注入的 dylib 路径（可选，不填则检查已注入的 dylib）"
-        ]
+        ],
         verified: true,
     )
 
@@ -503,7 +503,7 @@ final class NetworkCaptureTool: MCPTool {
             "action": "操作类型：status（查看抓包状态）、start（开始抓包）、stop（停止抓包）、requests（查看请求列表）、analyze（分析请求统计）",
             "bundle_id": "目标 App Bundle ID（start 时必填）",
             "limit": "返回请求数量（默认 50）"
-        ]
+        ],
         verified: true,
     )
 

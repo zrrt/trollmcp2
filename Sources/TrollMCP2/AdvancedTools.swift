@@ -487,8 +487,7 @@ final class CompatibilityTool: MCPTool {
 
             "detail": "record 时的详细信息"
 
-        ]
-
+        ],
         verified: true,
     )
 
@@ -1408,7 +1407,7 @@ final class KeychainResetTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.keychain_reset",
         summary: "清空整机钥匙串：删除 keychain-2.db 并重启 securityd（绿盾式一键新机核心）。⚠️ 所有 App 的密码/令牌/密钥全部失效，慎用",
-        parameters: [:]
+        parameters: [:],
         verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -1430,7 +1429,7 @@ final class AdvertisingTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.advertising",
         summary: "读取广告标识符 IDFA 与追踪限制状态；action=reset 尝试刷新广告符（私有 API，iOS14+ 受系统限制时如实返回）",
-        parameters: ["action": "read（默认）/ reset"]
+        parameters: ["action": "read（默认）/ reset"],
         verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -1461,7 +1460,7 @@ final class IdfvTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.idfv",
         summary: "读取设备级 IDFV 与目标 App 的 identifierForVendor，可用于设备指纹核对/复制",
-        parameters: ["bundle_id": "可选：目标 App Bundle ID"]
+        parameters: ["bundle_id": "可选：目标 App Bundle ID"],
         verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

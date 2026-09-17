@@ -13,7 +13,7 @@ final class DiagnoseStartupTool: MCPTool {
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "auto_fix": "是否自动尝试修复（默认 false，仅诊断）"
-        ]
+        ],
         verified: true,
     )
 
