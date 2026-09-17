@@ -727,13 +727,11 @@ enum ZipStorer {
             let crc = crc32(data)
             let size = UInt32(data.count)
 
-            // v2.9.227: DEFLATE 压缩(与TrollDecrypt SSZipArchive一致, 421MB→~188MB)
-            var method: UInt16 = 0
-            var compData = data
-            var compSize = size
-            if let c = deflateRaw(data), c.count < data.count {
-                method = 8; compData = c; compSize = UInt32(c.count)
-            }
+            // v2.9.229: 回退store(228的deflate在真机大文件内存峰值>1GB→createZip失败,ipa 0字节)
+            // 后续用流式分块deflate解决体积(每次读1MB压缩,避免整文件缓冲)
+            let method: UInt16 = 0
+            let compData = data
+            let compSize = size
 
             // Local File Header
             var lfh = Data()
