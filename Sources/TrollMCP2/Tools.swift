@@ -270,7 +270,7 @@ final class MemoryTweakTool: MCPTool {
         let url = URL(string: "http://127.0.0.1:\(port)\(path)")!
         var request = URLRequest(url: url)
         setHTTPMethod(method, on: &request)
-        request.timeoutInterval = 30
+        setTimeoutInterval(30, on: &request)
 
         if method == "POST" {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")

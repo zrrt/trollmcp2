@@ -109,7 +109,7 @@ public final class RemoteAgent: ObservableObject {
         ]
         guard let url = comps?.url else { isPolling = false; return }
         var req = URLRequest(url: url)
-        req.timeoutInterval = 8
+        setTimeoutInterval(8, on: &req)
         URLSession.shared.dataTask(with: req) { [weak self] data, resp, err in
             guard let self else { return }
             defer { self.isPolling = false }
@@ -233,7 +233,7 @@ public final class RemoteAgent: ObservableObject {
         comps?.queryItems = [URLQueryItem(name: "token", value: token)]
         guard let url = comps?.url else { completion(false, "URL 无效"); return }
         var req = URLRequest(url: url)
-        req.timeoutInterval = 10
+        setTimeoutInterval(10, on: &req)
         URLSession.shared.dataTask(with: req) { data, _, err in
             if let err {
                 completion(false, "连接失败: \(err.localizedDescription)")
@@ -261,7 +261,7 @@ public final class RemoteAgent: ObservableObject {
         var req = URLRequest(url: base.appendingPathComponent(path))
         setHTTPMethod("POST", on: &req)
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.timeoutInterval = 10
+        setTimeoutInterval(10, on: &req)
         req.httpBody = try? JSONSerialization.data(withJSONObject: body, options: [])
         URLSession.shared.dataTask(with: req) { [weak self] _, _, _ in
             self?.isReporting = false

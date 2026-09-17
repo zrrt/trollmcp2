@@ -53,7 +53,7 @@ final class DeviceReporter {
         setHTTPMethod("POST", on: &request)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
-        request.timeoutInterval = 10
+        setTimeoutInterval(10, on: &request)
 
         URLSession.shared.dataTask(with: request) { _, _, _ in
             // 静默上报，失败不重试（下次启动再试）

@@ -168,3 +168,12 @@ func setHTTPMethod(_ method: String, on request: inout URLRequest) {
     mutable.httpMethod = method
     request = mutable as! URLRequest
 }
+
+// v2.9.248：iOS 15.6 兼容——URLRequest.timeoutInterval 的 Swift setter 是 iOS16+ ABI 符号
+// (dyld: Symbol not found _$s10Foundation10URLRequestV15timeoutIntervalSdvs)，iOS 15.6 Foundation 缺失导致启动闪退。
+// 改用 NSMutableURLRequest 的 ObjC 属性，ObjC 消息跨 iOS 14-17 稳定。
+func setTimeoutInterval(_ interval: TimeInterval, on request: inout URLRequest) {
+    let mutable = (request as NSURLRequest).mutableCopy() as! NSMutableURLRequest
+    mutable.timeoutInterval = interval
+    request = mutable as! URLRequest
+}

@@ -1527,7 +1527,7 @@ final class RefreshContainerTool: MCPTool {
 
 private func httpGet(port: Int, path: String, timeout: TimeInterval = 4) -> (Int, String)? {
     var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)\(path)")!)
-    request.timeoutInterval = timeout
+    setTimeoutInterval(timeout, on: &request)
     var result: (Int, String)? = nil
     let sem = DispatchSemaphore(value: 0)
     URLSession.shared.dataTask(with: request) { data, response, _ in

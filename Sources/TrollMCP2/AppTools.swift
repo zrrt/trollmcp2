@@ -177,7 +177,7 @@ private func agentHTTP(_ method: String, _ path: String, body: [String: Any]? = 
     guard let url = URL(string: "http://127.0.0.1:\(kAgentPort)\(path)") else { return nil }
     var req = URLRequest(url: url)
     setHTTPMethod(method, on: &req)
-    req.timeoutInterval = timeout
+    setTimeoutInterval(timeout, on: &req)
     if let body {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
