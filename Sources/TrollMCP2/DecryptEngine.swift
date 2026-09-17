@@ -184,7 +184,7 @@ enum DecryptEngine {
                 let k = tmp.withUnsafeMutableBytes { raw -> Int32 in
                     MachRaw.taskInfo(task: task, flavor: TASK_DYLD_INFO, info: raw.baseAddress!, count: &cnt)
                 }
-                if k == 0 && cnt >= 8 { dyldBuf = tmp; kr = 0; chosenCount = c; break }
+                if k == 0 && cnt >= 4 { dyldBuf = tmp; kr = 0; chosenCount = c; break } // v2.9.224: count=5(XNU正解)此前被cnt>=8过滤
             }
             let dyldInfoAddr = loadU64(Data(dyldBuf), 0)
             var regionDiagStr = ""
