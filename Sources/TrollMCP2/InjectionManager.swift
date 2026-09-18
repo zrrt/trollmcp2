@@ -1051,51 +1051,45 @@ final class InjectionManager {
         let allCandidates = collectInjectableMachOs(app, strategy: injectStrategy)
         let fwCandidates = hasFrameworks ? allCandidates.filter { $0.hasPrefix(frameworksDirPath + "/") } : []
         let targetMachO: String
-        if allowMain {
-            // v2.9.302：allowMain 必须先查主二进制加密状态——加密(cryptid!=0)的主二进制
-            // 强行注入=闪退（闲鱼Runner实测）。未加密(已砸壳)才允许主二进制；
-            // 加密则回退 Frameworks 候选，再不行就报错（对齐 TrollFools isProtectedMachO）。
-            let mainInfo = MachOAnalyzer.analyze(executablePath(app))
-            let mainCryptID = mainInfo?.cryptID ?? 1
-            if mainCryptID == 0 {
-                targetMachO = executablePath(app)
-            } else if !fwCandidates.isEmpty {
-                // 主二进制加密但 Frameworks 有未加密 Mach-O → 回退 Frameworks
-                var chosen = fwCandidates[0]
-                let mainDeps = MachOAnalyzer.analyze(executablePath(app))?.dylibs ?? []
-                if let boot = fwCandidates.first(where: { c in
-                    mainDeps.contains { d in d.contains((c as NSString).lastPathComponent) }
-                }) { chosen = boot }
-                targetMachO = chosen
-                AuditLog.shared.log("injection.allowMain_enc", detail: "\(bundleId) 主二进制加密(cryptid=\(mainCryptID))，回退 Frameworks: \((targetMachO as NSString).lastPathComponent)")
-            } else {
-                throw MCPError.failed("主二进制已加密(cryptid=\(mainCryptID))且 Frameworks 内无可注入 Mach-O。需先砸壳(app.decrypt)或换未加密目标。")
-            }
-        } else if hasFrameworks {
-            guard !fwCandidates.isEmpty else {
-                throw MCPError.failed("Frameworks 内没有可注入的 Mach-O（全部加密或不可读）。为避免 TrollFools 无法识别和关闭的注入，已拒绝注入主二进制；请先处理加密/重签后重试。")
-            }
-            // v2.9.191：优先"启动必加载"的 framework——主二进制 LC_LOAD_DYLIB 直接依赖的
-            // framework 才是启动时 dlopen 的（词典序第一个可能懒加载，导致 dylib constructor 不执行、
-            // HTTP server 不启动、注入式砸壳/控制失效；小红书/哔哩哔哩实测 AppsFlyerLib/BGM 均懒加载）
-            var chosen = fwCandidates[0]
+        // v2.9.303：废掉 allowMain 强注主二进制。主二进制在 dyld 阶段加载，dylib constructor
+        // 跑太早（runtime/substrate 未就绪）→ 小红书/闲鱼注入后闪退实测。TrollFools 正道：
+        // 只选 Frameworks 下未加密 Mach-O，且优先主二进制 LC_LOAD_DYLIB 直接依赖的（启动必 dlopen）。
+        // 主二进制仅在"完全没有 Frameworks 候选 + cryptid==0"的兜底场景才用。
+        let mainDeps = MachOAnalyzer.analyze(executablePath(app))?.dylibs ?? []
+        func pickFromFrameworks() -> String? {
+            guard !fwCandidates.isEmpty else { return nil }
+            // 1) 用户指定 preferred
             if let pref = preferredTarget, !pref.isEmpty,
-               let hit = fwCandidates.first(where: { $0.contains(pref) }) {
-                chosen = hit
-            } else {
-                let mainDeps = MachOAnalyzer.analyze(executablePath(app))?.dylibs ?? []
-                if let boot = fwCandidates.first(where: { c in
-                    mainDeps.contains { d in d.contains((c as NSString).lastPathComponent) }
-                }) {
-                    chosen = boot
-                }
+               let hit = fwCandidates.first(where: { $0.localizedCaseInsensitiveContains(pref) }) {
+                return hit
             }
+            // 2) 主二进制直接依赖（启动必加载，constructor 必执行）
+            if let boot = fwCandidates.first(where: { c in
+                let name = (c as NSString).lastPathComponent
+                return mainDeps.contains { d in
+                    let dep = (d as NSString).lastPathComponent
+                    return dep == name || dep.hasPrefix(name) || name.hasPrefix(dep)
+                }
+            }) {
+                return boot
+            }
+            // 3) 回退字典序第一个（可能懒加载，记日志）
+            AuditLog.shared.log("injection.fw_fallback", detail: "\(bundleId) Frameworks 候选但主二进制未直接依赖: \(fwCandidates.map { ($0 as NSString).lastPathComponent })")
+            return fwCandidates[0]
+        }
+        if hasFrameworks, let chosen = pickFromFrameworks() {
             targetMachO = chosen
         } else {
-            guard !allCandidates.isEmpty else {
-                throw MCPError.failed("没有可注入的 Mach-O：目标 App 的二进制全部加密或不可读（App Store 加密 App 无法注入）")
+            // 兜底：无 Frameworks 候选 → 看主二进制
+            let mainInfo = MachOAnalyzer.analyze(executablePath(app))
+            let mainCryptID = mainInfo?.cryptID ?? 1
+            if mainCryptID == 0, !allCandidates.isEmpty {
+                // 主二进制未加密才允许（仍有 dyld 早期加载风险，记警告）
+                targetMachO = allCandidates[0]
+                AuditLog.shared.log("injection.fallback_main", detail: "\(bundleId) 无 Frameworks 候选，回退主二进制 cryptid=0")
+            } else {
+                throw MCPError.failed("无可注入 Mach-O：Frameworks 无未加密候选且主二进制加密(cryptid=\(mainCryptID))。需先砸壳(app.decrypt)。")
             }
-            targetMachO = allCandidates[0]
         }
         let targetIsMain = targetMachO == executablePath(app)
 
@@ -1126,11 +1120,10 @@ final class InjectionManager {
         // 用户插件 → standardizeLoadCommandDylibToSubstrate（substrate 引用重定向内置）+ ct_bypass + chown；
         // 内置 agent → ct_bypass + chown（agent 无 substrate 依赖）
         let frameworksDir = (app.path as NSString).appendingPathComponent("Frameworks")
-        // v2.9.266：allowMain 时强制 useFramework=false——dylib 直接放 App 根目录、
-        // load command 用 @executable_path/ControlAgent.dylib（永远有效）。
-        // 之前 allowMain 时 useFramework=true → dylib 拷 Frameworks/ + @rpath 依赖 LC_RPATH，
-        // 小红书主二进制 rpath 未加成时 dyld 找不到 dylib → 启动闪退（实测）。
-        let useFramework = allowMain ? false : FileManager.default.fileExists(atPath: frameworksDir)
+        // v2.9.303：useFramework 由 targetMachO 实际位置决定，不再看 allowMain。
+        // 注入目标在 Frameworks/ 下 → dylib 也放 Frameworks + @rpath；
+        // 兜底注入主二进制 → dylib 放 App 根 + @executable_path。
+        let useFramework = targetMachO.hasPrefix(frameworksDirPath + "/")
         let isUserPlugin = !(dylibSourcePath?.isEmpty ?? true)
         var injectNameMap: [String: String] = [:]
         for asset in preparedAssets {
