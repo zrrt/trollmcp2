@@ -35,7 +35,11 @@ final class AppInstallTool: MCPTool {
         // TS_ACTIVE_MARKER 的 App Store 版）无 force 直接返回 171 拒绝覆盖（实测小红书）
         // ⚠️ 关键：trollstorehelper 源码用 args.lastObject 取 ipaPath，force 必须放在
         //  path 之前！否则 ipaPath="force" 装空气（274 首版踩坑，275 修复参数顺序）
-        let (c, out) = im.spawnRoot(helper, args: ["install", "force", path], timeout: 180)
+        // v2.9.279：用 installd 系统方法——custom 数据容器安装注册为 System 类型
+        // （registerAsUser = path.hasPrefix("/var/containers")，数据容器不满足），
+        // iOS 16 上 LaunchServices 不生效、图标不出现。installd 装到标准 bundle 容器
+        // 注册为 User，图标正常显示。
+        let (c, out) = im.spawnRoot(helper, args: ["install", "installd", "force", path], timeout: 240)
         if c == 0 {
             AuditLog.shared.log("app.install", detail: "\(path) → \(helper) 成功")
             AppCatalog.invalidateCache()   // v2.9.135: 安装后失效应用缓存
