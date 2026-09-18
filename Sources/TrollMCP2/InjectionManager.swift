@@ -1063,18 +1063,37 @@ final class InjectionManager {
                let hit = fwCandidates.first(where: { $0.localizedCaseInsensitiveContains(pref) }) {
                 return hit
             }
-            // 2) 主二进制直接依赖（启动必加载，constructor 必执行）
-            if let boot = fwCandidates.first(where: { c in
+            // 2) App 自家 framework 优先（名字含主二进制名/discover/产品前缀，启动必加载）
+            //    实测小红书: 自家 Sheim/DisGuard/Dis 真加载，第三方 AppsFlyerLib/BGM 懒加载
+            let mainName = (executablePath(app) as NSString).lastPathComponent.lowercased()
+            let ownPrefixes: [String] = [mainName, "dis", mainName.prefix(3).description]
+            if let own = fwCandidates.first(where: { c in
+                let n = (c as NSString).lastPathComponent.lowercased()
+                return ownPrefixes.contains { n.hasPrefix($0) } || n == mainName
+            }) {
+                AuditLog.shared.log("injection.pick_own", detail: "\(bundleId) 选自家framework: \((own as NSString).lastPathComponent)")
+                return own
+            }
+            // 3) 主二进制直接依赖，跳过已知懒加载第三方 SDK
+            let lazySDK: Set<String> = ["appsflyer", "bgm", "bugly", "umeng", "firebase",
+                "googleutilities", "googlesignin", "googletagmanager", "firebasemessaging",
+                "firanalytics", "flurry", "adjust", "kochava", "branch", "tenjin", "appsflyerlib"]
+            let depCandidates = fwCandidates.filter { c in
+                let n = (c as NSString).lastPathComponent.lowercased()
+                return !lazySDK.contains(where: { n.contains($0) })
+            }
+            if let boot = depCandidates.first(where: { c in
                 let name = (c as NSString).lastPathComponent
                 return mainDeps.contains { d in
                     let dep = (d as NSString).lastPathComponent
                     return dep == name || dep.hasPrefix(name) || name.hasPrefix(dep)
                 }
             }) {
+                AuditLog.shared.log("injection.pick_dep", detail: "\(bundleId) 选依赖: \((boot as NSString).lastPathComponent)")
                 return boot
             }
-            // 3) 回退字典序第一个（可能懒加载，记日志）
-            AuditLog.shared.log("injection.fw_fallback", detail: "\(bundleId) Frameworks 候选但主二进制未直接依赖: \(fwCandidates.map { ($0 as NSString).lastPathComponent })")
+            // 4) 回退字典序第一个（可能懒加载，记日志）
+            AuditLog.shared.log("injection.fw_fallback", detail: "\(bundleId) Frameworks 候选: \(fwCandidates.map { ($0 as NSString).lastPathComponent })")
             return fwCandidates[0]
         }
         if hasFrameworks, let chosen = pickFromFrameworks() {
