@@ -1132,10 +1132,9 @@ final class InjectionManager {
                 AuditLog.shared.log("injection.fallback_main", detail: "\(bundleId) 无framework候选，用主二进制 cryptid=0")
             }
         }
-        guard let finalTarget = targetMachO else {
+        guard let targetMachO else {
             throw MCPError.failed("无可注入 Mach-O：所有候选加密。需先砸壳(app.decrypt)。")
         }
-        let targetMachO = finalTarget
         let targetIsMain = targetMachO == executablePath(app)
 
         // 2.5 dylib 架构预检（防注入后闪退）：源 dylib 与目标 Mach-O 均须可解析
