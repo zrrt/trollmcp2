@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
+#import <QuartzCore/QuartzCore.h>
 #import <objc/runtime.h>
 #import <sys/socket.h>
 #import <netinet/in.h>
@@ -247,6 +248,8 @@ static void simulateTouchAtPoint(CGPoint point, UIWindow *window, UIView *hitVie
     // 之前 view=nil → sendEvent 事件无响应者 → touchesBegan 不投递 → 手势/点击不触发
     // （小红书帖子是 XYNoteImageView 非 UIControl，走 UITouch 兜底时全部静默失效）。
     if (hitView) [touch setValue:hitView forKey:@"view"];
+    // v2.9.286：补 timestamp——手势识别器判定依赖合理时间戳
+    [touch setValue:@(CACurrentMediaTime()) forKey:@"timestamp"];
     [touch setValue:@(UITouchPhaseBegan) forKey:@"phase"];
     [touch setValue:@(1) forKey:@"tapCount"];
 
@@ -255,13 +258,14 @@ static void simulateTouchAtPoint(CGPoint point, UIWindow *window, UIView *hitVie
 
     [[UIApplication sharedApplication] sendEvent:event];
 
-    // moved
-    [touch setValue:@(UITouchPhaseMoved) forKey:@"phase"];
-    [[UIApplication sharedApplication] sendEvent:event];
-
-    // ended
-    [touch setValue:@(UITouchPhaseEnded) forKey:@"phase"];
-    [[UIApplication sharedApplication] sendEvent:event];
+    // v2.9.286：tap 不需要 moved（标准点击序列 began→ended）；
+    // ended 必须延迟投递——手势识别器要跨 runloop 推进状态，
+    // 之前三次 sendEvent 同一 runloop 同步执行，UITapGestureRecognizer 未完成识别。
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.08 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [touch setValue:@(CACurrentMediaTime()) forKey:@"timestamp"];
+        [touch setValue:@(UITouchPhaseEnded) forKey:@"phase"];
+        [[UIApplication sharedApplication] sendEvent:event];
+    });
 }
 
 static NSDictionary *tapAt(CGFloat x, CGFloat y) {
