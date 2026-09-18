@@ -1152,6 +1152,41 @@ struct MessageBubble: View {
         case "control.tap": return "点击屏幕坐标"
         case "control.swipe": return "滑动屏幕"
         case "app.open": return "打开指定 App"
+        case "device_info", "system.info": return "查看设备信息"
+        case "device_probe", "probe.inspect": return "探测设备状态"
+        case "workspace_info", "workspace.info": return "查看工作区信息"
+        case "fs.read", "fs.tree": return "读取文件系统"
+        case "fs.write", "fs.edit": return "修改文件"
+        case "fs.find", "fs.grep": return "搜索文件内容"
+        case "app.list", "apps.list": return "列出已安装 App"
+        case "app.status": return "检查 App 运行状态"
+        case "app.launch", "app.start": return "启动目标 App"
+        case "app.restart": return "重启目标 App"
+        case "app.uninstall": return "卸载 App"
+        case "app.install": return "安装 App"
+        case "web.search": return "搜索网络信息"
+        case "web.fetch": return "读取网页内容"
+        case "tool_search": return "查找可用工具"
+        case "progress.notify": return "更新进度通知"
+        case "diagnose.crash": return "查看崩溃日志"
+        case "app.decrypt": return "砸壳解密二进制"
+        case "control.tap", "ui.tap": return "点击屏幕坐标"
+        case "control.swipe", "ui.swipe": return "滑动屏幕"
+        case "control.type", "ui.type": return "输入文字"
+        case "control.screenshot", "ui.screenshot": return "截图查看界面"
+        case "notification.send": return "发送通知"
+        case "clipboard.read": return "读取剪贴板"
+        case "clipboard.write": return "写入剪贴板"
+        case "location.get": return "获取位置"
+        case "location.fake": return "模拟位置"
+        case "calendar.list": return "查看日历"
+        case "reminder.create": return "创建提醒"
+        case "phone.call": return "拨打电话"
+        case "ssh.exec": return "执行 SSH 命令"
+        case "github.trigger_build": return "触发 GitHub 构建"
+        case "github.fetch_runs": return "查看构建状态"
+        case "memory": return "查看记忆"
+        case "model.config": return "查看模型配置"
         default: return "执行操作"
         }
     }
@@ -1427,8 +1462,7 @@ struct ChatInputTextView: UIViewRepresentable {
         tv.backgroundColor = .clear
         tv.isScrollEnabled = false
         tv.textContainerInset = UIEdgeInsets(top: 9, left: 2, bottom: 7, right: 2)
-        tv.returnKeyType = .send
-        tv.enablesReturnKeyAutomatically = true
+        tv.returnKeyType = .default  // v2.9.317：允许换行（默认换行键）
         tv.delegate = context.coordinator
         return tv
     }
@@ -1443,15 +1477,6 @@ struct ChatInputTextView: UIViewRepresentable {
         func textViewDidChange(_ tv: UITextView) {
             parent.text = tv.text
         }
-        func textView(_ tv: UITextView, shouldChangeTextIn range: NSRange, replacementText t: String) -> Bool {
-            if t == "\n" {
-                // 输入法组词中(拼音未上屏)按回车 → 上屏候选词，不发送
-                if tv.markedTextRange != nil { return true }
-                // 无组词按回车 → 发送
-                parent.onSend()
-                return false
-            }
-            return true
-        }
+        // v2.9.317：回车换行，发送靠发送按钮（微信式）
     }
 }
