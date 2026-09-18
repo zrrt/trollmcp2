@@ -1052,8 +1052,25 @@ final class InjectionManager {
         let fwCandidates = hasFrameworks ? allCandidates.filter { $0.hasPrefix(frameworksDirPath + "/") } : []
         let targetMachO: String
         if allowMain {
-            // v2.9.260：强制主二进制（启动必加载），绕开"有 Frameworks 拒绝主二进制"的 TrollFools 兼容限制
-            targetMachO = executablePath(app)
+            // v2.9.302：allowMain 必须先查主二进制加密状态——加密(cryptid!=0)的主二进制
+            // 强行注入=闪退（闲鱼Runner实测）。未加密(已砸壳)才允许主二进制；
+            // 加密则回退 Frameworks 候选，再不行就报错（对齐 TrollFools isProtectedMachO）。
+            let mainInfo = MachOAnalyzer.analyze(executablePath(app))
+            let mainCryptID = mainInfo?.cryptID ?? 1
+            if mainCryptID == 0 {
+                targetMachO = executablePath(app)
+            } else if !fwCandidates.isEmpty {
+                // 主二进制加密但 Frameworks 有未加密 Mach-O → 回退 Frameworks
+                var chosen = fwCandidates[0]
+                let mainDeps = MachOAnalyzer.analyze(executablePath(app))?.dylibs ?? []
+                if let boot = fwCandidates.first(where: { c in
+                    mainDeps.contains { d in d.contains((c as NSString).lastPathComponent) }
+                }) { chosen = boot }
+                targetMachO = chosen
+                AuditLog.shared.log("injection.allowMain_enc", detail: "\(bundleId) 主二进制加密(cryptid=\(mainCryptID))，回退 Frameworks: \((targetMachO as NSString).lastPathComponent)")
+            } else {
+                throw MCPError.failed("主二进制已加密(cryptid=\(mainCryptID))且 Frameworks 内无可注入 Mach-O。需先砸壳(app.decrypt)或换未加密目标。")
+            }
         } else if hasFrameworks {
             guard !fwCandidates.isEmpty else {
                 throw MCPError.failed("Frameworks 内没有可注入的 Mach-O（全部加密或不可读）。为避免 TrollFools 无法识别和关闭的注入，已拒绝注入主二进制；请先处理加密/重签后重试。")
