@@ -1253,7 +1253,26 @@ final class ConversationStore: ObservableObject {
     }
 
     private func title(from text: String) -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // v2.9.292：剔除附件描述，避免标题变成 "[📎文件：全局加速+...2.deb]已保存到 /var/..."
+        var clean = text
+        // 去掉 [📎文件：...] 整段
+        if let r = clean.range(of: "[📎文件：") {
+            if let end = clean.range(of: "]", range: r.upperBound..<clean.endIndex) {
+                clean.removeSubrange(r.lowerBound..<end.upperBound)
+            }
+        }
+        // 去掉 [📱应用：...] 整段
+        if let r = clean.range(of: "[📱应用：") {
+            if let end = clean.range(of: "]", range: r.upperBound..<clean.endIndex) {
+                clean.removeSubrange(r.lowerBound..<end.upperBound)
+            }
+        }
+        // 去掉 "已保存到 <路径>，可用..." 路径描述
+        if let r = clean.range(of: "已保存到 ") {
+            clean = String(clean[..<r.lowerBound])
+        }
+        let trimmed = clean.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return "📎 文件" }
         let line = trimmed.components(separatedBy: .newlines).first ?? trimmed
         return String(line.prefix(30))
     }
