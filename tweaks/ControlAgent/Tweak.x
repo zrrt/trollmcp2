@@ -450,9 +450,10 @@ static NSDictionary *swipeFrom(CGFloat x1, CGFloat y1, CGFloat x2, CGFloat y2, C
 }
 
 static NSDictionary *typeText(NSString *text) {
-    // v2.9.289：私有 API 直取系统真实第一响应者——评论/聊天输入框在
-    // UITextEffectsWindow（键盘输入体系），window.subviews 递归找不到，
-    // _firstResponder 穿透所有 window 直接命中（含键盘 window）
+    // v2.9.290：handleRequest 已由 HTTP 层 dispatch_sync 到主线程（v2.9.128），
+    // 这里直接在主线程执行——不再重复 dispatch_sync（会死锁），
+    // 也不再 dispatch_async（返回前 insertText 必须已同步完成）
+    // 1. 私有 API 直取系统真实第一响应者（穿透 UITextEffectsWindow/键盘 window）
     UIView *firstResponder = [[UIApplication sharedApplication] _firstResponder];
     if (!firstResponder) {
         for (UIWindow *window in allWindows()) {
@@ -464,42 +465,35 @@ static NSDictionary *typeText(NSString *text) {
         }
     }
 
-    // v2.9.288：无第一响应者时，自动聚焦最近的可见输入框再输入
-    // （评论输入框等 tap 聚焦不可靠的场景，type 直接兜底聚焦）
+    // 2. 无第一响应者：自动聚焦最近的可见输入框（v2.9.288）
     if (!firstResponder) {
         for (UIWindow *window in allWindows()) {
             for (UIView *sub in window.subviews) {
                 UIView *found = [sub ca_findInputView];
                 if (found) {
-                    __block UIView *input = found;
-                    // v2.9.289：becomeFirstResponder 与 insertText 合并到同一主线程 block，
-                    // 避免聚焦后焦点被其他 UI 动作抢走
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        [input becomeFirstResponder];
-                        if ([input conformsToProtocol:@protocol(UITextInput)]) {
-                            [(id<UITextInput>)input insertText:text];
-                        }
-                    });
-                    for (int i = 0; i < 10; i++) {
-                        [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+                    [found becomeFirstResponder];  // 主线程同步，立即生效
+                    if (found.isFirstResponder) {
+                        firstResponder = found;
+                    } else if ([found conformsToProtocol:@protocol(UITextInput)]) {
+                        // becomeFirstResponder 失败也直接输入（UITextInput insertText 不严格要求聚焦）
+                        [(id<UITextInput>)found insertText:text];
+                        return @{@"typed": @YES, @"text": text, @"target": NSStringFromClass([found class]), @"method": @"insertText_direct", @"focused": @NO};
                     }
-                    return @{@"typed": @YES, @"text": text, @"target": NSStringFromClass([input class]), @"method": @"insertText_autoFocus", @"focused": @YES};
+                    break;
                 }
             }
+            if (firstResponder) break;
         }
     }
 
-    // v2.9.128：统一走 UITextInput insertText 协议（触发真实输入链：delegate/格式化/限制），
-    // 替代直接赋值 text（很多输入框直接赋值不生效，如带 format 的号码框、聊天输入框）
+    // 3. 统一走 UITextInput insertText 协议（触发真实输入链）
     if ([firstResponder conformsToProtocol:@protocol(UITextInput)]) {
         id<UITextInput> input = (id<UITextInput>)firstResponder;
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [input insertText:text];
-        });
-        return @{@"typed": @YES, @"text": text, @"target": NSStringFromClass([firstResponder class]), @"method": @"insertText", @"focused": @YES};
+        [input insertText:text];  // 主线程同步
+        return @{@"typed": @YES, @"text": text, @"target": NSStringFromClass([firstResponder class]), @"method": @"insertText", @"focused": @(firstResponder.isFirstResponder)};
     }
 
-    // 没有第一响应者，复制到剪贴板
+    // 4. 没有第一响应者，复制到剪贴板
     UIPasteboard *pb = [UIPasteboard generalPasteboard];
     pb.string = text;
     return @{
@@ -508,6 +502,34 @@ static NSDictionary *typeText(NSString *text) {
         @"hint": @"text copied to clipboard, user can paste manually",
         @"text": text
     };
+}
+
+// v2.9.290：坐标定位输入框直接输入——评论面板输入框不自动聚焦时，
+// hitTest 命中的 UITextView/UITextField 直接 insertText（绕过第一响应者依赖）
+static NSDictionary *typeTextAtPoint(NSString *text, CGPoint point) {
+    UIWindow *keyWindow = [UIApplication sharedApplication].keyWindow;
+    UIView *hit = [keyWindow hitTest:point withEvent:nil];
+    if (!hit) {
+        // 评论面板可能在其他 window，遍历所有 window hitTest
+        for (UIWindow *w in allWindows()) {
+            UIView *h = [w hitTest:point withEvent:nil];
+            if (h) { hit = h; break; }
+        }
+    }
+    if (!hit) {
+        return @{@"typed": @NO, @"error": @"no view at point", @"x": @(point.x), @"y": @(point.y)};
+    }
+    // 向上找 UITextView/UITextField
+    UIView *input = hit;
+    while (input && !([input isKindOfClass:[UITextView class]] || [input isKindOfClass:[UITextField class]])) {
+        input = input.superview;
+    }
+    if (!input || ![input conformsToProtocol:@protocol(UITextInput)]) {
+        return @{@"typed": @NO, @"error": @"no text input at point", @"hit": NSStringFromClass([hit class]), @"x": @(point.x), @"y": @(point.y)};
+    }
+    [input becomeFirstResponder];
+    [(id<UITextInput>)input insertText:text];
+    return @{@"typed": @YES, @"text": text, @"target": NSStringFromClass([input class]), @"method": @"insertText_point", @"focused": @(input.isFirstResponder), @"hit": NSStringFromClass([hit class])};
 }
 
 #pragma mark - HTTP 请求处理
@@ -694,6 +716,12 @@ static NSData *handleRequest(NSString *method, NSString *path, NSData *body) {
     if ([path isEqualToString:@"/type"]) {
         NSDictionary *params = parseJSONBody(body);
         NSString *text = params[@"text"] ?: @"";
+        // v2.9.290：可选坐标——评论/聊天输入框不聚焦时，hitTest 定位输入框直接输入
+        if (params[@"x"] && params[@"y"]) {
+            CGFloat tx = [params[@"x"] floatValue];
+            CGFloat ty = [params[@"y"] floatValue];
+            return jsonResponse(typeTextAtPoint(text, CGPointMake(tx, ty)));
+        }
         return jsonResponse(typeText(text));
     }
 
