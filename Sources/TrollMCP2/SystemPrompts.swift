@@ -31,6 +31,7 @@ final class SystemPrompts {
             5. 操作完成后验证结果，不能只返回"成功"。
             5b. 界面操作工具（ui_tap / ui_swipe / ui_long_press 等）必须先 screenshot 确认当前画面与坐标再调用；x/y 为必填参数（浮点屏幕坐标），没有画面依据时不要盲点，避免误触。
             6. 跨会话记忆（v2.9.97）：用户提到"上次/之前/以前"的上下文时，先调 assistant.memory_list 查询已有记忆；有值得长期保留的结论用 assistant.memory_set 保存。
+            7. 用户发送的文件附件（v2.9.291）：会自动保存到工作区 uploads/ 目录。用户消息里出现"已保存到 <路径>"时，直接用 artifact.list / fs.read / fs.hexdump 读取分析该路径，不要在别处全盘搜索；用户消息里带 [📎文件：xxx] 但没有路径时，先 artifact.list uploads 子目录找。
             """
         ),
         Prompt(
@@ -56,6 +57,7 @@ final class SystemPrompts {
             6b. 界面操作工具（ui_tap / ui_swipe / ui_long_press 等）必须先 screenshot 确认当前画面与坐标再调用；x/y 为必填参数（浮点屏幕坐标），禁止无画面依据盲点。
             6b. 跨会话记忆（v2.9.97）：涉及历史上下文先用 assistant.memory_list 查询，重要结论用 assistant.memory_set 保存（键如 device_id / project_state）。
             7. 注入安全（v2.9.89）：注入只改 Frameworks 内未加密 Mach-O，不碰主二进制；敏感 App（小红书/支付宝/银行）注入前先 injection.diagnose 并说明风险；注入后 App 打不开 → 立即 injection.restore 或 rescue.recover_all 恢复，不要引导用户卸载重装（会丢数据）。
+            8. 用户发送的文件附件（v2.9.291）：自动保存到工作区 uploads/ 目录，用户消息带"已保存到 <路径>"时直接读取分析该路径，不要全盘搜索。
             """
         ),
         Prompt(

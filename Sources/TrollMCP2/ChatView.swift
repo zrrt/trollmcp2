@@ -691,7 +691,15 @@ struct ChatView: View {
             attDesc.append("[📱应用：\(att.displayName)（\(bid)）]")
         }
         for att in fileAtts {
-            attDesc.append("[📎文件：\(att.displayName)]")
+            // v2.9.291：文件附件自动复制到工作区 uploads/ 并附加路径——
+            // 之前只发 [📎文件：xxx] 描述，AI 根本没有文件内容/路径可读，
+            // 导致"找不到 .deb"（文件在用户本地文件App里，AI 视野外）
+            let saved = Self.saveAttachmentToWorkspace(att)
+            if let sp = saved {
+                attDesc.append("[📎文件：\(att.displayName)] 已保存到 \(sp)，可用 fs.read / fs.hexdump 读取分析")
+            } else {
+                attDesc.append("[📎文件：\(att.displayName)]（复制到工作区失败，请手动放入 \(Workspace.root.path)）")
+            }
         }
         if !attDesc.isEmpty {
             text = text.isEmpty ? attDesc.joined(separator: " ") : text + " " + attDesc.joined(separator: " ")
@@ -712,6 +720,35 @@ struct ChatView: View {
         let limit = 3 * 1024 * 1024
         if data.count > limit { return nil }
         return "data:image/jpeg;base64,\(data.base64EncodedString())"
+    }
+
+    /// v2.9.291：把聊天文件附件复制到工作区 uploads/ 目录，返回保存后的绝对路径
+    /// - 处理 security-scoped URL（UIDocumentPicker 返回的 URL 需 startAccessing）
+    /// - 文件名冲突时追加时间戳，避免覆盖
+    static func saveAttachmentToWorkspace(_ att: PendingAttachment) -> String? {
+        guard let src = att.fileURL else { return nil }
+        var scoped = false
+        if src.startAccessingSecurityScopedResource() { scoped = true }
+        defer { if scoped { src.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: src), data.count > 0 else { return nil }
+        let uploads = Workspace.root.appendingPathComponent("uploads", isDirectory: true)
+        try? FileManager.default.createDirectory(at: uploads, withIntermediateDirectories: true)
+        var name = src.lastPathComponent
+        if name.isEmpty { name = att.displayName }
+        var dest = uploads.appendingPathComponent(name)
+        // 重名冲突：追加 -<时间戳>
+        if FileManager.default.fileExists(atPath: dest.path) {
+            let ts = Int(Date().timeIntervalSince1970)
+            let ext = (name as NSString).pathExtension
+            let base = (name as NSString).deletingPathExtension
+            dest = uploads.appendingPathComponent("\(base)-\(ts).\(ext)")
+        }
+        do {
+            try data.write(to: dest)
+            return dest.path
+        } catch {
+            return nil
+        }
     }
 
     /// v2.9.10：读取应用图标（用于输入栏附件预览）
