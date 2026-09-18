@@ -920,7 +920,7 @@ final class ConversationStore: ObservableObject {
                     // v2.9.322：保留流式文本作为工具调用思考说明
                     var thinkText = ""
                     if let sid = self.streamingMessageId,
-                       let ci = self.conversations.firstIndex(where: { $0.id == self.currentConversationId }),
+                       let ci = self.selectedIndex,
                        let mi = self.conversations[ci].messages.firstIndex(where: { $0.id == sid }) {
                         thinkText = self.conversations[ci].messages[mi].content
                         self.conversations[ci].messages.remove(at: mi)
