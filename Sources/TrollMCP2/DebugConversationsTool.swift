@@ -30,6 +30,21 @@ final class DebugDumpConversationsTool: MCPTool {
     }
 }
 
+/// v2.9.297：调试工具——导出网络日志（最近100条请求/降级/错误记录），排查AI不回消息
+final class DebugDumpNetworkLogTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "debug.dump_network_log",
+        summary: "调试：导出NetworkLog最近请求日志（降级/错误/HTTP状态），排查AI请求失败与空回复",
+        parameters: ["limit": "最多返回几条（默认50，上限100）"]
+    )
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        let limit = max(1, min((params["limit"] as? Int) ?? 50, 100))
+        let entries = Array(NetworkLog.shared.entries.prefix(limit))
+        return ["total": NetworkLog.shared.entries.count, "entries": entries, "lastCompatNote": NetworkLog.lastCompatNote ?? "(无)"]
+    }
+}
+
 /// v2.9.296：调试工具——导出模型配置（key 掩码）与当前请求状态
 final class DebugDumpModelConfigsTool: MCPTool {
     let definition = ToolDefinition(

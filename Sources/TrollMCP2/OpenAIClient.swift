@@ -391,8 +391,32 @@ final class OpenAIClient {
                     return .toolCalls(calls)
                 }
             }
-            if let content = message["content"] as? String {
-                return .text(content, thinking: nil)
+            // v2.9.297：content 兼容 字符串 / 数组（[{"type":"text","text":"..."}] / [{"type":"output_text","text":"..."}]）
+            if let content = message["content"] {
+                if let str = content as? String {
+                    return .text(str, thinking: nil)
+                }
+                if let arr = content as? [[String: Any]] {
+                    var text = ""
+                    for c in arr {
+                        let t = c["type"] as? String ?? ""
+                        if t == "text" || t == "output_text" || t == "input_text" {
+                            if let tt = c["text"] as? String { text += tt }
+                        }
+                    }
+                    if !text.isEmpty { return .text(text, thinking: nil) }
+                    // 数组内没有文本 → 尝试 reasoning_content 里的总结
+                    for c in arr {
+                        if let rc = c["text"] as? String, !rc.isEmpty {
+                            text += rc
+                        }
+                    }
+                    if !text.isEmpty { return .text(text, thinking: nil) }
+                }
+            }
+            // v2.9.297：DeepSeek 等推理模型——content 为空时读 reasoning_content 兜底
+            if let rc = message["reasoning_content"] as? String, !rc.isEmpty {
+                return .text(rc, thinking: nil)
             }
             return .text("", thinking: nil)
         }
