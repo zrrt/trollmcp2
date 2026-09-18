@@ -600,7 +600,7 @@ struct ChatView: View {
                     ChatInputTextView(text: $inputText, onSend: {
                         if !inputText.isEmpty { send() }
                     })
-                        .frame(maxWidth: .infinity, maxHeight: 120)
+                        .frame(maxWidth: .infinity)
                         .padding(.leading, 12)
                     if !inputText.isEmpty {
                         Button(action: { inputText = "" }) {
@@ -611,7 +611,7 @@ struct ChatView: View {
                         }
                     }
                 }
-                .frame(minHeight: 40)
+                .frame(minHeight: 40, maxHeight: 120)
                 .background(Color(.secondarySystemBackground))
                 .cornerRadius(20)
 
@@ -1185,6 +1185,9 @@ struct MessageBubble: View {
         case "ssh.exec": return "执行 SSH 命令"
         case "github.trigger_build": return "触发 GitHub 构建"
         case "github.fetch_runs": return "查看构建状态"
+        case "artifact_list", "artifacts.list": return "列出产物文件"
+        case "artifact_read", "artifacts.read": return "读取产物内容"
+        case "artifact_delete", "artifacts.delete": return "删除产物文件"
         case "memory": return "查看记忆"
         case "model.config": return "查看模型配置"
         default: return "执行操作"
