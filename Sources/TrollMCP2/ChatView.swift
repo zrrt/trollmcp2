@@ -1101,7 +1101,7 @@ struct MessageBubble: View {
         }
     }
 
-    /// v2.9.317：工具调用记录小气泡（微信式）
+    /// v2.9.317：工具调用记录小气泡（微信式，带思考说明）
     private func toolCallBubble(_ text: String) -> some View {
         let lines = text.components(separatedBy: .newlines).filter { !$0.isEmpty }
         return VStack(alignment: .leading, spacing: 4) {
@@ -1110,15 +1110,49 @@ struct MessageBubble: View {
                     Image(systemName: "wrench.and.screwdriver")
                         .font(.system(size: 12))
                         .foregroundColor(.blue)
-                    Text(line)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(toolThinkReason(line))
+                            .font(.subheadline)
+                            .foregroundColor(.primary)
+                        Text(line)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(Color.blue.opacity(0.08))
                 .cornerRadius(12)
             }
+        }
+    }
+
+    /// v2.9.317：根据工具名生成简短思考说明
+    private func toolThinkReason(_ line: String) -> String {
+        guard line.hasPrefix("调用工具 ") else { return line }
+        let tool = String(line.dropFirst(5))
+        switch tool {
+        case "injection.enable": return "注入插件到目标 App"
+        case "injection.restore": return "恢复备份，移除注入"
+        case "injection.list": return "列出已安装的 App"
+        case "injection.status": return "检查注入状态"
+        case "injection.inspect": return "查看注入详情"
+        case "injection.diagnose": return "诊断注入闪退原因"
+        case "screenshot", "ui.screenshot": return "截图查看当前界面"
+        case "app.status": return "检查 App 运行状态"
+        case "app.launch", "app.start": return "启动目标 App"
+        case "app.restart": return "重启目标 App"
+        case "fs.read", "fs.tree": return "读取文件系统"
+        case "web.search": return "搜索网络信息"
+        case "web.fetch": return "读取网页内容"
+        case "tool_search": return "查找可用工具"
+        case "progress.notify": return "更新进度通知"
+        case "diagnose.crash": return "查看崩溃日志"
+        case "app.decrypt": return "砸壳解密二进制"
+        case "control.tap": return "点击屏幕坐标"
+        case "control.swipe": return "滑动屏幕"
+        case "app.open": return "打开指定 App"
+        default: return "执行操作"
         }
     }
 
