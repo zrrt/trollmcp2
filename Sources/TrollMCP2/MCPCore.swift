@@ -677,7 +677,6 @@ public final class ToolRegistry: ObservableObject {
         // v2.9.95：设备指纹 / 容器 / entitlements（对齐 Fuck 工具箱 + 绿盾式）
         register(AppEntitlementsTool())
         register(KeychainWipeTool())
-        register(KeychainResetTool())
         register(AdvertisingTool())
         register(IdfvTool())
         register(RefreshContainerTool())

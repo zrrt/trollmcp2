@@ -1400,33 +1400,14 @@ final class KeychainWipeTool: MCPTool {
             "failed_count": failed,
             "errors": errors,
             "hint": failed > 0
-                ? "部分条目需要系统级 keychain 权限（本 App 未声明该组）。彻底清空请用 device.keychain_reset（⚠️ 所有 App 登录态都会失效）"
+                ? "部分条目需要系统级 keychain 权限（本 App 未声明该组）。"
                 : "已清理目标 App 钥匙串条目（登录态将被重置）"
         ]
     }
 }
 
-/// 一键新机式：清空整机钥匙串（绿盾式核心）
-final class KeychainResetTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "device.keychain_reset",
-        summary: "清空整机钥匙串：删除 keychain-2.db 并重启 securityd（绿盾式一键新机核心）。⚠️ 所有 App 的密码/令牌/密钥全部失效，慎用",
-        parameters: [:],
-        verified: true,
-    )
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let db = "/var/Keychains/keychain-2.db"
-        let (c1, o1) = InjectionManager.shared.runAsRoot("rm", args: ["-f", db, db + "-wal", db + "-shm"])
-        if c1 != 0 { return ["error": "删除 keychain 数据库失败(\(c1)): \(o1)"] }
-        let (c2, _) = InjectionManager.shared.runAsRoot("killall", args: ["killall", "-9", "securityd"])
-        return [
-            "status": "reset",
-            "removed": db,
-            "securityd_restarted": c2 == 0,
-            "hint": "securityd 已由 launchd 自动拉起并重建空 keychain。建议重启手机彻底生效。所有 App 登录态已清空"
-        ]
-    }
-}
+// v2.9.312：device.keychain_reset 已删除——清空整机钥匙串太危险，
+// 会导致所有 App 密码/登录态丢失。保留 device.keychain_wipe（按指定 App 清理）。
 
 /// 广告标识符（IDFA）读取 / 刷新
 final class AdvertisingTool: MCPTool {
@@ -1452,7 +1433,7 @@ final class AdvertisingTool: MCPTool {
                 result["idfa_after"] = ASIdentifierManager.shared().advertisingIdentifier.uuidString
             } else {
                 result["reset"] = "当前系统不支持 resetIdentifier（iOS14+ 已移除公开 API）"
-                result["hint"] = "广告符刷新在 iOS14+ 受限；如需彻底换新，可配合 device.keychain_reset（清空含广告符的 keychain）"
+                result["hint"] = "广告符刷新在 iOS14+ 受限；如需彻底换新，可配合 device.keychain_reset"
             }
         }
         return result
@@ -1575,9 +1556,7 @@ final class NewDeviceTool: MCPTool {
         let resetKC = (params["reset_keychain"] as? Bool) ?? true
         if resetKC {
             do {
-                steps.append(["step": "keychain_reset", "result": try KeychainResetTool().invoke([:])])
             } catch let e {
-                warnings.append("keychain_reset: \(e)")
             }
         }
 
