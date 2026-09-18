@@ -1060,6 +1060,7 @@ final class InjectionManager {
         let hasFrameworks = FileManager.default.fileExists(atPath: frameworksDirPath)
         let allCandidates = collectInjectableMachOs(app, strategy: injectStrategy)
         let fwCandidates = hasFrameworks ? allCandidates.filter { $0.hasPrefix(frameworksDirPath + "/") } : []
+        let mainName = (executablePath(app) as NSString).lastPathComponent.lowercased()
         let targetMachO: String
         // v2.9.303：废掉 allowMain 强注主二进制。主二进制在 dyld 阶段加载，dylib constructor
         // 跑太早（runtime/substrate 未就绪）→ 小红书/闲鱼注入后闪退实测。TrollFools 正道：
@@ -1075,7 +1076,6 @@ final class InjectionManager {
             }
             // 2) App 自家 framework 优先（名字含主二进制名/discover/产品前缀，启动必加载）
             //    实测小红书: 自家 Sheim/DisGuard/Dis 真加载，第三方 AppsFlyerLib/BGM 懒加载
-            let mainName = (executablePath(app) as NSString).lastPathComponent.lowercased()
             let ownPrefixes: [String] = [mainName, "dis", mainName.prefix(3).description]
             if let own = fwCandidates.first(where: { c in
                 let n = (c as NSString).lastPathComponent.lowercased()
@@ -1107,17 +1107,32 @@ final class InjectionManager {
             return fwCandidates[0]
         }
         if hasFrameworks, let chosen = pickFromFrameworks() {
-            targetMachO = chosen
+            // v2.9.307：如果选的是懒加载第三方 SDK（不在主二进制直接依赖里），
+            // 且主二进制未加密 → 改用主二进制（constructor 必执行，4789 必起）
+            let chosenName = (chosen as NSString).lastPathComponent
+            let depNames = Set(mainDeps.map { ($0 as NSString).lastPathComponent })
+            let chosenIsLazy = !depNames.contains(chosenName) &&
+                !chosenName.lowercased().hasPrefix(mainName)
+            if chosenIsLazy {
+                let mainInfo = MachOAnalyzer.analyze(executablePath(app))
+                if (mainInfo?.cryptID ?? 1) == 0 {
+                    AuditLog.shared.log("injection.use_main", detail: "\(bundleId) Frameworks候选\(chosenName)是懒加载，改用主二进制(未加密)")
+                    targetMachO = executablePath(app)
+                } else {
+                    targetMachO = chosen
+                }
+            } else {
+                targetMachO = chosen
+            }
         } else {
             // 兜底：无 Frameworks 候选 → 看主二进制
             let mainInfo = MachOAnalyzer.analyze(executablePath(app))
             let mainCryptID = mainInfo?.cryptID ?? 1
             if mainCryptID == 0, !allCandidates.isEmpty {
-                // 主二进制未加密才允许（仍有 dyld 早期加载风险，记警告）
-                targetMachO = allCandidates[0]
-                AuditLog.shared.log("injection.fallback_main", detail: "\(bundleId) 无 Frameworks 候选，回退主二进制 cryptid=0")
+                targetMachO = executablePath(app)
+                AuditLog.shared.log("injection.fallback_main", detail: "\(bundleId) 无 Frameworks 候选，用主二进制 cryptid=0")
             } else {
-                throw MCPError.failed("无可注入 Mach-O：Frameworks 无未加密候选且主二进制加密(cryptid=\(mainCryptID))。需先砸壳(app.decrypt)。")
+                throw MCPError.failed("无可注入 Mach-O：Frameworks 无候选且主二进制加密(cryptid=\(mainCryptID))。需先砸壳(app.decrypt)。")
             }
         }
         let targetIsMain = targetMachO == executablePath(app)
