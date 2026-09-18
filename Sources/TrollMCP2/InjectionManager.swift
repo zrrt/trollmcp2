@@ -846,6 +846,18 @@ final class InjectionManager {
             AuditLog.shared.log("injection.backupdiff", detail: "excluded=\(before - candidates.count) \(injectedNames.sorted())")
         }
 
+        // v2.9.310：对齐 TrollFools intersection——主二进制直接链接的 ∩ 枚举到的
+        // 优先选真链接的（启动必加载）；空了才 fallback 全部（懒加载 App）
+        let mainDylibNames = Set((MachOAnalyzer.analyze(executablePath(app))?.dylibs ?? [])
+            .map { ($0 as NSString).lastPathComponent })
+        let intersected = candidates.filter { mainDylibNames.contains(($0 as NSString).lastPathComponent) }
+        if !intersected.isEmpty {
+            AuditLog.shared.log("injection.intersection", detail: "\(intersected.count)/\(candidates.count) 主二进制直接链接")
+            candidates = intersected
+        } else {
+            AuditLog.shared.log("injection.intersection_empty", detail: "主二进制无直接链接framework,fallback全部\(candidates.count)")
+        }
+
         // 注入策略排序（对齐 TrollFools Strategy：lexicographic 默认 / fast 大小升序 / preorder / postorder）
         switch strategy {
         case "fast":
