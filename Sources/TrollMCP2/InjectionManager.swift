@@ -224,10 +224,14 @@ final class InjectionManager {
         if geteuid() == 0, let native = nativeFileOp(name, args) {
             return native
         }
-        let result = spawnRootDetailed(bin, args: [name] + args, timeout: timeout)
+        // v2.9.284：去掉 [name] 前缀——argv[0]=bin 已是可执行路径（v2.9.281 修复），
+        // argv[1:] 应为纯参数。之前多塞 name 导致 argv[1]="cp"/"chown"/"install_name_tool" 等
+        // 被工具当作第一个参数/第一个源文件：cp 报 "target ... No such file"（把 "cp" 当源）、
+        // install_name_tool 把 "install_name_tool" 当命令等，大量注入步骤静默失败（_ = 忽略返回）。
+        let result = spawnRootDetailed(bin, args: args, timeout: timeout)
         if result.code != 0, name != "ldid", let ldid = binaryPath("ldid") {
             _ = spawnRootDetailed(ldid, args: ["-S", bin], timeout: 30)
-            let retry = spawnRootDetailed(bin, args: [name] + args, timeout: timeout)
+            let retry = spawnRootDetailed(bin, args: args, timeout: timeout)
             if retry.code == 0 { return (0, retry.output) }
         }
         return (result.code, result.output)
@@ -286,7 +290,8 @@ final class InjectionManager {
     @discardableResult
     func runAsRootStdout(_ name: String, args: [String], timeout: Double = 30) -> (Int32, String) {
         guard let bin = binaryPath(name) else { return (-1, "") }
-        let r = spawnRootDetailed(bin, args: [name] + args, timeout: timeout)
+        // v2.9.284：同 runAsRoot，去掉 [name] 前缀（argv[0]=bin，argv[1:] 纯参数）
+        let r = spawnRootDetailed(bin, args: args, timeout: timeout)
         return (r.code, r.stdout)
     }
 
