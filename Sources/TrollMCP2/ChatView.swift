@@ -1194,6 +1194,40 @@ struct MessageBubble: View {
         }
     }
 
+    /// v2.9.320：工具结果中文说明
+    private func toolResultTitle(_ tool: String, isError: Bool) -> String {
+        let ok = isError ? "失败" : "完成"
+        switch tool {
+        case "device_info", "system.info": return "设备信息已获取"
+        case "device_probe", "probe.inspect": return "设备探测完成"
+        case "workspace_info", "workspace.info": return "工作区信息已读取"
+        case "injection.enable": return "注入完成"
+        case "injection.restore": return "恢复完成"
+        case "injection.list": return "App列表已获取"
+        case "injection.status": return "注入状态已查询"
+        case "injection.diagnose": return "诊断完成"
+        case "screenshot", "ui.screenshot": return "截图已保存"
+        case "app.status": return "App状态已查询"
+        case "app.launch", "app.start": return "App已启动"
+        case "app.restart": return "App已重启"
+        case "fs.read", "fs.tree": return "文件已读取"
+        case "fs.write", "fs.edit": return "文件已修改"
+        case "fs.find", "fs.grep": return "搜索完成"
+        case "web.search": return "搜索结果已返回"
+        case "web.fetch": return "网页内容已读取"
+        case "tool_search": return "工具列表已返回"
+        case "artifact_list", "artifacts.list": return "产物列表已返回"
+        case "app.decrypt": return "砸壳完成"
+        case "control.tap", "ui.tap": return "点击已执行"
+        case "control.swipe", "ui.swipe": return "滑动已执行"
+        case "control.type", "ui.type": return "输入已完成"
+        case "ssh.exec": return "命令已执行"
+        case "github.trigger_build": return "构建已触发"
+        case "github.fetch_runs": return "构建状态已获取"
+        default: return "工具执行\(ok)"
+        }
+    }
+
     /// v2.9.20：思考记录（reasoning）折叠视图
     private func thinkingView(_ text: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -1263,7 +1297,7 @@ struct MessageBubble: View {
                 Image(systemName: message.isError ? "exclamationmark.circle" : "checkmark.circle")
                     .font(.system(size: 18))
                     .foregroundColor(message.isError ? .red : .green)
-                Text(L10n.t("ui_51"))
+                Text(toolResultTitle(message.toolName ?? "", isError: message.isError))
                     .font(.subheadline)
                     .fontWeight(.medium)
                 Spacer()
