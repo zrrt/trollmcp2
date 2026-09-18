@@ -90,17 +90,16 @@ final class AppUninstallTool: MCPTool {
         let helper = tsPath.isEmpty ? "/var/usr/bin/trollstorehelper" : tsPath + "/trollstorehelper"
         // v2.9.276：custom 卸载——系统方法(LSApplicationWorkspace)对 App Store 版
         // 返回 0 但实际不删 bundle（实测小红书 7DA17D81 残留，导致双注册）。
-        // custom 直接删数据容器+注销。注意：custom 必须在 bid 前（lastObject=bid）
+        // v2.9.278：卸载前先记录旧 bundle 路径——卸载后 LaunchServices 已注销查不到，
+        // 但磁盘残留文件还在，refresh-all 会把它扫回注册（277 的"卸载后再查"漏删）。
+        // 所以卸载成功后无条件按记录路径 uninstall-path custom 硬删。
+        let oldPath = AppCatalog.list().first { $0.bundleId == bid }?.path
         let (c, out) = im.spawnRoot(helper, args: ["uninstall", "custom", bid], timeout: 120)
         AuditLog.shared.log("app.uninstall", detail: "\(bid) c=\(c)")
-        // v2.9.277：custom 卸载后 AppCatalog 仍能查到旧 bundle（LaunchServices 双注册，
-        // App Store 原版 bundle 残留磁盘）→ 用 uninstall-path custom 按路径硬删 + 注销
         if c == 0 {
-            AppCatalog.invalidateCache()
-            let stillThere = AppCatalog.list().first { $0.bundleId == bid }
-            if let oldPath = stillThere?.path, FileManager.default.fileExists(atPath: oldPath) {
-                let (c2, out2) = im.spawnRoot(helper, args: ["uninstall-path", "custom", oldPath], timeout: 90)
-                AuditLog.shared.log("app.uninstall-path", detail: "\(oldPath) c=\(c2) \(String(out2.prefix(60)))")
+            if let p = oldPath, FileManager.default.fileExists(atPath: p) {
+                let (c2, out2) = im.spawnRoot(helper, args: ["uninstall-path", "custom", p], timeout: 90)
+                AuditLog.shared.log("app.uninstall-path", detail: "\(p) c=\(c2) \(String(out2.prefix(60)))")
             }
             _ = im.spawnRoot(helper, args: ["refresh-all"], timeout: 90)
             AppCatalog.invalidateCache()
