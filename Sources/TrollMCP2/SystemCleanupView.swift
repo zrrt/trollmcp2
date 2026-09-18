@@ -109,8 +109,8 @@ enum SystemCleanupEngine {
 
         items.append(SystemCleanupItem(id: "webkit", label: "WebKit 缓存",
             detail: "所有 App 的 WebKit 网页缓存", paths: [], risk: .safe, size: webkit))
-        items.append(SystemCleanupItem(id: "http_storage", label: "HTTP 存储",
-            detail: "所有 App 的 HTTPStorages（Cookie/URL 缓存）", paths: [], risk: .warn, size: http))
+        // v2.9.314：http_storage 已移除——清所有 App 的 Cookie/登录态太危险
+        // items.append(SystemCleanupItem(id: "http_storage", ...))
         items.append(SystemCleanupItem(id: "safari", label: "Safari 缓存",
             detail: "Safari 网页缓存（不删书签/历史）",
             paths: ["/var/mobile/Library/Caches/com.apple.mobilesafari"], risk: .safe, size: safari))
