@@ -24,6 +24,48 @@
 
 #define kConfigPath @"/var/mobile/Documents/Workspace/hook_config.json"
 
+#pragma mark - v2.0：FakeDevice 设备伪装（合并自 FakeDevice v1.1）
+
+static NSDictionary *g_fakeDevice = nil;
+
+static void fd_swizzleInstanceMethod(Class cls, SEL original, SEL replacement) {
+    @try {
+        Method origM = class_getInstanceMethod(cls, original);
+        Method replM = class_getInstanceMethod(cls, replacement);
+        if (!origM || !replM) return;
+        method_exchangeImplementations(origM, replM);
+    } @catch (NSException *e) {}
+}
+
+@interface UIDevice (ConfigHook_Fake)
+- (NSString *)fd_name;
+- (NSString *)fd_model;
+- (NSString *)fd_localizedModel;
+- (NSString *)fd_systemVersion;
+@end
+@implementation UIDevice (ConfigHook_Fake)
+- (NSString *)fd_name { if (g_fakeDevice[@"name"]) return g_fakeDevice[@"name"]; return [self fd_name]; }
+- (NSString *)fd_model { if (g_fakeDevice[@"model"]) return g_fakeDevice[@"model"]; return [self fd_model]; }
+- (NSString *)fd_localizedModel { if (g_fakeDevice[@"model"]) return g_fakeDevice[@"model"]; return [self fd_localizedModel]; }
+- (NSString *)fd_systemVersion { if (g_fakeDevice[@"systemVersion"]) return g_fakeDevice[@"systemVersion"]; return [self fd_systemVersion]; }
+@end
+
+@interface NSProcessInfo (ConfigHook_Fake)
+- (NSOperatingSystemVersion)fd_operatingSystemVersion;
+@end
+@implementation NSProcessInfo (ConfigHook_Fake)
+- (NSOperatingSystemVersion)fd_operatingSystemVersion {
+    NSOperatingSystemVersion v = [self fd_operatingSystemVersion];
+    if (g_fakeDevice[@"systemVersion"]) {
+        NSArray *parts = [g_fakeDevice[@"systemVersion"] componentsSeparatedByString:@"."];
+        if (parts.count > 0) v.majorVersion = [parts[0] integerValue];
+        if (parts.count > 1) v.minorVersion = [parts[1] integerValue];
+        if (parts.count > 2) v.patchVersion = [parts[2] integerValue];
+    }
+    return v;
+}
+@end
+
 #pragma mark - 工具函数
 
 static UIColor *ch_colorFromHex(NSString *hex) {
@@ -175,44 +217,3 @@ static void chInit(void) {
     });
 }
 
-#pragma mark - v2.0：FakeDevice 设备伪装（合并自 FakeDevice v1.1）
-
-static NSDictionary *g_fakeDevice = nil;
-
-static void fd_swizzleInstanceMethod(Class cls, SEL original, SEL replacement) {
-    @try {
-        Method origM = class_getInstanceMethod(cls, original);
-        Method replM = class_getInstanceMethod(cls, replacement);
-        if (!origM || !replM) return;
-        method_exchangeImplementations(origM, replM);
-    } @catch (NSException *e) {}
-}
-
-@interface UIDevice (ConfigHook_Fake)
-- (NSString *)fd_name;
-- (NSString *)fd_model;
-- (NSString *)fd_localizedModel;
-- (NSString *)fd_systemVersion;
-@end
-@implementation UIDevice (ConfigHook_Fake)
-- (NSString *)fd_name { if (g_fakeDevice[@"name"]) return g_fakeDevice[@"name"]; return [self fd_name]; }
-- (NSString *)fd_model { if (g_fakeDevice[@"model"]) return g_fakeDevice[@"model"]; return [self fd_model]; }
-- (NSString *)fd_localizedModel { if (g_fakeDevice[@"model"]) return g_fakeDevice[@"model"]; return [self fd_localizedModel]; }
-- (NSString *)fd_systemVersion { if (g_fakeDevice[@"systemVersion"]) return g_fakeDevice[@"systemVersion"]; return [self fd_systemVersion]; }
-@end
-
-@interface NSProcessInfo (ConfigHook_Fake)
-- (NSOperatingSystemVersion)fd_operatingSystemVersion;
-@end
-@implementation NSProcessInfo (ConfigHook_Fake)
-- (NSOperatingSystemVersion)fd_operatingSystemVersion {
-    NSOperatingSystemVersion v = [self fd_operatingSystemVersion];
-    if (g_fakeDevice[@"systemVersion"]) {
-        NSArray *parts = [g_fakeDevice[@"systemVersion"] componentsSeparatedByString:@"."];
-        if (parts.count > 0) v.majorVersion = [parts[0] integerValue];
-        if (parts.count > 1) v.minorVersion = [parts[1] integerValue];
-        if (parts.count > 2) v.patchVersion = [parts[2] integerValue];
-    }
-    return v;
-}
-@end
