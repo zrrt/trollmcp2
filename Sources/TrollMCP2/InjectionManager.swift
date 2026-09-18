@@ -1123,7 +1123,7 @@ final class InjectionManager {
             AuditLog.shared.log("injection.pick_pref", detail: "\(bundleId) 指定: \((hit.0 as NSString).lastPathComponent)")
         } else if let best = scored.first {
             targetMachO = best.0
-            AuditLog.shared.log("injection.pick_best", detail: "\(bundleId) 最高分: \((best.0 as NSString).lastPathComponent) score=\(best.1.0) reasons=\(best.1.2)")
+            AuditLog.shared.log("injection.pick_best", detail: "\(bundleId) 最高分: \((best.0 as NSString).lastPathComponent) score=\(best.1.score) reasons=\(best.1.reasons)")
         }
         if targetMachO == nil {
             let mainInfo = MachOAnalyzer.analyze(executablePath(app))
@@ -1136,6 +1136,7 @@ final class InjectionManager {
             throw MCPError.failed("无可注入 Mach-O：所有候选加密。需先砸壳(app.decrypt)。")
         }
         let targetMachO = finalTarget
+        let targetIsMain = targetMachO == executablePath(app)
 
         // 2.5 dylib 架构预检（防注入后闪退）：源 dylib 与目标 Mach-O 均须可解析
         let dylibInfo2 = MachOAnalyzer.analyze(agentSrc)
