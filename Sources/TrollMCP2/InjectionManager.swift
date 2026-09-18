@@ -1347,6 +1347,20 @@ final class InjectionManager {
             "target_is_main": targetIsMain,
             "candidates": allCandidates.map { ($0 as NSString).lastPathComponent },
             "framework_candidates": fwCandidates.map { ($0 as NSString).lastPathComponent },
+            // v2.9.309：对齐 TrollFools 诊断——每个候选的加密状态/大小/是否被选
+            "candidates_detail": fwCandidates.map { p -> [String: Any] in
+                let name = (p as NSString).lastPathComponent
+                let enc = MachOAnalyzer.isEncryptedMachO(p)
+                let size = (try? FileManager.default.attributesOfItem(atPath: p)[.size] as? Int) ?? 0
+                let selected = (p == targetMachO)
+                return [
+                    "name": name,
+                    "encrypted": enc,
+                    "size_kb": size / 1024,
+                    "selected": selected,
+                    "reason": enc ? "SKIP:encrypted" : (selected ? "SELECTED" : "candidate")
+                ]
+            },
             "main_deps": mainDeps.map { ($0 as NSString).lastPathComponent },
             "mainBinary": executablePath(app),
             "dylib": firstInjectName,
