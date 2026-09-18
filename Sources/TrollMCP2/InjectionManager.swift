@@ -141,6 +141,13 @@ enum MachOAnalyzer {
         guard let info = analyze(path) else { return false }
         return info.valid && (info.arch == "arm64" || info.arch == "arm32" || info.arch.hasPrefix("fat")) && info.cryptID == 0
     }
+
+    /// v2.9.305：只要是合法 Mach-O 就列进候选（不查 cryptid）——小红书自家 framework
+    /// (Sheim/DisGuard) 可能加密，TrollFools 靠 ct_bypass 强注，枚举阶段不应过滤。
+    static func isValidMachO(_ path: String) -> Bool {
+        guard let info = analyze(path) else { return false }
+        return info.valid && (info.arch == "arm64" || info.arch == "arm32" || info.arch.hasPrefix("fat"))
+    }
 }
 
 /// 注入管理器：使用内置 ldid / optool / insert_dylib / ct_bypass 二进制，通过 posix_spawn
@@ -799,11 +806,14 @@ final class InjectionManager {
                     if lower.hasSuffix(".framework") {
                         let exeName = (item as NSString).deletingPathExtension
                         let exe = (full as NSString).appendingPathComponent(exeName)
-                        if MachOAnalyzer.isInjectiveMachO(exe) { candidates.append(exe) }
+                        // v2.9.305：不再用 isInjectiveMachO(要求cryptid==0)过滤——小红书自家
+                        // framework(Sheim/DisGuard/Dis) 可能加密，TrollFools 靠 ct_bypass 强注。
+                        // 只要是合法 Mach-O 就列进候选，注入时统一 ct_bypass。
+                        if MachOAnalyzer.isValidMachO(exe) { candidates.append(exe) }
                     }
                     continue
                 }
-                if lower.hasSuffix(".dylib"), MachOAnalyzer.isInjectiveMachO(full) {
+                if lower.hasSuffix(".dylib"), MachOAnalyzer.isValidMachO(full) {
                     candidates.append(full)
                 }
             }
