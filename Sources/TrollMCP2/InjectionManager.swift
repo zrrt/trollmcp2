@@ -498,6 +498,26 @@ final class InjectionManager {
         repeat { wr = waitpid(pid, &st, 0) } while wr == -1 && errno == EINTR
         timer.cancel()
         // 进程已退出，等待 pipe 数据全部读完
+        // v2.9.280：waitpid 返回后 DispatchSource 可能仍有余量未读（大输出被 64KB pipe
+        // 缓冲截断、进程已退出导致 event 不再触发），先同步 drain 两个 pipe 到 EOF，
+        // 再等 sem，避免 install/sign 等大输出日志丢失（曾导致 install 中间日志全丢、
+        // 无法诊断"返回 0 却没装上"）。
+        func drain(_ fd: Int32) {
+            var buf = [UInt8](repeating: 0, count: 65536)
+            while true {
+                let n = read(fd, &buf, buf.count)
+                if n > 0 {
+                    let arr = Array(buf.prefix(n)) + [UInt8(0)]
+                    arr.withUnsafeBufferPointer { ptr in
+                        let s = String(cString: unsafeBitCast(ptr.baseAddress, to: UnsafePointer<CChar>.self))
+                        outputLock.lock(); stdoutStr += s; outputLock.unlock()
+                    }
+                } else { break }
+            }
+        }
+        drain(outPipe[0])
+        drain(errPipe[0])
+        outSource.cancel(); errSource.cancel()
         outSem.wait()
         errSem.wait()
 
