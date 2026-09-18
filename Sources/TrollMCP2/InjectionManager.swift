@@ -1078,83 +1078,64 @@ final class InjectionManager {
         let allCandidates = collectInjectableMachOs(app, strategy: injectStrategy)
         let fwCandidates = hasFrameworks ? allCandidates.filter { $0.hasPrefix(frameworksDirPath + "/") } : []
         let mainName = (executablePath(app) as NSString).lastPathComponent.lowercased()
-        let targetMachO: String
-        // v2.9.303：废掉 allowMain 强注主二进制。主二进制在 dyld 阶段加载，dylib constructor
-        // 跑太早（runtime/substrate 未就绪）→ 小红书/闲鱼注入后闪退实测。TrollFools 正道：
-        // 只选 Frameworks 下未加密 Mach-O，且优先主二进制 LC_LOAD_DYLIB 直接依赖的（启动必 dlopen）。
-        // 主二进制仅在"完全没有 Frameworks 候选 + cryptid==0"的兜底场景才用。
+        // v2.9.315：AI 打分制选目标——每个候选打分后选最高分
+        // 主二进制直接链接(+50) > 自家framework(+30) > 大文件(+10) > 懒加载SDK(-50) > 加密(-1000排除)
         let mainDeps = MachOAnalyzer.analyze(executablePath(app))?.dylibs ?? []
-        func pickFromFrameworks() -> String? {
-            guard !fwCandidates.isEmpty else { return nil }
-            // v2.9.308：对齐 TrollFools——优先未加密 framework（加密的注入会闪退）
-            let unencrypted = fwCandidates.filter { !MachOAnalyzer.isEncryptedMachO($0) }
-            let pool = unencrypted.isEmpty ? fwCandidates : unencrypted
-            // 1) 用户指定 preferred
-            if let pref = preferredTarget, !pref.isEmpty,
-               let hit = pool.first(where: { $0.localizedCaseInsensitiveContains(pref) }) {
-                return hit
+        let depNames = Set(mainDeps.map { ($0 as NSString).lastPathComponent })
+        let lazySDK: Set<String> = ["appsflyer", "bgm", "bugly", "umeng", "firebase",
+            "googleutilities", "googlesignin", "googletagmanager", "firebasemessaging",
+            "firanalytics", "flurry", "adjust", "kochava", "branch", "tenjin", "appsflyerlib",
+            "alivc", "aliyun", "artc", "queen", "nuisdk", "opencv", "yoga", "quickjs", "kun_bridge", "worker_bridge"]
+        let ownPrefixes: [String] = [mainName, "dis", mainName.prefix(3).description, "app"]
+
+        func scoreCandidate(_ path: String) -> (score: Int, reasons: [String]) {
+            var score = 0
+            var reasons: [String] = []
+            let name = (path as NSString).lastPathComponent
+            let lower = name.lowercased()
+            if MachOAnalyzer.isEncryptedMachO(path) {
+                return (-1000, ["加密(cryptid!=0)"])
             }
-            // 2) App 自家 framework 优先（名字含主二进制名/discover/产品前缀，启动必加载）
-            let ownPrefixes: [String] = [mainName, "dis", mainName.prefix(3).description]
-            if let own = pool.first(where: { c in
-                let n = (c as NSString).lastPathComponent.lowercased()
-                return ownPrefixes.contains { n.hasPrefix($0) } || n == mainName
-            }) {
-                AuditLog.shared.log("injection.pick_own", detail: "\(bundleId) 选自家framework: \((own as NSString).lastPathComponent)")
-                return own
+            if depNames.contains(where: { $0 == name || $0.hasPrefix(name) || name.hasPrefix($0) }) {
+                score += 50; reasons.append("主二进制直接链接")
             }
-            // 3) 主二进制直接依赖，跳过已知懒加载第三方 SDK
-            let lazySDK: Set<String> = ["appsflyer", "bgm", "bugly", "umeng", "firebase",
-                "googleutilities", "googlesignin", "googletagmanager", "firebasemessaging",
-                "firanalytics", "flurry", "adjust", "kochava", "branch", "tenjin", "appsflyerlib"]
-            let depCandidates = pool.filter { c in
-                let n = (c as NSString).lastPathComponent.lowercased()
-                return !lazySDK.contains(where: { n.contains($0) })
+            if ownPrefixes.contains(where: { lower.hasPrefix($0) }) {
+                score += 30; reasons.append("自家framework")
             }
-            if let boot = depCandidates.first(where: { c in
-                let name = (c as NSString).lastPathComponent
-                return mainDeps.contains { d in
-                    let dep = (d as NSString).lastPathComponent
-                    return dep == name || dep.hasPrefix(name) || name.hasPrefix(dep)
-                }
-            }) {
-                AuditLog.shared.log("injection.pick_dep", detail: "\(bundleId) 选依赖: \((boot as NSString).lastPathComponent)")
-                return boot
+            if let size = try? FileManager.default.attributesOfItem(atPath: path)[.size] as? Int, size > 10_000_000 {
+                score += 10; reasons.append("大文件(\(size/1024/1024)MB)")
             }
-            // 4) 回退字典序第一个（可能懒加载，记日志）
-            AuditLog.shared.log("injection.fw_fallback", detail: "\(bundleId) Frameworks 候选: \(pool.map { ($0 as NSString).lastPathComponent })")
-            return pool[0]
+            if lazySDK.contains(where: { lower.contains($0) }) {
+                score -= 50; reasons.append("第三方SDK(懒加载)")
+            }
+            return (score, reasons)
         }
-        if hasFrameworks, let chosen = pickFromFrameworks() {
-            // v2.9.307：如果选的是懒加载第三方 SDK（不在主二进制直接依赖里），
-            // 且主二进制未加密 → 改用主二进制（constructor 必执行，4789 必起）
-            let chosenName = (chosen as NSString).lastPathComponent
-            let depNames = Set(mainDeps.map { ($0 as NSString).lastPathComponent })
-            let chosenIsLazy = !depNames.contains(chosenName) &&
-                !chosenName.lowercased().hasPrefix(mainName)
-            if chosenIsLazy {
-                let mainInfo = MachOAnalyzer.analyze(executablePath(app))
-                if (mainInfo?.cryptID ?? 1) == 0 {
-                    AuditLog.shared.log("injection.use_main", detail: "\(bundleId) Frameworks候选\(chosenName)是懒加载，改用主二进制(未加密)")
-                    targetMachO = executablePath(app)
-                } else {
-                    targetMachO = chosen
-                }
-            } else {
-                targetMachO = chosen
-            }
-        } else {
-            // 兜底：无 Frameworks 候选 → 看主二进制
+
+        let scored = fwCandidates.map { ($0, scoreCandidate($0)) }
+            .filter { $0.1.0 > -1000 }
+            .sorted { $0.1.0 > $1.1.0 }
+        AuditLog.shared.log("injection.score", detail: "\(bundleId) 打分: \(scored.map { "\(($0.0 as NSString).lastPathComponent)=\($0.1.0)" }.joined(separator: ","))")
+
+        var targetMachO: String?
+        if let pref = preferredTarget, !pref.isEmpty,
+           let hit = scored.first(where: { $0.0.localizedCaseInsensitiveContains(pref) }) {
+            targetMachO = hit.0
+            AuditLog.shared.log("injection.pick_pref", detail: "\(bundleId) 指定: \((hit.0 as NSString).lastPathComponent)")
+        } else if let best = scored.first {
+            targetMachO = best.0
+            AuditLog.shared.log("injection.pick_best", detail: "\(bundleId) 最高分: \((best.0 as NSString).lastPathComponent) score=\(best.1.0) reasons=\(best.1.2)")
+        }
+        if targetMachO == nil {
             let mainInfo = MachOAnalyzer.analyze(executablePath(app))
-            let mainCryptID = mainInfo?.cryptID ?? 1
-            if mainCryptID == 0, !allCandidates.isEmpty {
+            if (mainInfo?.cryptID ?? 1) == 0 {
                 targetMachO = executablePath(app)
-                AuditLog.shared.log("injection.fallback_main", detail: "\(bundleId) 无 Frameworks 候选，用主二进制 cryptid=0")
-            } else {
-                throw MCPError.failed("无可注入 Mach-O：Frameworks 无候选且主二进制加密(cryptid=\(mainCryptID))。需先砸壳(app.decrypt)。")
+                AuditLog.shared.log("injection.fallback_main", detail: "\(bundleId) 无framework候选，用主二进制 cryptid=0")
             }
         }
-        let targetIsMain = targetMachO == executablePath(app)
+        guard let finalTarget = targetMachO else {
+            throw MCPError.failed("无可注入 Mach-O：所有候选加密。需先砸壳(app.decrypt)。")
+        }
+        let targetMachO = finalTarget
 
         // 2.5 dylib 架构预检（防注入后闪退）：源 dylib 与目标 Mach-O 均须可解析
         let dylibInfo2 = MachOAnalyzer.analyze(agentSrc)
