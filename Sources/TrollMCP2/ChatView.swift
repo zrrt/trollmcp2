@@ -714,9 +714,23 @@ struct ChatView: View {
         AuditLog.shared.log("chat", detail: "发送消息")
     }
 
-    /// v2.9.9：图片文件 → base64 data URL（限制单张 ≤ 3MB，避免请求体过大）
+    /// v2.9.9：图片文件 → base64 data URL
+    /// v2.9.292：降采样到最长边 1200px + JPEG q60 压缩——之前只限 3MB 不压缩，
+    /// 单张原图 base64 可达 2-4MB，历史里每张图每次请求全量重发 → 卡住/超时。
+    /// 压缩后单张 ~100-250KB，省 token 且不卡。
     static func imageDataURL(for url: URL) -> String? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
+        guard let img = UIImage(contentsOfFile: url.path) else { return nil }
+        let maxDim: CGFloat = 1200
+        var out = img
+        if max(img.size.width, img.size.height) > maxDim {
+            let scale = maxDim / max(img.size.width, img.size.height)
+            let newSize = CGSize(width: img.size.width * scale, height: img.size.height * scale)
+            UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0)
+            img.draw(in: CGRect(origin: .zero, size: newSize))
+            out = UIGraphicsGetImageFromCurrentImageContext() ?? img
+            UIGraphicsEndImageContext()
+        }
+        guard let data = out.jpegData(compressionQuality: 0.6) else { return nil }
         let limit = 3 * 1024 * 1024
         if data.count > limit { return nil }
         return "data:image/jpeg;base64,\(data.base64EncodedString())"

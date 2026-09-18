@@ -30,7 +30,30 @@ struct WorkspaceBrowserView: View {
         let isDir: Bool
         let size: Int
         let mtime: Date
+        var note: String? = nil   // v2.9.292：目录中文用途说明
     }
+
+    /// v2.9.292：已知目录的中文用途说明（给人看的）
+    static let dirNotes: [String: String] = [
+        "audit": "审计日志",
+        "control_shots": "远程控制截图",
+        "crash": "崩溃日志",
+        "decrypted": "解密(砸壳)产物",
+        "downloads": "下载文件",
+        "duplicates": "重复文件",
+        "knowledge": "知识库",
+        "logs": "运行日志",
+        "macros": "宏/脚本",
+        "network_capture": "抓包数据",
+        "plugins": "插件",
+        "uploads": "用户上传附件",
+        "screenshots": "截图",
+        "tweaks": "注入插件(dylib)",
+        "tool_spill": "工具大输出",
+        "backup": "备份",
+        "tmp": "临时文件",
+        "deb": "deb 包缓存"
+    ]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -112,9 +135,17 @@ struct WorkspaceBrowserView: View {
                                         .font(.subheadline)
                                         .foregroundColor(.primary)
                                         .lineLimit(1)
-                                    Text("\(bytesLabel(item.size)) · \(timeString(item.mtime))")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
+                                    // v2.9.292：目录显示递归总大小 + 中文用途说明
+                                    if item.isDir {
+                                        Text("\(bytesLabel(item.size)) · \(timeString(item.mtime))\(item.note.map { " · \($0)" } ?? "")")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(1)
+                                    } else {
+                                        Text("\(bytesLabel(item.size)) · \(timeString(item.mtime))")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
                                 }
                                 Spacer()
                                 if !item.isDir {
@@ -241,13 +272,52 @@ struct WorkspaceBrowserView: View {
         items = urls.compactMap { url -> FileItem? in
             let values = try? url.resourceValues(forKeys: Set(keys))
             guard let isDir = values?.isDirectory else { return nil }
+            let name = url.lastPathComponent
             return FileItem(path: url.path,
-                            name: url.lastPathComponent,
+                            name: name,
                             isDir: isDir,
-                            size: values?.fileSize ?? 0,
-                            mtime: values?.contentModificationDate ?? Date.distantPast)
+                            size: isDir ? 0 : (values?.fileSize ?? 0),
+                            mtime: values?.contentModificationDate ?? Date.distantPast,
+                            note: isDir ? Self.dirNotes[name] : nil)
         }
         .sorted { $0.isDir && !$1.isDir ? true : (!$0.isDir && $1.isDir ? false : $0.name.localizedStandardCompare($1.name) == .orderedAscending) }
+        // v2.9.292：目录总大小异步递归统计（主线程刷新，避免大目录卡 UI）
+        for idx in items.indices where items[idx].isDir {
+            let dirPath = items[idx].path
+            let itemId = items[idx].id
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                let total = Self.recursiveSize(dirPath)
+                DispatchQueue.main.async {
+                    guard let self = self, let i = self.items.firstIndex(where: { $0.id == itemId }) else { return }
+                    let old = self.items[i]
+                    self.items[i] = FileItem(path: old.path,
+                                             name: old.name,
+                                             isDir: true,
+                                             size: total,
+                                             mtime: old.mtime,
+                                             note: old.note)
+                }
+            }
+        }
+    }
+
+    /// v2.9.292：递归统计目录总大小（限制 50000 个文件防卡死）
+    static func recursiveSize(_ path: String) -> Int {
+        let fm = FileManager.default
+        guard let enumerator = fm.enumerator(atPath: path) else { return 0 }
+        var total = 0
+        var count = 0
+        while let file = enumerator.nextObject() as? String, count < 50000 {
+            count += 1
+            let full = (path as NSString).appendingPathComponent(file)
+            var isDir: ObjCBool = false
+            if fm.fileExists(atPath: full, isDirectory: &isDir), !isDir.boolValue {
+                if let attrs = try? fm.attributesOfItem(atPath: full) {
+                    total += (attrs[.size] as? Int) ?? 0
+                }
+            }
+        }
+        return total
     }
 
     private func copyPath(_ path: String) {
@@ -362,10 +432,17 @@ struct FilePreviewView: View {
 
     private func load() {
         let ext = (item.name as NSString).pathExtension.lowercased()
-        let imgExts = ["png", "jpg", "jpeg", "gif", "heic", "webp"]
-        if imgExts.contains(ext), let img = UIImage(contentsOfFile: item.path) {
-            image = img
-            mode = .image
+        let imgExts = ["png", "jpg", "jpeg", "gif", "heic", "webp", "bmp", "tiff"]
+        if imgExts.contains(ext) {
+            // v2.9.292：大图/HEIC 用 ImageIO 降采样读取，避免 UIImage(contentsOfFile:)
+            // 对超大图/特殊格式失败导致预览空白
+            if let img = Self.downsampledImage(at: item.path) {
+                image = img
+                mode = .image
+                return
+            }
+            text = "图片加载失败（格式或尺寸不支持）：\(item.name)"
+            mode = .binary
             return
         }
         if item.size > 64 * 1024 {
@@ -373,6 +450,19 @@ struct FilePreviewView: View {
             return
         }
         loadText(force: false)
+    }
+
+    /// v2.9.292：ImageIO 降采样读图（目标最长边 1600px，兼容 HEIC/大图）
+    static func downsampledImage(at path: String, maxDim: CGFloat = 1600) -> UIImage? {
+        let url = URL(fileURLWithPath: path)
+        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxDim
+        ]
+        guard let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, options as CFDictionary) else { return nil }
+        return UIImage(cgImage: cg)
     }
 
     private func loadText(force: Bool) {

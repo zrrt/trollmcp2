@@ -303,12 +303,12 @@ final class OpenAIClient {
 
         // OpenAI Chat Completions / Custom Endpoint
         if level >= 4 {
-            return ["model": config.model, "messages": sanitized.map { messageDict($0) }]
+            return ["model": config.model, "messages": trimmedMessages(sanitized).map { messageDict($0) }]
         }
 
         var body: [String: Any] = [
             "model": config.model,
-            "messages": sanitized.map { messageDict($0) },
+            "messages": trimmedMessages(sanitized).map { messageDict($0) },
             tokenKey(level: level): config.maxTokens
         ]
         if level < 3, config.sendsTemperature {
@@ -589,12 +589,37 @@ final class OpenAIClient {
         return nil
     }
 
+    /// v2.9.292：历史图片裁剪——只保留最近 imageBudget 条带图消息的图片，
+    /// 更早的图片置空并加文字占位。用于 chat/completions 序列化路径，
+    /// 避免历史 base64 图片每次请求全量重发导致 body 巨大 → 卡住/超时。
+    private func trimmedMessages(_ messages: [ChatMessage], imageBudget: Int = 2) -> [ChatMessage] {
+        var budget = imageBudget
+        var out: [ChatMessage] = []
+        for m in messages.reversed() {
+            var mm = m
+            if let imgs = mm.imageDataURLs, !imgs.isEmpty {
+                if budget > 0 {
+                    budget -= 1
+                } else {
+                    mm.imageDataURLs = nil
+                    mm.content += "\n[图片已省略：历史图片过多，仅保留最近 \(imageBudget) 条]"
+                }
+            }
+            out.append(mm)
+        }
+        return out.reversed()
+    }
+
     /// 把内部消息历史转换为 Responses API 的 input 数组。
     /// - 普通消息 → {"role": ..., "content": ...}
     /// - assistant 带 toolCalls → message + 逐个 {"type":"function_call", ...}
     /// - tool 结果 → {"type":"function_call_output", ...}
     private func responsesInput(from messages: [ChatMessage]) -> [[String: Any]] {
         var items: [[String: Any]] = []
+        // v2.9.292：历史图片裁剪——只保留最近 2 条带图消息的图片，
+        // 更早的图片替换为文字占位。否则历史里每张 base64 图每次请求全量重发，
+        // body 越积越大 → AI 回消息/看图卡住（用户实证：新对话发文字才正常）。
+        var imgBudget = 2
         for m in messages {
             if m.role == "tool" {
                 items.append([
@@ -621,9 +646,14 @@ final class OpenAIClient {
             // v2.9.9：多模态。图片消息在 Responses API 中同样用 content 数组。
             if let imgs = m.imageDataURLs, !imgs.isEmpty {
                 var content: [[String: Any]] = [["type": "input_text", "text": m.content]]
-                for u in imgs {
-                    content.append(["type": "input_image", "image_url": u])
+                if imgBudget > 0 {
+                    for u in imgs {
+                        content.append(["type": "input_image", "image_url": u])
+                    }
+                } else {
+                    content = [["type": "input_text", "text": m.content + "\n[图片已省略：历史图片过多，仅保留最近 2 条]"]]
                 }
+                imgBudget -= 1
                 items.append(["role": m.role, "content": content])
                 continue
             }
@@ -661,7 +691,7 @@ final class OpenAIClient {
         var body: [String: Any] = [
             "model": config.model,
             "max_tokens": config.maxTokens,
-            "messages": messages.map { messageDict($0) }
+            "messages": trimmedMessages(messages).map { messageDict($0) }
         ]
         // v2.9.175：Anthropic 协议也传工具（此前完全没传 tools，AI 一个 schema 都看不到，
         // 只能靠 system prompt 文字描述脑补工具名——"app.decrypt 够不到"的根因之一）。
