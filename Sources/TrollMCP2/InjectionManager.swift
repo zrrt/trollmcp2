@@ -292,8 +292,11 @@ final class InjectionManager {
 
     /// 非 root 版 posix_spawn（部分场景需要 mobile 身份执行）。
     /// v2.9.126：加 timeout（默认 60s，超时 SIGKILL 返回 code=-2），防命令挂起卡死。
+    /// v2.9.281：argv[0] 必须放可执行路径——posix_spawn 的 argv[0] 是程序名惯例，
+    /// trollstorehelper 等从 argv[1] 开始解析命令；之前直接放 args 导致 cmd 错位
+    /// （收到 "installd"/"custom" 而非 "install"/"uninstall"），helper 静默返回 0 假成功。
     func spawn(_ path: String, args: [String], timeout: Double = 60) -> (Int32, String) {
-        var argv: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) }
+        var argv: [UnsafeMutablePointer<CChar>?] = [strdup(path)] + args.map { strdup($0) }
         argv.append(nil)
         defer { for p in argv where p != nil { free(p) } }
 
@@ -372,7 +375,10 @@ final class InjectionManager {
     /// - signal/exit 区分：被信号杀死的命令 → signaled=true + signal 号，而非误报 exit code
     /// 保持 v2.9.57 的非阻塞 pipe + DispatchSource 异步读取 + waitpid 同步等待。
     func spawnRootDetailed(_ path: String, args: [String], timeout: Double = 60) -> SpawnResult {
-        var argv: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) }
+        // v2.9.281：argv[0] 放可执行路径（posix_spawn 程序名惯例）。之前 argv[0]=args[0]
+        // 导致 trollstorehelper 的 main（从 argv[1] 解析 cmd）把命令参数当成命令：
+        // install/uninstall/refresh-all 全部假成功返回 0，实际从未执行（小红书装不上根因）。
+        var argv: [UnsafeMutablePointer<CChar>?] = [strdup(path)] + args.map { strdup($0) }
         argv.append(nil)
         defer { for p in argv where p != nil { free(p) } }
 
