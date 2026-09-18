@@ -285,10 +285,10 @@ struct WorkspaceBrowserView: View {
         for idx in items.indices where items[idx].isDir {
             let dirPath = items[idx].path
             let itemId = items[idx].id
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            DispatchQueue.global(qos: .userInitiated).async {
                 let total = Self.recursiveSize(dirPath)
                 DispatchQueue.main.async {
-                    guard let self = self, let i = self.items.firstIndex(where: { $0.id == itemId }) else { return }
+                    guard let i = self.items.firstIndex(where: { $0.id == itemId }) else { return }
                     let old = self.items[i]
                     self.items[i] = FileItem(path: old.path,
                                              name: old.name,
