@@ -64,6 +64,8 @@ final class OpenAIClient {
     private var requestStart = Date()
     /// v2.9.107：本轮是否占用 HalfOpen 探测名额（熔断记录时释放）
     private var usedHalfOpenPermit = false
+    /// v2.9.299：当前请求是否已因"模型非视觉"剥离图片（防止无限重试）
+    private var imagesStrippedForVLM = false
     /// v2.9.87：多级降级总预算——全链串行最坏 7 分钟+，用户感知"一直请求中"。
     /// v2.9.96：试探级（L0-L4）超时已压到 25s，预算放宽到 220s 给 L5 流式留足时间。
     private var overallDeadline = Date.distantFuture
@@ -101,6 +103,8 @@ final class OpenAIClient {
         UsageRecorder.shared.begin(messages: messages)
         // v2.9.0：级别 5 = Responses API + 工具调用（Codex 走的端点，GPT-5.6 家族
         // 在 chat/completions 上无法用 function tools，但 /v1/responses 可以）
+        // v2.9.299：VLM 错误图片剥离标志——遇到"模型不是视觉模型"时只剥离一次
+        self.imagesStrippedForVLM = false
         var start = min(max(config.compatLevel, 0), maxLevel)
         // 历史被记忆为"纯对话"(L3/L4) 的旧配置，给一次恢复工具调用的机会：
         // 先试 L5（Responses API + 工具），失败自动回落 L3。
@@ -275,6 +279,24 @@ final class OpenAIClient {
             let failMsg = errorPayload ?? raw
             let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
             NetworkLog.shared.log("\(self.config.name) L\(level) 失败 (HTTP \(status)，耗时 \(el)ms): \(String(failMsg.prefix(200)))")
+
+            // v2.9.299：模型非视觉（VLM）错误——剥离全部图片后同级别重试一次
+            let lowerErr = (errorPayload ?? "").lowercased()
+            let isVLMError = lowerErr.contains("not a vlm") || lowerErr.contains("vision language model") || lowerErr.contains("vlm")
+            if isVLMError, !self.imagesStrippedForVLM, messages.contains(where: { !($0.imageDataURLs ?? []).isEmpty }) {
+                self.imagesStrippedForVLM = true
+                var stripped = messages
+                for i in stripped.indices {
+                    if !(stripped[i].imageDataURLs ?? []).isEmpty {
+                        stripped[i].imageDataURLs = nil
+                        stripped[i].content += "\n[📎 图片已自动移除：当前模型不支持看图（非视觉模型）]"
+                    }
+                }
+                NetworkLog.shared.log("\(self.config.name): 模型非视觉，剥离图片后重试 L\(level)")
+                onStatus?("当前模型不支持看图，已自动移除图片重试…")
+                self.attempt(level: level, isFirst: false, messages: stripped, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking, avoidL5: avoidL5, completion: completion)
+                return
+            }
 
             if retryable {
                 let next = self.nextLevel(after: level, hasTools: tools != nil && !(tools?.isEmpty ?? true), avoidL5: avoidL5)
