@@ -600,7 +600,7 @@ struct ChatView: View {
                     ChatInputTextView(text: $inputText, onSend: {
                         if !inputText.isEmpty { send() }
                     })
-                        .frame(maxWidth: .infinity, maxHeight: 40)
+                        .frame(maxWidth: .infinity, maxHeight: 120)
                         .padding(.leading, 12)
                     if !inputText.isEmpty {
                         Button(action: { inputText = "" }) {
@@ -611,7 +611,7 @@ struct ChatView: View {
                         }
                     }
                 }
-                .frame(height: 40)
+                .frame(minHeight: 40)
                 .background(Color(.secondarySystemBackground))
                 .cornerRadius(20)
 
@@ -1462,12 +1462,19 @@ struct ChatInputTextView: UIViewRepresentable {
         tv.backgroundColor = .clear
         tv.isScrollEnabled = false
         tv.textContainerInset = UIEdgeInsets(top: 9, left: 2, bottom: 7, right: 2)
-        tv.returnKeyType = .default  // v2.9.317：允许换行（默认换行键）
+        tv.textContainer.lineBreakMode = .byWordWrapping
+        tv.returnKeyType = .default  // v2.9.318：回车换行
         tv.delegate = context.coordinator
         return tv
     }
     func updateUIView(_ uiView: UITextView, context: Context) {
         if uiView.text != text { uiView.text = text }
+        // v2.9.318：自动增高
+        let size = uiView.sizeThatFits(CGSize(width: uiView.bounds.width, height: .infinity))
+        uiView.invalidateIntrinsicContentSize()
+        DispatchQueue.main.async {
+            uiView.invalidateIntrinsicContentSize()
+        }
     }
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
