@@ -17,6 +17,12 @@
 #define kControlAgentPort 4789
 #define kMaxUITreeNodes 500
 
+// v2.9.289：私有 API 声明——穿透 UITextEffectsWindow 拿系统真实第一响应者
+// （评论/聊天输入框位于键盘输入体系 window，标准 subviews 递归找不到）
+@interface UIApplication (ControlAgent_FirstResponderPriv)
+- (UIView *)_firstResponder;
+@end
+
 // v2.9.259: 文件日志——远程 fs.read 可直接读 /var/mobile/Documents/Workspace/control_agent.log，
 // 定位 dylib 是否加载/keepalive hook 是否成功/4789 bind 是否失败
 #define CA_LOG_PATH "/var/mobile/Documents/Workspace/control_agent.log"
@@ -444,14 +450,18 @@ static NSDictionary *swipeFrom(CGFloat x1, CGFloat y1, CGFloat x2, CGFloat y2, C
 }
 
 static NSDictionary *typeText(NSString *text) {
-    // 找到当前第一响应者（输入框），输入文字
-    UIView *firstResponder = nil;
-    for (UIWindow *window in allWindows()) {
-        for (UIView *sub in window.subviews) {
-            UIView *found = [sub ca_findFirstResponder];
-            if (found) { firstResponder = found; break; }
+    // v2.9.289：私有 API 直取系统真实第一响应者——评论/聊天输入框在
+    // UITextEffectsWindow（键盘输入体系），window.subviews 递归找不到，
+    // _firstResponder 穿透所有 window 直接命中（含键盘 window）
+    UIView *firstResponder = [[UIApplication sharedApplication] _firstResponder];
+    if (!firstResponder) {
+        for (UIWindow *window in allWindows()) {
+            for (UIView *sub in window.subviews) {
+                UIView *found = [sub ca_findFirstResponder];
+                if (found) { firstResponder = found; break; }
+            }
+            if (firstResponder) break;
         }
-        if (firstResponder) break;
     }
 
     // v2.9.288：无第一响应者时，自动聚焦最近的可见输入框再输入
@@ -462,17 +472,20 @@ static NSDictionary *typeText(NSString *text) {
                 UIView *found = [sub ca_findInputView];
                 if (found) {
                     __block UIView *input = found;
+                    // v2.9.289：becomeFirstResponder 与 insertText 合并到同一主线程 block，
+                    // 避免聚焦后焦点被其他 UI 动作抢走
                     dispatch_async(dispatch_get_main_queue(), ^{
                         [input becomeFirstResponder];
+                        if ([input conformsToProtocol:@protocol(UITextInput)]) {
+                            [(id<UITextInput>)input insertText:text];
+                        }
                     });
                     for (int i = 0; i < 10; i++) {
                         [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
                     }
-                    firstResponder = input;
-                    break;
+                    return @{@"typed": @YES, @"text": text, @"target": NSStringFromClass([input class]), @"method": @"insertText_autoFocus", @"focused": @YES};
                 }
             }
-            if (firstResponder) break;
         }
     }
 
