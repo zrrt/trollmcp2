@@ -243,7 +243,7 @@ final class AppOpenTool: MCPTool {
 
 // MARK: - 启动并输入（依赖注入代理，这里做状态上报）
 
-// MARK: - Agent HTTP 通道（v2.9.103：TrollMCPAgent v4.1 本地 HTTP 127.0.0.1:4792）
+// MARK: - Agent HTTP 通道（v2.9.103：ControlAgent v4.1 本地 HTTP 127.0.0.1:4792）
 // v3/v4 时代用 NSNotification/UserDefaults 跨进程——沙盒隔离根本不通；v4.1 agent 内置
 // loopback HTTP server，主 App 直连目标 App 的 agent，链路真实可用。
 
@@ -275,7 +275,7 @@ private func waitAgentReady(timeout: TimeInterval = 8) -> Bool {
     let deadline = Date().addingTimeInterval(timeout)
     while Date() < deadline {
         if let st = agentHTTP("GET", "/status"),
-           (st["agent"] as? String) == "TrollMCPAgent" {
+           (st["agent"] as? String) == "ControlAgent" {
             return true
         }
         Thread.sleep(forTimeInterval: 0.4)
@@ -286,7 +286,7 @@ private func waitAgentReady(timeout: TimeInterval = 8) -> Bool {
 final class AppOpenAndInputTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.open_and_input",
-        summary: "打开指定 App，等待 TrollMCPAgent 就绪后输入文本（v4.1 HTTP 链路）",
+        summary: "打开指定 App，等待 ControlAgent 就绪后输入文本（v4.1 HTTP 链路）",
         parameters: [
             "bundle_id": "目标 App Bundle ID",
             "text": "要输入的文本",
@@ -336,12 +336,12 @@ final class AppOpenAndInputTool: MCPTool {
     }
 }
 
-// MARK: - 通用 App 控制（v2.9.103：直连 TrollMCPAgent v4.1 HTTP 4792）
+// MARK: - 通用 App 控制（v2.9.103：直连 ControlAgent v4.1 HTTP 4792）
 
 final class AppsControlTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.control",
-        summary: "控制已注入 TrollMCPAgent 的 App（HTTP 直连）：status/ui_tree/tap/swipe/type/scroll",
+        summary: "控制已注入 ControlAgent 的 App（HTTP 直连）：status/ui_tree/tap/swipe/type/scroll",
         parameters: [
             "bundle_id": "目标 App Bundle ID（提示用）",
             "action": "status | ui_tree | tap | swipe | type | scroll",
@@ -367,7 +367,7 @@ final class AppsControlTool: MCPTool {
         }
         body["action"] = action
         guard let r = agentHTTP("POST", "/command", body: body) else {
-            return ["success": false, "error": "agent HTTP 不可达：目标 App 未注入 TrollMCPAgent v4.1 或未在前台运行"]
+            return ["success": false, "error": "agent HTTP 不可达：目标 App 未注入 ControlAgent v4.1 或未在前台运行"]
         }
         var out = r
         if let bid = params["bundle_id"] as? String { out["bundle_id"] = bid }

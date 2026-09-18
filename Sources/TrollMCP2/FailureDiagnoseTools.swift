@@ -32,7 +32,7 @@ final class InjectionVerifyTool: MCPTool {
         var loadedDylibs: [String] = []
         let mainBinary = app.path + "/" + (((NSDictionary(contentsOfFile: app.path + "/Info.plist"))?["CFBundleExecutable"] as? String) ?? "App")
         if let mo = MachOAnalyzer.analyze(mainBinary) {
-            loadedDylibs = mo.dylibs.filter { $0.contains("TrollMCPAgent") || $0.contains("ProbeAgent") || $0.contains("MemoryTweak") || $0.contains(".dylib") }
+            loadedDylibs = mo.dylibs.filter { $0.contains("ControlAgent") || $0.contains("ProbeAgent") || $0.contains("MemoryTweak") || $0.contains(".dylib") }
         }
         // 注入资产（Frameworks 内，TrollFools 策略）
         let assets = InjectionManager.shared.injectedAssets(in: app).map { ($0 as NSString).lastPathComponent }
@@ -128,7 +128,7 @@ final class AppDiagnoseTool: MCPTool {
 
         // 1) 注入残留
         let assets = InjectionManager.shared.injectedAssets(in: app)
-        let injected = MachOAnalyzer.analyze(binaryPath)?.dylibs.contains(where: { $0.contains("TrollMCPAgent") }) ?? false
+        let injected = MachOAnalyzer.analyze(binaryPath)?.dylibs.contains(where: { $0.contains("ControlAgent") }) ?? false
         checks["injection"] = ["injected": injected, "assets": assets.map { ($0 as NSString).lastPathComponent }]
 
         // 2) 加密状态（otool -l 查 LC_ENCRYPTION_INFO）

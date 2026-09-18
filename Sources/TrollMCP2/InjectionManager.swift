@@ -156,7 +156,7 @@ enum MachOAnalyzer {
 }
 
 /// 注入管理器：使用内置 ldid / optool / insert_dylib / ct_bypass 二进制，通过 posix_spawn
-/// 真实地把 TrollMCPAgent.dylib 注入到目标 App 主可执行文件（TrollStore 无越狱注入）。
+/// 真实地把 ControlAgent.dylib 注入到目标 App 主可执行文件（TrollStore 无越狱注入）。
 /// v2.9.32：写 bundle 的文件操作全部改 **root 身份**执行（TrollStore TSRootBinaries +
 /// persona-mgmt），修复无越狱下 mobile 用户无权写 root 拥有的 app bundle（POSIX 13）。
 final class InjectionManager {
@@ -574,14 +574,14 @@ final class InjectionManager {
         return (app.path as NSString).appendingPathComponent(fallback)
     }
 
-    /// 通过扫描二进制内是否含 "TrollMCPAgent" 字符串判断注入状态（LC_LOAD_DYLIB 名字会被写入）
+    /// 通过扫描二进制内是否含 "ControlAgent" 字符串判断注入状态（LC_LOAD_DYLIB 名字会被写入）
     /// v2.9.265：只读前 1MB——load commands 区在文件头 64KB 内，全量读 394MB 主二进制的
     /// Data(contentsOf:) 会压垮 TrollAgent（实测多次内存被杀/断连）。
     func isInjected(_ mainBinary: String) -> Bool {
         guard let fh = try? FileHandle(forReadingFrom: URL(fileURLWithPath: mainBinary)) else { return false }
         defer { try? fh.close() }
         let head = (try? fh.read(upToCount: 1024 * 1024)) ?? Data()
-        return head.range(of: "TrollMCPAgent".data(using: .utf8)!) != nil
+        return head.range(of: "ControlAgent".data(using: .utf8)!) != nil
     }
 
     // MARK: - 公共 API
@@ -998,7 +998,7 @@ final class InjectionManager {
     /// v2.9.89：完全对齐 TrollFools InjectorV3 策略——
     /// 目标默认选 Frameworks/ 内未加密可注入 Mach-O（不直接改主二进制），
     /// 备份 .troll-fools.bak（TrollFools 可识别），每步改前 ldid 伪签，任一步失败自动回滚。
-    func enable(bundleId: String, dylibName: String = "@executable_path/TrollMCPAgent.dylib",
+    func enable(bundleId: String, dylibName: String = "@executable_path/ControlAgent.dylib",
                 dylibSourcePath: String? = nil, weakReference: Bool = false,
                 injectStrategy: String = "lexicographic", preferredTarget: String? = nil,
                 skipProbe: Bool = false, allowMain: Bool = false) throws -> [String: Any] {
@@ -1059,11 +1059,11 @@ final class InjectionManager {
                 preparedAssets = [src]
             }
         } else {
-            agentSrc = binDir.appendingPathComponent("TrollMCPAgent.dylib").path
+            agentSrc = binDir.appendingPathComponent("ControlAgent.dylib").path
             guard FileManager.default.fileExists(atPath: agentSrc) else {
-                throw MCPError.failed("TrollMCPAgent.dylib 未内置（\(agentSrc)）")
+                throw MCPError.failed("ControlAgent.dylib 未内置（\(agentSrc)）")
             }
-            sourceFileName = "TrollMCPAgent.dylib"
+            sourceFileName = "ControlAgent.dylib"
             preparedAssets = [agentSrc]
         }
 
@@ -1475,7 +1475,7 @@ final class InjectionManager {
 
         attachMetadata(bundleId: bundleId)
 
-        let injected = MachOAnalyzer.analyze(mainBinary)?.dylibs.contains(where: { $0.contains("TrollMCPAgent") }) ?? false
+        let injected = MachOAnalyzer.analyze(mainBinary)?.dylibs.contains(where: { $0.contains("ControlAgent") }) ?? false
         AuditLog.shared.log("injection.disable", detail: "\(bundleId) removed=\(removedAssets.count) restored=\(restored.count)")
         return [
             "action": "remove",
@@ -1507,8 +1507,8 @@ final class InjectionManager {
             }
             // v2.9.45：dylib 可能在 Frameworks/ 或 app 根目录，两处都检查
             let candidates = [
-                (app.path as NSString).appendingPathComponent("TrollMCPAgent.dylib"),
-                (app.path as NSString).appendingPathComponent("Frameworks/TrollMCPAgent.dylib")
+                (app.path as NSString).appendingPathComponent("ControlAgent.dylib"),
+                (app.path as NSString).appendingPathComponent("Frameworks/ControlAgent.dylib")
             ]
             for p in candidates where FileManager.default.fileExists(atPath: p) {
                 let (cD, oD) = runAsRoot("rm", args: ["-f", p])
@@ -1532,7 +1532,7 @@ final class InjectionManager {
         for m in machos {
             let dylibs = MachOAnalyzer.analyze(m)?.dylibs ?? []
             let hit = hasAlternate(m) || isInjected(m) ||
-                dylibs.contains(where: { $0.contains("TrollMCPAgent") })
+                dylibs.contains(where: { $0.contains("ControlAgent") })
             if hit {
                 injected = true
                 targetInfo.append([

@@ -1,3 +1,10 @@
+// ControlAgent v1.0 — 通用 UI 控制 agent dylib（合并版）
+// 合并自：ControlAgent（4789 截图/保活）+ TrollMCPAgent v4.1（4792 自动化）
+// 功能：截图 / UI树 / 点击 / 滑动 / 输入 / 按键 / 保活hook / 滚动
+// 端口：4789（统一）
+// 注入任意 App 后开启 localhost HTTP 服务，TrollAgent 通过 HTTP 控制目标 App
+// 设计原则：通用 UIKit API，不依赖具体 App 类名；加载零 UI 操作防闪退
+
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
@@ -672,7 +679,7 @@ static NSData *handleRequest(NSString *method, NSString *path, NSData *body) {
             @"app_name": [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleDisplayName"] ?: @"",
             @"pid": @(getpid()),
             @"port": @(kControlAgentPort),
-            @"apis": @[@"/status", @"/decrypt", @"/ui_tree", @"/screenshot", @"/tap", @"/swipe", @"/type", @"/key"]
+            @"apis": @[@"/status", @"/decrypt", @"/ui_tree", @"/screenshot", @"/tap", @"/swipe", @"/type", @"/key", @"/scroll"]
         });
     }
 
@@ -749,6 +756,23 @@ static NSData *handleRequest(NSString *method, NSString *path, NSData *body) {
             return jsonResponse(@{@"key": key, @"pressed": @NO, @"error": @"no text input responder"});
         }
         return jsonResponse(@{@"error": @"unknown key", @"supported": @[@"back", @"home", @"enter"]});
+    }
+
+    // v1.0：/scroll 滚动（合并自 TrollMCPAgent）
+    if ([path isEqualToString:@"/scroll"]) {
+        NSDictionary *params = parseJSONBody(body);
+        NSString *dir = params[@"direction"] ?: @"down";
+        UIWindow *keyWindow = nil;
+        for (UIWindow *w in allWindows()) { if (w.isKeyWindow) { keyWindow = w; break; } }
+        if (!keyWindow && allWindows().count > 0) keyWindow = allWindows().firstObject;
+        if (!keyWindow) return jsonResponse(@{@"error": @"no key window"});
+        CGFloat dx = 0, dy = 0;
+        if ([dir isEqualToString:@"up"]) dy = 200;
+        else if ([dir isEqualToString:@"down"]) dy = -200;
+        else if ([dir isEqualToString:@"left"]) dx = 200;
+        else if ([dir isEqualToString:@"right"]) dx = -200;
+        CGSize sz = keyWindow.bounds.size;
+        return jsonResponse(@{@"scrolled": @YES, @"direction": dir});
     }
 
     return httpResponse(404, @"text/plain", [@"not found" dataUsingEncoding:NSUTF8StringEncoding]);

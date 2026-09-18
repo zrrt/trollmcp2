@@ -166,7 +166,7 @@ final class InjectionRemoveTool: MCPTool {
         // 尝试删除拷贝进 App 包的 dylib
         var removedFile = false
         if let app = AppCatalog.find(bid) {
-            let dylib = URL(fileURLWithPath: app.path).appendingPathComponent("TrollMCPAgent.dylib")
+            let dylib = URL(fileURLWithPath: app.path).appendingPathComponent("ControlAgent.dylib")
             if FileManager.default.fileExists(atPath: dylib.path) {
                 try? FileManager.default.removeItem(at: dylib)
                 removedFile = true

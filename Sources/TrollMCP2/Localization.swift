@@ -380,7 +380,7 @@ enum L10n {
             "ui_101": ["zh": "正在检测本机环境…", "en": "Checking device environment…"],
             "ui_102": ["zh": "此目录为空", "en": "This folder is empty"],
             "ui_103": ["zh": "注入 FakeDevice 并重启 App…", "en": "Injecting FakeDevice & restarting App…"],
-            "ui_104": ["zh": "注入 TrollMCPAgent v4（安全版）", "en": "Inject TrollMCPAgent v4 (safe)"],
+            "ui_104": ["zh": "注入 ControlAgent v4（安全版）", "en": "Inject ControlAgent v4 (safe)"],
             "ui_105": ["zh": "测试接口延迟", "en": "Test latency"],
             "ui_106": ["zh": "添加内容", "en": "Add content"],
             "ui_107": ["zh": "清空", "en": "Clear"],

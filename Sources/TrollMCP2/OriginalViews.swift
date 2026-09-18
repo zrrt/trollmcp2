@@ -719,7 +719,7 @@ struct InjectionDetailView: View {
                 Section(header: SettingSectionHeader(title: "操作")) {
                     Button(action: {
                         do {
-                            _ = try InjectionManager.shared.enable(bundleId: bundleId, dylibName: "@executable_path/TrollMCPAgent.dylib")
+                            _ = try InjectionManager.shared.enable(bundleId: bundleId, dylibName: "@executable_path/ControlAgent.dylib")
                             message = "已启用注入"
                             reload()
                         } catch { message = "失败: \(error.localizedDescription)" }

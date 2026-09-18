@@ -10,7 +10,7 @@ import Vision
 
 final class InjectionEnableTool: MCPTool {
     let definition = ToolDefinition(name: "injection.enable", summary: "向指定 App 注入插件（dylib/framework/zip/deb，对齐 TrollFools：自动内置 CydiaSubstrate + 多资产 + 注入策略）",
-        parameters: ["bundle_id": "目标 App Bundle ID", "dylib_path": "插件本地路径（.dylib/.framework/.zip/.deb，如 Workspace/downloads/.../xxx.deb），缺省注入内置 TrollMCPAgent.dylib", "weak_reference": "可选 Bool：是否弱引用注入（默认 false 强引用，对齐 TrollFools）", "inject_strategy": "可选 String：注入目标选择策略 lexicographic（默认）/fast（文件小优先）/preorder/postorder，对齐 TrollFools Strategy"])
+        parameters: ["bundle_id": "目标 App Bundle ID", "dylib_path": "插件本地路径（.dylib/.framework/.zip/.deb，如 Workspace/downloads/.../xxx.deb），缺省注入内置 ControlAgent.dylib", "weak_reference": "可选 Bool：是否弱引用注入（默认 false 强引用，对齐 TrollFools）", "inject_strategy": "可选 String：注入目标选择策略 lexicographic（默认）/fast（文件小优先）/preorder/postorder，对齐 TrollFools Strategy"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
         let dylibPath = params["dylib_path"] as? String
@@ -19,7 +19,7 @@ final class InjectionEnableTool: MCPTool {
         // v2.9.32：dylib_path 为本地文件路径 → 作为注入源（root 拷贝进目标 App）；
         // 为 @executable_path/@loader_path 前缀 → 作为 load name；空 → 内置 agent。
         var source: String?
-        var loadName = "@executable_path/TrollMCPAgent.dylib"
+        var loadName = "@executable_path/ControlAgent.dylib"
         if let p = dylibPath, !p.isEmpty {
             if p.hasPrefix("@executable_path/") || p.hasPrefix("@loader_path/") {
                 loadName = p

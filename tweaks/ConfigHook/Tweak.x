@@ -1,6 +1,9 @@
-// ConfigHook v1.0 - 配置化 Hook 引擎（借鉴 FuckEngine hookType/hookValue 设计，独立实现）
-// 注入任意 App 后，读取 /var/mobile/Documents/Workspace/hook_config.json（TrollAgent 工作区），
-// 按配置对 UIKit 应用修改，无需重新编译 dylib。
+// ConfigHook v2.0 - 配置化 Hook 引擎（合并版）
+// 合并自：ConfigHook v1.0（UI颜色/弹窗/方法日志）+ FakeDevice v1.1（设备伪装）
+// 功能：导航栏颜色 / 弹窗 / 方法日志 / 设备伪装（UIDevice名称/型号/系统版本）
+// 配置文件：/var/mobile/Documents/Workspace/hook_config.json
+// 设备伪装配置：/var/mobile/Documents/Workspace/fake_device.json
+// 设计原则：纯 runtime + Foundation/UIKit，零 substrate 依赖；配置缺失时静默跳过
 //
 // 配置格式：
 // {
@@ -144,16 +147,72 @@ static void chInit(void) {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         [NSThread sleepForTimeInterval:1.0];
         NSData *data = [NSData dataWithContentsOfFile:kConfigPath];
-        if (!data) {
-            NSLog(@"[ConfigHook] no config at %@, skip", kConfigPath);
-            return;
+        if (data) {
+            NSError *err = nil;
+            id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:&err];
+            if (!err && [obj isKindOfClass:[NSDictionary class]]) {
+                ch_applyConfig(obj);
+            }
         }
-        NSError *err = nil;
-        id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:&err];
-        if (err || ![obj isKindOfClass:[NSDictionary class]]) {
-            NSLog(@"[ConfigHook] config parse failed: %@", err);
-            return;
+        // v2.0：加载 FakeDevice 配置（合并自 FakeDevice v1.1）
+        NSData *fdData = [NSData dataWithContentsOfFile:@"/var/mobile/Documents/Workspace/fake_device.json"];
+        if (fdData) {
+            NSError *err = nil;
+            id fdObj = [NSJSONSerialization JSONObjectWithData:fdData options:0 error:&err];
+            if (!err && [fdObj isKindOfClass:[NSDictionary class]]) {
+                g_fakeDevice = fdObj;
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    @try {
+                        fd_swizzleInstanceMethod([UIDevice class], @selector(name), @selector(fd_name));
+                        fd_swizzleInstanceMethod([UIDevice class], @selector(model), @selector(fd_model));
+                        fd_swizzleInstanceMethod([UIDevice class], @selector(localizedModel), @selector(fd_localizedModel));
+                        fd_swizzleInstanceMethod([UIDevice class], @selector(systemVersion), @selector(fd_systemVersion));
+                        fd_swizzleInstanceMethod([NSProcessInfo class], @selector(operatingSystemVersion), @selector(fd_operatingSystemVersion));
+                    } @catch (NSException *e) {}
+                });
+            }
         }
-        ch_applyConfig(obj);
     });
 }
+
+#pragma mark - v2.0：FakeDevice 设备伪装（合并自 FakeDevice v1.1）
+
+static NSDictionary *g_fakeDevice = nil;
+
+static void fd_swizzleInstanceMethod(Class cls, SEL original, SEL replacement) {
+    @try {
+        Method origM = class_getInstanceMethod(cls, original);
+        Method replM = class_getInstanceMethod(cls, replacement);
+        if (!origM || !replM) return;
+        method_exchangeImplementations(origM, replM);
+    } @catch (NSException *e) {}
+}
+
+@interface UIDevice (ConfigHook_Fake)
+- (NSString *)fd_name;
+- (NSString *)fd_model;
+- (NSString *)fd_localizedModel;
+- (NSString *)fd_systemVersion;
+@end
+@implementation UIDevice (ConfigHook_Fake)
+- (NSString *)fd_name { if (g_fakeDevice[@"name"]) return g_fakeDevice[@"name"]; return [self fd_name]; }
+- (NSString *)fd_model { if (g_fakeDevice[@"model"]) return g_fakeDevice[@"model"]; return [self fd_model]; }
+- (NSString *)fd_localizedModel { if (g_fakeDevice[@"model"]) return g_fakeDevice[@"model"]; return [self fd_localizedModel]; }
+- (NSString *)fd_systemVersion { if (g_fakeDevice[@"systemVersion"]) return g_fakeDevice[@"systemVersion"]; return [self fd_systemVersion]; }
+@end
+
+@interface NSProcessInfo (ConfigHook_Fake)
+- (NSOperatingSystemVersion)fd_operatingSystemVersion;
+@end
+@implementation NSProcessInfo (ConfigHook_Fake)
+- (NSOperatingSystemVersion)fd_operatingSystemVersion {
+    NSOperatingSystemVersion v = [self fd_operatingSystemVersion];
+    if (g_fakeDevice[@"systemVersion"]) {
+        NSArray *parts = [g_fakeDevice[@"systemVersion"] componentsSeparatedByString:@"."];
+        if (parts.count > 0) v.majorVersion = [parts[0] integerValue];
+        if (parts.count > 1) v.minorVersion = [parts[1] integerValue];
+        if (parts.count > 2) v.patchVersion = [parts[2] integerValue];
+    }
+    return v;
+}
+@end
