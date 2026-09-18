@@ -1253,20 +1253,17 @@ final class ConversationStore: ObservableObject {
     }
 
     private func title(from text: String) -> String {
-        // v2.9.292：剔除附件描述，避免标题变成 "[📎文件：全局加速+...2.deb]已保存到 /var/..."
+        // v2.9.293：剔除附件描述，避免标题变成 "[📎 文件：全局加速+...2.deb]已保存到 /var/..."
+        // 用正则兼容 [📎文件：/ [📎 文件：/ 中文冒号/英文冒号 所有变体
         var clean = text
-        // 去掉 [📎文件：...] 整段
-        if let r = clean.range(of: "[📎文件：") {
-            if let end = clean.range(of: "]", range: r.upperBound..<clean.endIndex) {
-                clean.removeSubrange(r.lowerBound..<end.upperBound)
-            }
+        func stripTag(_ pattern: String) {
+            guard let rx = try? NSRegularExpression(pattern: pattern, options: []) else { return }
+            let ns = clean as NSString
+            let range = NSRange(location: 0, length: ns.length)
+            clean = rx.stringByReplacingMatches(in: clean, options: [], range: range, withTemplate: "")
         }
-        // 去掉 [📱应用：...] 整段
-        if let r = clean.range(of: "[📱应用：") {
-            if let end = clean.range(of: "]", range: r.upperBound..<clean.endIndex) {
-                clean.removeSubrange(r.lowerBound..<end.upperBound)
-            }
-        }
+        stripTag("\\[📎\\s*文件\\s*[：:][^\\]]*\\]")
+        stripTag("\\[📱\\s*应用\\s*[：:][^\\]]*\\]")
         // 去掉 "已保存到 <路径>，可用..." 路径描述
         if let r = clean.range(of: "已保存到 ") {
             clean = String(clean[..<r.lowerBound])
