@@ -1101,11 +1101,28 @@ struct MessageBubble: View {
         }
     }
 
-    /// v2.9.317：工具调用记录小气泡（微信式，带思考说明）
+    /// v2.9.322：工具调用记录小气泡（微信式，AI实时思考说明）
     private func toolCallBubble(_ text: String) -> some View {
         let lines = text.components(separatedBy: .newlines).filter { !$0.isEmpty }
+        // v2.9.322：第一行是AI思考说明，后面是工具调用
+        let think = lines.first(where: { !$0.hasPrefix("调用工具") })
+        let toolLines = lines.filter { $0.hasPrefix("调用工具") }
         return VStack(alignment: .leading, spacing: 4) {
-            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+            if let think = think, !think.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "brain")
+                        .font(.system(size: 12))
+                        .foregroundColor(.orange)
+                    Text(think)
+                        .font(.subheadline)
+                        .foregroundColor(.primary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.orange.opacity(0.08))
+                .cornerRadius(12)
+            }
+            ForEach(Array(toolLines.enumerated()), id: \.offset) { _, line in
                 HStack(spacing: 6) {
                     Image(systemName: "wrench.and.screwdriver")
                         .font(.system(size: 12))
@@ -1498,9 +1515,11 @@ struct ChatInputTextView: UIViewRepresentable {
         tv.font = .systemFont(ofSize: 16)
         tv.backgroundColor = .clear
         tv.isScrollEnabled = false
-        tv.textContainerInset = UIEdgeInsets(top: 9, left: 2, bottom: 7, right: 2)
-        tv.textContainer.lineBreakMode = .byWordWrapping
-        tv.returnKeyType = .default  // v2.9.318：回车换行
+        tv.textContainerInset = UIEdgeInsets(top: 9, left: 8, bottom: 7, right: 8)
+        tv.textContainer.lineFragmentPadding = 0
+        tv.textContainer.widthTracksTextView = true
+        tv.textContainer.maximumNumberOfLines = 0
+        tv.returnKeyType = .default
         tv.delegate = context.coordinator
         return tv
     }

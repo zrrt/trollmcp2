@@ -917,13 +917,18 @@ final class ConversationStore: ObservableObject {
                         self.attachTrail(to: am.id, thinking: thinking)
                     }
                 case .success(.toolCalls(let calls)):
-                    // 工具调用：删除流式文本消息（如果有），然后显示工具调用
-                    if let sid = self.streamingMessageId {
+                    // v2.9.322：保留流式文本作为工具调用思考说明
+                    var thinkText = ""
+                    if let sid = self.streamingMessageId,
+                       let idx = self.messages.firstIndex(where: { $0.id == sid }) {
+                        thinkText = self.messages[idx].content
                         self.removeMessage(id: sid)
-                        self.streamingMessageId = nil
                     }
+                    self.streamingMessageId = nil
+                    // v2.9.322：思考说明 + 工具调用
                     let summary = calls.map { "调用工具 \($0.name)" }.joined(separator: "\n")
-                    self.appendToCurrent(ChatMessage(role: "assistant", content: summary, toolCalls: calls))
+                    let fullContent = thinkText.isEmpty ? summary : "\(thinkText)\n\(summary)"
+                    self.appendToCurrent(ChatMessage(role: "assistant", content: fullContent, toolCalls: calls))
                     // v2.9.127：轨迹——AI 决定调用一批工具
                     self.trailStep(.done(.tool, "AI 选择调用 \(calls.count) 个工具",
                                          detail: calls.map { $0.name }.joined(separator: "、")))
