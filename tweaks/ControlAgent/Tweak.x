@@ -1017,12 +1017,17 @@ static void controlAgentInitialize(void) {
     // 保活机制：hook FBSWorkspaceScenesClient 拦截 scene 后台更新，目标 App 切后台
     // 不挂起 → 4789 远程控制持续在线（实测后台挂起时 4789 断连）。
     caLog(@"constructor 进入");
-    setupKeepAlive();
+    // v2.9.311：setupKeepAlive 延迟到主线程 runloop 启动后再 hook——
+    // 之前在 dyld 阶段就 hook FBSWorkspaceScenesClient，Flutter/Unity/懒饭等
+    // framework 注入时 constructor 跑太早 → 闪退（小红书主二进制注入不受影响）。
+    // 移到 dispatch_after 1.0s，和 startHTTPServer 一起，等 App UIKit 完全就绪。
+    // setupKeepAlive();
     // 延迟到主线程 runloop 启动后再启动服务器
     dispatch_async(dispatch_get_main_queue(), ^{
         caLog(@"主线程回调,准备延迟启动4789");
         // 再延迟一点，等 App 完全启动
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            setupKeepAlive();
             startHTTPServer();
         });
     });
