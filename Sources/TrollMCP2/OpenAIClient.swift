@@ -137,8 +137,8 @@ final class OpenAIClient {
 
     /// 降级顺序：L0→L1→L2→（带 tools 时优先 L5 Responses API，保住工具调用）→L3→L4→结束
     /// 返回 > maxLevel 的哨兵值表示降级链走完，无下一级可试。
-    private func nextLevel(after level: Int, hasTools: Bool) -> Int {
-        if level == 2, hasTools { return 5 }
+    private func nextLevel(after level: Int, hasTools: Bool, avoidL5: Bool = false) -> Int {
+        if level == 2, hasTools, !avoidL5 { return 5 }
         if level == 5 { return 3 }
         if level >= 4 { return 6 }   // 哨兵：链尾，避免 L4→L5→L3 循环
         return level + 1
@@ -146,7 +146,7 @@ final class OpenAIClient {
 
     // MARK: - 逐级试探
 
-    private func attempt(level: Int, isFirst: Bool, messages: [ChatMessage], tools: [[String: Any]]?, onStatus: ((String) -> Void)?, onDelta: ((String) -> Void)?, onThinking: ((String) -> Void)? = nil, completion: @escaping (Result<ChatResult, Error>) -> Void) {
+    private func attempt(level: Int, isFirst: Bool, messages: [ChatMessage], tools: [[String: Any]]?, onStatus: ((String) -> Void)?, onDelta: ((String) -> Void)?, onThinking: ((String) -> Void)? = nil, avoidL5: Bool = false, completion: @escaping (Result<ChatResult, Error>) -> Void) {
         // v2.9.87：总预算检查——降级链整体超时直接失败，不再无限串行等
         if Date() > overallDeadline {
             let el = Int(Date().timeIntervalSince(requestStart) * 1000)
@@ -166,8 +166,14 @@ final class OpenAIClient {
             let viaLadder = level == 5 && config.apiProtocol != "OpenAI Responses"
             performResponsesStream(messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking) { [weak self] result in
                 guard let self = self else { return }
-                if case .failure = result, viaLadder {
-                    // 回落到已验证可用的纯对话模式
+                if case .failure(let err) = result, viaLadder {
+                    let nsErr = err as NSError
+                    // v2.9.297：空响应（中转不支持 Responses API）→ 回落 L2 带工具 chat/completions 并跳过 L5，避免死循环
+                    if nsErr.code == -3040 || nsErr.code == -3041 {
+                        self.attempt(level: 2, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking, avoidL5: true, completion: completion)
+                        return
+                    }
+                    // 其他失败：回落到已验证可用的纯对话模式
                     self.attempt(level: 3, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking, completion: completion)
                     return
                 }
@@ -219,12 +225,12 @@ final class OpenAIClient {
                     || error.localizedDescription.contains("超时")
                     || error.localizedDescription.localizedLowercase.contains("timed out"))
                 if isTimeout {
-                    let next = self.nextLevel(after: level, hasTools: tools != nil && !(tools?.isEmpty ?? true))
+                    let next = self.nextLevel(after: level, hasTools: tools != nil && !(tools?.isEmpty ?? true), avoidL5: avoidL5)
                     if next <= self.maxLevel {
                         let remain = max(0, Int(self.overallDeadline.timeIntervalSinceNow))
                         NetworkLog.shared.log("\(self.config.name) L\(level) 请求超时 → 自动降级到 L\(next)（\(self.levelName(next))）")
                         onStatus?("请求超时，正在尝试简化参数（级别 \(next)/\(self.maxLevel)）· 总预算剩余 \(remain)s…")
-                        self.attempt(level: next, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking, completion: completion)
+                        self.attempt(level: next, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking, avoidL5: avoidL5, completion: completion)
                         return
                     }
                 }
@@ -271,10 +277,10 @@ final class OpenAIClient {
             NetworkLog.shared.log("\(self.config.name) L\(level) 失败 (HTTP \(status)，耗时 \(el)ms): \(String(failMsg.prefix(200)))")
 
             if retryable {
-                let next = self.nextLevel(after: level, hasTools: tools != nil && !(tools?.isEmpty ?? true))
+                let next = self.nextLevel(after: level, hasTools: tools != nil && !(tools?.isEmpty ?? true), avoidL5: avoidL5)
                 if next <= self.maxLevel {
                     NetworkLog.shared.log("\(self.config.name) 自动降级 → 级别 \(next)（\(self.levelName(next))）")
-                    self.attempt(level: next, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking, completion: completion)
+                    self.attempt(level: next, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking, avoidL5: avoidL5, completion: completion)
                     return
                 }
             }
@@ -1073,6 +1079,13 @@ final class OpenAIClient {
                         }
                     }
                 }
+                // v2.9.297：L5 空响应（output 无文本无工具调用）判为失败——中转站可能不支持 Responses API
+                if calls.isEmpty && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && thinking.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    NetworkLog.shared.log("\(self.config.name): Responses API 返回空 output，判定不支持，回落 chat/completions")
+                    guardedCompletion(.failure(NSError(domain: "OpenAIClient", code: -3040,
+                        userInfo: [NSLocalizedDescriptionKey: "模型返回空响应（中转站可能不支持 Responses API）"])))
+                    return
+                }
                 self.persist(level: 5)
                 NetworkLog.lastCompatNote = "模型「\(self.config.name)」当前兼容级别: 5（Responses API+工具，流式）"
                 if !calls.isEmpty {
@@ -1090,6 +1103,13 @@ final class OpenAIClient {
             }
 
             // fallback：用流式过程中累积的数据
+            // v2.9.297：流式零增量且无 completedResponse 输出 → 判失败回落
+            if fullText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && toolCalls.isEmpty && fullThinking.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                NetworkLog.shared.log("\(self.config.name): Responses 流式无任何文本/工具增量，判定不支持，回落 chat/completions")
+                guardedCompletion(.failure(NSError(domain: "OpenAIClient", code: -3041,
+                    userInfo: [NSLocalizedDescriptionKey: "模型返回空响应（中转站可能不支持 Responses API）"])))
+                return
+            }
             self.persist(level: 5)
             if !toolCalls.isEmpty {
                 guardedCompletion(.success(.toolCalls(toolCalls)))
