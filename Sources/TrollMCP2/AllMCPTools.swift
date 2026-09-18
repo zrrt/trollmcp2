@@ -490,6 +490,50 @@ final class ModelConfigTool: MCPTool {
     }
 }
 
+/// v2.9.299：远程修改模型配置（AI 诊断时可帮用户切换模型名/协议，无需手动设置）
+final class ModelUpdateTool: MCPTool {
+    let definition = ToolDefinition(name: "model.update",
+        summary: "修改模型配置（按 name 定位，支持改 model/baseURL/apiProtocol/contextTokens/isDefault）。改完即时保存生效，下次请求使用新配置。",
+        parameters: ["name": "要修改的配置名（如 deepseek）", "model": "新模型名（可选）", "baseURL": "新 Base URL（可选）", "apiProtocol": "协议（可选：OpenAI Chat Completions / OpenAI Responses / Anthropic Messages / Custom Endpoint）", "contextTokens": "上下文预算（可选）", "isDefault": "是否设为默认（可选 bool）", "resetCompat": "重置兼容级别为0（可选 bool）"],
+        verified: true)
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let name = params["name"] as? String, !name.isEmpty else {
+            throw MCPError.invalidParams("name required")
+        }
+        guard let idx = ModelStore.shared.configs.firstIndex(where: { $0.name == name }) else {
+            throw MCPError.failed("未找到配置: \(name)")
+        }
+        var cfg = ModelStore.shared.configs[idx]
+        var changed: [String] = []
+        if let m = params["model"] as? String, !m.isEmpty, m != cfg.model {
+            cfg.model = m; changed.append("model=\(m)")
+        }
+        if let b = params["baseURL"] as? String, !b.isEmpty, b != cfg.baseURL {
+            cfg.baseURL = b; changed.append("baseURL=\(b)")
+        }
+        if let p = params["apiProtocol"] as? String, !p.isEmpty, p != cfg.apiProtocol {
+            cfg.apiProtocol = p; changed.append("apiProtocol=\(p)")
+        }
+        if let ct = params["contextTokens"] as? Int, ct != cfg.contextTokens {
+            cfg.contextTokens = ct; changed.append("contextTokens=\(ct)")
+        }
+        if let d = params["isDefault"] as? Bool, d != cfg.isDefault {
+            if d {
+                for i in ModelStore.shared.configs.indices { ModelStore.shared.configs[i].isDefault = false }
+            }
+            cfg.isDefault = d; changed.append("isDefault=\(d)")
+        }
+        if let rc = params["resetCompat"] as? Bool, rc {
+            cfg.compatLevel = 0; changed.append("compatLevel=0")
+        }
+        ModelStore.shared.configs[idx] = cfg
+        ModelStore.shared.save()
+        AuditLog.shared.log("model.update", detail: "\(name): \(changed.joined(separator: ", "))")
+        return ["ok": true, "name": name, "changed": changed,
+                "now": ["model": cfg.model, "baseURL": cfg.baseURL, "apiProtocol": cfg.apiProtocol, "compatLevel": cfg.compatLevel]]
+    }
+}
+
 // v2.9.128：工具健康度自查——AI 和用户都能看到"哪些工具经常失败、为什么失败、怎么修"
 final class ToolHealthTool: MCPTool {
     let definition = ToolDefinition(

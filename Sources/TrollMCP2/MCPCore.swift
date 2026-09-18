@@ -785,6 +785,7 @@ public final class ToolRegistry: ObservableObject {
         register(BuildRunnerTokenTool())
         register(ProjectGenerateTweakTool())
         register(ModelConfigTool())
+        register(ModelUpdateTool())
         register(ModelAuthenticationTool())
         register(ModelSelectedProfileIDTool())
         register(WorkspaceOutputBookmarkTool())
