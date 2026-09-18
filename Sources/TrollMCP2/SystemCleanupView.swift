@@ -159,14 +159,15 @@ enum SystemCleanupEngine {
         guard fm.fileExists(atPath: path) else { return 0 }
         let before = dirSize(path)
         guard before > 0 else { return 0 }
-        // root 删除整个目录再重建（内置 bin/rm 为 setuid root，能删 /tmp 等系统目录；
-        // 不传 glob——execve 无 shell 不会展开通配符）
-        let (c, _) = im.runAsRoot("rm", args: ["-rf", path])
+        // v2.9.313：只删目录里的内容，不删目录本身——
+        // 之前 rm -rf 整个目录再重建，会破坏 PhotoData/Caches 等系统目录的
+        // 权限和结构，导致照片缩略图丢失、App 权限异常。
+        // 改成遍历子项逐个删除，保留目录本身和权限。
+        let (c, _) = im.runAsRoot("bash", args: ["-c", "find '\(path)' -mindepth 1 -maxdepth 1 -exec rm -rf {} +"])
         if c != 0 {
             failed = true
             return 0
         }
-        _ = im.runAsRoot("mkdir", args: ["-p", path])
         return before
     }
 }
