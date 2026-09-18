@@ -295,6 +295,59 @@ static NSDictionary *tapAt(CGFloat x, CGFloat y) {
         };
     }
 
+    // v2.9.287：AX 辅助功能激活——很多 App 的图片/卡片视图（如小红书 XYNoteImageView）
+    // 启用 accessibilityActivate，比 UITouch 模拟更接近系统级点击，命中率更高。
+    if (hitView && [hitView respondsToSelector:@selector(accessibilityActivate)]) {
+        __block BOOL axDone = NO;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            axDone = [hitView accessibilityActivate];
+        });
+        // 同步等待主线程执行（HTTP 线程），短超时
+        for (int i = 0; i < 20 && !axDone; i++) {
+            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+            if (axDone) break;
+        }
+        if (axDone) {
+            return @{
+                @"tapped": @YES,
+                @"method": @"ax",
+                @"point": @{@"x": @(x), @"y": @(y)},
+                @"hit_view": NSStringFromClass([hitView class])
+            };
+        }
+    }
+
+    // v2.9.287：向上找 UICollectionViewCell 触发选中（feed 卡片多为 collection cell，
+    // 走 delegate didSelect 是 collection 的官方点击路径）
+    if (hitView) {
+        UIView *v = hitView;
+        while (v) {
+            if ([v isKindOfClass:[UICollectionViewCell class]]) {
+                UICollectionViewCell *cell = (UICollectionViewCell *)v;
+                UICollectionView *cv = (UICollectionView *)cell.superview;
+                if ([cv isKindOfClass:[UICollectionView class]]) {
+                    NSIndexPath *ip = [cv indexPathForCell:cell];
+                    id<UICollectionViewDelegate> del = cv.delegate;
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        if (ip && del && [del respondsToSelector:@selector(collectionView:didSelectItemAtIndexPath:)]) {
+                            [cv selectItemAtIndexPath:ip animated:YES scrollPosition:UICollectionViewScrollPositionNone];
+                            [del collectionView:cv didSelectItemAtIndexPath:ip];
+                        }
+                    });
+                    return @{
+                        @"tapped": @YES,
+                        @"method": @"collection",
+                        @"point": @{@"x": @(x), @"y": @(y)},
+                        @"hit_view": NSStringFromClass([hitView class]),
+                        @"cell": NSStringFromClass([cell class])
+                    };
+                }
+                break;
+            }
+            v = v.superview;
+        }
+    }
+
     // 兜底：UITouch 私有 API 模拟（v2.9.285：带 hitView，事件才能投递到响应者链）
     UIView *target = hitView ?: keyWindow;
     dispatch_async(dispatch_get_main_queue(), ^{
