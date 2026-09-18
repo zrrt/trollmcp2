@@ -1433,7 +1433,7 @@ final class AdvertisingTool: MCPTool {
                 result["idfa_after"] = ASIdentifierManager.shared().advertisingIdentifier.uuidString
             } else {
                 result["reset"] = "当前系统不支持 resetIdentifier（iOS14+ 已移除公开 API）"
-                result["hint"] = "广告符刷新在 iOS14+ 受限；如需彻底换新，可配合 device.keychain_reset"
+                result["hint"] = "广告符刷新在 iOS14+ 受限"
             }
         }
         return result
@@ -1536,14 +1536,13 @@ private func httpGet(port: Int, path: String, timeout: TimeInterval = 4) -> (Int
 final class NewDeviceTool: MCPTool {
     let definition = ToolDefinition(
         name: "automation.new_device",
-        summary: "一键新机（绿盾式组合，v2.9.99）：整机 keychain 重置 + 广告符刷新 + 设备伪装写入。⚠️ 会清空所有 App 登录态，慎用。传 bundle_id 则同时向目标 App 内存注入 FakeDevice.dylib",
+        summary: "一键新机：广告符刷新 + 设备伪装写入。v2.9.312 起已移除整机 keychain 清空功能（太危险）。传 bundle_id 则同时向目标 App 内存注入 FakeDevice.dylib",
         parameters: [
             "bundle_id": "目标 App Bundle ID（可选；传入则写伪装配置后立即内存注入 FakeDevice.dylib）",
             "name": "伪装机型名称（默认 iPhone 16 Pro Max）",
             "model": "伪装机型（默认 iPhone）",
             "model_identifier": "机型标识（默认 iPhone17,2）",
             "system_version": "伪装系统版本（默认 18.0）",
-            "reset_keychain": "是否清空整机 keychain（默认 true）",
             "refresh_idfa": "是否尝试刷新广告符（默认 true）"
         ],
     verified: true,
@@ -1553,12 +1552,8 @@ final class NewDeviceTool: MCPTool {
         var steps: [[String: Any]] = []
         var warnings: [String] = []
 
-        let resetKC = (params["reset_keychain"] as? Bool) ?? true
-        if resetKC {
-            do {
-            } catch let e {
-            }
-        }
+        // v2.9.312：整机 keychain 清空已永久移除（误清用户登录态事故）
+        steps.append(["step": "keychain_reset", "result": "REMOVED: 整机 keychain 清空已禁用"])
 
         let refreshIDFA = (params["refresh_idfa"] as? Bool) ?? true
         if refreshIDFA {
