@@ -1062,20 +1062,22 @@ struct MessageBubble: View {
 
     private var textBubble: some View {
         VStack(alignment: isUser ? .trailing : .leading, spacing: 2) {
-            // v2.9.10：消息内图片缩略图（用户选择相册图片后，气泡里直接显示图片）
             if let imgs = message.imageDataURLs, !imgs.isEmpty {
                 messageImageStrip(imgs)
             }
-            // v2.9.20：思考记录（reasoning）可展开显示
             if !isUser, let th = message.thinking, !th.isEmpty {
                 thinkingView(th)
             }
-            // v2.9.127：执行轨迹（豆包/Codex 式过程流）——历史消息可展开回看
             if !isUser, let trail = message.trail, !trail.isEmpty {
                 TrailCard(steps: trail)
             }
-            Text(message.content)
+            // v2.9.317：工具调用记录做成小气泡（"调用工具 xxx"）
+            if !isUser && message.content.hasPrefix("调用工具") {
+                toolCallBubble(message.content)
+            } else {
+                Text(message.content)
                 .font(.body)
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 // v2.9.93：用户气泡改巨魔蓝渐变（浅青→蓝，品牌化），助手保持系统色
@@ -1096,6 +1098,27 @@ struct MessageBubble: View {
                     RoundedRectangle(cornerRadius: 18)
                         .strokeBorder(isSelected ? (isUser ? Color.white : Color.blue) : Color.clear, lineWidth: 2)
                 )
+        }
+    }
+
+    /// v2.9.317：工具调用记录小气泡（微信式）
+    private func toolCallBubble(_ text: String) -> some View {
+        let lines = text.components(separatedBy: .newlines).filter { !$0.isEmpty }
+        return VStack(alignment: .leading, spacing: 4) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                HStack(spacing: 6) {
+                    Image(systemName: "wrench.and.screwdriver")
+                        .font(.system(size: 12))
+                        .foregroundColor(.blue)
+                    Text(line)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.blue.opacity(0.08))
+                .cornerRadius(12)
+            }
         }
     }
 
