@@ -730,11 +730,14 @@ final class InjectionManager {
     // 修复：启动改用 LSWorkspace 私有 API（与 app.start 同款，185 起真机实测可拉起），
     //       探测改用 libproc（proc_listallpids + proc_pidpath，排除 .appex，与 app.status 同款）。
     private func launchAndProbe(bundleId: String, execName: String, executable: String) -> Bool {
+        // v2.9.301：大厂App（豆包/小红书/微信）冷启动需8-15秒，旧版仅7秒窗口会误判闪退→回滚好注入。
+        // 改为25秒窗口、每1.5秒探测一次；拉起pid=0时也继续探测（LSWorkspace可能异步拉起）。
         _ = DecryptEngine.launchApp(bundleId: bundleId, waitSeconds: 2)
-        Thread.sleep(forTimeInterval: 2.0)
-        if appProcessAlive(executable) { return true }
-        Thread.sleep(forTimeInterval: 3.0)
-        return appProcessAlive(executable)
+        for _ in 0..<16 {
+            Thread.sleep(forTimeInterval: 1.5)
+            if appProcessAlive(executable) { return true }
+        }
+        return false
     }
 
     private func appProcessAlive(_ executable: String) -> Bool {
@@ -1252,22 +1255,18 @@ final class InjectionManager {
         let injected = MachOAnalyzer.analyze(targetMachO)?.dylibs.contains(firstInjectName) ?? false
         AuditLog.shared.log("injection.enable", detail: "\(bundleId) → \(targetMachO) injected=\(injected)")
 
-        // 8. 启动自检（防"注入必闪退 + TrollFools 关不掉"死局）：注入成功后拉起目标 App，
-        //    两次探测进程均不在 → 判定闪退 → 自动恢复备份并删 dylib
+        // 8. 启动自检（v2.9.301 改策略）：旧版探测失败就自动回滚，但大厂App冷启动8-15秒，
+        // 7秒窗口误判率高。现在：探测不到不回滚（注入已写入磁盘），只告警——用户手动开App验证，
+        // 真闪退用"注入与自动化→手动恢复"回退。避免误杀好注入。
         var selfcheckAlive = false
         var selfcheckNote = "skipped"
         if injected && !skipProbe {
             selfcheckAlive = launchAndProbe(bundleId: bundleId, execName: executableName, executable: executablePath(app))
-            if !selfcheckAlive {
-                do { _ = try restoreAlternate(targetMachO) } catch {}
-                for dst in copiedAssets where FileManager.default.fileExists(atPath: dst) {
-                    _ = runAsRoot("rm", args: ["-rf", dst])
-                }
-                selfcheckNote = "app failed to launch after injection; rolled back automatically"
-                AuditLog.shared.log("injection.enable.selfcheck_rollback", detail: "\(bundleId) → \(targetMachO)")
-                throw MCPError.failed("注入后目标 App 无法启动（疑似闪退），已自动恢复注入前状态并删除 dylib。若仍需注入，请检查 dylib 与目标 App 的兼容性（架构/依赖/注入代码）。")
-            } else {
+            if selfcheckAlive {
                 selfcheckNote = "app launched and alive"
+            } else {
+                selfcheckNote = "selfcheck: 25s内未探测到进程，注入已保留，请手动打开App验证（若闪退用手动恢复）"
+                AuditLog.shared.log("injection.selfcheck_warn", detail: "\(bundleId) → \(targetMachO): \(selfcheckNote)")
             }
         }
         var persisted = false
