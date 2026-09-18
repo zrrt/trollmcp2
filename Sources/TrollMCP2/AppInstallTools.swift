@@ -40,13 +40,17 @@ final class AppInstallTool: MCPTool {
         // iOS 16 上 LaunchServices 不生效、图标不出现。installd 装到标准 bundle 容器
         // 注册为 User，图标正常显示。
         let (c, out) = im.spawnRoot(helper, args: ["install", "installd", "force", path], timeout: 240)
-        if c == 0 {
-            AuditLog.shared.log("app.install", detail: "\(path) → \(helper) 成功")
+        // v2.9.282：TrollStore 源码明确 184=app has additional encrypted binaries（non-fatal，
+        // 子 framework 加密由系统解密，安装正常可用）；182=需开发者模式（non-fatal）。
+        // 之前把 184 当失败误报"安装失败"，实际安装已完成。
+        let installOK = (c == 0 || c == 184 || c == 182)
+        if installOK {
+            AuditLog.shared.log("app.install", detail: "\(path) → \(helper) c=\(c)")
             AppCatalog.invalidateCache()   // v2.9.135: 安装后失效应用缓存
             // v2.9.275：refresh-all 强刷新 LaunchServices 数据库 + 重建图标缓存 + backboardd
             _ = im.spawnRoot(helper, args: ["refresh-all"], timeout: 90)
             return ["ok": true, "method": "trollstorehelper", "output": out,
-                    "message": "已静默安装 \(path)"]
+                    "message": c == 0 ? "已静默安装 \(path)" : "已安装（\(c)：\(c == 184 ? "子二进制加密，系统解密，非致命" : "需开发者模式")）\(path)"]
         }
         // 失败降级 URL scheme（记录 spawn 真实错误，便于远程诊断）
         let msg = installViaScheme(path)
