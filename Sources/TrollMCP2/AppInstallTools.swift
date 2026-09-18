@@ -47,8 +47,10 @@ final class AppInstallTool: MCPTool {
         if installOK {
             AuditLog.shared.log("app.install", detail: "\(path) → \(helper) c=\(c)")
             AppCatalog.invalidateCache()   // v2.9.135: 安装后失效应用缓存
-            // v2.9.275：refresh-all 强刷新 LaunchServices 数据库 + 重建图标缓存 + backboardd
-            _ = im.spawnRoot(helper, args: ["refresh-all"], timeout: 90)
+            // v2.9.283：refresh-all 会删 IconsCache + rebuild + killall backboardd
+            // （TrollStore 源码注释承认会搞乱主屏/重置注册，用户实测"巨魔 app 全打不开"）。
+            // 改用 refresh 命令——安全重注册全部 TrollStore app，不 rebuild 不杀 backboardd。
+            _ = im.spawnRoot(helper, args: ["refresh"], timeout: 90)
             return ["ok": true, "method": "trollstorehelper", "output": out,
                     "message": c == 0 ? "已静默安装 \(path)" : "已安装（\(c)：\(c == 184 ? "子二进制加密，系统解密，非致命" : "需开发者模式")）\(path)"]
         }
@@ -109,7 +111,8 @@ final class AppUninstallTool: MCPTool {
                 let (c2, out2) = im.spawnRoot(helper, args: ["uninstall-path", "custom", p], timeout: 90)
                 AuditLog.shared.log("app.uninstall-path", detail: "\(p) c=\(c2) \(String(out2.prefix(60)))")
             }
-            _ = im.spawnRoot(helper, args: ["refresh-all"], timeout: 90)
+            // v2.9.283：refresh-all 会搞乱巨魔 app 注册（用户实测"全部打不开"），改 refresh
+            _ = im.spawnRoot(helper, args: ["refresh"], timeout: 90)
             AppCatalog.invalidateCache()
         }
         return ["ok": c == 0, "bundle_id": bid, "output": out,
