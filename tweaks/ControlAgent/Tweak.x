@@ -67,12 +67,25 @@ static NSArray<UIWindow *> *allWindows(void) {
 // 辅助：找第一响应者
 @interface UIView (ControlAgent_FirstResponder)
 - (UIView *)ca_findFirstResponder;
+- (UIView *)ca_findInputView;
 @end
 @implementation UIView (ControlAgent_FirstResponder)
 - (UIView *)ca_findFirstResponder {
     if (self.isFirstResponder) return self;
     for (UIView *sub in self.subviews) {
         UIView *found = [sub ca_findFirstResponder];
+        if (found) return found;
+    }
+    return nil;
+}
+// v2.9.288：找可见的文本输入框（评论/搜索/聊天输入框通用）
+- (UIView *)ca_findInputView {
+    if (!self.hidden && self.alpha > 0.01 &&
+        ([self isKindOfClass:[UITextView class]] || [self isKindOfClass:[UITextField class]])) {
+        return self;
+    }
+    for (UIView *sub in self.subviews) {
+        UIView *found = [sub ca_findInputView];
         if (found) return found;
     }
     return nil;
@@ -348,6 +361,23 @@ static NSDictionary *tapAt(CGFloat x, CGFloat y) {
         }
     }
 
+    // v2.9.288：文本输入框聚焦——UITouch 模拟不触发 UITextView/UITextField 的
+    // becomeFirstResponder（UIKit 触摸聚焦机制），评论/搜索输入框需显式聚焦
+    if (hitView && ([hitView isKindOfClass:[UITextView class]] || [hitView isKindOfClass:[UITextField class]])) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [hitView becomeFirstResponder];
+        });
+        for (int i = 0; i < 10; i++) {
+            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+        }
+        return @{
+            @"tapped": @YES,
+            @"method": @"focus",
+            @"point": @{@"x": @(x), @"y": @(y)},
+            @"hit_view": NSStringFromClass([hitView class])
+        };
+    }
+
     // 兜底：UITouch 私有 API 模拟（v2.9.285：带 hitView，事件才能投递到响应者链）
     UIView *target = hitView ?: keyWindow;
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -424,6 +454,28 @@ static NSDictionary *typeText(NSString *text) {
         if (firstResponder) break;
     }
 
+    // v2.9.288：无第一响应者时，自动聚焦最近的可见输入框再输入
+    // （评论输入框等 tap 聚焦不可靠的场景，type 直接兜底聚焦）
+    if (!firstResponder) {
+        for (UIWindow *window in allWindows()) {
+            for (UIView *sub in window.subviews) {
+                UIView *found = [sub ca_findInputView];
+                if (found) {
+                    __block UIView *input = found;
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        [input becomeFirstResponder];
+                    });
+                    for (int i = 0; i < 10; i++) {
+                        [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+                    }
+                    firstResponder = input;
+                    break;
+                }
+            }
+            if (firstResponder) break;
+        }
+    }
+
     // v2.9.128：统一走 UITextInput insertText 协议（触发真实输入链：delegate/格式化/限制），
     // 替代直接赋值 text（很多输入框直接赋值不生效，如带 format 的号码框、聊天输入框）
     if ([firstResponder conformsToProtocol:@protocol(UITextInput)]) {
@@ -431,7 +483,7 @@ static NSDictionary *typeText(NSString *text) {
         dispatch_async(dispatch_get_main_queue(), ^{
             [input insertText:text];
         });
-        return @{@"typed": @YES, @"text": text, @"target": NSStringFromClass([firstResponder class]), @"method": @"insertText"};
+        return @{@"typed": @YES, @"text": text, @"target": NSStringFromClass([firstResponder class]), @"method": @"insertText", @"focused": @YES};
     }
 
     // 没有第一响应者，复制到剪贴板
