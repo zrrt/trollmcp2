@@ -1076,13 +1076,12 @@ struct MessageBubble: View {
                 toolCallBubble(message.content)
             } else {
                 Text(message.content)
-                .font(.body)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                // v2.9.93：用户气泡改巨魔蓝渐变（浅青→蓝，品牌化），助手保持系统色
-                .background(
-                    Group {
+                    .font(.body)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        Group {
                             if isUser {
                                 LinearGradient(colors: [.tmCyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
                             } else if message.isError {
@@ -1091,13 +1090,14 @@ struct MessageBubble: View {
                                 Color(.secondarySystemBackground)
                             }
                         }
-                )
-                .foregroundColor(isUser ? .white : .primary)
-                .cornerRadius(18)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18)
-                        .strokeBorder(isSelected ? (isUser ? Color.white : Color.blue) : Color.clear, lineWidth: 2)
-                )
+                    )
+                    .foregroundColor(isUser ? .white : .primary)
+                    .cornerRadius(18)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18)
+                            .strokeBorder(isSelected ? (isUser ? Color.white : Color.blue) : Color.clear, lineWidth: 2)
+                    )
+            }
         }
     }
 
