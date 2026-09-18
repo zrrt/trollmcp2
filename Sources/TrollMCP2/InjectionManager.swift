@@ -148,6 +148,11 @@ enum MachOAnalyzer {
         guard let info = analyze(path) else { return false }
         return info.valid && (info.arch == "arm64" || info.arch == "arm32" || info.arch.hasPrefix("fat"))
     }
+
+    /// v2.9.308：是否加密（对齐 TrollFools isProtectedMachO）——选目标时优先未加密
+    static func isEncryptedMachO(_ path: String) -> Bool {
+        return (analyze(path)?.cryptID ?? 0) != 0
+    }
 }
 
 /// 注入管理器：使用内置 ldid / optool / insert_dylib / ct_bypass 二进制，通过 posix_spawn
@@ -1069,15 +1074,17 @@ final class InjectionManager {
         let mainDeps = MachOAnalyzer.analyze(executablePath(app))?.dylibs ?? []
         func pickFromFrameworks() -> String? {
             guard !fwCandidates.isEmpty else { return nil }
+            // v2.9.308：对齐 TrollFools——优先未加密 framework（加密的注入会闪退）
+            let unencrypted = fwCandidates.filter { !MachOAnalyzer.isEncryptedMachO($0) }
+            let pool = unencrypted.isEmpty ? fwCandidates : unencrypted
             // 1) 用户指定 preferred
             if let pref = preferredTarget, !pref.isEmpty,
-               let hit = fwCandidates.first(where: { $0.localizedCaseInsensitiveContains(pref) }) {
+               let hit = pool.first(where: { $0.localizedCaseInsensitiveContains(pref) }) {
                 return hit
             }
             // 2) App 自家 framework 优先（名字含主二进制名/discover/产品前缀，启动必加载）
-            //    实测小红书: 自家 Sheim/DisGuard/Dis 真加载，第三方 AppsFlyerLib/BGM 懒加载
             let ownPrefixes: [String] = [mainName, "dis", mainName.prefix(3).description]
-            if let own = fwCandidates.first(where: { c in
+            if let own = pool.first(where: { c in
                 let n = (c as NSString).lastPathComponent.lowercased()
                 return ownPrefixes.contains { n.hasPrefix($0) } || n == mainName
             }) {
@@ -1088,7 +1095,7 @@ final class InjectionManager {
             let lazySDK: Set<String> = ["appsflyer", "bgm", "bugly", "umeng", "firebase",
                 "googleutilities", "googlesignin", "googletagmanager", "firebasemessaging",
                 "firanalytics", "flurry", "adjust", "kochava", "branch", "tenjin", "appsflyerlib"]
-            let depCandidates = fwCandidates.filter { c in
+            let depCandidates = pool.filter { c in
                 let n = (c as NSString).lastPathComponent.lowercased()
                 return !lazySDK.contains(where: { n.contains($0) })
             }
@@ -1103,8 +1110,8 @@ final class InjectionManager {
                 return boot
             }
             // 4) 回退字典序第一个（可能懒加载，记日志）
-            AuditLog.shared.log("injection.fw_fallback", detail: "\(bundleId) Frameworks 候选: \(fwCandidates.map { ($0 as NSString).lastPathComponent })")
-            return fwCandidates[0]
+            AuditLog.shared.log("injection.fw_fallback", detail: "\(bundleId) Frameworks 候选: \(pool.map { ($0 as NSString).lastPathComponent })")
+            return pool[0]
         }
         if hasFrameworks, let chosen = pickFromFrameworks() {
             // v2.9.307：如果选的是懒加载第三方 SDK（不在主二进制直接依赖里），
