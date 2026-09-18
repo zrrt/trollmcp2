@@ -15,14 +15,58 @@ final class DebugDumpConversationsTool: MCPTool {
         var arr: [[String: Any]] = []
         for c in convs.prefix(limit) {
             let first = c.messages.first
+            let last = c.messages.last
             arr.append([
                 "title": c.title,
                 "messageCount": c.messages.count,
                 "firstRole": first?.role ?? "",
                 "firstContent": String((first?.content ?? "").prefix(200)),
+                "lastRole": last?.role ?? "",
+                "lastContent": String((last?.content ?? "").prefix(200)),
                 "createdAt": c.createdAt.timeIntervalSince1970
             ])
         }
         return ["total": convs.count, "conversations": arr]
+    }
+}
+
+/// v2.9.296：调试工具——导出模型配置（key 掩码）与当前请求状态
+final class DebugDumpModelConfigsTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "debug.dump_model_configs",
+        summary: "调试：导出模型配置（baseURL/模型名/key掩码）与当前请求状态（isLoading/statusText/轮数），排查AI不回消息",
+        parameters: [:]
+    )
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        let configs = ModelStore.shared.configs.map { cfg -> [String: Any] in
+            var c: [String: Any] = [
+                "name": cfg.name,
+                "provider": cfg.provider,
+                "apiProtocol": cfg.apiProtocol,
+                "baseURL": cfg.baseURL,
+                "model": cfg.model,
+                "authMethod": cfg.authMethod,
+                "group": cfg.group,
+                "isDefault": cfg.isDefault,
+                "contextTokens": cfg.contextTokens,
+                "compatLevel": cfg.compatLevel
+            ]
+            let key = cfg.apiKey
+            c["apiKeyMasked"] = key.isEmpty ? "(空)" : String(key.prefix(6)) + "…" + String(key.suffix(4))
+            return c
+        }
+        let store = ConversationStore.shared
+        return [
+            "configs": configs,
+            "count": configs.count,
+            "defaultConfigName": ModelStore.shared.defaultConfig?.name ?? "(无)",
+            "request": [
+                "isLoading": store.isLoading,
+                "statusText": store.statusText ?? "(nil)",
+                "requestRound": store.requestRound,
+                "requestRounds": store.requestRounds
+            ]
+        ]
     }
 }

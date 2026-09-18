@@ -859,6 +859,7 @@ public final class ToolRegistry: ObservableObject {
         register(BridgeExportTool())
         register(BridgeImportTool())
         register(DebugDumpConversationsTool())
+        register(DebugDumpModelConfigsTool())
         register(MacroRecordTool())
         register(MacroStopTool())
         register(MacroListTool())
