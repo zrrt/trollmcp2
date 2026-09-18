@@ -237,12 +237,16 @@ static NSData *screenshotPNG(void) {
 
 #pragma mark - 模拟触摸
 
-static void simulateTouchAtPoint(CGPoint point, UIWindow *window) {
+static void simulateTouchAtPoint(CGPoint point, UIWindow *window, UIView *hitView) {
     // 用 UITouch 私有 API 模拟
     UITouch *touch = [[UITouch alloc] init];
     [touch setValue:[NSValue valueWithCGPoint:point] forKey:@"locationInWindow"];
     [touch setValue:[NSValue valueWithCGPoint:point] forKey:@"previousLocationInWindow"];
     [touch setValue:window forKey:@"window"];
+    // v2.9.285：必须设置 view——UITouch.view 决定事件响应者链。
+    // 之前 view=nil → sendEvent 事件无响应者 → touchesBegan 不投递 → 手势/点击不触发
+    // （小红书帖子是 XYNoteImageView 非 UIControl，走 UITouch 兜底时全部静默失效）。
+    if (hitView) [touch setValue:hitView forKey:@"view"];
     [touch setValue:@(UITouchPhaseBegan) forKey:@"phase"];
     [touch setValue:@(1) forKey:@"tapCount"];
 
@@ -287,9 +291,10 @@ static NSDictionary *tapAt(CGFloat x, CGFloat y) {
         };
     }
 
-    // 兜底：UITouch 私有 API 模拟
+    // 兜底：UITouch 私有 API 模拟（v2.9.285：带 hitView，事件才能投递到响应者链）
+    UIView *target = hitView ?: keyWindow;
     dispatch_async(dispatch_get_main_queue(), ^{
-        simulateTouchAtPoint(point, keyWindow);
+        simulateTouchAtPoint(point, keyWindow, target);
     });
 
     return @{
@@ -311,9 +316,12 @@ static NSDictionary *swipeFrom(CGFloat x1, CGFloat y1, CGFloat x2, CGFloat y2, C
     if (!keyWindow) return @{@"error": @"no window"};
 
     NSInteger steps = MAX(10, (NSInteger)(duration * 60));
+    // v2.9.285：起点 hit-test 取 view 并绑定 touch.view——否则事件无响应者，滑动不触发
+    UIView *startView = [keyWindow hitTest:CGPointMake(x1, y1) withEvent:nil] ?: keyWindow;
     dispatch_async(dispatch_get_main_queue(), ^{
         UITouch *touch = [[UITouch alloc] init];
         [touch setValue:keyWindow forKey:@"window"];
+        [touch setValue:startView forKey:@"view"];
         [touch setValue:@(1) forKey:@"tapCount"];
         UIEvent *event = [[UIEvent alloc] init];
         [event setValue:[NSSet setWithObject:touch] forKey:@"touches"];
