@@ -1114,6 +1114,8 @@ final class InjectionManager {
         let scored = fwCandidates.map { ($0, scoreCandidate($0)) }
             .filter { $0.1.0 > -1000 }
             .sorted { $0.1.0 > $1.1.0 }
+        // v2.9.316：保存排序列表，selfcheck 失败时返回 retry 建议（第二层自动重试）
+        let scoredNames = scored.map { ($0.0 as NSString).lastPathComponent }
         AuditLog.shared.log("injection.score", detail: "\(bundleId) 打分: \(scored.map { "\(($0.0 as NSString).lastPathComponent)=\($0.1.0)" }.joined(separator: ","))")
 
         var targetMachO: String?
@@ -1319,7 +1321,11 @@ final class InjectionManager {
             if selfcheckAlive {
                 selfcheckNote = "app launched and alive"
             } else {
-                selfcheckNote = "selfcheck: 25s内未探测到进程，注入已保留，请手动打开App验证（若闪退用手动恢复）"
+                // v2.9.316：第二层自动重试建议——返回排序后的候选列表，AI 看到失败后自动换目标
+                let nextTargets = scoredNames.filter { $0 != (targetMachO as NSString).lastPathComponent }.prefix(3)
+                selfcheckNote = selfcheckAlive
+                    ? "app launched and alive"
+                    : "selfcheck: 25s内未探测到进程。建议：injection.restore 后重试 target=\(nextTargets.joined(separator: "/"))；若全失败，app.decrypt 砸壳主二进制"
                 AuditLog.shared.log("injection.selfcheck_warn", detail: "\(bundleId) → \(targetMachO): \(selfcheckNote)")
             }
         }
@@ -1340,6 +1346,8 @@ final class InjectionManager {
             "target_is_main": targetIsMain,
             "candidates": allCandidates.map { ($0 as NSString).lastPathComponent },
             "framework_candidates": fwCandidates.map { ($0 as NSString).lastPathComponent },
+            // v2.9.316：打分排序后的候选（AI 自动重试用）
+            "scored_candidates": scoredNames,
             // v2.9.309：对齐 TrollFools 诊断——每个候选的加密状态/大小/是否被选
             "candidates_detail": fwCandidates.map { p -> [String: Any] in
                 let name = (p as NSString).lastPathComponent
