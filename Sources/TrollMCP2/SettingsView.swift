@@ -229,6 +229,10 @@ struct SettingsView: View {
                          subtitle: "公网 HTTP API · 云端直连调工具/看审计/读崩溃",
                          icon: "terminal.fill", color: .tmCyan,
                          destination: AnyView(RemoteTerminalView())),
+            SettingsItem(title: "Coruna 安全盾",
+                         subtitle: "检测恶意网站 · 拦截 Coruna 漏洞利用",
+                         icon: "shield.lefthalf.filled", color: .green,
+                         destination: AnyView(CorunaShieldView())),
         ]))
 
         // 关于
