@@ -603,13 +603,13 @@ struct ChatView: View {
                             .font(.system(size: 16))
                             .frame(minHeight: 2, maxHeight: 80)
                             .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
+                            .padding(.vertical, 0)
                         if inputText.isEmpty {
                             Text("输入消息...")
                                 .font(.system(size: 16))
                                 .foregroundColor(.secondary)
                                 .padding(.horizontal, 16)
-                                .padding(.vertical, 12)
+                                .padding(.vertical, 0)
                                 .allowsHitTesting(false)
                         }
                         if !inputText.isEmpty {
@@ -621,7 +621,7 @@ struct ChatView: View {
                                         .foregroundColor(.secondary)
                                 }
                                 .padding(.trailing, 8)
-                                .padding(.top, 8)
+                                .padding(.top, 0)
                             }
                         }
                     }
