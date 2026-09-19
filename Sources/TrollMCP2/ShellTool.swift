@@ -14,7 +14,7 @@ final class ShellSession {
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "执行 shell 命令（轻量操作：解压/查看文件/逆向分析）。危险命令会被拦截。输出自动截断到 2000 字符。cd 会记住目录，下次命令在该目录执行。",
+        summary: "执行 shell 命令（终端/命令行/terminal/sh）：解压ipa/deb、查看文件、逆向分析（otool/strings/ls/find/grep）。危险命令自动拦截。cd 记住工作目录。",
         parameters: [
             "command": "要执行的 shell 命令（必填）",
             "timeout": "超时时间（秒，默认 30，最大 120）",
