@@ -1370,6 +1370,7 @@ struct ChatInputTextView: UIViewRepresentable {
         tv.backgroundColor = .clear
         tv.font = .systemFont(ofSize: 16)
         tv.isScrollEnabled = false
+        tv.textContainer.widthTracksTextView = true
         tv.delegate = context.coordinator
         return tv
     }
