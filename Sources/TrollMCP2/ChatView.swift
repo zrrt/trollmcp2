@@ -598,32 +598,32 @@ struct ChatView: View {
 
             HStack(spacing: 8) {
                 HStack(spacing: 0) {
-                    ZStack(alignment: .topLeading) {
-                        ChatInputTextView(text: $inputText, onSend: { send() }, height: $inputHeight)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: inputHeight)
-                            .padding(.horizontal, 8)
-                        if inputText.isEmpty {
-                            Text("输入消息...")
-                                .font(.system(size: 16))
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 0)
-                                .allowsHitTesting(false)
-                        }
-                        if !inputText.isEmpty {
-                            HStack {
-                                Spacer()
-                                Button(action: { inputText = "" }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.system(size: 20))
+                    ChatInputTextView(text: $inputText, onSend: { send() }, height: $inputHeight)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: inputHeight)
+                        .padding(.horizontal, 8)
+                        .overlay(
+                            ZStack(alignment: .topLeading) {
+                                if inputText.isEmpty {
+                                    Text("输入消息...")
+                                        .font(.system(size: 16))
                                         .foregroundColor(.secondary)
+                                        .padding(.horizontal, 16)
+                                        .allowsHitTesting(false)
                                 }
-                                .padding(.trailing, 8)
-                                .padding(.top, 0)
+                                if !inputText.isEmpty {
+                                    HStack {
+                                        Spacer()
+                                        Button(action: { inputText = "" }) {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .font(.system(size: 20))
+                                                .foregroundColor(.secondary)
+                                        }
+                                        .padding(.trailing, 8)
+                                    }
+                                }
                             }
-                        }
-                    }
+                        )
                 }
                 .background(Color.white)
                 .cornerRadius(20)
