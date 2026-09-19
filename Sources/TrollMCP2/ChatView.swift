@@ -602,7 +602,6 @@ struct ChatView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.leading, 12)
                         .padding(.vertical, 8)
-                        .scrollContentBackground(.hidden)
                     if !inputText.isEmpty {
                         Button(action: { inputText = "" }) {
                             Image(systemName: "xmark.circle.fill")
