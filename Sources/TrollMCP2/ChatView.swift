@@ -605,17 +605,7 @@ struct ChatView: View {
                         .padding(.horizontal, 8)
                         .overlay(
                             ZStack(alignment: .topLeading) {
-                                if !inputText.isEmpty {
-                                    HStack {
-                                        Spacer()
-                                        Button(action: { inputText = "" }) {
-                                            Image(systemName: "xmark.circle.fill")
-                                                .font(.system(size: 20))
-                                                .foregroundColor(.secondary)
-                                        }
-                                        .padding(.trailing, 8)
-                                    }
-                                }
+                                // x 按钮已移除
                             }
                         )
                 }
