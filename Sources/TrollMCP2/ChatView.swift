@@ -600,7 +600,6 @@ struct ChatView: View {
                     ChatInputTextView(text: $inputText, onSend: {
                         if !inputText.isEmpty { send() }
                     })
-                        .frame(maxWidth: .infinity, maxHeight: 40)
                         .padding(.leading, 12)
                     if !inputText.isEmpty {
                         Button(action: { inputText = "" }) {
@@ -1371,6 +1370,9 @@ struct ChatInputTextView: UIViewRepresentable {
         tv.isScrollEnabled = false
         tv.textContainerInset = UIEdgeInsets(top: 9, left: 2, bottom: 7, right: 2)
         tv.textContainer.widthTracksTextView = true
+        tv.textContainer.lineBreakMode = .byWordWrapping
+        tv.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        tv.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         tv.returnKeyType = .send
         tv.enablesReturnKeyAutomatically = true
         tv.delegate = context.coordinator
