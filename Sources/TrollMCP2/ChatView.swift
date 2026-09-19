@@ -602,6 +602,7 @@ struct ChatView: View {
                         if !inputText.isEmpty { send() }
                     }, height: $inputHeight)
                         .padding(.leading, 12)
+                        .frame(maxWidth: .infinity)
                     if !inputText.isEmpty {
                         Button(action: { inputText = "" }) {
                             Image(systemName: "xmark.circle.fill")
