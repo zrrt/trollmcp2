@@ -601,7 +601,6 @@ struct ChatView: View {
                     ChatInputTextView(text: $inputText, onSend: {
                         if !inputText.isEmpty { send() }
                     }, height: $inputHeight)
-                        .frame(maxWidth: .infinity)
                         .frame(height: inputHeight)
                         .padding(.leading, 12)
                     if !inputText.isEmpty {
