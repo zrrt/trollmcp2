@@ -1396,14 +1396,3 @@ struct ChatInputTextView: UIViewRepresentable {
         }
     }
 }
-            if t == "\n" {
-                // 输入法组词中(拼音未上屏)按回车 → 上屏候选词，不发送
-                if tv.markedTextRange != nil { return true }
-                // 无组词按回车 → 发送
-                parent.onSend()
-                return false
-            }
-            return true
-        }
-    }
-}
