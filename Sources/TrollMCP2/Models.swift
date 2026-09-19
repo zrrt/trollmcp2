@@ -555,6 +555,10 @@ final class ConversationStore: ObservableObject {
     /// 请求结束时随最后一条 assistant 消息持久化（message.trail）。
     @Published var liveTrail: [TrailStep] = []
 
+    // v3.0.3：保存当前请求的思考内容（onThinking 流式累加），
+    // toolCalls 时传到 tool 消息，前端在 toolBubble 顶部显示
+    private var thinkBuffer: String = ""
+
     // v2.9.87：网络恢复自动重试（"切后台回来网络中断"补偿）——
     // 网络类错误且当前确认为断网时，等 AppLifecycleMonitor 广播 networkRestored 后自动重发一次。
     private var retryObserver: NSObjectProtocol?
@@ -875,6 +879,8 @@ final class ConversationStore: ObservableObject {
             // v2.9.127：实时思考流式——逐段追加到轨迹的"正在思考"步骤
             DispatchQueue.main.async {
                 self.appendThinking(delta)
+                // v3.0.3：同时保存到 thinkBuffer，供 toolCalls 时传到 tool 消息
+                self.thinkBuffer += delta
             }
         }) { result in
             DispatchQueue.main.async {
@@ -885,6 +891,7 @@ final class ConversationStore: ObservableObject {
                     self.currentClient = nil
                     self.requestRound = 0
                     self.runningTool = nil
+                    self.thinkBuffer = "" // 重置缓冲区
                     // v2.9.138：自动会话记忆——一轮完整回复后落库（供下会话 BM25 检索）
                     if let idx = self.selectedIndex {
                         let msgs = self.conversations[idx].messages
@@ -925,6 +932,11 @@ final class ConversationStore: ObservableObject {
                         thinkText = self.conversations[ci].messages[mi].content
                         self.conversations[ci].messages.remove(at: mi)
                     }
+                    // v3.0.3：把 onThinking 累积的思考内容也加进去（DeepSeek 等模型的 reasoning 在 thinking 字段）
+                    if !self.thinkBuffer.isEmpty {
+                        thinkText = thinkText.isEmpty ? self.thinkBuffer : "\(self.thinkBuffer)\n\(thinkText)"
+                    }
+                    self.thinkBuffer = "" // 重置缓冲区
                     self.streamingMessageId = nil
                     // v3.0.2e：assistant 消息只保留思考内容，不要"调用工具 xxx"（避免和 toolBubble 重复）
                     // "调用工具 xxx" 已经在 toolBubble 里显示了
@@ -946,6 +958,7 @@ final class ConversationStore: ObservableObject {
                     self.currentClient = nil
                     self.requestRound = 0
                     self.runningTool = nil
+                    self.thinkBuffer = "" // 重置缓冲区
                     // v2.9.13：用户主动取消（-999）不追加错误气泡
                     let nsErr = error as NSError
                     if nsErr.code == -999 {
