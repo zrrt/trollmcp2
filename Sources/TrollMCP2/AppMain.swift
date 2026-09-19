@@ -21,6 +21,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
+        // v2.9.368：全局 UITextView 零内边距——TextEditor 默认有 8pt 上下内边距 + 5pt 左右内边距，
+        // 导致输入框高度过大；全局清零后 TextEditor 高度紧贴文字。
+        UITextView.appearance().textContainerInset = .zero
+        UITextView.appearance().lineFragmentPadding = 0
+
         CrashCatcher.install()  // v2.9.145c：最先注册崩溃捕获，闪退自动落盘 crash/ 可查
         Workspace.ensure()
         Workspace.ensureBundledTweaks()  // v2.9.62：把内置 dylib（MemoryTweak 等）复制到工作区，AI 可直接 artifact.find 定位

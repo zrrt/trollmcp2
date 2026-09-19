@@ -598,9 +598,9 @@ struct ChatView: View {
 
             HStack(spacing: 8) {
                 HStack(spacing: 0) {
-                    ChatInputTextView(text: $inputText, onSend: { send() }, height: $inputHeight)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: inputHeight)
+                    TextEditor(text: $inputText)
+                        .font(.system(size: 16))
+                        .frame(maxWidth: .infinity, minHeight: 20, maxHeight: 80)
                         .padding(.horizontal, 8)
                         .overlay(
                             ZStack(alignment: .topLeading) {
