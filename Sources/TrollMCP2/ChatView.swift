@@ -1514,9 +1514,15 @@ struct ChatInputTextView: UIViewRepresentable {
         tv.font = .systemFont(ofSize: 16)
         tv.backgroundColor = .clear
         tv.isScrollEnabled = false
+        tv.clipsToBounds = true
         tv.textContainerInset = UIEdgeInsets(top: 9, left: 2, bottom: 7, right: 2)
+        tv.textContainer.lineBreakMode = .byWordWrapping
         tv.textContainer.widthTracksTextView = true
         tv.returnKeyType = .default
+        tv.setContentHuggingPriority(.defaultHigh, for: .vertical)
+        tv.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        tv.setContentCompressionResistancePriority(.defaultHigh, for: .vertical)
+        tv.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         tv.delegate = context.coordinator
         return tv
     }
