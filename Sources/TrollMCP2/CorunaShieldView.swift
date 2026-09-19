@@ -15,16 +15,17 @@ struct CorunaShieldView: View {
             return LinearGradient(colors: [.gray, .gray.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing)
         }
         return isSafe 
-            ? LinearGradient(colors: [Color(red: 0.2, green: 0.8, blue: 0.4), Color(red: 0.1, green: 0.6, blue: 0.3)], startPoint: .topLeading, endPoint: .bottomTrailing)
-            : LinearGradient(colors: [Color(red: 0.9, green: 0.3, blue: 0.3), Color(red: 0.7, green: 0.1, blue: 0.1)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            ? LinearGradient(colors: [Color(red: 0.3, green: 0.9, blue: 0.5), Color(red: 0.1, green: 0.7, blue: 0.4)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            : LinearGradient(colors: [Color(red: 0.95, green: 0.4, blue: 0.4), Color(red: 0.8, green: 0.2, blue: 0.2)], startPoint: .topLeading, endPoint: .bottomTrailing)
     }
     
     var body: some View {
         ZStack {
-            // 背景渐变
+            // 背景渐变（浅绿亮一点）
             (shieldEnabled 
-                ? (isSafe ? Color(red: 0.05, green: 0.15, blue: 0.1) : Color(red: 0.2, green: 0.05, blue: 0.05))
-                : Color(red: 0.1, green: 0.1, blue: 0.1))
+                ? (isSafe ? LinearGradient(colors: [Color(red: 0.85, green: 0.98, blue: 0.9), Color(red: 0.7, green: 0.95, blue: 0.8)], startPoint: .top, endPoint: .bottom)
+                          : LinearGradient(colors: [Color(red: 0.98, green: 0.85, blue: 0.85), Color(red: 0.95, green: 0.7, blue: 0.7)], startPoint: .top, endPoint: .bottom))
+                : LinearGradient(colors: [Color(red: 0.95, green: 0.95, blue: 0.95), Color(red: 0.9, green: 0.9, blue: 0.9)], startPoint: .top, endPoint: .bottom))
                 .edgesIgnoringSafeArea(.all)
             
             ScrollView {
@@ -34,13 +35,13 @@ struct CorunaShieldView: View {
                         ZStack {
                             // 外圈光环
                             Circle()
-                                .stroke(shieldEnabled ? (isSafe ? .green : .red) : .gray, lineWidth: 3)
+                                .stroke(shieldEnabled ? (isSafe ? Color(red: 0.2, green: 0.7, blue: 0.4) : .red) : .gray, lineWidth: 3)
                                 .frame(width: 140, height: 140)
                                 .scaleEffect(animateShield ? 1.1 : 1.0)
                                 .opacity(animateShield ? 0.3 : 0.6)
                             
-                            // 盾牌
-                            Image(systemName: isSafe ? "shield.checkered" : "shield.trianglebadge.exclamationmark")
+                            // 盾牌（用 iOS 16 肯定有的图标）
+                            Image(systemName: isSafe ? "checkmark.shield.fill" : "exclamationmark.shield.fill")
                                 .font(.system(size: 64))
                                 .foregroundStyle(shieldGradient)
                                 .shadow(color: shieldEnabled ? (isSafe ? .green : .red) : .gray, radius: 20)
@@ -51,13 +52,13 @@ struct CorunaShieldView: View {
                             Text(shieldEnabled ? (isSafe ? "防护中" : "检测到威胁") : "防护已关闭")
                                 .font(.largeTitle)
                                 .fontWeight(.bold)
-                                .foregroundColor(.white)
+                                .foregroundColor(isSafe ? Color(red: 0.1, green: 0.5, blue: 0.3) : .red)
                             
                             Text(shieldEnabled 
                                 ? (isSafe ? "正在实时监控恶意网站" : "已拦截可疑访问")
                                 : "点击下方开关开启防护")
                                 .font(.subheadline)
-                                .foregroundColor(.white.opacity(0.7))
+                                .foregroundColor(.secondary)
                         }
                     }
                     
@@ -95,7 +96,7 @@ struct CorunaShieldView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         Text("防御措施")
                             .font(.headline)
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary)
                             .padding(.horizontal)
                         
                         VStack(spacing: 12) {
@@ -111,7 +112,7 @@ struct CorunaShieldView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("关于 Coruna 漏洞")
                             .font(.headline)
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary)
                             .padding(.horizontal)
                         
                         VStack(alignment: .leading, spacing: 8) {
@@ -121,15 +122,16 @@ struct CorunaShieldView: View {
                             InfoRow(label: "你的设备", value: "iOS 16.3 ✅ 受影响")
                         }
                         .padding()
-                        .background(Color.white.opacity(0.1))
+                        .background(Color.white)
                         .cornerRadius(12)
+                        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
                         .padding(.horizontal)
                     }
                     
                     // 底部
                     Text("基于 Google Threat Intelligence IOCs")
                         .font(.caption)
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundColor(.secondary)
                         .padding(.bottom, 40)
                 }
             }
@@ -160,22 +162,23 @@ struct StatCard: View {
                     Text(value)
                         .font(.title2)
                         .fontWeight(.bold)
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                     if !unit.isEmpty {
                         Text(unit)
                             .font(.caption)
-                            .foregroundColor(.white.opacity(0.7))
+                            .foregroundColor(.secondary)
                     }
                 }
                 Text(title)
                     .font(.caption)
-                    .foregroundColor(.white.opacity(0.7))
+                    .foregroundColor(.secondary)
             }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
-        .background(Color.white.opacity(0.1))
+        .background(Color.white)
         .cornerRadius(12)
+        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
     }
 }
 
@@ -196,10 +199,10 @@ struct DefenseRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.body)
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
                 Text(desc)
                     .font(.caption)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(.secondary)
             }
             
             Spacer()
@@ -208,8 +211,9 @@ struct DefenseRow: View {
                 .foregroundColor(enabled ? .green : .gray)
         }
         .padding()
-        .background(Color.white.opacity(0.1))
+        .background(Color.white)
         .cornerRadius(12)
+        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
     }
 }
 
@@ -221,10 +225,10 @@ struct InfoRow: View {
     var body: some View {
         HStack {
             Text(label)
-                .foregroundColor(.white.opacity(0.7))
+                .foregroundColor(.secondary)
             Spacer()
             Text(value)
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
                 .fontWeight(.medium)
         }
     }
