@@ -58,8 +58,21 @@ final class ShellExecTool: MCPTool {
         // 先 cd 到当前目录，再执行命令
         let fullCommand = "cd '\(cwd)' && \(command)"
         
-        // 用 ios_system 执行
-        let output = ios_system(fullCommand)
+        // 用 ios_system 执行，加超时
+        var output: String?
+        let sem = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            output = ios_system(fullCommand)
+            sem.signal()
+        }
+        let timeoutResult = sem.wait(timeout: .now() + clampedTimeout)
+        if timeoutResult == .timedOut {
+            return [
+                "error": "命令超时（\(Int(clampedTimeout))秒）",
+                "command": command,
+                "hint": "命令执行时间太长被终止了"
+            ]
+        }
         
         // 输出截断到 2000 字符
         var stdout = output ?? ""
