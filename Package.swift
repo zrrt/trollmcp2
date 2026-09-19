@@ -12,12 +12,12 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "TrollMCP2",
-            path: "Sources/TrollMCP2",
-            exclude: ["Resources"],
-            linkerSettings: [.linkedLibrary("z")],
             dependencies: [
                 .product(name: "RSKGrowingTextView", package: "RSKGrowingTextView")
-            ]
+            ],
+            path: "Sources/TrollMCP2",
+            exclude: ["Resources"],
+            linkerSettings: [.linkedLibrary("z")]
         )
     ]
 )
