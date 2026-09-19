@@ -6,6 +6,7 @@ struct ChatView: View {
     @ObservedObject private var modelStore = ModelStore.shared
 
     @State private var inputText = ""
+    @State private var inputHeight: CGFloat = 36
     // v2.9.234：推理强度/智能搜索持久化(@AppStorage)——之前纯@State,关app重开必丢
     @AppStorage("chat_reasoning") private var reasoning = 0   // 0=低 1=中 2=高
     @AppStorage("chat_smart_search") private var smartSearch = true
@@ -599,8 +600,9 @@ struct ChatView: View {
                 HStack(spacing: 0) {
                     ChatInputTextView(text: $inputText, onSend: {
                         if !inputText.isEmpty { send() }
-                    })
+                    }, height: $inputHeight)
                         .frame(maxWidth: .infinity)
+                        .frame(height: inputHeight)
                         .padding(.leading, 12)
                     if !inputText.isEmpty {
                         Button(action: { inputText = "" }) {
@@ -1506,33 +1508,29 @@ struct TrailRow: View {
 // 按回车会直接 submit → 发出去一串拼音。UITextView delegate 可读 markedTextRange：
 // 组词中按回车=上屏候选词(return true)，无组词按回车=发送(return false)。
 
-/// v2.9.323：自动高度 UITextView 子类
-final class AutoHeightTextView: UITextView {
-    override var intrinsicContentSize: CGSize {
-        let size = sizeThatFits(CGSize(width: bounds.width, height: .greatestFiniteMagnitude))
-        return CGSize(width: UIView.noIntrinsicMetric, height: size.height)
-    }
-}
-
 struct ChatInputTextView: UIViewRepresentable {
     @Binding var text: String
     var onSend: () -> Void
+    @Binding var height: CGFloat
 
-    func makeUIView(context: Context) -> AutoHeightTextView {
-        let tv = AutoHeightTextView(frame: .zero)
+    func makeUIView(context: Context) -> UITextView {
+        let tv = UITextView(frame: .zero)
         tv.font = .systemFont(ofSize: 16)
         tv.backgroundColor = .clear
         tv.isScrollEnabled = false
-        tv.textContainerInset = UIEdgeInsets(top: 4, left: 8, bottom: 4, right: 8)
+        tv.textContainerInset = UIEdgeInsets(top: 8, left: 4, bottom: 8, right: 4)
         tv.textContainer.lineFragmentPadding = 0
-        tv.textContainer.widthTracksTextView = true
         tv.returnKeyType = .default
         tv.delegate = context.coordinator
         return tv
     }
-    func updateUIView(_ uiView: AutoHeightTextView, context: Context) {
+    func updateUIView(_ uiView: UITextView, context: Context) {
         if uiView.text != text { uiView.text = text }
-        uiView.invalidateIntrinsicContentSize()
+        // 计算高度
+        let fit = uiView.sizeThatFits(CGSize(width: uiView.bounds.width, height: .greatestFiniteMagnitude))
+        DispatchQueue.main.async {
+            self.height = min(max(fit.height, 36), 120)
+        }
     }
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -1541,7 +1539,10 @@ struct ChatInputTextView: UIViewRepresentable {
         init(_ p: ChatInputTextView) { parent = p }
         func textViewDidChange(_ tv: UITextView) {
             parent.text = tv.text
-            tv.invalidateIntrinsicContentSize()
+            let fit = tv.sizeThatFits(CGSize(width: tv.bounds.width, height: .greatestFiniteMagnitude))
+            DispatchQueue.main.async {
+                parent.height = min(max(fit.height, 36), 120)
+            }
         }
     }
 }
