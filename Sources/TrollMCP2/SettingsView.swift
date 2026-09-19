@@ -195,10 +195,6 @@ struct SettingsView: View {
                                      FloatingBrowser.shared.show()
                                  }
                              }),
-                SettingsItem(title: L10n.t("row_gateway"),
-                             subtitle: "服务端管理 · \(GatewayServerStore.shared.servers.count) 个",
-                             icon: "network", color: .tmTeal,
-                             destination: AnyView(GatewaySettingsView())),
                 SettingsItem(title: L10n.t("row_agents"),
                              subtitle: "隔离指令 · 工作流",
                              icon: "person.3.fill", color: .pink,
