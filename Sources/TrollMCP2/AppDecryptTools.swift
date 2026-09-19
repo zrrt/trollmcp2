@@ -11,7 +11,8 @@ final class AppReplaceDecryptedTool: MCPTool {
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "ipa_path": "砸壳 ipa 绝对路径（可选；缺省自动找工作区 decrypted/ 下匹配的 ipa）"
-        ]
+        ],
+        verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
