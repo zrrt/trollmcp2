@@ -598,9 +598,11 @@ struct ChatView: View {
 
             HStack(spacing: 8) {
                 HStack(spacing: 0) {
-                    TextField("输入消息...", text: $inputText, axis: .vertical)
-                        .lineLimit(1...3)
+                    ChatInputTextView(text: $inputText, onSend: {
+                        if !inputText.isEmpty { send() }
+                    }, height: $inputHeight)
                         .padding(.leading, 12)
+                        .frame(maxWidth: .infinity)
                     if !inputText.isEmpty {
                         Button(action: { inputText = "" }) {
                             Image(systemName: "xmark.circle.fill")
@@ -610,6 +612,7 @@ struct ChatView: View {
                         }
                     }
                 }
+                .frame(height: inputHeight)
                 .background(Color(.secondarySystemBackground))
                 .cornerRadius(20)
 
