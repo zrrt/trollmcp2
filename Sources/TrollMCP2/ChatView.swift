@@ -1378,6 +1378,8 @@ struct ChatInputTextView: UIViewRepresentable {
 
     func updateUIView(_ uiView: UITextView, context: Context) {
         uiView.text = text
+        let size = uiView.sizeThatFits(uiView.bounds.size)
+        height = min(max(size.height, 40), 100)
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
