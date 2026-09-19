@@ -1513,6 +1513,7 @@ struct ChatInputTextView: UIViewRepresentable {
         tv.backgroundColor = .clear
         tv.isScrollEnabled = false
         tv.textContainerInset = UIEdgeInsets(top: 9, left: 2, bottom: 7, right: 2)
+        tv.textContainer.widthTracksTextView = true
         tv.returnKeyType = .send
         tv.enablesReturnKeyAutomatically = true
         tv.delegate = context.coordinator
