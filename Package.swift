@@ -7,13 +7,16 @@ let package = Package(
     platforms: [.iOS(.v15)],
     dependencies: [
         // v2.9.370：RSKGrowingTextView——成熟开源聊天输入框，自动高度+占位符，替代手写 UIViewRepresentable
-        .package(url: "https://github.com/ruslanskorb/RSKGrowingTextView.git", from: "7.0.0")
+        .package(url: "https://github.com/ruslanskorb/RSKGrowingTextView.git", from: "7.0.0"),
+        // v3.0.31：ios_system——内置 shell 命令，不用依赖系统
+        .package(url: "https://github.com/holzschu/ios_system.git", branch: "master")
     ],
     targets: [
         .executableTarget(
             name: "TrollMCP2",
             dependencies: [
-                .product(name: "RSKGrowingTextView", package: "RSKGrowingTextView")
+                .product(name: "RSKGrowingTextView", package: "RSKGrowingTextView"),
+                .product(name: "ios_system", package: "ios_system")
             ],
             path: "Sources/TrollMCP2",
             exclude: ["Resources"],

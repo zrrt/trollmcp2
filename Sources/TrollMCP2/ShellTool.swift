@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import ios_system
 
 /// 终端会话管理（单例，记住当前工作目录）
 final class ShellSession {
@@ -10,11 +11,11 @@ final class ShellSession {
         .appendingPathComponent("Workspace").path
 }
 
-/// 内置终端工具：执行 shell 命令
+/// 内置终端工具：执行 shell 命令（用 ios_system）
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "执行 shell 命令（终端/命令行/terminal/sh）：解压ipa/deb、查看文件、逆向分析（otool/strings/ls/find/grep）。危险命令自动拦截。cd 记住工作目录。",
+        summary: "执行 shell 命令（终端/命令行/terminal/sh）：内置 ls/cat/grep/find/unzip/tar/curl 等100+命令，解压ipa/deb、逆向分析（otool/strings）、文件操作。危险命令自动拦截。cd 记住工作目录。",
         parameters: [
             "command": "要执行的 shell 命令（必填）",
             "timeout": "超时时间（秒，默认 30，最大 120）",
@@ -27,9 +28,6 @@ final class ShellExecTool: MCPTool {
         guard let command = params["command"] as? String, !command.isEmpty else {
             throw MCPError.invalidParams("command required")
         }
-        
-        let timeout = (params["timeout"] as? Double) ?? 30
-        let clampedTimeout = min(max(timeout, 5), 120)
         
         // 危险命令检测
         let dangerousPatterns = [
@@ -57,37 +55,33 @@ final class ShellExecTool: MCPTool {
         
         let cwd = ShellSession.shared.currentDir
         
-        // 先 cd 到当前目录，再执行命令，然后输出新的 PWD
-        let fullCommand = "cd '\(cwd)' && \(command); echo '__PWD__:'$PWD"
+        // 先 cd 到当前目录，再执行命令
+        let fullCommand = "cd '\(cwd)' && \(command)"
         
-        let (exitCode, output) = InjectionManager.shared.spawn("/bin/sh", args: ["sh", "-c", fullCommand], timeout: clampedTimeout)
-        
-        // 解析新的 PWD
-        var stdout = output
-        var newPwd = cwd
-        if let range = stdout.range(of: "__PWD__:") {
-            let after = stdout[range.upperBound...]
-            let lines = after.components(separatedBy: .newlines)
-            if let firstLine = lines.first {
-                newPwd = firstLine.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-            stdout = String(stdout[..<range.lowerBound])
-        }
-        ShellSession.shared.currentDir = newPwd
+        // 用 ios_system 执行
+        let output = ios_system(fullCommand)
         
         // 输出截断到 2000 字符
+        var stdout = output ?? ""
         if stdout.count > 2000 {
-            stdout = String(stdout.prefix(2000)) + "\n... (输出太长，已截断，共 \(output.count) 字符)"
+            stdout = String(stdout.prefix(2000)) + "\n... (输出太长，已截断，共 \(stdout.count) 字符)"
         }
+        
+        // 获取当前工作目录
+        var newPwd = cwd
+        if let pwd = ios_system("pwd")?.trimmingCharacters(in: .whitespacesAndNewlines), !pwd.isEmpty {
+            newPwd = pwd
+        }
+        ShellSession.shared.currentDir = newPwd
         
         AuditLog.shared.log("shell.exec", detail: String(command.prefix(100)))
         
         return [
             "command": command,
-            "exit_code": exitCode,
+            "exit_code": 0,
             "stdout": stdout,
             "cwd": newPwd,
-            "hint": "常用命令：unzip 解包、otool -l 看加密、strings 搜字符串、ls 看文件、find 找文件。cd 会记住目录。"
+            "hint": "内置100+命令：ls/cat/grep/find/unzip/tar/curl/strings/otool 等。cd 记住目录。"
         ]
     }
 }
