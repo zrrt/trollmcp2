@@ -100,7 +100,7 @@ struct CorunaShieldView: View {
                             .padding(.horizontal)
                         
                         VStack(spacing: 12) {
-                            DefenseRow(icon: "globe.slash", title: "恶意网站检测", desc: "拦截已知 Coruna 利用站点", enabled: shieldEnabled)
+                            DefenseRow(icon: "globe", title: "恶意网站检测", desc: "拦截已知 Coruna 利用站点", enabled: shieldEnabled)
                             DefenseRow(icon: "safari", title: "Safari 行为监控", desc: "检测异常进程行为和内存操作", enabled: shieldEnabled)
                             DefenseRow(icon: "doc.text.magnifyingglass", title: "IOC 规则库", desc: "14 个文件哈希 + 6 条网络规则", enabled: shieldEnabled)
                             DefenseRow(icon: "lock.shield", title: "内核防护", desc: "监控 IOSurface 异常调用", enabled: shieldEnabled)
