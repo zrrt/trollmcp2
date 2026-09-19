@@ -1541,7 +1541,7 @@ struct ChatInputTextView: UIViewRepresentable {
             parent.text = tv.text
             let fit = tv.sizeThatFits(CGSize(width: tv.bounds.width, height: .greatestFiniteMagnitude))
             DispatchQueue.main.async {
-                parent.height = min(max(fit.height, 36), 120)
+                self.parent.height = min(max(fit.height, 36), 120)
             }
         }
     }
