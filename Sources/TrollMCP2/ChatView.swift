@@ -604,6 +604,10 @@ struct ChatView: View {
                             .frame(minHeight: 2, maxHeight: 80)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 0)
+                            .onAppear {
+                                UITextView.appearance().textContainerInset = .zero
+                                UITextView.appearance().backgroundColor = .clear
+                            }
                         if inputText.isEmpty {
                             Text("输入消息...")
                                 .font(.system(size: 16))
