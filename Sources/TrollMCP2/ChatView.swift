@@ -599,11 +599,10 @@ struct ChatView: View {
             HStack(spacing: 8) {
                 HStack(spacing: 0) {
                     ZStack(alignment: .topLeading) {
-                        GeometryReader { geo in
-                            ChatInputTextView(text: $inputText, onSend: { send() }, height: $inputHeight, maxWidth: geo.size.width - 16)
-                                .frame(height: inputHeight)
-                                .padding(.horizontal, 8)
-                        }
+                        ChatInputTextView(text: $inputText, onSend: { send() }, height: $inputHeight)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: inputHeight)
+                            .padding(.horizontal, 8)
                         if inputText.isEmpty {
                             Text("输入消息...")
                                 .font(.system(size: 16))
@@ -1379,7 +1378,6 @@ struct ChatInputTextView: UIViewRepresentable {
     @Binding var text: String
     var onSend: () -> Void
     @Binding var height: CGFloat
-    var maxWidth: CGFloat
 
     func makeUIView(context: Context) -> UITextView {
         let tv = UITextView()
@@ -1395,7 +1393,7 @@ struct ChatInputTextView: UIViewRepresentable {
 
     func updateUIView(_ uiView: UITextView, context: Context) {
         uiView.text = text
-        let width = max(maxWidth, 10)
+        let width = uiView.bounds.width > 10 ? uiView.bounds.width : UIScreen.main.bounds.width - 100
         let size = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
         height = min(max(size.height, 20), 80)
     }
@@ -1407,7 +1405,7 @@ struct ChatInputTextView: UIViewRepresentable {
         init(_ p: ChatInputTextView) { parent = p }
         func textViewDidChange(_ tv: UITextView) {
             parent.text = tv.text ?? ""
-            let width = max(parent.maxWidth, 10)
+            let width = tv.bounds.width > 10 ? tv.bounds.width : UIScreen.main.bounds.width - 100
             let size = tv.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
             parent.height = min(max(size.height, 20), 80)
         }
