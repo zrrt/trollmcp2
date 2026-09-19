@@ -926,7 +926,7 @@ final class ConversationStore: ObservableObject {
                         self.conversations[ci].messages.remove(at: mi)
                     }
                     self.streamingMessageId = nil
-                    // v2.9.322：思考说明 + 工具调用
+                    // v3.0.2：把思考说明直接传到 tool 消息里，前端在 toolBubble 顶部显示
                     let summary = calls.map { "调用工具 \($0.name)" }.joined(separator: "\n")
                     let fullContent = thinkText.isEmpty ? summary : "\(thinkText)\n\(summary)"
                     self.appendToCurrent(ChatMessage(role: "assistant", content: fullContent, toolCalls: calls))
@@ -936,7 +936,7 @@ final class ConversationStore: ObservableObject {
                     // v2.9.31：递归处理一批工具调用（后台执行，无授权弹窗）
                     self.processToolCalls(calls, index: 0, toolMessages: [], newlyDisclosed: [],
                                           config: config, tools: tools, disclosed: disclosed, depth: depth,
-                                          reasoningLevel: reasoningLevel)
+                                          reasoningLevel: reasoningLevel, thinkText: thinkText)
                 case .failure(let error):
                     self.isLoading = false
                     self.currentClient = nil
@@ -990,7 +990,8 @@ final class ConversationStore: ObservableObject {
                                   tools: [[String: Any]]?,
                                   disclosed: [String],
                                   depth: Int,
-                                  reasoningLevel: Int) {
+                                  reasoningLevel: Int,
+                                  thinkText: String = "") {
         if index >= calls.count {
             for tm in toolMessages { self.appendToCurrent(tm) }
             let merged = Array(Set(disclosed + newlyDisclosed))
@@ -1016,7 +1017,8 @@ final class ConversationStore: ObservableObject {
                     self.handleDispatchResult(result, call: call, calls: calls, index: index,
                                               toolMessages: toolMessages, newlyDisclosed: newlyDisclosed,
                                               config: config, tools: tools,
-                                              disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
+                                              disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel,
+                                              thinkText: thinkText)
                 }
             }
         }
@@ -1028,7 +1030,8 @@ final class ConversationStore: ObservableObject {
                                       call: ToolCall, calls: [ToolCall], index: Int,
                                       toolMessages: [ChatMessage], newlyDisclosed: [String],
                                       config: ModelConfig, tools: [[String: Any]]?,
-                                      disclosed: [String], depth: Int, reasoningLevel: Int) {
+                                      disclosed: [String], depth: Int, reasoningLevel: Int,
+                                      thinkText: String = "") {
         switch result {
         case .success(let r):
             let rawContent = Self.jsonString(r)
@@ -1041,7 +1044,10 @@ final class ConversationStore: ObservableObject {
                 content = rawContent
             }
             var next = toolMessages
-            next.append(ChatMessage(role: "tool", content: content, toolCallId: call.id, toolName: call.name))
+            var toolMsg = ChatMessage(role: "tool", content: content, toolCallId: call.id, toolName: call.name)
+            // v3.0.2：把思考说明传到 tool 消息里，前端在 toolBubble 顶部显示
+            if !thinkText.isEmpty { toolMsg.thinking = thinkText }
+            next.append(toolMsg)
             // v2.9.127：轨迹——工具执行成功（结果摘要 200 字符，完整结果在 tool 消息里）
             self.trailStep(.done(.result, call.name,
                                  detail: Self.trailSummary(rawContent),
@@ -1067,7 +1073,8 @@ final class ConversationStore: ObservableObject {
                 }
             }
             self.processToolCalls(calls, index: index + 1, toolMessages: next, newlyDisclosed: nextDisclosed,
-                                  config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
+                                  config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel,
+                                  thinkText: thinkText)
         case .failure(let err as MCPError):
             // v2.9.125：失败也输出结构化 JSON（对齐 CLI 返回协议），AI 可直接解析分类与下一步
             var next = toolMessages
@@ -1079,22 +1086,28 @@ final class ConversationStore: ObservableObject {
                 failureBody = ["ok": false, "message": err.description]
             }
             let content = Self.jsonString(failureBody)
-            next.append(ChatMessage(role: "tool", content: content, isError: true, toolCallId: call.id, toolName: call.name))
+            var failMsg = ChatMessage(role: "tool", content: content, isError: true, toolCallId: call.id, toolName: call.name)
+            if !thinkText.isEmpty { failMsg.thinking = thinkText }
+            next.append(failMsg)
             // v2.9.127：轨迹——工具执行失败（四分类错误摘要）
             self.trailStep(.done(.result, call.name,
                                  detail: Self.trailSummary(Self.jsonString(failureBody)),
                                  ok: false))
             self.processToolCalls(calls, index: index + 1, toolMessages: next, newlyDisclosed: newlyDisclosed,
-                                  config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
+                                  config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel,
+                                  thinkText: thinkText)
         case .failure(let err):
             var next = toolMessages
-            next.append(ChatMessage(role: "tool", content: Self.jsonString(["ok": false, "message": err.localizedDescription]),
-                                    isError: true, toolCallId: call.id, toolName: call.name))
+            var errMsg = ChatMessage(role: "tool", content: Self.jsonString(["ok": false, "message": err.localizedDescription]),
+                                    isError: true, toolCallId: call.id, toolName: call.name)
+            if !thinkText.isEmpty { errMsg.thinking = thinkText }
+            next.append(errMsg)
             self.trailStep(.done(.result, call.name,
                                  detail: "❌ \(err.localizedDescription.prefix(200))",
                                  ok: false))
             self.processToolCalls(calls, index: index + 1, toolMessages: next, newlyDisclosed: newlyDisclosed,
-                                  config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
+                                  config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel,
+                                  thinkText: thinkText)
         }
     }
 
