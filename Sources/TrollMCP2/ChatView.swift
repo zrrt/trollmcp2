@@ -604,6 +604,9 @@ struct ChatView: View {
                         .padding(.vertical, 6)
                         .background(Color(.secondarySystemBackground))
                         .cornerRadius(20)
+                        .onAppear {
+                            UITextView.appearance().backgroundColor = .clear
+                        }
                     if inputText.isEmpty {
                         Text("输入消息...")
                             .font(.system(size: 16))
