@@ -1399,5 +1399,4 @@ struct ChatInputTextView: UIViewRepresentable {
             }
         }
     }
-    }
 }
