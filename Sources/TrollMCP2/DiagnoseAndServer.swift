@@ -419,7 +419,7 @@ final class ServerStopTool: MCPTool {
     let definition = ToolDefinition(
         name: "server.stop",
         summary: "停止本地 HTTP 服务。",
-        parameters: [:],
+        parameters: [:]
         verified: true
     )
 
@@ -433,7 +433,7 @@ final class ServerStatusTool: MCPTool {
     let definition = ToolDefinition(
         name: "server.status",
         summary: "查看本地 HTTP 服务状态：是否运行、端口、可用工具数量。",
-        parameters: [:],
+        parameters: [:]
     verified: true,
     )
 

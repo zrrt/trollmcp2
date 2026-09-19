@@ -10,7 +10,7 @@ struct BrowserStatusTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.status",
         summary: "查看内置浏览器状态：当前 URL、标题、加载状态、元素数。注意：如果用户要求打开/访问某个网址，请直接调用 browser.navigate(url) 打开，不要只查状态。",
-        parameters: [:],
+        parameters: [:]
         verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -104,7 +104,7 @@ struct BrowserFormFieldsTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.form_fields",
         summary: "扫描当前页面全部表单字段（input/textarea/select，不限快照条数），返回每个字段的 name/placeholder/标签/类型/当前值/下拉选项/绝对 xpath。填表前先调用本工具看有哪些字段。",
-        parameters: [:],
+        parameters: [:]
     verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

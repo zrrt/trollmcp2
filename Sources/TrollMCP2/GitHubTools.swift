@@ -82,7 +82,7 @@ final class GitHubAccountStatusTool: MCPTool {
     let definition = ToolDefinition(
         name: "github.account_status",
         summary: "查看 App 内 GitHub 账号登录状态、仓库、最近线上编译记录",
-        parameters: [:],
+        parameters: [:]
         verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

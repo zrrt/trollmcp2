@@ -272,7 +272,7 @@ final class ControlStatusTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.status",
         summary: "检查目标 App 的 ControlAgent 是否在线（localhost:4789 是否可连接）。返回 App 信息、PID、可用 API 列表。",
-        parameters: [:],
+        parameters: [:]
         verified: true
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -284,7 +284,7 @@ final class ControlUITreeTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.ui_tree",
         summary: "获取目标 App 当前的完整 UI 树（所有窗口、视图、frame、text、可访问性信息）。AI 根据 UI 树决定点击哪个元素。限制 500 节点。",
-        parameters: [:],
+        parameters: [:]
         verified: true
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -297,7 +297,7 @@ final class ControlScreenshotTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.screenshot",
         summary: "截取目标 App 当前屏幕，保存为 PNG 到工作区 screenshots/ 目录。返回文件路径，用 artifact.find 定位。",
-        parameters: [:],
+        parameters: [:]
         verified: true
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
