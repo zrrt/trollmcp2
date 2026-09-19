@@ -1511,26 +1511,25 @@ struct ChatInputTextView: UIViewRepresentable {
     var onSend: () -> Void
 
     func makeUIView(context: Context) -> UITextView {
-        let tv = UITextView()
+        let tv = UITextView(frame: .zero)
         tv.font = .systemFont(ofSize: 16)
         tv.backgroundColor = .clear
         tv.isScrollEnabled = false
         tv.textContainerInset = UIEdgeInsets(top: 9, left: 8, bottom: 7, right: 8)
         tv.textContainer.lineFragmentPadding = 0
         tv.textContainer.widthTracksTextView = true
-        tv.textContainer.maximumNumberOfLines = 0
         tv.returnKeyType = .default
         tv.delegate = context.coordinator
         return tv
     }
     func updateUIView(_ uiView: UITextView, context: Context) {
         if uiView.text != text { uiView.text = text }
-        // v2.9.318：自动增高
-        let size = uiView.sizeThatFits(CGSize(width: uiView.bounds.width, height: .infinity))
-        uiView.invalidateIntrinsicContentSize()
-        DispatchQueue.main.async {
-            uiView.invalidateIntrinsicContentSize()
-        }
+    }
+    // v2.9.323：让 SwiftUI 正确计算高度
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        let proposed = proposal.replacingUnspecifiedDimensions(by: CGSize(width: 0, height: .greatestFiniteMagnitude))
+        let fitSize = uiView.sizeThatFits(proposed)
+        return CGSize(width: proposed.width, height: fitSize.height)
     }
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -1539,7 +1538,7 @@ struct ChatInputTextView: UIViewRepresentable {
         init(_ p: ChatInputTextView) { parent = p }
         func textViewDidChange(_ tv: UITextView) {
             parent.text = tv.text
+            tv.invalidateIntrinsicContentSize()
         }
-        // v2.9.317：回车换行，发送靠发送按钮（微信式）
     }
 }
