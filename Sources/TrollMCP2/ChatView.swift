@@ -628,6 +628,7 @@ struct ChatView: View {
                 }
                 .background(Color.white)
                 .cornerRadius(20)
+                .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 2)
 
                 Button(action: { attachmentSheet = .panel }) {
                     Image(systemName: "plus")
