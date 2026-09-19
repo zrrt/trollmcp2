@@ -926,10 +926,14 @@ final class ConversationStore: ObservableObject {
                         self.conversations[ci].messages.remove(at: mi)
                     }
                     self.streamingMessageId = nil
-                    // v3.0.2：把思考说明直接传到 tool 消息里，前端在 toolBubble 顶部显示
-                    let summary = calls.map { "调用工具 \($0.name)" }.joined(separator: "\n")
-                    let fullContent = thinkText.isEmpty ? summary : "\(thinkText)\n\(summary)"
-                    self.appendToCurrent(ChatMessage(role: "assistant", content: fullContent, toolCalls: calls))
+                    // v3.0.2e：assistant 消息只保留思考内容，不要"调用工具 xxx"（避免和 toolBubble 重复）
+                    // "调用工具 xxx" 已经在 toolBubble 里显示了
+                    if !thinkText.isEmpty {
+                        self.appendToCurrent(ChatMessage(role: "assistant", content: thinkText, toolCalls: calls))
+                    } else {
+                        // 没有思考内容就不显示 assistant 消息，直接进 toolBubble
+                        self.appendToCurrent(ChatMessage(role: "assistant", content: "", toolCalls: calls))
+                    }
                     // v2.9.127：轨迹——AI 决定调用一批工具
                     self.trailStep(.done(.tool, "AI 选择调用 \(calls.count) 个工具",
                                          detail: calls.map { $0.name }.joined(separator: "、")))

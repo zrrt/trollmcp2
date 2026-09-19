@@ -1069,28 +1069,31 @@ struct MessageBubble: View {
                 thinkingView(th)
             }
             // v3.0.2: 去掉旧的 TrailCard，改用 toolBubble 显示工具调用
-            Text(message.content)
-                .font(.body)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                // v2.9.93：用户气泡改巨魔蓝渐变（浅青→蓝，品牌化），助手保持系统色
-                .background(
-                    Group {
-                            if isUser {
-                                LinearGradient(colors: [.tmCyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
-                            } else if message.isError {
-                                Color.red.opacity(0.15)
-                            } else {
-                                Color(.secondarySystemBackground)
+            // v3.0.2e：如果 content 是空的，就不显示气泡（避免空白气泡）
+            if !message.content.isEmpty {
+                Text(message.content)
+                    .font(.body)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    // v2.9.93：用户气泡改巨魔蓝渐变（浅青→蓝，品牌化），助手保持系统色
+                    .background(
+                        Group {
+                                if isUser {
+                                    LinearGradient(colors: [.tmCyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+                                } else if message.isError {
+                                    Color.red.opacity(0.15)
+                                } else {
+                                    Color(.secondarySystemBackground)
+                                }
                             }
-                        }
-                )
-                .foregroundColor(isUser ? .white : .primary)
-                .cornerRadius(18)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18)
-                        .strokeBorder(isSelected ? (isUser ? Color.white : Color.blue) : Color.clear, lineWidth: 2)
-                )
+                    )
+                    .foregroundColor(isUser ? .white : .primary)
+                    .cornerRadius(18)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18)
+                            .strokeBorder(isSelected ? (isUser ? Color.white : Color.blue) : Color.clear, lineWidth: 2)
+                    )
+            }
         }
     }
 
