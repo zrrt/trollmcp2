@@ -60,7 +60,7 @@ final class ShellExecTool: MCPTool {
         // 先 cd 到当前目录，再执行命令，然后输出新的 PWD
         let fullCommand = "cd '\(cwd)' && \(command); echo '__PWD__:'$PWD"
         
-        let (exitCode, output) = InjectionManager.shared.spawn("/bin/bash", args: ["bash", "-c", fullCommand], timeout: clampedTimeout)
+        let (exitCode, output) = InjectionManager.shared.spawn("/bin/sh", args: ["sh", "-c", fullCommand], timeout: clampedTimeout)
         
         // 解析新的 PWD
         var stdout = output
