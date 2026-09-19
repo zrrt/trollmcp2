@@ -169,17 +169,6 @@ final class GatewayConnectTool: MCPTool {
     }
 }
 
-final class NodeInvokeTool: MCPTool {
-    let definition = ToolDefinition(name: "node.invoke", summary: "远程调用 Gateway 节点",
-        parameters: ["node": "节点名", "method": "方法", "params": "参数"])
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard GatewayClient.shared.isConnected else { throw MCPError.failed("gateway not connected") }
-        let payload = try JSONSerialization.data(withJSONObject: params)
-        GatewayClient.shared.send(String(data: payload, encoding: .utf8) ?? "{}")
-        return ["sent": true]
-    }
-}
-
 final class CronFireTool: MCPTool {
     let definition = ToolDefinition(name: "cron.fire", summary: "触发一次定时任务（cron.fire 由调度器在到点调用；也可手动触发验证任务逻辑）。返回任务执行结果。",
         parameters: ["task": "任务名"])
