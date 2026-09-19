@@ -53,7 +53,8 @@ final class CalendarCreateEventTool: MCPTool {
 final class ReminderScheduleTool: MCPTool {
     let definition = ToolDefinition(name: "reminder.schedule",
         summary: "在指定延迟后弹出本地提醒通知",
-        parameters: ["title": "标题", "body": "内容", "delay_seconds": "多少秒后提醒"])
+        parameters: ["title": "标题", "body": "内容", "delay_seconds": "多少秒后提醒"],
+        verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let title = params["title"] as? String else { throw MCPError.invalidParams("title required") }
         let delay = max(params["delay_seconds"] as? Int ?? 60, 1)
