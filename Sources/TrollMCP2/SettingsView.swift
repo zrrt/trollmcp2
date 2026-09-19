@@ -94,12 +94,8 @@ struct SettingsView: View {
                          destination: AnyView(SystemPromptsView()))
         ]))
 
-        // 控制（注入/远程控制/控制中心/操作宏 + 开发者模式开关）
+        // 控制（远程控制/控制中心/操作宏 + 开发者模式开关）
         var controlItems: [SettingsItem] = [
-            SettingsItem(title: L10n.t("row_inject"),
-                         subtitle: L10n.t("row_inject_sub"),
-                         icon: "syringe.fill", color: .tmIndigo,
-                         destination: AnyView(InjectionView())),
             SettingsItem(title: L10n.t("row_remote"),
                          subtitle: L10n.t("row_remote_sub"),
                          icon: "cursorarrow.click.2", color: .tmCyan,
