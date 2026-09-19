@@ -600,7 +600,8 @@ struct ChatView: View {
                 HStack(spacing: 0) {
                     TextEditor(text: $inputText)
                         .font(.system(size: 16))
-                        .frame(maxWidth: .infinity, minHeight: 20, maxHeight: 80)
+                        .frame(maxWidth: .infinity, minHeight: 10, maxHeight: 80)
+                        .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 8)
                         .overlay(
                             ZStack(alignment: .topLeading) {
