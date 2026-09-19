@@ -149,7 +149,7 @@ final class PingTool: MCPTool {
 }
 
 final class DeviceInfoTool: MCPTool {
-    let definition = ToolDefinition(name: "device.info", summary: "查看设备与应用信息：系统版本、机型、TrollAgent 版本、工作区路径。")
+    let definition = ToolDefinition(name: "device.info", summary: "查看设备信息：系统版本、机型、内存/存储/磁盘/电量、TrollAgent 版本、工作区路径。", verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         [

@@ -94,7 +94,7 @@ final class ReminderScheduleRecurringTool: MCPTool {
 // MARK: - 设备快照（电池/存储/系统）
 
 final class DeviceSnapshotTool: MCPTool {
-    let definition = ToolDefinition(name: "device.snapshot", summary: "采集设备当前状态（电量/存储/系统）")
+    let definition = ToolDefinition(name: "device.snapshot", summary: "采集设备当前状态：电量/内存/存储/磁盘/系统版本")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         UIDevice.current.isBatteryMonitoringEnabled = true
         let battery = UIDevice.current.batteryLevel
