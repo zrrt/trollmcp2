@@ -176,7 +176,8 @@ final class CleanupAiTool: MCPTool {
             "bundle_id": "目标 App Bundle ID（必填）",
             "auto": "可选：true 连警告级（钥匙串/广告符）一起清（默认 false 只清安全项）",
             "confirm": "可选：true 才允许执行危险级（数据容器重置，自动备份）（默认 false）"
-        ]
+        ],
+        verified: true
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {

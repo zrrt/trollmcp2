@@ -217,7 +217,8 @@ final class WorkspaceCleanupTool: MCPTool {
         case "downloads": dirsToClean = ["downloads"]
         case "logs": dirsToClean = ["logs"]
         case "reports": dirsToClean = ["reports"]
-        default: dirsToClean = ["downloads", "logs", "reports", "network_capture"]
+        case "screenshots": dirsToClean = ["screenshots", "control_shots"]
+        default: dirsToClean = ["downloads", "logs", "reports", "network_capture", "screenshots", "control_shots"]
         }
 
         for dir in dirsToClean {
