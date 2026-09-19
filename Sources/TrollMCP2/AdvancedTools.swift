@@ -1145,7 +1145,8 @@ final class DeviceFakeTool: MCPTool {
             "model_identifier": "伪装机型标识（如 iPhone17,2；部分 App 通过 sysctl 读取，仅作信息字段）",
             "system_version": "伪装系统版本（如 18.0）",
             "mode": "memory（默认，opainject 内存注入）/ file（旧式文件注入，风险高，仅特殊场景用）"
-        ]
+        ],
+        verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
