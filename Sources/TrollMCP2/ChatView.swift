@@ -1068,10 +1068,7 @@ struct MessageBubble: View {
             if !isUser, let th = message.thinking, !th.isEmpty {
                 thinkingView(th)
             }
-            // v2.9.127：执行轨迹（豆包/Codex 式过程流）——历史消息可展开回看
-            if !isUser, let trail = message.trail, !trail.isEmpty {
-                TrailCard(steps: trail)
-            }
+            // v3.0.2: 去掉旧的 TrailCard，改用 toolBubble 显示工具调用
             Text(message.content)
                 .font(.body)
                 .padding(.horizontal, 14)
@@ -1162,19 +1159,21 @@ struct MessageBubble: View {
 
     private var toolBubble: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // 🟠 AI 思考（为什么要调用这个工具）
-            HStack(spacing: 6) {
-                Image(systemName: "brain.head.profile")
-                    .font(.system(size: 12))
-                    .foregroundColor(.orange)
-                Text(message.thinking ?? "思考中...")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+            // 🟠 AI 思考（只有后端传了 thinking 才显示）
+            if let thinking = message.thinking, !thinking.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "brain.head.profile")
+                        .font(.system(size: 12))
+                        .foregroundColor(.orange)
+                    Text(thinking)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.orange.opacity(0.08))
+                .cornerRadius(12)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color.orange.opacity(0.08))
-            .cornerRadius(12)
 
             // 🔧 调用工具（蓝色扳手）
             HStack(spacing: 6) {
