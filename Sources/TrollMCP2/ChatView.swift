@@ -626,7 +626,7 @@ struct ChatView: View {
                         }
                     }
                 }
-                .background(Color(.secondarySystemBackground))
+                .background(Color.white)
                 .cornerRadius(20)
 
                 Button(action: { attachmentSheet = .panel }) {
