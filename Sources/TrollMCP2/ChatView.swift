@@ -1162,7 +1162,21 @@ struct MessageBubble: View {
 
     private var toolBubble: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // v2.9.378：工具调用小气泡（蓝色扳手，微信式）
+            // 🟠 AI 思考（为什么要调用这个工具）
+            HStack(spacing: 6) {
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 12))
+                    .foregroundColor(.orange)
+                Text(message.thinking ?? "思考中...")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.orange.opacity(0.08))
+            .cornerRadius(12)
+
+            // 🔧 调用工具（蓝色扳手）
             HStack(spacing: 6) {
                 Image(systemName: "wrench.and.screwdriver")
                     .font(.system(size: 12))
@@ -1176,7 +1190,7 @@ struct MessageBubble: View {
             .background(Color.blue.opacity(0.08))
             .cornerRadius(12)
 
-            // 工具结果气泡（绿色对勾）
+            // ✅ 工具结果（绿色对勾）
             HStack(spacing: 8) {
                 Image(systemName: message.isError ? "exclamationmark.circle" : "checkmark.circle")
                     .font(.system(size: 18))
