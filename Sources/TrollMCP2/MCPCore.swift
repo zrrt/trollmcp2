@@ -218,7 +218,7 @@ public final class ToolRegistry: ObservableObject {
         "gateway.status", "injection.status", "injection.list", "injection.inspect",   // 查询类
         "build.environment",
         // v2.9.37：内置浏览器（AI 控制入口，搜索即用）
-        "browser.status", "browser.open", "browser.snapshot", "browser.click", "browser.type", "browser.eval", "browser.navigate"
+        "browser.status", "browser.snapshot", "browser.click", "browser.type", "browser.eval", "browser.navigate"
     ]
 
     /// v2.9.31：常驻核心工具名集合（UI 用只读访问）
@@ -240,7 +240,7 @@ public final class ToolRegistry: ObservableObject {
         "artifact.list", "artifact.read_text", "artifact.find",  // 文件浏览/查找（AI 最常用，find 定位下载产物）
         "model.config",         // 当前模型配置
         "injection.status",     // 注入状态（用户主线常用）
-        "browser.status", "browser.open",   // v2.9.82：open 常驻核心，避免 AI 只 status 不打开网址
+        "browser.status", "browser.navigate",   // v2.9.82：navigate 常驻核心，支持 url/back/forward
         // v2.9.139：AI 控制任意 App 闭环工具（每轮常驻，AI 连续控制不用反复 tool_search）
         "app.launch",           // 启动目标 App（带 env/args）
         "ui.tap", "ui.swipe", "ui.long_press", "ui.clipboard", "ui.screenshot",  // HID 触摸注入 + 验证
@@ -650,11 +650,11 @@ public final class ToolRegistry: ObservableObject {
         // M2 应用与设备
         register(AppCacheInspectTool())
         register(AppCacheClearTool())
-        register(AppOpenTool())
+        // register(AppOpenTool())  // 合并到 app.start（多级策略更可靠），重复
         register(AppOpenAndInputTool())
         register(AppsControlTool())
         register(AppDepsTool())
-        register(WeChatPrepareMessageTool())
+        // register(WeChatPrepareMessageTool())  // 去掉，半自动粘贴没用
 
         // M3 注入管理 + 容器
         register(InjectionEnableTool())
@@ -729,20 +729,19 @@ public final class ToolRegistry: ObservableObject {
         register(TaskTool())
 
         // M4 Gateway + 自动化（含原版命名）
-        register(GatewayStatusTool())
-        register(GatewayConnectTool())
-        register(NodeInvokeTool())
-        register(GatewayNodeInvokeTool())
-        register(GatewayChannelSendTool())
-        register(GatewayCronCreateTool())
-        register(GatewayCronRunTool())
-        register(GatewayCronCancelTool())
+        // register(GatewayStatusTool())  // 和远程终端重复，去掉
+        // register(GatewayConnectTool())
+        // register(GatewayNodeInvokeTool())
+        // register(GatewayChannelSendTool())
+        // register(GatewayCronCreateTool())
+        // register(GatewayCronRunTool())
+        // register(GatewayCronCancelTool())
         register(CronFireTool())
         register(AutomationRunNowTool())
         register(AutomationListTool())
         register(AutomationJobsTool())
         register(AutomationStopTool())
-        register(AutomationCancelTool())
+        // register(AutomationCancelTool())  // 合并到 automation.stop，重复
         register(AutomationHistoryTool())
         register(AutomationSetEnabledTool())
         register(AutomationStatusTool())
@@ -758,7 +757,7 @@ public final class ToolRegistry: ObservableObject {
 
         // M5.5 内置浏览器（v2.9.37：AI 可控，蓝框高亮元素；v2.9.88：+wait/text/scroll/submit）
         register(BrowserStatusTool())
-        register(BrowserOpenTool())
+        // register(BrowserOpenTool())  // 合并到 browser.navigate（已支持 url 参数），重复
         register(BrowserWaitTool())
         register(BrowserSnapshotTool())
         register(BrowserClickTool())

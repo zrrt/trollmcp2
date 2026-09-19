@@ -9,7 +9,7 @@ import Foundation
 struct BrowserStatusTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.status",
-        summary: "查看内置浏览器状态：当前 URL、标题、加载状态、元素数。注意：如果用户要求打开/访问某个网址，请直接调用 browser.open(url) 打开，不要只查状态。",
+        summary: "查看内置浏览器状态：当前 URL、标题、加载状态、元素数。注意：如果用户要求打开/访问某个网址，请直接调用 browser.navigate(url) 打开，不要只查状态。",
         parameters: [:],
         verified: true,
     )
@@ -39,7 +39,7 @@ struct BrowserOpenTool: MCPTool {
 struct BrowserWaitTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.wait",
-        summary: "等待浏览器页面加载完成（最多 timeout 秒）。browser.open 后必须先调用本工具等加载完，否则 snapshot 拿不到元素。返回 URL、标题、页面正文长度。",
+        summary: "等待浏览器页面加载完成（最多 timeout 秒）。browser.navigate 后必须先调用本工具等加载完，否则 snapshot 拿不到元素。返回 URL、标题、页面正文长度。",
         parameters: ["timeout": "最多等待秒数（默认 15）"],
     verified: true,
     )

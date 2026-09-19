@@ -8,7 +8,7 @@ struct ToolsView: View {
             ("文件桥", "folder", ["artifact.read_text", "artifact.write_text", "artifact.list", "workspace.info"]),
             ("注入管理", "syringe", ["injection.enable", "injection.disable", "injection.mem", "injection.restore", "rescue.scan", "rescue.recover_all", "rescue.cleanup", "injection.status", "injection.inspect", "injection.list", "container.write_text"]),
             ("高级探测", "scope", ["probe.inspect", "hook.apply", "device.fake", "device.restore"]),
-            ("Gateway", "network", ["gateway.status", "gateway.connect", "node.invoke", "cron.fire"]),
+            ("Gateway", "network", ["gateway.status", "gateway.connect", "gateway.node_invoke", "cron.fire"]),
             ("自动化", "bolt", ["automation.run", "automation.list", "automation.stop", "automation.status"]),
             ("系统能力", "gearshape.2", ["contacts.search", "calendar.list", "reminder.create", "location.get", "notification.send", "scan.qr", "process.list"]),
             ("编译与模型", "hammer", ["build.runner.token", "project.generate_tweak", "model.config", "ping", "device.info"])
