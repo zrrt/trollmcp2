@@ -1,5 +1,6 @@
 ﻿import SwiftUI
 import UIKit
+import RSKGrowingTextView
 
 struct ChatView: View {
     @ObservedObject private var store = ConversationStore.shared
@@ -598,10 +599,9 @@ struct ChatView: View {
 
             HStack(spacing: 8) {
                 HStack(spacing: 0) {
-                    TextEditor(text: $inputText)
-                        .font(.system(size: 16))
-                        .frame(maxWidth: .infinity, minHeight: 10, maxHeight: 80)
-                        .fixedSize(horizontal: false, vertical: true)
+                    ChatInputTextView(text: $inputText, onSend: { send() }, height: $inputHeight)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: inputHeight)
                         .padding(.horizontal, 8)
                         .overlay(
                             ZStack(alignment: .topLeading) {
@@ -1380,35 +1380,30 @@ struct ChatInputTextView: UIViewRepresentable {
     var onSend: () -> Void
     @Binding var height: CGFloat
 
-    func makeUIView(context: Context) -> UITextView {
-        let tv = UITextView()
+    func makeUIView(context: Context) -> RSKGrowingTextView {
+        let tv = RSKGrowingTextView()
         tv.backgroundColor = .clear
         tv.font = .systemFont(ofSize: 16)
-        tv.isScrollEnabled = false
-        tv.textContainerInset = .zero
-        tv.textContainer.lineFragmentPadding = 0
-        tv.textContainer.widthTracksTextView = true
+        tv.placeholderText = "输入消息..."
+        tv.minimumNumberOfLines = 1
+        tv.maximumNumberOfLines = 4
         tv.delegate = context.coordinator
         return tv
     }
 
-    func updateUIView(_ uiView: UITextView, context: Context) {
+    func updateUIView(_ uiView: RSKGrowingTextView, context: Context) {
         uiView.text = text
-        let width = uiView.bounds.width > 10 ? uiView.bounds.width : UIScreen.main.bounds.width - 100
-        let size = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
-        height = min(max(size.height, 20), 80)
+        height = uiView.intrinsicContentSize.height
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-    final class Coordinator: NSObject, UITextViewDelegate {
+    final class Coordinator: NSObject, RSKGrowingTextViewDelegate {
         var parent: ChatInputTextView
         init(_ p: ChatInputTextView) { parent = p }
-        func textViewDidChange(_ tv: UITextView) {
-            parent.text = tv.text ?? ""
-            let width = tv.bounds.width > 10 ? tv.bounds.width : UIScreen.main.bounds.width - 100
-            let size = tv.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
-            parent.height = min(max(size.height, 20), 80)
+        func textViewDidChange(_ textView: UITextView) {
+            parent.text = textView.text
+            parent.height = textView.intrinsicContentSize.height
         }
     }
 }
