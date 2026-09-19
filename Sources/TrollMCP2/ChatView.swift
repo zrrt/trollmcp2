@@ -599,7 +599,7 @@ struct ChatView: View {
             HStack(spacing: 8) {
                 HStack(spacing: 0) {
                     ZStack(alignment: .topLeading) {
-                        ChatInputTextView(text: $inputText, onSend: { sendMessage() }, height: $inputHeight)
+                        ChatInputTextView(text: $inputText, onSend: { send() }, height: $inputHeight)
                             .frame(height: inputHeight)
                             .padding(.horizontal, 8)
                         if inputText.isEmpty {
