@@ -88,7 +88,8 @@ final class AppUninstallTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.uninstall",
         summary: "卸载指定 bundle_id 的 App（trollstorehelper uninstall，TrollStore 环境）。卸载会删除该 App 数据容器，注意备份。",
-        parameters: ["bundle_id": "要卸载的 App 的 bundle id（必填）"]
+        parameters: ["bundle_id": "要卸载的 App 的 bundle id（必填）"],
+        verified: true
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {

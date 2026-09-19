@@ -135,7 +135,8 @@ final class AppDecryptTool: MCPTool {
         parameters: [
             "bundle_id": "目标 App 的 Bundle ID（必填，可用 injection.list 搜索）",
             "output_name": "输出文件名前缀（可选，默认用 App 名称）"
-        ]
+        ],
+        verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
