@@ -6,6 +6,7 @@ struct ChatView: View {
     @ObservedObject private var modelStore = ModelStore.shared
 
     @State private var inputText = ""
+    @State private var inputHeight: CGFloat = 36
     // v2.9.234：推理强度/智能搜索持久化(@AppStorage)——之前纯@State,关app重开必丢
     @AppStorage("chat_reasoning") private var reasoning = 0   // 0=低 1=中 2=高
     @AppStorage("chat_smart_search") private var smartSearch = true
@@ -596,13 +597,25 @@ struct ChatView: View {
             .padding(.top, 6)
 
             HStack(spacing: 8) {
-                TextEditor(text: $inputText)
-                    .font(.system(size: 16))
-                    .frame(minHeight: 36, maxHeight: 100)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(20)
+                HStack(spacing: 0) {
+                    ChatInputTextView(text: $inputText, onSend: {
+                        if !inputText.isEmpty { send() }
+                    }, height: $inputHeight)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: inputHeight)
+                        .padding(.leading, 12)
+                    if !inputText.isEmpty {
+                        Button(action: { inputText = "" }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 20))
+                                .foregroundColor(.secondary)
+                                .padding(.trailing, 8)
+                        }
+                    }
+                }
+                .frame(height: inputHeight)
+                .background(Color(.secondarySystemBackground))
+                .cornerRadius(20)
 
                 Button(action: { attachmentSheet = .panel }) {
                     Image(systemName: "plus")
@@ -1495,6 +1508,7 @@ struct TrailRow: View {
 struct ChatInputTextView: UIViewRepresentable {
     @Binding var text: String
     var onSend: () -> Void
+    @Binding var height: CGFloat
 
     func makeUIView(context: Context) -> UITextView {
         let tv = UITextView()
@@ -1503,13 +1517,16 @@ struct ChatInputTextView: UIViewRepresentable {
         tv.isScrollEnabled = false
         tv.textContainerInset = UIEdgeInsets(top: 9, left: 2, bottom: 7, right: 2)
         tv.textContainer.widthTracksTextView = true
-        tv.returnKeyType = .send
-        tv.enablesReturnKeyAutomatically = true
+        tv.returnKeyType = .default
         tv.delegate = context.coordinator
         return tv
     }
     func updateUIView(_ uiView: UITextView, context: Context) {
         if uiView.text != text { uiView.text = text }
+        let fit = uiView.sizeThatFits(CGSize(width: uiView.bounds.width, height: .greatestFiniteMagnitude))
+        DispatchQueue.main.async {
+            self.height = min(max(fit.height, 36), 120)
+        }
     }
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -1518,14 +1535,10 @@ struct ChatInputTextView: UIViewRepresentable {
         init(_ p: ChatInputTextView) { parent = p }
         func textViewDidChange(_ tv: UITextView) {
             parent.text = tv.text
-        }
-        func textView(_ tv: UITextView, shouldChangeTextIn range: NSRange, replacementText t: String) -> Bool {
-            if t == "\n" {
-                if tv.markedTextRange != nil { return true }
-                parent.onSend()
-                return false
+            let fit = tv.sizeThatFits(CGSize(width: tv.bounds.width, height: .greatestFiniteMagnitude))
+            DispatchQueue.main.async {
+                self.parent.height = min(max(fit.height, 36), 120)
             }
-            return true
         }
     }
 }
