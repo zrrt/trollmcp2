@@ -330,7 +330,8 @@ final class ProgressNotifyTool: MCPTool {
 final class ControlBeginTool: MCPTool {
     let definition = ToolDefinition(name: "control.begin",
         summary: "开始一次「AI 控制任意 App」会话：登记目标 App 与执行计划（AI 每步完成后用 control.update 汇报，UI 实时展示；目标 App 需先用启动工具唤醒到前台）。",
-        parameters: ["target": "目标 App 名称（如 美团）", "bundle_id": "目标 Bundle ID（可选）", "plan": "计划步骤数组（字符串列表）"])
+        parameters: ["target": "目标 App 名称（如 美团）", "bundle_id": "目标 Bundle ID（可选）", "plan": "计划步骤数组（字符串列表）"],
+        verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let target = params["target"] as? String, !target.isEmpty else {
             throw MCPError.invalidParams("target required")
@@ -346,7 +347,8 @@ final class ControlBeginTool: MCPTool {
 final class ControlUpdateTool: MCPTool {
     let definition = ToolDefinition(name: "control.update",
         summary: "更新控制会话某一步的状态（running/done/failed）+ 详情，UI 实时刷新。",
-        parameters: ["step": "步骤序号（从 0 开始）", "status": "pending/running/done/failed", "detail": "详情（可选）", "reason": "判断依据（可选）"])
+        parameters: ["step": "步骤序号（从 0 开始）", "status": "pending/running/done/failed", "detail": "详情（可选）", "reason": "判断依据（可选）"],
+        verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let idx = params["step"] as? Int else { throw MCPError.invalidParams("step required") }
         let reason = params["reason"] as? String ?? ""
@@ -368,7 +370,8 @@ final class ControlUpdateTool: MCPTool {
 final class ControlFinishTool: MCPTool {
     let definition = ToolDefinition(name: "control.finish",
         summary: "结束控制会话，登记最终结果（UI 展示完整报告）。",
-        parameters: ["result": "结果总结（做了什么/卡在哪/下一步）"])
+        parameters: ["result": "结果总结（做了什么/卡在哪/下一步）"],
+        verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let result = params["result"] as? String ?? "完成"
         ControlSession.shared.finish(result: result)

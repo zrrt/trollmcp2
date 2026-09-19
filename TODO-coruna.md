@@ -60,8 +60,8 @@
 ## 三、清理功能
 
 ### workspace.cleanup 补充
-- [ ] 把 `privateWorkspace/control_shots/`（控制截图）加入清理目标
-- [ ] 把 `Workspace/screenshots/` 也加入清理
+- [x] 把 `privateWorkspace/control_shots/`（控制截图）加入清理目标
+- [x] 把 `Workspace/screenshots/` 也加入清理
 - 现在只清 logs / reports / downloads / network_capture
 
 ### 智能自动清理
