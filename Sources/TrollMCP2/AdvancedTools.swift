@@ -1291,8 +1291,7 @@ final class AppEntitlementsTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.entitlements",
         summary: "查看指定 App 的权限声明（entitlements，ldid -e 解析）：keychain 组、沙箱、task_for_pid、平台应用等",
-        parameters: ["bundle_id": "目标 App Bundle ID（必填）"],
-  ,
+        parameters: ["bundle_id": "目标 App Bundle ID（必填）"]
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {

@@ -246,8 +246,7 @@ final class InjectionDiagnoseTool: MCPTool {
         parameters: [
             "bundle_id": "目标 App 的 Bundle ID（必填）",
             "dylib_path": "要注入的 dylib 路径（可选，不填则检查已注入的 dylib）"
-        ],
-      ,
+        ]
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
