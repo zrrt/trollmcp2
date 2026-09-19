@@ -815,8 +815,17 @@ enum ProcessHelper {
             guard let spaceIdx = trimmed.firstIndex(of: " ") else { continue }
             let pidStr = String(trimmed[..<spaceIdx]).trimmingCharacters(in: .whitespaces)
             let comm = String(trimmed[trimmed.index(after: spaceIdx)...]).trimmingCharacters(in: .whitespaces)
+            // 精确匹配
             if comm == executableName, let pid = Int(pidStr) {
                 return pid
+            }
+            // 包含匹配（comm 可能是完整路径）
+            if comm.contains(executableName), let pid = Int(pidStr) {
+                // 确保是完整文件名匹配，不是子串
+                let lastPath = (comm as NSString).lastPathComponent
+                if lastPath == executableName {
+                    return pid
+                }
             }
         }
         return nil

@@ -3,7 +3,7 @@ import Combine
 
 enum ChatResult {
     case text(String, thinking: String?)
-    case toolCalls([ToolCall])
+    case toolCalls([ToolCall], thinking: String?)
 }
 
 /// 网络调试日志（最近 100 条，环形覆盖），用于排查中转站兼容性问题。
@@ -416,7 +416,7 @@ final class OpenAIClient {
                     return ToolCall(id: id, name: name, arguments: args)
                 }
                 if !calls.isEmpty {
-                    return .toolCalls(calls)
+                    return .toolCalls(calls, thinking: nil)
                 }
             }
             // v2.9.297：content 兼容 字符串 / 数组（[{"type":"text","text":"..."}] / [{"type":"output_text","text":"..."}]）
@@ -587,7 +587,8 @@ final class OpenAIClient {
                         NetworkLog.lastCompatNote = "模型「\(self.config.name)」当前兼容级别: 5（Responses API+工具）"
                         self.persist(level: 5)
                         if !calls.isEmpty {
-                            completion(.success(.toolCalls(calls)))
+                            let t = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
+                            completion(.success(.toolCalls(calls, thinking: t.isEmpty ? nil : t)))
                         } else {
                             let t = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
                             completion(.success(.text(text, thinking: t.isEmpty ? nil : t)))
@@ -1111,7 +1112,7 @@ final class OpenAIClient {
                 self.persist(level: 5)
                 NetworkLog.lastCompatNote = "模型「\(self.config.name)」当前兼容级别: 5（Responses API+工具，流式）"
                 if !calls.isEmpty {
-                    guardedCompletion(.success(.toolCalls(calls)))
+                    guardedCompletion(.success(.toolCalls(calls, thinking: nil)))
                 } else {
                     let th = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
                     // v2.9.127：非流式兜底——整段思考一次性推送（降级场景也能显示思考）
@@ -1134,7 +1135,7 @@ final class OpenAIClient {
             }
             self.persist(level: 5)
             if !toolCalls.isEmpty {
-                guardedCompletion(.success(.toolCalls(toolCalls)))
+                guardedCompletion(.success(.toolCalls(toolCalls, thinking: nil)))
             } else {
                 let th = fullThinking.trimmingCharacters(in: .whitespacesAndNewlines)
                 guardedCompletion(.success(.text(fullText, thinking: th.isEmpty ? nil : th)))

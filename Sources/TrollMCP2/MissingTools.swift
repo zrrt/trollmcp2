@@ -535,12 +535,34 @@ final class PhoneCallTool: MCPTool {
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let number = params["number"] as? String, !number.isEmpty else { throw MCPError.invalidParams("number required") }
         let cleaned = number.components(separatedBy: CharacterSet(charactersIn: "+0123456789")).joined()
-        guard let url = URL(string: "tel://" + cleaned), UIApplication.shared.canOpenURL(url) else {
-            throw MCPError.failed("无法拨号: \(number)")
+        // 用 telprompt:// 弹确认框，兼容性更好
+        guard let url = URL(string: "telprompt://" + cleaned) else {
+            throw MCPError.failed("URL 构造失败: \(number)")
         }
-        DispatchQueue.main.async { UIApplication.shared.open(url, options: [:]) }
+        var result: [String: Any] = ["number": cleaned]
+        let sem = DispatchSemaphore(value: 0)
+        DispatchQueue.main.async {
+            UIApplication.shared.open(url, options: [:]) { ok in
+                result["opened"] = ok
+                if !ok {
+                    // 回退到 tel://
+                    if let telURL = URL(string: "tel://" + cleaned) {
+                        UIApplication.shared.open(telURL, options: [:]) { ok2 in
+                            result["opened"] = ok2
+                            result["fallback"] = "tel://"
+                            sem.signal()
+                        }
+                    } else {
+                        sem.signal()
+                    }
+                } else {
+                    sem.signal()
+                }
+            }
+        }
+        _ = sem.wait(timeout: .now() + 5)
         AuditLog.shared.log("phone.call", detail: number)
-        return ["opened": true, "number": cleaned]
+        return result
     }
 }
 

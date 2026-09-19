@@ -129,3 +129,40 @@
 2. **ldid entitlements 解析失败（中优先级）** - 影响 app.entitlements / device.keychain_wipe
 3. **GitHub 设备授权轮询不更新（中优先级）** - 用户网页端点授权后，App 端一直卡"等待授权..."
 4. **phone.call 没反应（低优先级）** - 返回 opened: true 但实际没弹拨号器
+
+---
+
+## 七、内置终端功能（新想法）💡
+
+**想法来源：** 用户反馈说本来就这么高权限，不如加个终端让 AI 直接执行命令。
+
+### 功能描述：
+- 加一个通用 shell 终端工具，AI 可以直接执行任意命令
+- 内置常用命令：unzip, tar, curl, grep, ldid, optool, insert_dylib, Theos, clang
+- 支持本地打包编译 tweak/dylib，不用 GitHub Actions 等
+- 支持调用系统里的越狱插件命令（NewTerm3 风格）
+
+### 待做：
+- [ ] 设计终端工具的安全策略（白名单/黑名单/二次确认）
+- [ ] 内置轻量小工具（unzip/tar/curl/grep/sed/awk，加起来 <5MB）
+- [ ] 加输出截断（防止输出太多撑爆上下文）
+- [ ] 加超时机制（防止命令卡死）
+- [ ] 首次用终端时，弹窗问用户是否下载完整工具链（Theos + clang + llvm）
+- [ ] 完整工具链按需下载，不内置，不占 App 体积
+- [ ] 下载到工作区目录，用完可以删
+- [ ] 加危险命令二次确认（rm/mv/chmod 改系统）
+- [ ] 测试沙箱限制，看哪些系统命令能用
+
+### 核心用途（不是用来编译的）：
+**解包逆向分析才是终端的正确用法！**
+- ✅ 解包 IPA/deb/tar.gz：unzip, dpkg-deb, tar
+- ✅ 逆向分析：otool -l（看加密）、otool -L（看依赖）、strings（搜字符串）、lipo -info（看架构）
+- ✅ 文件操作：find, grep, du, df, ls 等
+- ✅ 轻量操作，瞬间出结果，完全不卡不发热
+- ❌ 编译大项目还是用 GitHub Actions，手机上别硬刚
+
+### 风险：
+- AI 执行危险命令搞坏系统
+- 输出太多把上下文撑爆
+- 命令卡死导致 App 无响应
+

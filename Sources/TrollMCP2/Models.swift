@@ -923,7 +923,7 @@ final class ConversationStore: ObservableObject {
                         self.appendToCurrent(am)
                         self.attachTrail(to: am.id, thinking: thinking)
                     }
-                case .success(.toolCalls(let calls)):
+                case .success(.toolCalls(let calls, let thinking)):
                     // v2.9.322：保留流式文本作为工具调用思考说明
                     var thinkText = ""
                     if let sid = self.streamingMessageId,
@@ -935,6 +935,10 @@ final class ConversationStore: ObservableObject {
                     // v3.0.3：把 onThinking 累积的思考内容也加进去（DeepSeek 等模型的 reasoning 在 thinking 字段）
                     if !self.thinkBuffer.isEmpty {
                         thinkText = thinkText.isEmpty ? self.thinkBuffer : "\(self.thinkBuffer)\n\(thinkText)"
+                    }
+                    // v3.0.28：把 toolCalls 枚举里带的 thinking 也加进去
+                    if let th = thinking, !th.isEmpty {
+                        thinkText = thinkText.isEmpty ? th : "\(th)\n\(thinkText)"
                     }
                     self.thinkBuffer = "" // 重置缓冲区
                     self.streamingMessageId = nil
