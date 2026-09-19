@@ -105,10 +105,7 @@ final class DeviceProbe: ObservableObject {
         let entitlementsOK = ent.noSandbox || bundleWriteOK || spawnIsRoot  // 内部记录用，不影响 ready 和 UI 显示
 
         var checks: [Check] = []
-        checks.append(Check(label: "TrollStore 已安装", passed: trollStore, detail: trollStore ? "检测到 TrollStore App 或越狱根" : "未检测到 TrollStore / 越狱环境", infoOnly: false))
-        // v2.9.154：Entitlements 检测已可靠（SecTask 读签名），恢复打勾/红叉
-        checks.append(Check(label: "TrollStore Entitlements 权限", passed: ent.noSandbox, detail: entDetail, infoOnly: false))
-        checks.append(Check(label: "TrollFools 已安装", passed: trollFools, detail: trollFools ? "检测到 TrollFools（可注入）" : "未检测到 TrollFools，注入需手动", infoOnly: false))
+        // v3.0.2: 去掉 TrollStore 已安装 / Entitlements 权限 / TrollFools 已安装 三个检测（包已是 tipa，检测无意义）
         let tfpDetail: String
         if taskForPid {
             tfpDetail = "实测可获取其他进程端口，进程级操作可用"
