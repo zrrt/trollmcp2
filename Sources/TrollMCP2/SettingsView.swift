@@ -88,9 +88,6 @@ struct SettingsView: View {
                          subtitle: "\(ModelStore.shared.configs.count) 个 · \(modelProviderName())",
                          icon: "rectangle.stack.badge.person.crop", color: .blue,
                          destination: AnyView(ModelsView())),
-            SettingsItem(title: L10n.t("row_data"),
-                         subtitle: "App 文稿目录", icon: "externaldrive.fill", color: .purple,
-                         destination: AnyView(DataManagementView())),
             SettingsItem(title: L10n.t("row_sys_prompts"),
                          subtitle: SystemPrompts.shared.selected.name,
                          icon: "text.book.closed.fill", color: .tmCyan,
@@ -193,10 +190,6 @@ struct SettingsView: View {
                              subtitle: sshConfigSubtitle(),
                              icon: "terminal.fill", color: .tmCyan,
                              destination: AnyView(SSHSettingsView())),
-                SettingsItem(title: L10n.t("row_search"),
-                             subtitle: "Bing Web · 用法说明",
-                             icon: "magnifyingglass.circle.fill", color: .tmCyan,
-                             destination: AnyView(SmartSearchView())),
                 SettingsItem(title: L10n.t("row_browser"),
                              subtitle: "悬浮窗 · AI 可控制 · 蓝框高亮",
                              icon: "globe.asia.australia.fill", color: .tmCyan,
@@ -217,11 +210,7 @@ struct SettingsView: View {
                 SettingsItem(title: L10n.t("row_kb"),
                              subtitle: "文件导入 · 来源检索",
                              icon: "books.vertical.fill", color: .tmBrown,
-                             destination: AnyView(KnowledgeBaseView())),
-                SettingsItem(title: L10n.t("row_webhooks"),
-                             subtitle: "HTTPS 事件出口",
-                             icon: "link.circle.fill", color: .gray,
-                             destination: AnyView(WebhooksView()))
+                             destination: AnyView(KnowledgeBaseView()))
             ]
             groups.append(SettingsGroup(header: L10n.t("sec_dev"), items: devItems))
         }
@@ -261,10 +250,6 @@ struct SettingsView: View {
                          subtitle: LanguageManager.shared.language.displayName,
                          icon: "globe", color: .tmCyan,
                          action: { showLanguagePicker = true }),
-            SettingsItem(title: L10n.t("row_env"),
-                         subtitle: envSubtitle(),
-                         icon: envIcon(), color: envColor(),
-                         destination: AnyView(DeviceDetectionView())),
             SettingsItem(title: L10n.t("row_netlog"),
                          subtitle: NetworkLog.lastCompatNote ?? "中转站自适应降级记录",
                          icon: "network", color: .orange,
