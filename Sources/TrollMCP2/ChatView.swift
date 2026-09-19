@@ -597,11 +597,12 @@ struct ChatView: View {
 
             HStack(spacing: 8) {
                 HStack(spacing: 0) {
-                    ChatInputTextView(text: $inputText, onSend: {
-                        if !inputText.isEmpty { send() }
-                    })
+                    TextEditor(text: $inputText)
+                        .font(.system(size: 16))
                         .frame(maxWidth: .infinity)
                         .padding(.leading, 12)
+                        .padding(.vertical, 8)
+                        .scrollContentBackground(.hidden)
                     if !inputText.isEmpty {
                         Button(action: { inputText = "" }) {
                             Image(systemName: "xmark.circle.fill")
@@ -1501,37 +1502,4 @@ struct TrailRow: View {
     }
 }
 
-// MARK: - v2.9.234 输入框：UITextView 包装(检测 markedText，修复"没打完自动回车")
-// SwiftUI TextField 读不到输入法 markedText(拼音未上屏)，iOS16+第三方输入法组合下
-// 按回车会直接 submit → 发出去一串拼音。UITextView delegate 可读 markedTextRange：
-// 组词中按回车=上屏候选词(return true)，无组词按回车=发送(return false)。
-
-struct ChatInputTextView: UIViewRepresentable {
-    @Binding var text: String
-    var onSend: () -> Void
-
-    func makeUIView(context: Context) -> UITextView {
-        let tv = UITextView(frame: .zero)
-        tv.font = .systemFont(ofSize: 16)
-        tv.backgroundColor = .clear
-        tv.isScrollEnabled = false
-        tv.textContainerInset = UIEdgeInsets(top: 8, left: 4, bottom: 8, right: 4)
-        tv.textContainer.lineFragmentPadding = 0
-        tv.textContainer.widthTracksTextView = true
-        tv.returnKeyType = .default
-        tv.delegate = context.coordinator
-        return tv
-    }
-    func updateUIView(_ uiView: UITextView, context: Context) {
-        if uiView.text != text { uiView.text = text }
-    }
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
-
-    final class Coordinator: NSObject, UITextViewDelegate {
-        var parent: ChatInputTextView
-        init(_ p: ChatInputTextView) { parent = p }
-        func textViewDidChange(_ tv: UITextView) {
-            parent.text = tv.text
-        }
-    }
-}
+// MARK: - v2.9.328 输入框：直接用SwiftUI TextEditor(自动换行+自动高度)
