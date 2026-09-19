@@ -16,8 +16,7 @@ final class IPAInspectTool: MCPTool {
             "path": "IPA 文件路径或 App Bundle 路径（必填，可用 artifact.find 定位）",
             "detail": "详细程度：basic（默认，架构+签名+版本）或 full（含依赖列表+entitlements全文）"
         ],
-    verified: true,
-    )
+    verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["path"] as? String, !path.isEmpty else {
@@ -147,8 +146,7 @@ final class DylibInspectTool: MCPTool {
         summary: "解析 dylib 文件的详细信息：架构、签名、依赖、导出符号、兼容的 iOS 版本。用于注入前验证 dylib 是否可用。",
         parameters: [
             "path": "dylib 文件路径（必填，可用 artifact.find 定位）"
-        ], verified: true
-    )
+        ], verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["path"] as? String, !path.isEmpty else {
@@ -429,8 +427,7 @@ final class LogCollectTool: MCPTool {
             "type": "日志类型：system（系统日志）、crash（崩溃报告）、injection（注入日志）、all（全部，默认）",
             "lines": "收集行数（默认 200）"
         ],
-    verified: true,
-    )
+    verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let bundleId = params["bundle_id"] as? String ?? Bundle.main.bundleIdentifier ?? ""
@@ -505,8 +502,7 @@ final class NetworkCaptureTool: MCPTool {
             "bundle_id": "目标 App Bundle ID（start 时必填）",
             "limit": "返回请求数量（默认 50）"
         ],
-        verified: true,
-    )
+        verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = (params["action"] as? String) ?? "status"

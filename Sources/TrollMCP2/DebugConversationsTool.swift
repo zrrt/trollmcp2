@@ -6,8 +6,7 @@ final class DebugDumpConversationsTool: MCPTool {
     let definition = ToolDefinition(
         name: "debug.dump_conversations",
         summary: "调试：导出会话列表（标题/消息数/首条消息内容），排查标题乱码问题",
-        parameters: ["limit": "最多导出几个会话（默认5，上限30）"], verified: true
-    )
+        parameters: ["limit": "最多导出几个会话（默认5，上限30）"], verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let limit = max(1, min((params["limit"] as? Int) ?? 5, 30))
@@ -35,8 +34,7 @@ final class DebugDumpNetworkLogTool: MCPTool {
     let definition = ToolDefinition(
         name: "debug.dump_network_log",
         summary: "调试：导出NetworkLog最近请求日志（降级/错误/HTTP状态），排查AI请求失败与空回复",
-        parameters: ["limit": "最多返回几条（默认50，上限100）"], verified: true
-    )
+        parameters: ["limit": "最多返回几条（默认50，上限100）"], verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let limit = max(1, min((params["limit"] as? Int) ?? 50, 100))
@@ -50,8 +48,7 @@ final class DebugDumpModelConfigsTool: MCPTool {
     let definition = ToolDefinition(
         name: "debug.dump_model_configs",
         summary: "调试：导出模型配置（baseURL/模型名/key掩码）与当前请求状态（isLoading/statusText/轮数），排查AI不回消息",
-        parameters: [:], verified: true
-    )
+        parameters: [:], verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let configs = ModelStore.shared.configs.map { cfg -> [String: Any] in

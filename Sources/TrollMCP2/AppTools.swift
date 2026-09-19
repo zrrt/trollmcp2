@@ -13,8 +13,7 @@ final class AppDepsTool: MCPTool {
         name: "app.deps",
         summary: "读取目标 App 主二进制与所有 framework 的 Mach-O 依赖树（load commands），输出哪些 framework 是主二进制直接依赖（启动必加载、可注入）vs 仅被二级引用（懒加载、注入无效）",
         parameters: ["bundle_id": "目标 App Bundle ID"],
-        verified: true
-    )
+        verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String else {
@@ -92,8 +91,7 @@ final class AppCacheInspectTool: MCPTool {
         name: "apps.cache_inspect",
         summary: "扫描已安装应用的缓存大小",
         parameters: ["limit": "返回条数上限，默认 50", "bundle_id": "可选：只查某个 Bundle ID"],
-        verified: true,
-    )
+        verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let limit = params["limit"] as? Int ?? 50
@@ -138,8 +136,7 @@ final class AppCacheClearTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.cache_clear",
         summary: "清理指定 App 的 Library/Caches 与 tmp 目录",
-        parameters: ["bundle_id": "目标 App Bundle ID", "dry_run": "可选：true 只计算不删除"], verified: true
-    )
+        parameters: ["bundle_id": "目标 App Bundle ID", "dry_run": "可选：true 只计算不删除"], verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else {
@@ -217,8 +214,7 @@ final class AppOpenTool: MCPTool {
         name: "apps.open",
         summary: "打开指定 App",
         parameters: ["bundle_id": "目标 App Bundle ID"],
-    verified: true,
-    )
+    verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else {
@@ -292,8 +288,7 @@ final class AppOpenAndInputTool: MCPTool {
             "text": "要输入的文本",
             "submit": "是否提交（默认 false）",
             "wait": "等待 agent 就绪秒数，默认 8"
-        ], verified: true
-    )
+        ], verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String,
@@ -384,8 +379,7 @@ final class WeChatPrepareMessageTool: MCPTool {
         parameters: [
             "text": "消息文本",
             "recipient": "可选：接收人"
-        ], verified: true
-    )
+        ], verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let text = params["text"] as? String else {

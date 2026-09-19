@@ -156,8 +156,7 @@ final class KnowledgeBaseTool: MCPTool {
             "cause": "add 时的原因",
             "fix": "add 时的修复方案"
         ],
-    verified: true,
-    )
+    verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = (params["action"] as? String) ?? "query"
@@ -199,8 +198,7 @@ final class WorkspaceCleanupTool: MCPTool {
             "max_size_mb": "单个目录超过 N MB 时清理旧文件（默认 500）",
             "targets": "清理目标：downloads,logs,reports,all（默认 all）"
         ],
-    verified: true,
-    )
+    verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let dryRun = (params["dry_run"] as? Bool) ?? true

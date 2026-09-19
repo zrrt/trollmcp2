@@ -13,8 +13,7 @@ final class InjectionVerifyTool: MCPTool {
             "bundle_id": "目标 App Bundle ID（必填）",
             "dylib": "要核对的 dylib 文件名（可选，不填自动检测所有注入资产）"
         ],
-        verified: true,
-    )
+        verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -109,8 +108,7 @@ final class AppDiagnoseTool: MCPTool {
         name: "app.diagnose",
         summary: "启动失败自动判因：检查①是否存在 ②注入残留 ③加密状态 ④签名状态 ⑤最近崩溃现场 ⑥尝试启动。输出明确原因 + 下一步，不再报误导性错误（如把加密解析失败当成 Bundle ID 错）。",
         parameters: ["bundle_id": "目标 App Bundle ID（必填）"],
-    verified: true,
-    )
+    verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {

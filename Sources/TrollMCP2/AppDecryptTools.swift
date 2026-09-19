@@ -12,8 +12,7 @@ final class AppReplaceDecryptedTool: MCPTool {
             "bundle_id": "目标 App Bundle ID（必填）",
             "ipa_path": "砸壳 ipa 绝对路径（可选；缺省自动找工作区 decrypted/ 下匹配的 ipa）"
         ],
-        verified: true
-    )
+        verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -137,8 +136,7 @@ final class AppDecryptTool: MCPTool {
             "bundle_id": "目标 App 的 Bundle ID（必填，可用 injection.list 搜索）",
             "output_name": "输出文件名前缀（可选，默认用 App 名称）"
         ],
-        verified: true
-    )
+        verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -190,8 +188,7 @@ final class AppEncryptInfoTool: MCPTool {
         parameters: [
             "bundle_id": "目标 App 的 Bundle ID（必填）"
         ],
-        verified: true,
-    )
+        verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {

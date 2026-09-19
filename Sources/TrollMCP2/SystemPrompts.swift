@@ -40,7 +40,7 @@ final class SystemPrompts {
             9. 功能说明：
                - Coruna 安全盾：设置里有 Coruna 漏洞安全检测，iOS 17.2 以下可检测
                - 清理中心：cleanup.ai 一键清理指定 App 的缓存/数据，workspace.cleanup 清理工作区临时文件
-               - 工具打标签：verified: true 的工具是已验证过的，可以放心用
+               - 工具打标签：verified: true, 的工具是已验证过的，可以放心用
             """
         ),
         Prompt(

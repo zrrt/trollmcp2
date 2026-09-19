@@ -34,8 +34,7 @@ final class AssistantMemorySetTool: MCPTool {
         name: "assistant.memory_set",
         summary: "保存一条 Assistant 记忆（键值对）",
         parameters: ["key": "记忆键", "value": "记忆值"],
-    verified: true,
-    )
+    verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let key = params["key"] as? String,
@@ -53,8 +52,7 @@ final class AssistantMemoryListTool: MCPTool {
         name: "assistant.memory_list",
         summary: "列出所有 Assistant 记忆",
         parameters: ["query": "可选：关键词过滤"],
-        verified: true,
-    )
+        verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let query = params["query"] as? String ?? ""
@@ -74,8 +72,7 @@ final class AssistantMemoryDeleteTool: MCPTool {
         name: "assistant.memory_delete",
         summary: "删除指定 Assistant 记忆",
         parameters: ["key": "要删除的记忆键"],
-    verified: true,
-    )
+    verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let key = params["key"] as? String else {

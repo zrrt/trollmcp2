@@ -7,8 +7,7 @@ final class ArtifactReadTextTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.read_text",
         summary: "读取工作区内文件的文本内容",
-        parameters: ["path": "工作区内相对路径"], verified: true
-    )
+        parameters: ["path": "工作区内相对路径"], verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["path"] as? String else {
@@ -24,8 +23,7 @@ final class ArtifactWriteTextTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.write_text",
         summary: "向工作区写入文本文件（覆盖）",
-        parameters: ["path": "工作区内相对路径", "content": "文本内容"], verified: true
-    )
+        parameters: ["path": "工作区内相对路径", "content": "文本内容"], verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["path"] as? String,
@@ -47,8 +45,7 @@ final class ArtifactListTool: MCPTool {
         name: "artifact.list",
         summary: "列出工作区目录内容（若路径是文件则返回该文件信息，不报错）",
         parameters: ["subpath": "可选子目录或文件路径"],
-    verified: true,
-    )
+    verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let sub = params["subpath"] as? String ?? ""
@@ -93,8 +90,7 @@ final class ArtifactFindTool: MCPTool {
         name: "artifact.find",
         summary: "递归查找工作区文件：按扩展名（如 dylib、deb）或文件名片段搜索，返回路径与大小。下载的编译产物用它定位注入源。",
         parameters: ["ext": "扩展名（不带点，如 dylib/deb/ipa）", "name": "文件名包含片段（可选）", "max_depth": "最大递归深度（默认 8）", "limit": "最多返回条数（默认 20）"],
-    verified: true,
-    )
+    verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let ext = (params["ext"] as? String ?? "").lowercased()
@@ -311,9 +307,8 @@ final class ClipboardReadTool: MCPTool {
     let definition = ToolDefinition(
         name: "clipboard.read",
         summary: "读取系统剪贴板文本（用户复制的验证码、链接、token 等最近一次复制内容）",
-        parameters: [:]
-        verified: true,
-    )
+        parameters: [:],
+        verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let text = UIThreadBridge.readClipboard()
         if text.isEmpty {
@@ -328,8 +323,7 @@ final class ClipboardWriteTool: MCPTool {
         name: "clipboard.write",
         summary: "写入系统剪贴板：把一段文本复制到剪贴板，供用户粘贴到其他 App",
         parameters: ["text": "要复制到剪贴板的文本（必填）"],
-    verified: true,
-    )
+    verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let text = params["text"] as? String, !text.isEmpty else {
             throw MCPError.invalidParams("text required")

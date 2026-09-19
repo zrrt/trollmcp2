@@ -11,8 +11,7 @@ final class SSHTool: MCPTool {
             "command": "要在远程服务器执行的 shell 命令（必填）",
             "timeout": "超时秒数（可选，默认 30）"
         ],
-        verified: true
-    )
+        verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let command = params["command"] as? String, !command.isEmpty else {
@@ -124,8 +123,7 @@ final class SCPTool: MCPTool {
             "local_path": "本地文件路径",
             "remote_path": "远程文件路径"
         ],
-        verified: true
-    )
+        verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let direction = (params["direction"] as? String)?.lowercased() ?? "upload"

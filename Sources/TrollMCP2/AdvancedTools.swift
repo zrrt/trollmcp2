@@ -34,8 +34,7 @@ final class BinarySymbolsTool: MCPTool {
 
         ],
 
-    verified: true,
-    )
+    verified: true)
 
 
 
@@ -311,8 +310,7 @@ final class PluginTool: MCPTool {
 
         ],
 
-    verified: true,
-    )
+    verified: true)
 
 
 
@@ -490,8 +488,7 @@ final class CompatibilityTool: MCPTool {
             "detail": "record 时的详细信息"
 
         ],
-        verified: true,
-    )
+        verified: true)
 
 
 
@@ -579,8 +576,7 @@ final class CrashReproTool: MCPTool {
 
         ],
 
-    verified: true,
-    )
+    verified: true)
 
 
 
@@ -1074,8 +1070,7 @@ final class HookApplyTool: MCPTool {
             "bundle_id": "目标 App Bundle ID（必填）",
             "config": "配置 JSON 字符串：{\"navBarColor\":\"#1A73E8\",\"navBarTitleColor\":\"#FFFFFF\",\"windowTint\":\"#FF0000\",\"alert\":{\"title\":\"..\",\"message\":\"..\"},\"methodLog\":[{\"class\":\"X\",\"selector\":\"y\"}]}",
             "restart": "注入后是否重启 App（true/false，默认 true）"
-        ], verified: true, verified: true
-    )
+        ], verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -1146,8 +1141,7 @@ final class DeviceFakeTool: MCPTool {
             "system_version": "伪装系统版本（如 18.0）",
             "mode": "memory（默认，opainject 内存注入）/ file（旧式文件注入，风险高，仅特殊场景用）"
         ],
-        verified: true
-    )
+        verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -1234,8 +1228,7 @@ final class DeviceRestoreTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.restore",
         summary: "还原设备伪装：删除 fake_device.json 并还原目标 App 真实设备信息。内存注入版：杀掉 App 进程即完全还原（零残留）；若之前是文件注入则完整卸载注入。",
-        parameters: ["bundle_id": "目标 App Bundle ID（必填）"], verified: true
-    )
+        parameters: ["bundle_id": "目标 App Bundle ID（必填）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -1415,8 +1408,7 @@ final class AdvertisingTool: MCPTool {
         name: "device.advertising",
         summary: "读取广告标识符 IDFA 与追踪限制状态；action=reset 尝试刷新广告符（私有 API，iOS14+ 受系统限制时如实返回）",
         parameters: ["action": "read（默认）/ reset"],
-        verified: true,
-    )
+        verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = (params["action"] as? String)?.lowercased() ?? "read"
         var result: [String: Any] = [:]
@@ -1446,8 +1438,7 @@ final class IdfvTool: MCPTool {
         name: "device.idfv",
         summary: "读取设备级 IDFV 与目标 App 的 identifierForVendor，可用于设备指纹核对/复制",
         parameters: ["bundle_id": "可选：目标 App Bundle ID"],
-        verified: true,
-    )
+        verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let sys = UIDevice.current.identifierForVendor?.uuidString ?? "N/A"
         var extra: [String: Any] = ["system_idfv": sys]
@@ -1468,8 +1459,7 @@ final class RefreshContainerTool: MCPTool {
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "restore": "true 时把上次备份目录恢复回原容器"
-        ], verified: true
-    )
+        ], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -1545,8 +1535,7 @@ final class NewDeviceTool: MCPTool {
             "system_version": "伪装系统版本（默认 18.0）",
             "refresh_idfa": "是否尝试刷新广告符（默认 true）"
         ],
-    verified: true,
-    )
+    verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         var steps: [[String: Any]] = []
@@ -1617,8 +1606,7 @@ final class AiAnalyzeTool: MCPTool {
             "max_classes": "采集类上限（默认 80，最大 150；防 token 爆炸）",
             "prefix": "类名前缀过滤（可选，如 QQ，可大幅减少采集量）"
         ],
-    verified: true,
-    )
+    verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {

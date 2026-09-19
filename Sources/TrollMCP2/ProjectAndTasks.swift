@@ -159,8 +159,7 @@ final class ProjectTool: MCPTool {
             "app_name": "create 时的目标 App 名称",
             "dylib_path": "create/更新时的 dylib 路径",
             "project_id": "select/delete/history 时的项目 ID"
-        ], verified: true
-    )
+        ], verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = (params["action"] as? String) ?? "current"
@@ -623,8 +622,7 @@ final class TaskTool: MCPTool {
             "dylib_path": "dylib 路径（inject_verify 时必填）",
             "options": "模板参数（JSON）：network_probe 的 duration/limit、new_device 的 reset_keychain/refresh_idfa/name/model_identifier、ai_analyze 的 direction/custom_hint/max_classes/prefix"
         ],
-    verified: true,
-    )
+    verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let templateStr = params["template"] as? String,

@@ -19,8 +19,7 @@ final class AppStartTool: MCPTool {
             "bundle_id": "目标 App Bundle ID（必填）",
             "wait_seconds": "启动后等待秒数（默认 3，用于确认进程存活）"
         ],
-        verified: true,
-    )
+        verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -103,8 +102,7 @@ final class AppStopTool: MCPTool {
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）"
         ],
-        verified: true,
-    )
+        verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -137,8 +135,7 @@ final class AppRestartTool: MCPTool {
             "bundle_id": "目标 App Bundle ID（必填）",
             "wait_seconds": "启动后等待秒数（默认 3）"
         ],
-        verified: true,
-    )
+        verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -212,8 +209,7 @@ final class AppStatusTool: MCPTool {
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）"
         ],
-        verified: true,
-    )
+        verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -263,8 +259,7 @@ final class AppStatsTool: MCPTool {
             "duration": "采样时长秒数（默认 10）",
             "interval": "采样间隔秒数（默认 1）"
         ],
-    verified: true,
-    )
+    verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -333,8 +328,7 @@ final class TestRunTool: MCPTool {
             "stats_duration": "性能采样时长（默认 10）",
             "report_name": "报告名称（默认 test_report_时间戳）"
         ],
-    verified: true,
-    )
+    verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {

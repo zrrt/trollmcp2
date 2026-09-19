@@ -159,7 +159,7 @@ final class GatewayStatusTool: MCPTool {
 
 final class GatewayConnectTool: MCPTool {
     let definition = ToolDefinition(name: "gateway.connect", summary: "连接到 Gateway 服务端",
-        parameters: ["url": "WebSocket URL ws://...", "token": "配对令牌（可选）"], verified: true, verified: true, verified: true)
+        parameters: ["url": "WebSocket URL ws://...", "token": "配对令牌（可选）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let url = params["url"] as? String else { throw MCPError.invalidParams("url required") }
         GatewayClient.shared.pairedToken = params["token"] as? String
@@ -356,7 +356,7 @@ final class LocationGetTool: MCPTool {
 
 final class NotificationSendTool: MCPTool {
     let definition = ToolDefinition(name: "notification.send", summary: "发送一条本地通知：标题/正文/延迟秒数。用于任务完成提醒。",
-        parameters: ["title": "标题", "body": "内容"], verified: true, verified: true, verified: true)
+        parameters: ["title": "标题", "body": "内容"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let title = params["title"] as? String ?? "TrollMCP"
         let body = params["body"] as? String ?? ""
@@ -531,8 +531,7 @@ final class ToolHealthTool: MCPTool {
         parameters: [
             "limit": "最多返回多少个工具的健康数据（默认 20）"
         ],
-    verified: true,
-    )
+    verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let limit = max(1, min((params["limit"] as? Int) ?? 20, 100))
         let audit = AuditLog.shared

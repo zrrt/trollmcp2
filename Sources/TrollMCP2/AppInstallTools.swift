@@ -9,8 +9,7 @@ final class AppInstallTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.install",
         summary: "安装 IPA 到设备：TrollStore 官方 trollstorehelper 静默安装优先，不可用时自动调起 TrollStore 确认安装。ipa_path 传本地 ipa 绝对路径（工作区下载的 ipa 可直接用）。安装成功后 AI 可继续注入/启动/控制。",
-        parameters: ["ipa_path": "本地 ipa 绝对路径（必填）"], verified: true
-    )
+        parameters: ["ipa_path": "本地 ipa 绝对路径（必填）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["ipa_path"] as? String, !path.isEmpty else {
             throw MCPError.invalidParams("app.install 需要 ipa_path 参数")
@@ -89,8 +88,7 @@ final class AppUninstallTool: MCPTool {
         name: "app.uninstall",
         summary: "卸载指定 bundle_id 的 App（trollstorehelper uninstall，TrollStore 环境）。卸载会删除该 App 数据容器，注意备份。",
         parameters: ["bundle_id": "要卸载的 App 的 bundle id（必填）"],
-        verified: true
-    )
+        verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
             throw MCPError.invalidParams("app.uninstall 需要 bundle_id 参数")
