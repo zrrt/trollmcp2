@@ -6,7 +6,7 @@ struct ChatView: View {
     @ObservedObject private var modelStore = ModelStore.shared
 
     @State private var inputText = ""
-    @State private var inputHeight: CGFloat = 40
+    @State private var inputHeight: CGFloat = 20
     // v2.9.234：推理强度/智能搜索持久化(@AppStorage)——之前纯@State,关app重开必丢
     @AppStorage("chat_reasoning") private var reasoning = 0   // 0=低 1=中 2=高
     @AppStorage("chat_smart_search") private var smartSearch = true
@@ -599,15 +599,9 @@ struct ChatView: View {
             HStack(spacing: 8) {
                 HStack(spacing: 0) {
                     ZStack(alignment: .topLeading) {
-                        TextEditor(text: $inputText)
-                            .font(.system(size: 16))
-                            .frame(minHeight: 2, maxHeight: 80)
+                        ChatInputTextView(text: $inputText, onSend: { sendMessage() }, height: $inputHeight)
+                            .frame(height: inputHeight)
                             .padding(.horizontal, 8)
-                            .padding(.vertical, 0)
-                            .onAppear {
-                                UITextView.appearance().textContainerInset = .zero
-                                UITextView.appearance().backgroundColor = .clear
-                            }
                         if inputText.isEmpty {
                             Text("输入消息...")
                                 .font(.system(size: 16))
@@ -1397,7 +1391,7 @@ struct ChatInputTextView: UIViewRepresentable {
     func updateUIView(_ uiView: UITextView, context: Context) {
         uiView.text = text
         let size = uiView.sizeThatFits(uiView.bounds.size)
-        height = min(max(size.height, 40), 100)
+        height = min(max(size.height, 20), 80)
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -1408,7 +1402,7 @@ struct ChatInputTextView: UIViewRepresentable {
         func textViewDidChange(_ tv: UITextView) {
             parent.text = tv.text ?? ""
             let size = tv.sizeThatFits(tv.bounds.size)
-            parent.height = min(max(size.height, 40), 100)
+            parent.height = min(max(size.height, 20), 80)
         }
     }
 }
