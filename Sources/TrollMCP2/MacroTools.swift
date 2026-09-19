@@ -193,7 +193,7 @@ final class MacroRunner {
 final class MacroRecordTool: MCPTool {
     let definition = ToolDefinition(name: "macro.record",
         summary: "开始录制 AI 操作宏：之后调用的 ui.tap/swipe/long_press/clipboard 会被记录。录制完用 macro.stop 保存。",
-        parameters: ["name": "宏名称"], verified: true)
+        parameters: ["name": "宏名称"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
             throw MCPError.invalidParams("name required")
@@ -219,7 +219,7 @@ final class MacroStopTool: MCPTool {
 final class MacroListTool: MCPTool {
     let definition = ToolDefinition(name: "macro.list",
         summary: "列出已保存的宏（名称/步数/创建时间）。",
-        parameters: [:], verified: true)
+        parameters: [:])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let list = MacroStore.list()
         return ["macros": list, "count": list.count]

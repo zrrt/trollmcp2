@@ -10,9 +10,9 @@ final class DebugDumpConversationsTool: MCPTool {
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let limit = max(1, min((params["limit"] as? Int) ?? 5, 30)), verified: true
+        let limit = max(1, min((params["limit"] as? Int) ?? 5, 30))
         let convs = ConversationStore.shared.conversations
-        var arr: [[String: Any]] = [], verified: true
+        var arr: [[String: Any]] = []
         for c in convs.prefix(limit) {
             let first = c.messages.first
             let last = c.messages.last
@@ -39,9 +39,9 @@ final class DebugDumpNetworkLogTool: MCPTool {
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let limit = max(1, min((params["limit"] as? Int) ?? 50, 100)), verified: true
+        let limit = max(1, min((params["limit"] as? Int) ?? 50, 100))
         let entries = Array(NetworkLog.shared.entries.prefix(limit))
-        return ["total": NetworkLog.shared.entries.count, "entries": entries, "lastCompatNote": NetworkLog.lastCompatNote ?? "(无)"], verified: true
+        return ["total": NetworkLog.shared.entries.count, "entries": entries, "lastCompatNote": NetworkLog.lastCompatNote ?? "(无)"]
     }
 }
 

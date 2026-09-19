@@ -177,6 +177,20 @@ final class ControlAgentTools {
             let filename = "control_\(Int(Date().timeIntervalSince1970)).png"
             let path = dir.appendingPathComponent(filename)
             try? data.write(to: path)
+            // v3.0.22：自动清理旧截图，只保留最近 10 张
+            let fm = FileManager.default
+            if let files = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.creationDateKey]) {
+                let sorted = files.filter { $0.pathExtension == "png" }.sorted {
+                    let d1 = (try? $0.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date.distantPast
+                    let d2 = (try? $1.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date.distantPast
+                    return d1 > d2
+                }
+                if sorted.count > 10 {
+                    for old in sorted[10...] {
+                        try? fm.removeItem(at: old)
+                    }
+                }
+            }
             return [
                 "screenshot": true,
                 "path": path.path,

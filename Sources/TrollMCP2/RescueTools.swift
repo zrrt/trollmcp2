@@ -27,7 +27,7 @@ final class InjectionRestoreTool: MCPTool {
 final class RescueScanTool: MCPTool {
     let definition = ToolDefinition(name: "rescue.scan",
         summary: "紧急扫描：全机检查注入痕迹、损坏二进制与备份状态，返回需恢复的 App 清单",
-        parameters: ["query": "按名称/bundle_id 过滤（可选）"], verified: true)
+        parameters: ["query": "按名称/bundle_id 过滤（可选）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let q = (params["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let apps = AppCatalog.list()

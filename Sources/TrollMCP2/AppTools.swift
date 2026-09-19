@@ -96,10 +96,10 @@ final class AppCacheInspectTool: MCPTool {
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let limit = params["limit"] as? Int ?? 50, verified: true
+        let limit = params["limit"] as? Int ?? 50
         let target = params["bundle_id"] as? String
 
-        var results: [[String: Any]] = [], verified: true
+        var results: [[String: Any]] = []
         let apps = target != nil ? AppCatalog.list().filter { $0.bundleId == target } : AppCatalog.list()
 
         for app in apps {
@@ -221,7 +221,7 @@ final class AppOpenTool: MCPTool {
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let bid = params["bundle_id"] as? String else {, verified: true
+        guard let bid = params["bundle_id"] as? String else {
             throw MCPError.invalidParams("bundle_id required")
         }
         guard let app = AppCatalog.find(bid) else {
@@ -292,12 +292,12 @@ final class AppOpenAndInputTool: MCPTool {
             "text": "要输入的文本",
             "submit": "是否提交（默认 false）",
             "wait": "等待 agent 就绪秒数，默认 8"
-        ], verified: true, verified: true
+        ]
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String,
-              let text = params["text"] as? String else {, verified: true, verified: true
+              let text = params["text"] as? String else {
             throw MCPError.invalidParams("bundle_id and text required")
         }
         guard AppCatalog.find(bid) != nil else {

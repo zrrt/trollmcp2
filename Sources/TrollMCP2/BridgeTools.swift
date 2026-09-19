@@ -80,7 +80,7 @@ enum AppContainer {
 final class BridgeContainerTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.container",
         summary: "查任意 App 的 Bundle 路径 + 数据容器路径 + 容器大小（跨 App 数据桥的基础）。",
-        parameters: ["bundle_id": "目标 App Bundle ID"], verified: true)
+        parameters: ["bundle_id": "目标 App Bundle ID"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -105,7 +105,7 @@ final class BridgeContainerTool: MCPTool {
 final class BridgeLsTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.ls",
         summary: "列出任意 App 容器内的目录（bundle=安装包目录 / data=数据容器）。",
-        parameters: ["bundle_id": "目标 App Bundle ID", "scope": "bundle 或 data（默认 data）", "path": "容器内相对路径（默认根）"], verified: true)
+        parameters: ["bundle_id": "目标 App Bundle ID", "scope": "bundle 或 data（默认 data）", "path": "容器内相对路径（默认根）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")

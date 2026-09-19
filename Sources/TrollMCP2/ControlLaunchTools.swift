@@ -82,7 +82,7 @@ enum FakeLocationStore {
 final class AppLaunchOptionsTool: MCPTool {
     let definition = ToolDefinition(name: "app.launch", 
         summary: "启动指定 App 并可注入环境变量/启动参数（SBSLaunchApplicationWithOptions）。env 可传 DYLD_INSERT_LIBRARIES 预加载 hook 库。调用时务必带 reason 说明为何唤醒该 App。",
-        parameters: ["bundle_id": "目标 App Bundle ID", "env": "环境变量字典（可选，如 {\"DYLD_INSERT_LIBRARIES\": \"/path/hook.dylib\"}）", "args": "启动参数数组（可选）", "reason": "判断依据（必填）"], verified: true)
+        parameters: ["bundle_id": "目标 App Bundle ID", "env": "环境变量字典（可选，如 {\"DYLD_INSERT_LIBRARIES\": \"/path/hook.dylib\"}）", "args": "启动参数数组（可选）", "reason": "判断依据（必填）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -126,7 +126,7 @@ final class LocationFakeTool: MCPTool {
 final class LocationFakeStatusTool: MCPTool {
     let definition = ToolDefinition(name: "location.fake_status",
         summary: "查看当前模拟定位配置（坐标/启用状态）。",
-        parameters: [:], verified: true)
+        parameters: [:])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let cfg = FakeLocationStore.read() else {
             return ["enabled": false, "message": "当前未设置模拟定位"]

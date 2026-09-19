@@ -11,12 +11,12 @@ final class ArtifactReadTextTool: MCPTool {
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let path = params["path"] as? String else {, verified: true
+        guard let path = params["path"] as? String else {
             throw MCPError.invalidParams("path required")
         }
         let url = try Workspace.resolve(path)
         let text = try String(contentsOf: url, encoding: .utf8)
-        return ["content": text], verified: true
+        return ["content": text]
     }
 }
 
@@ -97,12 +97,12 @@ final class ArtifactFindTool: MCPTool {
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let ext = (params["ext"] as? String ?? "").lowercased(), verified: true
+        let ext = (params["ext"] as? String ?? "").lowercased()
         let nameFrag = (params["name"] as? String ?? "").lowercased()
         let maxDepth = (params["max_depth"] as? NSNumber)?.intValue ?? 8
         let limit = (params["limit"] as? NSNumber)?.intValue ?? 20
         var results: [[String: Any]] = []
-        var skipped: [String] = [], verified: true
+        var skipped: [String] = []
 
         let root = Workspace.root.path
         func walk(_ dir: String, _ depth: Int) {
@@ -145,7 +145,7 @@ final class ArtifactFindTool: MCPTool {
 // MARK: - 基础工具
 
 final class PingTool: MCPTool {
-    let definition = ToolDefinition(name: "ping", summary: "连通性测试：返回 pong 与耗时，验证设备/工具链是否在线。", verified: true)
+    let definition = ToolDefinition(name: "ping", summary: "连通性测试：返回 pong 与耗时，验证设备/工具链是否在线。")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         ["pong": true, "ts": Int(Date().timeIntervalSince1970)]
@@ -153,7 +153,7 @@ final class PingTool: MCPTool {
 }
 
 final class DeviceInfoTool: MCPTool {
-    let definition = ToolDefinition(name: "device.info", summary: "查看设备与应用信息：系统版本、机型、TrollAgent 版本、工作区路径。", verified: true)
+    let definition = ToolDefinition(name: "device.info", summary: "查看设备与应用信息：系统版本、机型、TrollAgent 版本、工作区路径。")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         [

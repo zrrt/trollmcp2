@@ -75,12 +75,12 @@ struct BrowserScrollTool: MCPTool {
     verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let direction = params["direction"] as? String else {, verified: true
+        guard let direction = params["direction"] as? String else {
             throw MCPError.invalidParams("browser.scroll 需要 direction 参数")
         }
         let msg = BrowserManager.shared.scroll(direction)
         AuditLog.shared.log("browser.scroll", detail: direction)
-        return ["ok": !msg.hasPrefix("ERR"), "message": msg], verified: true
+        return ["ok": !msg.hasPrefix("ERR"), "message": msg]
     }
 }
 
@@ -109,7 +109,7 @@ struct BrowserFormFieldsTool: MCPTool {
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let r = BrowserManager.shared.formFields()
-        AuditLog.shared.log("browser.form_fields", detail: "count=\(r["count"] ?? 0)"), verified: true, verified: true
+        AuditLog.shared.log("browser.form_fields", detail: "count=\(r["count"] ?? 0)")
         return r
     }
 }
@@ -121,12 +121,12 @@ struct BrowserFillFormTool: MCPTool {
         parameters: ["values": "{\"字段\":\"值\"} 映射（必填）", "submit": "是否自动提交表单（默认 false）"]
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let values = params["values"] as? [String: String] else {, verified: true
+        guard let values = params["values"] as? [String: String] else {
             throw MCPError.invalidParams("browser.fill_form 需要 values 参数，如 {\"用户名\":\"me\",\"密码\":\"xx\"}")
         }
         let submit = params["submit"] as? Bool ?? false
         let r = BrowserManager.shared.fillForm(values: values, submit: submit)
-        AuditLog.shared.log("browser.fill_form", detail: "filled=\(r["filled"] ?? 0) missed=\(r["missed"] ?? [])"), verified: true
+        AuditLog.shared.log("browser.fill_form", detail: "filled=\(r["filled"] ?? 0) missed=\(r["missed"] ?? [])")
         return r
     }
 }
@@ -155,9 +155,9 @@ struct BrowserSnapshotTool: MCPTool {
     verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let q = params["query"] as? String, verified: true
+        let q = params["query"] as? String
         let r = BrowserManager.shared.snapshot(query: q)
-        AuditLog.shared.log("browser.snapshot", detail: "count=\(r["count"] ?? 0) query=\(q ?? "")"), verified: true
+        AuditLog.shared.log("browser.snapshot", detail: "count=\(r["count"] ?? 0) query=\(q ?? "")")
         return r
     }
 }
@@ -169,12 +169,12 @@ struct BrowserClickTool: MCPTool {
         parameters: ["idx": "integer"]
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let idx = params["idx"] as? Int ?? (params["idx"] as? String).flatMap({ Int($0) }) else {, verified: true
+        guard let idx = params["idx"] as? Int ?? (params["idx"] as? String).flatMap({ Int($0) }) else {
             throw MCPError.invalidParams("browser.click 需要整数 idx 参数")
         }
         let msg = BrowserManager.shared.clickElement(idx)
         AuditLog.shared.log("browser.click", detail: "idx=\(idx) \(msg)")
-        return ["ok": !msg.hasPrefix("ERR"), "message": msg], verified: true
+        return ["ok": !msg.hasPrefix("ERR"), "message": msg]
     }
 }
 

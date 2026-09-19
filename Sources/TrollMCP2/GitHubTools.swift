@@ -85,11 +85,11 @@ final class GitHubAccountStatusTool: MCPTool {
         parameters: [:],
         verified: true,
     )
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {, verified: true
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let login = GHConfig.activeLogin
         let owner = GHConfig.repoOwner
         let repo = GHConfig.repoName
-        var out: [String: Any] = [, verified: true
+        var out: [String: Any] = [
             "logged_in": login != nil,
             "active_login": login ?? "",
             "repo": "\(owner)/\(repo)",
@@ -125,7 +125,7 @@ final class GitHubTriggerBuildTool: MCPTool {
         summary: "用当前登录账号触发 GitHub Actions 线上编译",
         parameters: ["workflow": "工作流文件名，默认 build-trollmcp2.yml；编译 tweak 传 build-tweak.yml", "tweak": "仅 build-tweak 时使用：tweak 工程名（如 CompileProbe）", "ref": "分支名，默认 main"]
     )
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {, verified: true
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let token = GHConfig.activeToken else {
             throw MCPError.failed("未登录 GitHub，请先在设置-GitHub 账号中登录")
         }
@@ -133,7 +133,7 @@ final class GitHubTriggerBuildTool: MCPTool {
         let repo = GHConfig.repoName
         let workflow = params["workflow"] as? String ?? GHConfig.workflowId
         let ref = params["ref"] as? String ?? GHConfig.branch
-        var body: [String: Any] = ["ref": ref], verified: true
+        var body: [String: Any] = ["ref": ref]
         if let tweak = params["tweak"] as? String, !tweak.isEmpty {
             body["inputs"] = ["tweak": tweak]
         }
@@ -154,7 +154,7 @@ final class GitHubFetchRunsTool: MCPTool {
         summary: "查询最近线上编译 run 的状态与结论",
         parameters: ["limit": "返回条数，默认 5"]
     )
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {, verified: true
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let token = GHConfig.activeToken else {
             throw MCPError.failed("未登录 GitHub")
         }
@@ -162,7 +162,7 @@ final class GitHubFetchRunsTool: MCPTool {
         let owner = GHConfig.repoOwner
         let repo = GHConfig.repoName
         let (code, json, _) = GHAPI.get("\(GHConfig.apiBase)/repos/\(owner)/\(repo)/actions/runs?per_page=\(limit)&event=workflow_dispatch", token: token)
-        guard code == 200, let arr = json?["workflow_runs"] as? [[String: Any]] else {, verified: true
+        guard code == 200, let arr = json?["workflow_runs"] as? [[String: Any]] else {
             return ["http_status": code, "error": (json?["message"] as? String) ?? "查询失败"]
         }
         return ["runs": arr.map { d -> [String: Any] in

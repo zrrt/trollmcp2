@@ -95,7 +95,7 @@ final class FSTreeTool: MCPTool {
             "path": "绝对路径（与 bundle_id 二选一；默认工作区根）",
             "depth": "递归深度（默认 1，最大 3）",
             "limit": "每层最多条目数（默认 60）"
-        ],, verified: true, verified: true, verified: true, verified: true, verified: true, verified: true
+        ],
         verified: true,
     )
 
@@ -351,7 +351,7 @@ final class FSHexdumpTool: MCPTool {
         verified: true,
     )
 
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {, verified: true
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let bundleId = params["bundle_id"] as? String
         let rel = params["relative"] as? String
         let path = params["path"] as? String
@@ -414,7 +414,7 @@ final class FSZipTool: MCPTool {
         ]
     )
 
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {, verified: true
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["path"] as? String, !path.isEmpty else {
             throw MCPError.invalidParams("path required")
         }
@@ -607,7 +607,7 @@ final class FSGrepTool: MCPTool {
     verified: true,
     )
 
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {, verified: true
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let pattern = params["pattern"] as? String, !pattern.isEmpty else {
             throw MCPError.invalidParams("pattern required")
         }
@@ -689,7 +689,7 @@ final class FSWriteTool: MCPTool {
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let content = params["content"] as? String else {, verified: true
+        guard let content = params["content"] as? String else {
             throw MCPError.invalidParams("content required")
         }
         let bundleId = params["bundle_id"] as? String
@@ -741,7 +741,7 @@ final class FSEditTool: MCPTool {
             "new_text": "替换后的内容（line 模式下）",
             "old": "原文片段（old/new 模式下）",
             "new": "替换为（old/new 模式下，可选则删除该片段）"
-        ], verified: true
+        ]
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -917,7 +917,7 @@ final class FSHashTool: MCPTool {
             "bundle_id": "目标 App Bundle ID（填了则读该 App 数据容器）",
             "relative": "容器内相对路径（bundle_id 模式下用）",
             "algo": "md5 / sha1 / sha256（默认）/ sha512"
-        ], verified: true
+        ]
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -985,7 +985,7 @@ final class FSFindTool: MCPTool {
     verified: true,
     )
 
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {, verified: true
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
             throw MCPError.invalidParams("name required")
         }
@@ -1305,12 +1305,12 @@ final class FSCrashTool: MCPTool {
             "bundle_id": "按进程名或 Bundle ID 过滤（可选）",
             "limit": "返回最近崩溃条数（默认 3，最大 10）",
             "dir": "崩溃日志目录（默认系统 CrashReporter）"
-        ],, verified: true
+        ],
     verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let dir = (params["dir"] as? String) ?? "/var/mobile/Library/Logs/CrashReporter", verified: true
+        let dir = (params["dir"] as? String) ?? "/var/mobile/Library/Logs/CrashReporter"
         guard FSPolicy.isAllowed(dir) else { throw MCPError.failed("路径不在可访问范围: \(dir)") }
         let limit = min(max((params["limit"] as? Int) ?? 3, 1), 10)
         let filter = (params["bundle_id"] as? String)?.lowercased() ?? ""

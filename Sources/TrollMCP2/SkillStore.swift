@@ -131,7 +131,7 @@ final class SkillsListTool: MCPTool {
     let definition = ToolDefinition(
         name: "skills.list",
         summary: "按关键字搜索可用技能（返回名称+用途摘要）；务必带 query 缩小范围；需要执行时再用 skills.read 读取完整指令",
-        parameters: ["query": "搜索关键字（技能名称或摘要片段，可选）；不带则只返回前 20 条"], verified: true)
+        parameters: ["query": "搜索关键字（技能名称或摘要片段，可选）；不带则只返回前 20 条"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let all = SkillStore.shared.all.filter { SkillStore.shared.isEnabled($0.name) }
         let q = (params["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

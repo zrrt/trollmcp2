@@ -899,11 +899,11 @@ final class InjectionMemTool: MCPTool {
             "bundle_id": "目标 App Bundle ID（必填）",
             "dylib_path": "要注入的 dylib 绝对路径（可选，不填则用内置 tweaks/ProbeAgent.dylib）",
             "auto_launch": "App 未运行时是否尝试自动启动（true/false，默认 true）"
-        ], verified: true, verified: true
+        ]
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {, verified: true
+        guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
         }
         guard let app = AppCatalog.find(bundleId) else {
@@ -1074,7 +1074,7 @@ final class HookApplyTool: MCPTool {
             "bundle_id": "目标 App Bundle ID（必填）",
             "config": "配置 JSON 字符串：{\"navBarColor\":\"#1A73E8\",\"navBarTitleColor\":\"#FFFFFF\",\"windowTint\":\"#FF0000\",\"alert\":{\"title\":\"..\",\"message\":\"..\"},\"methodLog\":[{\"class\":\"X\",\"selector\":\"y\"}]}",
             "restart": "注入后是否重启 App（true/false，默认 true）"
-        ], verified: true
+        ]
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -1145,7 +1145,7 @@ final class DeviceFakeTool: MCPTool {
             "model_identifier": "伪装机型标识（如 iPhone17,2；部分 App 通过 sysctl 读取，仅作信息字段）",
             "system_version": "伪装系统版本（如 18.0）",
             "mode": "memory（默认，opainject 内存注入）/ file（旧式文件注入，风险高，仅特殊场景用）"
-        ],, verified: true
+        ],
         verified: true
     )
 
@@ -1451,12 +1451,12 @@ final class IdfvTool: MCPTool {
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let sys = UIDevice.current.identifierForVendor?.uuidString ?? "N/A"
-        var extra: [String: Any] = ["system_idfv": sys], verified: true
+        var extra: [String: Any] = ["system_idfv": sys]
         if let bid = params["bundle_id"] as? String, !bid.isEmpty {
             extra["requested_bundle_id"] = bid
             extra["app_idfv"] = "(需在目标 App 进程内读取；设备级 IDFV 见上)"
         }
-        extra["hint"] = "IDFV 无公开刷新 API：删除 App 后由系统决定是否变更，备份恢复场景一般不变", verified: true
+        extra["hint"] = "IDFV 无公开刷新 API：删除 App 后由系统决定是否变更，备份恢复场景一般不变"
         return extra
     }
 }
