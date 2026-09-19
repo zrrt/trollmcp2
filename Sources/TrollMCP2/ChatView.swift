@@ -597,11 +597,11 @@ struct ChatView: View {
 
             HStack(spacing: 8) {
                 HStack(spacing: 0) {
-                    TextEditor(text: $inputText)
-                        .font(.system(size: 16))
-                        .frame(maxWidth: .infinity)
+                    ChatInputTextView(text: $inputText, onSend: {
+                        if !inputText.isEmpty { send() }
+                    })
+                        .frame(maxWidth: .infinity, maxHeight: 40)
                         .padding(.leading, 12)
-                        .padding(.vertical, 8)
                     if !inputText.isEmpty {
                         Button(action: { inputText = "" }) {
                             Image(systemName: "xmark.circle.fill")
@@ -611,7 +611,7 @@ struct ChatView: View {
                         }
                     }
                 }
-                .frame(minHeight: 36, maxHeight: 120)
+                .frame(height: 40)
                 .background(Color(.secondarySystemBackground))
                 .cornerRadius(20)
 
@@ -1501,4 +1501,41 @@ struct TrailRow: View {
     }
 }
 
-// MARK: - v2.9.328 输入框：直接用SwiftUI TextEditor(自动换行+自动高度)
+// MARK: - v2.9.329 输入框：回滚到316原版(固定40pt,回车发送)
+
+struct ChatInputTextView: UIViewRepresentable {
+    @Binding var text: String
+    var onSend: () -> Void
+
+    func makeUIView(context: Context) -> UITextView {
+        let tv = UITextView()
+        tv.font = .systemFont(ofSize: 16)
+        tv.backgroundColor = .clear
+        tv.isScrollEnabled = false
+        tv.textContainerInset = UIEdgeInsets(top: 9, left: 2, bottom: 7, right: 2)
+        tv.returnKeyType = .send
+        tv.enablesReturnKeyAutomatically = true
+        tv.delegate = context.coordinator
+        return tv
+    }
+    func updateUIView(_ uiView: UITextView, context: Context) {
+        if uiView.text != text { uiView.text = text }
+    }
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        var parent: ChatInputTextView
+        init(_ p: ChatInputTextView) { parent = p }
+        func textViewDidChange(_ tv: UITextView) {
+            parent.text = tv.text
+        }
+        func textView(_ tv: UITextView, shouldChangeTextIn range: NSRange, replacementText t: String) -> Bool {
+            if t == "\n" {
+                if tv.markedTextRange != nil { return true }
+                parent.onSend()
+                return false
+            }
+            return true
+        }
+    }
+}
