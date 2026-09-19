@@ -599,7 +599,7 @@ struct ChatView: View {
                 ZStack(alignment: .topLeading) {
                     TextEditor(text: $inputText)
                         .font(.system(size: 16))
-                        .frame(minHeight: 36, maxHeight: 100)
+                        .frame(maxWidth: .infinity, minHeight: 36, maxHeight: 100)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 6)
                         .background(Color(.secondarySystemBackground))
