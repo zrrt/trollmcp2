@@ -200,7 +200,7 @@ final class ProgressNotifier {
 final class UITapTool: MCPTool {
     let definition = ToolDefinition(name: "ui.tap",
         summary: "在屏幕指定坐标点击（AI 控制任意前台 App：美团/小红书等）。坐标用 points（iPhone 全屏约 390x844 逻辑点），原点左上角。调用时务必带 reason 说明判断依据（为什么点这里）。",
-        parameters: ["x": "横坐标 points", "y": "纵坐标 points", "reason": "判断依据（必填，如：截图显示搜索框在 (100,55)）"])
+        parameters: ["x": "横坐标 points", "y": "纵坐标 points", "reason": "判断依据（必填，如：截图显示搜索框在 (100,55)）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x = params["x"] as? Double, let y = params["y"] as? Double else {
             throw MCPError.invalidParams("x, y required（浮点 points）")
@@ -222,7 +222,7 @@ final class UITapTool: MCPTool {
 final class UISwipeTool: MCPTool {
     let definition = ToolDefinition(name: "ui.swipe",
         summary: "在屏幕滑动（从 A 到 B），用于翻页/滚动/返回手势。调用时务必带 reason 说明判断依据。",
-        parameters: ["x1": "起点横坐标", "y1": "起点纵坐标", "x2": "终点横坐标", "y2": "终点纵坐标", "duration_ms": "时长毫秒（默认 300）", "reason": "判断依据（必填）"])
+        parameters: ["x1": "起点横坐标", "y1": "起点纵坐标", "x2": "终点横坐标", "y2": "终点纵坐标", "duration_ms": "时长毫秒（默认 300）", "reason": "判断依据（必填）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x1 = params["x1"] as? Double, let y1 = params["y1"] as? Double,
               let x2 = params["x2"] as? Double, let y2 = params["y2"] as? Double else {
@@ -246,7 +246,7 @@ final class UISwipeTool: MCPTool {
 final class UILongPressTool: MCPTool {
     let definition = ToolDefinition(name: "ui.long_press",
         summary: "长按屏幕坐标（弹出菜单/选择文本/粘贴菜单用）。调用时务必带 reason。",
-        parameters: ["x": "横坐标", "y": "纵坐标", "duration_ms": "长按时长毫秒（默认 800）", "reason": "判断依据（必填）"])
+        parameters: ["x": "横坐标", "y": "纵坐标", "duration_ms": "长按时长毫秒（默认 800）", "reason": "判断依据（必填）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x = params["x"] as? Double, let y = params["y"] as? Double else {
             throw MCPError.invalidParams("x, y required")
@@ -269,7 +269,7 @@ final class UILongPressTool: MCPTool {
 final class UIClipboardTool: MCPTool {
     let definition = ToolDefinition(name: "ui.clipboard",
         summary: "把文本写入系统剪贴板（配合 ui.long_press 长按输入框 + 点「粘贴」实现跨 App 文本输入；iOS 无直接注入文本的公开 API）。调用时务必带 reason。",
-        parameters: ["text": "要写入剪贴板的文本", "reason": "判断依据（必填）"])
+        parameters: ["text": "要写入剪贴板的文本", "reason": "判断依据（必填）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let text = params["text"] as? String else { throw MCPError.invalidParams("text required") }
         let reason = params["reason"] as? String ?? ""
@@ -285,7 +285,7 @@ final class UIClipboardTool: MCPTool {
 final class UIScreenshotTool: MCPTool {
     let definition = ToolDefinition(name: "ui.screenshot",
         summary: "截取当前屏幕（安全版，v2.9.182 弃用 ReplayKit：iOS16.3 侧载环境 ReplayKit 系统级崩溃）。优先走 ControlAgent 注入截图（目标 App 在线时），兜底截 TrollAgent 自身窗口。调用时务必带 reason 说明要验证什么。",
-        parameters: ["reason": "验证目的（必填，如：确认搜索框是否弹出）"])
+        parameters: ["reason": "验证目的（必填，如：确认搜索框是否弹出）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let reason = params["reason"] as? String ?? ""
         ControlSession.shared.addThink(reason.isEmpty ? "截屏验证当前界面" : reason)
@@ -313,7 +313,7 @@ final class UIScreenshotTool: MCPTool {
 final class ProgressNotifyTool: MCPTool {
     let definition = ToolDefinition(name: "progress.notify",
         summary: "AI 控制 App 执行中，向用户弹系统通知横幅（任何界面顶部可见）汇报节点进度。",
-        parameters: ["title": "标题（如 ✅ 已选择店铺）", "body": "正文（如 汉堡王·第2家店）"])
+        parameters: ["title": "标题（如 ✅ 已选择店铺）", "body": "正文（如 汉堡王·第2家店）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let title = params["title"] as? String, !title.isEmpty else {
             throw MCPError.invalidParams("title required")

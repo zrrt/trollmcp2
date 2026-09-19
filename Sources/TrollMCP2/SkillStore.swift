@@ -131,7 +131,7 @@ final class SkillsListTool: MCPTool {
     let definition = ToolDefinition(
         name: "skills.list",
         summary: "按关键字搜索可用技能（返回名称+用途摘要）；务必带 query 缩小范围；需要执行时再用 skills.read 读取完整指令",
-        parameters: ["query": "搜索关键字（技能名称或摘要片段，可选）；不带则只返回前 20 条"])
+        parameters: ["query": "搜索关键字（技能名称或摘要片段，可选）；不带则只返回前 20 条"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let all = SkillStore.shared.all.filter { SkillStore.shared.isEnabled($0.name) }
         let q = (params["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -160,7 +160,7 @@ final class SkillsReadTool: MCPTool {
     let definition = ToolDefinition(
         name: "skills.read",
         summary: "读取指定技能的完整指令，按指令执行该技能。",
-        parameters: ["name": "技能名称"])
+        parameters: ["name": "技能名称"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
             throw MCPError.invalidParams("name required")

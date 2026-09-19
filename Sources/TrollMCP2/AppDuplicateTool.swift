@@ -14,7 +14,7 @@ final class AppDuplicateTool: MCPTool {
             "bundle_id": "要双开的原 App bundle id（必填）",
             "new_name": "副本显示名（可选，默认「原名 双开」）",
             "new_bundle_id": "副本 bundle id（可选，默认「原ID.dup」，冲突时自动追加序号）"
-        ]
+        ], verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

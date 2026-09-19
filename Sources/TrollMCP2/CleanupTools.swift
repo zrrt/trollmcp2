@@ -146,7 +146,7 @@ final class CleanupExecuteTool: MCPTool {
             "bundle_id": "目标 App Bundle ID（必填）",
             "items": "要执行的清理项数组，如 [\"cache\",\"keychain\"]（必填）",
             "dry_run": "可选：true 只预览不执行（默认 false）"
-        ]
+        ], verified: true
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {

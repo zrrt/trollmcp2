@@ -511,7 +511,7 @@ final class SystemCleanupExecuteTool: MCPTool {
     let definition = ToolDefinition(
         name: "system.cleanup_execute",
         summary: "执行设备级清理：items 传 system.cleanup_scan 返回的 id（如 [\"app_cache\",\"sys_cache\",\"ota\"]）。risk=warn 项（下载/垃圾箱/OTA）会清空对应目录。返回释放大小与失败明细",
-        parameters: ["items": "要清理的项 id 数组（必填）"]
+        parameters: ["items": "要清理的项 id 数组（必填）"], verified: true
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let items = params["items"] as? [String], !items.isEmpty else {

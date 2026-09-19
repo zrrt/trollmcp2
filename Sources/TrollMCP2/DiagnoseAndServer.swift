@@ -395,7 +395,7 @@ final class ServerStartTool: MCPTool {
         summary: "启动本地 HTTP 服务（localhost），其他脚本/工具可通过 REST API 调用 TrollAgent 的所有工具。默认端口 8765。",
         parameters: [
             "port": "端口号（默认 8765）"
-        ]
+        ], verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -419,7 +419,8 @@ final class ServerStopTool: MCPTool {
     let definition = ToolDefinition(
         name: "server.stop",
         summary: "停止本地 HTTP 服务。",
-        parameters: [:]
+        parameters: [:],
+        verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

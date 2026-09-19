@@ -91,7 +91,7 @@ final class InjectionStatusTool: MCPTool {
 
 final class InjectionInspectTool: MCPTool {
     let definition = ToolDefinition(name: "injection.inspect", summary: "检查指定 App 的 dylib 加载状态",
-        parameters: ["bundle_id": "目标 App Bundle ID"])
+        parameters: ["bundle_id": "目标 App Bundle ID"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
         return InjectionManager.shared.inspect(bid)
@@ -102,7 +102,7 @@ final class InjectionListTool: MCPTool {
     // v2.9.41：检索式——query 按名称/bundle_id 模糊匹配，只返回命中项，不再全量 266 条塞给 AI
     let definition = ToolDefinition(name: "injection.list", 
         summary: "按关键字搜索设备已安装 App（返回 bundle_id + 名称，供 injection.enable 的 bundle_id 参数使用）；务必带 query 缩小范围，避免返回全量列表",
-        parameters: ["query": "搜索关键字（App 名称或 bundle_id 片段，可选）；不带则只返回前 20 条"])
+        parameters: ["query": "搜索关键字（App 名称或 bundle_id 片段，可选）；不带则只返回前 20 条"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let apps = AppCatalog.list()
         let q = (params["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -159,7 +159,7 @@ final class GatewayStatusTool: MCPTool {
 
 final class GatewayConnectTool: MCPTool {
     let definition = ToolDefinition(name: "gateway.connect", summary: "连接到 Gateway 服务端",
-        parameters: ["url": "WebSocket URL ws://...", "token": "配对令牌（可选）"])
+        parameters: ["url": "WebSocket URL ws://...", "token": "配对令牌（可选）"], verified: true, verified: true, verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let url = params["url"] as? String else { throw MCPError.invalidParams("url required") }
         GatewayClient.shared.pairedToken = params["token"] as? String
@@ -171,7 +171,7 @@ final class GatewayConnectTool: MCPTool {
 
 final class CronFireTool: MCPTool {
     let definition = ToolDefinition(name: "cron.fire", summary: "触发一次定时任务（cron.fire 由调度器在到点调用；也可手动触发验证任务逻辑）。返回任务执行结果。",
-        parameters: ["task": "任务名"])
+        parameters: ["task": "任务名"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let task = params["task"] as? String ?? "unnamed"
         AuditLog.shared.log("cron.fire", detail: task)
@@ -183,7 +183,7 @@ final class CronFireTool: MCPTool {
 
 final class AutomationRunNowTool: MCPTool {
     let definition = ToolDefinition(name: "automation.run_now", summary: "立即执行一个自动化任务（真实投递通知）",
-        parameters: ["name": "任务名或 id"])
+        parameters: ["name": "任务名或 id"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
         let store = AutomationStore.shared
@@ -229,7 +229,7 @@ final class AutomationJobsTool: MCPTool {
 
 final class AutomationStopTool: MCPTool {
     let definition = ToolDefinition(name: "automation.stop", summary: "停止/取消自动化任务",
-        parameters: ["name": "任务名或 id"])
+        parameters: ["name": "任务名或 id"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
         let store = AutomationStore.shared
@@ -278,7 +278,7 @@ func AutomationSchedulerStatus() -> String {
 
 final class ContactsSearchTool: MCPTool {
     let definition = ToolDefinition(name: "contacts.search", summary: "搜索通讯录联系人",
-        parameters: ["query": "搜索关键词"])
+        parameters: ["query": "搜索关键词"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let query = params["query"] as? String ?? ""
         let store = CNContactStore()
@@ -307,7 +307,7 @@ final class ContactsSearchTool: MCPTool {
 
 final class CalendarListTool: MCPTool {
     let definition = ToolDefinition(name: "calendar.list", summary: "列出近期日历事件",
-        parameters: ["days": "往后多少天，默认 7"])
+        parameters: ["days": "往后多少天，默认 7"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let days = params["days"] as? Int ?? 7
         let store = EKEventStore()
@@ -356,7 +356,7 @@ final class LocationGetTool: MCPTool {
 
 final class NotificationSendTool: MCPTool {
     let definition = ToolDefinition(name: "notification.send", summary: "发送一条本地通知：标题/正文/延迟秒数。用于任务完成提醒。",
-        parameters: ["title": "标题", "body": "内容"])
+        parameters: ["title": "标题", "body": "内容"], verified: true, verified: true, verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let title = params["title"] as? String ?? "TrollMCP"
         let body = params["body"] as? String ?? ""
@@ -373,7 +373,7 @@ final class NotificationSendTool: MCPTool {
 
 final class ScanQRTool: MCPTool {
     let definition = ToolDefinition(name: "scan.qr", summary: "从图片识别二维码/条码",
-        parameters: ["image_path": "工作区内图片路径"])
+        parameters: ["image_path": "工作区内图片路径"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["image_path"] as? String else { throw MCPError.invalidParams("image_path required") }
         let url = try Workspace.resolve(path)
@@ -406,7 +406,7 @@ final class ProcessListTool: MCPTool {
 
 final class BuildRunnerTokenTool: MCPTool {
     let definition = ToolDefinition(name: "build.runner.token", summary: "编译模式：生成/验证编译令牌",
-        parameters: ["action": "generate 或 verify"])
+        parameters: ["action": "generate 或 verify"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = params["action"] as? String ?? "generate"
         if action == "generate" {
@@ -420,7 +420,7 @@ final class BuildRunnerTokenTool: MCPTool {
 
 final class ProjectGenerateTweakTool: MCPTool {
     let definition = ToolDefinition(name: "project.generate_tweak", summary: "生成 Tweak 项目模板（Makefile + Tweak.x + plist）",
-        parameters: ["name": "项目名", "bundle_id": "目标 App（可选）"])
+        parameters: ["name": "项目名", "bundle_id": "目标 App（可选）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let name = params["name"] as? String ?? "MyTweak"
         let bid = params["bundle_id"] as? String ?? ""
@@ -466,7 +466,7 @@ final class ProjectGenerateTweakTool: MCPTool {
 
 final class ModelConfigTool: MCPTool {
     let definition = ToolDefinition(name: "model.config", summary: "查看/管理模型配置",
-        parameters: ["action": "list 或 default"])
+        parameters: ["action": "list 或 default"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = params["action"] as? String ?? "list"
         if action == "default", let cfg = ModelStore.shared.defaultConfig {

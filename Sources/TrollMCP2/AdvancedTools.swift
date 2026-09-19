@@ -1074,7 +1074,7 @@ final class HookApplyTool: MCPTool {
             "bundle_id": "目标 App Bundle ID（必填）",
             "config": "配置 JSON 字符串：{\"navBarColor\":\"#1A73E8\",\"navBarTitleColor\":\"#FFFFFF\",\"windowTint\":\"#FF0000\",\"alert\":{\"title\":\"..\",\"message\":\"..\"},\"methodLog\":[{\"class\":\"X\",\"selector\":\"y\"}]}",
             "restart": "注入后是否重启 App（true/false，默认 true）"
-        ]
+        ], verified: true, verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -1234,7 +1234,7 @@ final class DeviceRestoreTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.restore",
         summary: "还原设备伪装：删除 fake_device.json 并还原目标 App 真实设备信息。内存注入版：杀掉 App 进程即完全还原（零残留）；若之前是文件注入则完整卸载注入。",
-        parameters: ["bundle_id": "目标 App Bundle ID（必填）"]
+        parameters: ["bundle_id": "目标 App Bundle ID（必填）"], verified: true
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -1292,7 +1292,7 @@ final class AppEntitlementsTool: MCPTool {
         name: "app.entitlements",
         summary: "查看指定 App 的权限声明（entitlements，ldid -e 解析）：keychain 组、沙箱、task_for_pid、平台应用等",
         parameters: ["bundle_id": "目标 App Bundle ID（必填）"],
-    verified: true,
+  ,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -1469,7 +1469,7 @@ final class RefreshContainerTool: MCPTool {
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "restore": "true 时把上次备份目录恢复回原容器"
-        ]
+        ], verified: true
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {

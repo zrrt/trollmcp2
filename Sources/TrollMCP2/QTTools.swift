@@ -147,7 +147,7 @@ final class DylibInspectTool: MCPTool {
         summary: "解析 dylib 文件的详细信息：架构、签名、依赖、导出符号、兼容的 iOS 版本。用于注入前验证 dylib 是否可用。",
         parameters: [
             "path": "dylib 文件路径（必填，可用 artifact.find 定位）"
-        ]
+        ], verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -247,7 +247,7 @@ final class InjectionDiagnoseTool: MCPTool {
             "bundle_id": "目标 App 的 Bundle ID（必填）",
             "dylib_path": "要注入的 dylib 路径（可选，不填则检查已注入的 dylib）"
         ],
-        verified: true,
+      ,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

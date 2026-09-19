@@ -80,7 +80,7 @@ enum AppContainer {
 final class BridgeContainerTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.container",
         summary: "查任意 App 的 Bundle 路径 + 数据容器路径 + 容器大小（跨 App 数据桥的基础）。",
-        parameters: ["bundle_id": "目标 App Bundle ID"])
+        parameters: ["bundle_id": "目标 App Bundle ID"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -105,7 +105,7 @@ final class BridgeContainerTool: MCPTool {
 final class BridgeLsTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.ls",
         summary: "列出任意 App 容器内的目录（bundle=安装包目录 / data=数据容器）。",
-        parameters: ["bundle_id": "目标 App Bundle ID", "scope": "bundle 或 data（默认 data）", "path": "容器内相对路径（默认根）"])
+        parameters: ["bundle_id": "目标 App Bundle ID", "scope": "bundle 或 data（默认 data）", "path": "容器内相对路径（默认根）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -137,7 +137,7 @@ final class BridgeLsTool: MCPTool {
 final class BridgeReadTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.read",
         summary: "读取任意 App 容器内文件（文本/plist/JSON，>4000 字符截断；二进制请用 fs.hexdump）。",
-        parameters: ["bundle_id": "目标 App Bundle ID", "scope": "bundle 或 data", "path": "容器内相对路径"])
+        parameters: ["bundle_id": "目标 App Bundle ID", "scope": "bundle 或 data", "path": "容器内相对路径"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -174,7 +174,7 @@ final class BridgeReadTool: MCPTool {
 final class BridgeCopyTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.copy",
         summary: "跨 App 容器复制文件/目录（A 的容器 → B 的容器，或 → 工作区）。写操作前请确认不破坏目标数据。",
-        parameters: ["from_bundle": "源 App Bundle ID", "from_scope": "源 scope", "from_path": "源相对路径", "to_bundle": "目标 App Bundle ID（可用 workspace 表示工作区）", "to_scope": "目标 scope", "to_path": "目标相对路径"])
+        parameters: ["from_bundle": "源 App Bundle ID", "from_scope": "源 scope", "from_path": "源相对路径", "to_bundle": "目标 App Bundle ID（可用 workspace 表示工作区）", "to_scope": "目标 scope", "to_path": "目标相对路径"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let fb = params["from_bundle"] as? String, !fb.isEmpty,
               let fs = params["from_scope"] as? String else {
@@ -215,7 +215,7 @@ final class BridgeCopyTool: MCPTool {
 final class BridgeExportTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.export",
         summary: "导出任意 App 容器文件/目录到工作区（默认 bridge_exports/<bundle_id>/），用于备份/迁移。",
-        parameters: ["bundle_id": "目标 App Bundle ID", "scope": "bundle 或 data", "path": "相对路径（默认根=整容器）"])
+        parameters: ["bundle_id": "目标 App Bundle ID", "scope": "bundle 或 data", "path": "相对路径（默认根=整容器）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")

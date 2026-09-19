@@ -9,7 +9,7 @@ final class AppInstallTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.install",
         summary: "安装 IPA 到设备：TrollStore 官方 trollstorehelper 静默安装优先，不可用时自动调起 TrollStore 确认安装。ipa_path 传本地 ipa 绝对路径（工作区下载的 ipa 可直接用）。安装成功后 AI 可继续注入/启动/控制。",
-        parameters: ["ipa_path": "本地 ipa 绝对路径（必填）"]
+        parameters: ["ipa_path": "本地 ipa 绝对路径（必填）"], verified: true
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["ipa_path"] as? String, !path.isEmpty else {

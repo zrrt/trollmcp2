@@ -159,7 +159,7 @@ final class ProjectTool: MCPTool {
             "app_name": "create 时的目标 App 名称",
             "dylib_path": "create/更新时的 dylib 路径",
             "project_id": "select/delete/history 时的项目 ID"
-        ]
+        ], verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

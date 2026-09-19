@@ -82,7 +82,7 @@ enum FakeLocationStore {
 final class AppLaunchOptionsTool: MCPTool {
     let definition = ToolDefinition(name: "app.launch", 
         summary: "启动指定 App 并可注入环境变量/启动参数（SBSLaunchApplicationWithOptions）。env 可传 DYLD_INSERT_LIBRARIES 预加载 hook 库。调用时务必带 reason 说明为何唤醒该 App。",
-        parameters: ["bundle_id": "目标 App Bundle ID", "env": "环境变量字典（可选，如 {\"DYLD_INSERT_LIBRARIES\": \"/path/hook.dylib\"}）", "args": "启动参数数组（可选）", "reason": "判断依据（必填）"])
+        parameters: ["bundle_id": "目标 App Bundle ID", "env": "环境变量字典（可选，如 {\"DYLD_INSERT_LIBRARIES\": \"/path/hook.dylib\"}）", "args": "启动参数数组（可选）", "reason": "判断依据（必填）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -105,7 +105,7 @@ final class AppLaunchOptionsTool: MCPTool {
 final class LocationFakeTool: MCPTool {
     let definition = ToolDefinition(name: "location.fake",
         summary: "写入模拟定位坐标。注意：系统级全局模拟需 hook locationd 系统进程（TrollStore 做不到）；对目标 App 生效需目标 App 注入坐标 Hook 读取该配置（或用注入功能实现）。",
-        parameters: ["lat": "纬度", "lon": "经度", "reason": "判断依据（可选）"])
+        parameters: ["lat": "纬度", "lon": "经度", "reason": "判断依据（可选）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let lat = params["lat"] as? Double, let lon = params["lon"] as? Double else {
             throw MCPError.invalidParams("lat, lon required")
@@ -126,7 +126,7 @@ final class LocationFakeTool: MCPTool {
 final class LocationFakeStatusTool: MCPTool {
     let definition = ToolDefinition(name: "location.fake_status",
         summary: "查看当前模拟定位配置（坐标/启用状态）。",
-        parameters: [:])
+        parameters: [:], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let cfg = FakeLocationStore.read() else {
             return ["enabled": false, "message": "当前未设置模拟定位"]
@@ -138,7 +138,7 @@ final class LocationFakeStatusTool: MCPTool {
 final class LocationFakeClearTool: MCPTool {
     let definition = ToolDefinition(name: "location.fake_clear",
         summary: "清除模拟定位配置，恢复真实定位。",
-        parameters: [:])
+        parameters: [:], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let (ok, msg) = FakeLocationStore.clear()
         guard ok else { throw MCPError.failed(msg) }

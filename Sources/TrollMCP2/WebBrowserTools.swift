@@ -88,7 +88,7 @@ struct BrowserSubmitTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.submit",
         summary: "在指定 idx 的输入框提交表单（idx 来自 browser.snapshot）。优先触发所在 form 的 submit，否则模拟回车。适合搜索框、登录表单、发送按钮。",
-        parameters: ["idx": "integer"]
+        parameters: ["idx": "integer"], verified: true
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let idx = params["idx"] as? Int ?? (params["idx"] as? String).flatMap({ Int($0) }) else {
@@ -118,7 +118,7 @@ struct BrowserFillFormTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.fill_form",
         summary: "自动填充整个表单：values 传 {\"字段名或占位符或标签\":\"值\"}，自动匹配页面所有输入框/下拉框/勾选框（React/Vue 受控组件兼容）。下拉框传选项文字，勾选框传 true/false。需要精确指定时用 {\"__xpath\":\"元素xpath\",\"__value\":\"值\"}。填完可 submit=true 自动提交表单。适合登录/注册/搜索/下单填表。",
-        parameters: ["values": "{\"字段\":\"值\"} 映射（必填）", "submit": "是否自动提交表单（默认 false）"]
+        parameters: ["values": "{\"字段\":\"值\"} 映射（必填）", "submit": "是否自动提交表单（默认 false）"], verified: true
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let values = params["values"] as? [String: String] else {
@@ -135,7 +135,7 @@ struct BrowserWaitForTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.wait_for",
         summary: "等待页面出现目标：selector 传 CSS 选择器（如 .result、#content），或 text 传正文文本关键词（如 \"搜索结果\"）。用于 open 后等待结果页加载完成、登录后等待用户名出现。返回 found 是否出现。",
-        parameters: ["selector": "CSS 选择器（与 text 二选一）", "text": "正文文本关键词（与 selector 二选一）", "timeout": "最多等待秒数（默认 15）"]
+        parameters: ["selector": "CSS 选择器（与 text 二选一）", "text": "正文文本关键词（与 selector 二选一）", "timeout": "最多等待秒数（默认 15）"], verified: true
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let text = params["text"] as? String
@@ -166,7 +166,7 @@ struct BrowserClickTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.click",
         summary: "点击页面上指定 idx 的元素（idx 来自 browser.snapshot 返回的编号，元素有蓝框）。参数 idx：整数。",
-        parameters: ["idx": "integer"]
+        parameters: ["idx": "integer"], verified: true
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let idx = params["idx"] as? Int ?? (params["idx"] as? String).flatMap({ Int($0) }) else {
@@ -182,7 +182,7 @@ struct BrowserTypeTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.type",
         summary: "在指定 idx 的输入框填入文本（idx 来自 browser.snapshot）。参数 idx：整数；text：要输入的字符串。",
-        parameters: ["idx": "integer", "text": "string"]
+        parameters: ["idx": "integer", "text": "string"], verified: true
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let idx = params["idx"] as? Int ?? (params["idx"] as? String).flatMap({ Int($0) }) else {

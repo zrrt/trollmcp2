@@ -27,7 +27,7 @@ final class InjectionRestoreTool: MCPTool {
 final class RescueScanTool: MCPTool {
     let definition = ToolDefinition(name: "rescue.scan",
         summary: "紧急扫描：全机检查注入痕迹、损坏二进制与备份状态，返回需恢复的 App 清单",
-        parameters: ["query": "按名称/bundle_id 过滤（可选）"])
+        parameters: ["query": "按名称/bundle_id 过滤（可选）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let q = (params["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let apps = AppCatalog.list()
@@ -132,7 +132,7 @@ final class RescueRecoverAllTool: MCPTool {
 final class RescueCleanupTool: MCPTool {
     let definition = ToolDefinition(name: "rescue.cleanup",
         summary: "清理注入残留：删除 .troll-fools 标记、孤儿备份与 Frameworks 内非系统 dylib（指定 bundle_id 清理单个 App；不指定仅清理全机孤儿备份）",
-        parameters: ["bundle_id": "目标 App Bundle ID（可选）"])
+        parameters: ["bundle_id": "目标 App Bundle ID（可选）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let mgr = InjectionManager.shared
         let bid = params["bundle_id"] as? String

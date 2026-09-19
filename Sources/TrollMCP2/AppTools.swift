@@ -138,7 +138,7 @@ final class AppCacheClearTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.cache_clear",
         summary: "清理指定 App 的 Library/Caches 与 tmp 目录",
-        parameters: ["bundle_id": "目标 App Bundle ID", "dry_run": "可选：true 只计算不删除"]
+        parameters: ["bundle_id": "目标 App Bundle ID", "dry_run": "可选：true 只计算不删除"], verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -292,7 +292,7 @@ final class AppOpenAndInputTool: MCPTool {
             "text": "要输入的文本",
             "submit": "是否提交（默认 false）",
             "wait": "等待 agent 就绪秒数，默认 8"
-        ]
+        ], verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -384,7 +384,7 @@ final class WeChatPrepareMessageTool: MCPTool {
         parameters: [
             "text": "消息文本",
             "recipient": "可选：接收人"
-        ]
+        ], verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

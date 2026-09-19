@@ -123,7 +123,7 @@ final class GitHubTriggerBuildTool: MCPTool {
     let definition = ToolDefinition(
         name: "github.trigger_build",
         summary: "用当前登录账号触发 GitHub Actions 线上编译",
-        parameters: ["workflow": "工作流文件名，默认 build-trollmcp2.yml；编译 tweak 传 build-tweak.yml", "tweak": "仅 build-tweak 时使用：tweak 工程名（如 CompileProbe）", "ref": "分支名，默认 main"]
+        parameters: ["workflow": "工作流文件名，默认 build-trollmcp2.yml；编译 tweak 传 build-tweak.yml", "tweak": "仅 build-tweak 时使用：tweak 工程名（如 CompileProbe）", "ref": "分支名，默认 main"], verified: true
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let token = GHConfig.activeToken else {
@@ -152,7 +152,7 @@ final class GitHubFetchRunsTool: MCPTool {
     let definition = ToolDefinition(
         name: "github.fetch_runs",
         summary: "查询最近线上编译 run 的状态与结论",
-        parameters: ["limit": "返回条数，默认 5"]
+        parameters: ["limit": "返回条数，默认 5"], verified: true
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let token = GHConfig.activeToken else {
@@ -181,7 +181,7 @@ final class GitHubDownloadArtifactTool: MCPTool {
     let definition = ToolDefinition(
         name: "github.download_artifact",
         summary: "下载指定 run（或最近成功 run）的编译产物 zip 到本地工作区 downloads 目录，解压后可用于注入测试",
-        parameters: ["run_id": "可选：指定 run id；缺省自动取最近成功 run", "artifact_name": "可选：artifact 名，默认自动取第一个"]
+        parameters: ["run_id": "可选：指定 run id；缺省自动取最近成功 run", "artifact_name": "可选：artifact 名，默认自动取第一个"], verified: true
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let token = GHConfig.activeToken else {

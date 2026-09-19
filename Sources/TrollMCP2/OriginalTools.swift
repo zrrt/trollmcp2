@@ -183,7 +183,7 @@ final class InjectionRemoveTool: MCPTool {
 
 final class ContainerDeleteTool: MCPTool {
     let definition = ToolDefinition(name: "container.delete", summary: "删除指定 App 容器内的文件或目录",
-        parameters: ["bundle_id": "目标 App", "path": "容器内路径"])
+        parameters: ["bundle_id": "目标 App", "path": "容器内路径"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String,
               let path = params["path"] as? String else {
@@ -206,7 +206,7 @@ final class ContainerDeleteTool: MCPTool {
 
 final class GatewayChannelSendTool: MCPTool {
     let definition = ToolDefinition(name: "gateway.channel_send", summary: "向 Gateway 频道广播消息",
-        parameters: ["channel": "频道名", "message": "消息内容"])
+        parameters: ["channel": "频道名", "message": "消息内容"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard GatewayClient.shared.isConnected else { throw MCPError.failed("gateway not connected") }
         guard let channel = params["channel"] as? String else { throw MCPError.invalidParams("channel required") }
@@ -221,7 +221,7 @@ final class GatewayChannelSendTool: MCPTool {
 
 final class GatewayCronCreateTool: MCPTool {
     let definition = ToolDefinition(name: "gateway.cron_create", summary: "创建 Gateway 定时任务（真实本地通知调度）",
-        parameters: ["name": "任务名", "schedule": "cron 表达式", "action": "执行的动作描述"])
+        parameters: ["name": "任务名", "schedule": "cron 表达式", "action": "执行的动作描述"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
         let schedule = params["schedule"] as? String ?? "*/5 * * * *"
@@ -240,7 +240,7 @@ final class GatewayCronCreateTool: MCPTool {
 
 final class GatewayCronRunTool: MCPTool {
     let definition = ToolDefinition(name: "gateway.cron_run", summary: "立即执行一个定时任务",
-        parameters: ["name": "任务名"])
+        parameters: ["name": "任务名"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
         guard AutomationStore.shared.run(name: name) else {
@@ -252,7 +252,7 @@ final class GatewayCronRunTool: MCPTool {
 
 final class GatewayCronCancelTool: MCPTool {
     let definition = ToolDefinition(name: "gateway.cron_cancel", summary: "取消/删除定时任务",
-        parameters: ["name": "任务名"])
+        parameters: ["name": "任务名"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
         guard let task = AutomationStore.shared.tasks.first(where: { $0.name == name }) else {
@@ -266,7 +266,7 @@ final class GatewayCronCancelTool: MCPTool {
 
 final class GatewayNodeInvokeTool: MCPTool {
     let definition = ToolDefinition(name: "gateway.node_invoke", summary: "远程调用 Gateway 节点方法（原版命名）",
-        parameters: ["node": "节点名", "method": "方法", "params": "参数对象"])
+        parameters: ["node": "节点名", "method": "方法", "params": "参数对象"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard GatewayClient.shared.isConnected else { throw MCPError.failed("gateway not connected") }
         let payload: [String: Any] = [
@@ -285,7 +285,7 @@ final class GatewayNodeInvokeTool: MCPTool {
 
 final class AutomationCancelTool: MCPTool {
     let definition = ToolDefinition(name: "automation.cancel", summary: "取消正在运行的自动化任务（真实移除通知）",
-        parameters: ["name": "任务名或 id"])
+        parameters: ["name": "任务名或 id"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
         let store = AutomationStore.shared
@@ -311,7 +311,7 @@ final class AutomationHistoryTool: MCPTool {
 
 final class AutomationSetEnabledTool: MCPTool {
     let definition = ToolDefinition(name: "automation.set_enabled", summary: "启用/停用自动化任务",
-        parameters: ["name": "任务名", "enabled": "true/false"])
+        parameters: ["name": "任务名", "enabled": "true/false"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String,
               let task = AutomationStore.shared.tasks.first(where: { $0.name == name }) else {
@@ -348,7 +348,7 @@ final class ModelAuthenticationTool: MCPTool {
 
 final class ModelSelectedProfileIDTool: MCPTool {
     let definition = ToolDefinition(name: "model.selectedProfileID", summary: "获取/设置当前选中的模型配置 ID",
-        parameters: ["profile_id": "可选：要切换到的配置 UUID"])
+        parameters: ["profile_id": "可选：要切换到的配置 UUID"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let store = ModelStore.shared
         if let newId = params["profile_id"] as? String,
@@ -370,7 +370,7 @@ final class ModelSelectedProfileIDTool: MCPTool {
 
 final class WorkspaceOutputBookmarkTool: MCPTool {
     let definition = ToolDefinition(name: "workspace.outputBookmark", summary: "获取/设置工作区输出目录书签",
-        parameters: ["bookmark": "可选：要保存的书签名"])
+        parameters: ["bookmark": "可选：要保存的书签名"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let key = "trollmcp2.output_bookmark"
         if let bookmark = params["bookmark"] as? String {
@@ -384,7 +384,7 @@ final class WorkspaceOutputBookmarkTool: MCPTool {
 
 final class WorkspaceOutputNameTool: MCPTool {
     let definition = ToolDefinition(name: "workspace.outputName", summary: "获取/设置工作区输出产物命名",
-        parameters: ["name": "可选：输出名称"])
+        parameters: ["name": "可选：输出名称"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let key = "trollmcp2.output_name"
         if let name = params["name"] as? String {

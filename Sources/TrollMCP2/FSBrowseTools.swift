@@ -411,7 +411,7 @@ final class FSZipTool: MCPTool {
             "as": "read 时格式：auto（默认）/ text / json / hex",
             "filter": "list 时按文件名关键词过滤（可选）",
             "limit": "list 返回条数上限（默认 200）"
-        ]
+        ], verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -508,7 +508,7 @@ final class FSSQLTool: MCPTool {
             "path": "数据库绝对路径（与 bundle_id 二选一）",
             "sql": "SQL 语句（默认列出全部表与视图）",
             "limit": "最多返回行数（默认 100，最大 500）"
-        ]
+        ], verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -685,7 +685,7 @@ final class FSWriteTool: MCPTool {
             "relative": "容器内相对路径（bundle_id 模式下用）",
             "content": "要写入的文本内容（必填）",
             "backup": "覆盖前是否备份为 .bak（默认 true）"
-        ]
+        ], verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -741,7 +741,7 @@ final class FSEditTool: MCPTool {
             "new_text": "替换后的内容（line 模式下）",
             "old": "原文片段（old/new 模式下）",
             "new": "替换为（old/new 模式下，可选则删除该片段）"
-        ]
+        ], verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -808,7 +808,7 @@ final class FSDiffTool: MCPTool {
             "relative_a": "文件 A 容器内相对路径（bundle_id_a 模式下用）",
             "bundle_id_b": "文件 B 的 App Bundle ID（可选）",
             "relative_b": "文件 B 容器内相对路径（bundle_id_b 模式下用）"
-        ]
+        ], verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -917,7 +917,7 @@ final class FSHashTool: MCPTool {
             "bundle_id": "目标 App Bundle ID（填了则读该 App 数据容器）",
             "relative": "容器内相对路径（bundle_id 模式下用）",
             "algo": "md5 / sha1 / sha256（默认）/ sha512"
-        ]
+        ], verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -1034,7 +1034,7 @@ final class FSDownloadTool: MCPTool {
             "filename": "保存的文件名（默认取 URL 最后一段）",
             "subdir": "工作区下子目录（默认 downloads）",
             "timeout": "超时秒数（默认 60）"
-        ]
+        ], verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -1424,7 +1424,7 @@ final class FSImageInfoTool: MCPTool {
             "path": "图片绝对路径（或工作区相对路径）",
             "bundle_id": "目标 App Bundle ID（填了则读该 App 数据容器）",
             "relative": "容器内相对路径（bundle_id 模式下用）"
-        ]
+        ], verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

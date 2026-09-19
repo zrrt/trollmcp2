@@ -7,7 +7,7 @@ final class ArtifactReadTextTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.read_text",
         summary: "读取工作区内文件的文本内容",
-        parameters: ["path": "工作区内相对路径"]
+        parameters: ["path": "工作区内相对路径"], verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -24,7 +24,7 @@ final class ArtifactWriteTextTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.write_text",
         summary: "向工作区写入文本文件（覆盖）",
-        parameters: ["path": "工作区内相对路径", "content": "文本内容"]
+        parameters: ["path": "工作区内相对路径", "content": "文本内容"], verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
