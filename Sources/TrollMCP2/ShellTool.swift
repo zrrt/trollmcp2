@@ -1,14 +1,24 @@
 import Foundation
 import UIKit
 
+/// 终端会话管理（单例，记住当前工作目录）
+final class ShellSession {
+    static let shared = ShellSession()
+    private init() {}
+    
+    var currentDir: String = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("Workspace").path
+}
+
 /// 内置终端工具：执行 shell 命令
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "执行 shell 命令（轻量操作：解压/查看文件/逆向分析）。危险命令会被拦截。输出自动截断到 2000 字符。",
+        summary: "执行 shell 命令（轻量操作：解压/查看文件/逆向分析）。危险命令会被拦截。输出自动截断到 2000 字符。cd 会记住目录，下次命令在该目录执行。",
         parameters: [
             "command": "要执行的 shell 命令（必填）",
-            "timeout": "超时时间（秒，默认 30，最大 120）"
+            "timeout": "超时时间（秒，默认 30，最大 120）",
+            "reset_cwd": "可选 Bool：重置工作目录到默认（默认 false）"
         ],
         verified: true
     )
@@ -39,12 +49,33 @@ final class ShellExecTool: MCPTool {
             }
         }
         
-        // 用项目已有的 spawn 函数执行
-        let (exitCode, output) = InjectionManager.shared.spawn("/bin/bash", args: ["bash", "-c", command], timeout: clampedTimeout)
+        // 重置工作目录
+        if params["reset_cwd"] as? Bool == true {
+            ShellSession.shared.currentDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("Workspace").path
+        }
+        
+        let cwd = ShellSession.shared.currentDir
+        
+        // 先 cd 到当前目录，再执行命令，然后输出新的 PWD
+        let fullCommand = "cd '\(cwd)' && \(command); echo '__PWD__:'$PWD"
+        
+        let (exitCode, output) = InjectionManager.shared.spawn("/bin/bash", args: ["bash", "-c", fullCommand], timeout: clampedTimeout)
+        
+        // 解析新的 PWD
+        var stdout = output
+        var newPwd = cwd
+        if let range = stdout.range(of: "__PWD__:") {
+            let after = stdout[range.upperBound...]
+            let lines = after.components(separatedBy: .newlines)
+            if let firstLine = lines.first {
+                newPwd = firstLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            stdout = String(stdout[..<range.lowerBound])
+        }
+        ShellSession.shared.currentDir = newPwd
         
         // 输出截断到 2000 字符
-        var stdout = output
-        var stderr = ""
         if stdout.count > 2000 {
             stdout = String(stdout.prefix(2000)) + "\n... (输出太长，已截断，共 \(output.count) 字符)"
         }
@@ -55,8 +86,8 @@ final class ShellExecTool: MCPTool {
             "command": command,
             "exit_code": exitCode,
             "stdout": stdout,
-            "stderr": stderr,
-            "hint": "常用命令：unzip 解包、otool -l 看加密、strings 搜字符串、ls 看文件、find 找文件"
+            "cwd": newPwd,
+            "hint": "常用命令：unzip 解包、otool -l 看加密、strings 搜字符串、ls 看文件、find 找文件。cd 会记住目录。"
         ]
     }
 }
