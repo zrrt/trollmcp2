@@ -601,7 +601,7 @@ struct ChatView: View {
                     ZStack(alignment: .topLeading) {
                         TextEditor(text: $inputText)
                             .font(.system(size: 16))
-                            .frame(minHeight: 5, maxHeight: 80)
+                            .frame(minHeight: 2, maxHeight: 80)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                         if inputText.isEmpty {
