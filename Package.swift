@@ -16,7 +16,8 @@ let package = Package(
             name: "TrollMCP2",
             dependencies: [
                 .product(name: "RSKGrowingTextView", package: "RSKGrowingTextView"),
-                .product(name: "ios_system", package: "ios_system")
+                .product(name: "ios_system", package: "ios_system"),
+                .product(name: "Python", package: "ios_system")
             ],
             path: "Sources/TrollMCP2",
             exclude: ["Resources"],
