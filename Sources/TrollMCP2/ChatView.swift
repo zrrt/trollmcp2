@@ -601,9 +601,9 @@ struct ChatView: View {
                     ZStack(alignment: .topLeading) {
                         TextEditor(text: $inputText)
                             .font(.system(size: 16))
-                            .frame(minHeight: 40, maxHeight: 100)
+                            .frame(minHeight: 36, maxHeight: 80)
                             .padding(.horizontal, 8)
-                            .padding(.vertical, 6)
+                            .padding(.vertical, 4)
                         if inputText.isEmpty {
                             Text("输入消息...")
                                 .font(.system(size: 16))
