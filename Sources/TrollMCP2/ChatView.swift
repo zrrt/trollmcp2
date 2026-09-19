@@ -603,28 +603,6 @@ struct ChatView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: inputHeight)
                         .padding(.horizontal, 8)
-                        .overlay(
-                            ZStack(alignment: .topLeading) {
-                                if inputText.isEmpty {
-                                    Text("输入消息...")
-                                        .font(.system(size: 16))
-                                        .foregroundColor(.secondary)
-                                        .padding(.horizontal, 16)
-                                        .allowsHitTesting(false)
-                                }
-                                if !inputText.isEmpty {
-                                    HStack {
-                                        Spacer()
-                                        Button(action: { inputText = "" }) {
-                                            Image(systemName: "xmark.circle.fill")
-                                                .font(.system(size: 20))
-                                                .foregroundColor(.secondary)
-                                        }
-                                        .padding(.trailing, 8)
-                                    }
-                                }
-                            }
-                        )
                 }
                 .background(Color.white)
                 .cornerRadius(20)
@@ -1384,7 +1362,7 @@ struct ChatInputTextView: UIViewRepresentable {
         let tv = RSKGrowingTextView()
         tv.backgroundColor = .clear
         tv.font = .systemFont(ofSize: 16)
-        tv.placeholder = "输入消息..."
+        tv.placeholder = ""
         tv.minimumNumberOfLines = 1
         tv.maximumNumberOfLines = 4
         tv.delegate = context.coordinator
