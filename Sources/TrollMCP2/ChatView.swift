@@ -600,8 +600,8 @@ struct ChatView: View {
                     ChatInputTextView(text: $inputText, onSend: {
                         if !inputText.isEmpty { send() }
                     })
+                        .frame(maxWidth: .infinity, maxHeight: 40)
                         .padding(.leading, 12)
-                        .frame(minHeight: 40)
                     if !inputText.isEmpty {
                         Button(action: { inputText = "" }) {
                             Image(systemName: "xmark.circle.fill")
@@ -611,6 +611,7 @@ struct ChatView: View {
                         }
                     }
                 }
+                .frame(height: 40)
                 .background(Color(.secondarySystemBackground))
                 .cornerRadius(20)
 
@@ -1364,34 +1365,36 @@ struct ChatInputTextView: UIViewRepresentable {
     var onSend: () -> Void
 
     func makeUIView(context: Context) -> UITextView {
-        let tv = UITextView(frame: .zero)
-        tv.translatesAutoresizingMaskIntoConstraints = false
-        tv.isScrollEnabled = false
+        let tv = UITextView()
         tv.font = .systemFont(ofSize: 16)
-        tv.textContainerInset = .zero
-        tv.textContainer.lineFragmentPadding = 0
         tv.backgroundColor = .clear
+        tv.isScrollEnabled = false
+        tv.textContainerInset = UIEdgeInsets(top: 9, left: 2, bottom: 7, right: 2)
+        tv.returnKeyType = .send
+        tv.enablesReturnKeyAutomatically = true
         tv.delegate = context.coordinator
         return tv
     }
-
     func updateUIView(_ uiView: UITextView, context: Context) {
-        uiView.text = text
+        if uiView.text != text { uiView.text = text }
     }
-
-    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
-        let proposedSize = proposal.replacingUnspecifiedDimensions(by: CGSize(width: 0, height: .greatestFiniteMagnitude))
-        let fitSize = uiView.sizeThatFits(proposedSize)
-        return CGSize(width: proposedSize.width, height: fitSize.height)
-    }
-
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     final class Coordinator: NSObject, UITextViewDelegate {
         var parent: ChatInputTextView
         init(_ p: ChatInputTextView) { parent = p }
         func textViewDidChange(_ tv: UITextView) {
-            parent.text = tv.text ?? ""
+            parent.text = tv.text
+        }
+        func textView(_ tv: UITextView, shouldChangeTextIn range: NSRange, replacementText t: String) -> Bool {
+            if t == "\n" {
+                // 输入法组词中(拼音未上屏)按回车 → 上屏候选词，不发送
+                if tv.markedTextRange != nil { return true }
+                // 无组词按回车 → 发送
+                parent.onSend()
+                return false
+            }
+            return true
         }
     }
 }
