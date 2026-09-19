@@ -605,13 +605,6 @@ struct ChatView: View {
                         .padding(.horizontal, 8)
                         .overlay(
                             ZStack(alignment: .topLeading) {
-                                if inputText.isEmpty {
-                                    Text("输入消息...")
-                                        .font(.system(size: 16))
-                                        .foregroundColor(.secondary)
-                                        .padding(.horizontal, 16)
-                                        .allowsHitTesting(false)
-                                }
                                 if !inputText.isEmpty {
                                     HStack {
                                         Spacer()
