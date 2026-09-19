@@ -1377,7 +1377,7 @@ struct ChatInputTextView: UIViewRepresentable {
         let tv = RSKGrowingTextView()
         tv.backgroundColor = .clear
         tv.font = .systemFont(ofSize: 16)
-        tv.placeholder = ""
+        tv.placeholder = "输入消息..."
         tv.minimumNumberOfLines = 1
         tv.maximumNumberOfLines = 4
         tv.delegate = context.coordinator
