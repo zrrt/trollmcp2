@@ -598,21 +598,34 @@ struct ChatView: View {
 
             HStack(spacing: 8) {
                 HStack(spacing: 0) {
-                    ChatInputTextView(text: $inputText, onSend: {
-                        if !inputText.isEmpty { send() }
-                    }, height: $inputHeight)
-                        .padding(.leading, 12)
-                        .frame(maxWidth: .infinity)
-                    if !inputText.isEmpty {
-                        Button(action: { inputText = "" }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 20))
+                    ZStack(alignment: .topLeading) {
+                        TextEditor(text: $inputText)
+                            .font(.system(size: 16))
+                            .frame(minHeight: 40, maxHeight: 100)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                        if inputText.isEmpty {
+                            Text("输入消息...")
+                                .font(.system(size: 16))
                                 .foregroundColor(.secondary)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 12)
+                                .allowsHitTesting(false)
+                        }
+                        if !inputText.isEmpty {
+                            HStack {
+                                Spacer()
+                                Button(action: { inputText = "" }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(.secondary)
+                                }
                                 .padding(.trailing, 8)
+                                .padding(.top, 8)
+                            }
                         }
                     }
                 }
-                .frame(height: inputHeight)
                 .background(Color(.secondarySystemBackground))
                 .cornerRadius(20)
 
