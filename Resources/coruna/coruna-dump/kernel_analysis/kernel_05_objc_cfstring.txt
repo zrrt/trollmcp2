@@ -1,0 +1,45 @@
+================================================================================
+CORUNA KERNEL EXPLOIT — CFSTRING & OBJC METADATA
+================================================================================
+
+__cfstring ENTRIES
+------------------------------------------------------------
+Section: __DATA_CONST,__cfstring addr=0x44928 size=0x80 (4 entries)
+
+  CF[0] isa=0x1EE30AF00 flags=0x7C8 len=13: "<ptr=0x102A724D8>"
+  CF[1] isa=0x1EE30AF00 flags=0x7C8 len=21: "<ptr=0x102A724E6>"
+  CF[2] isa=0x1EE30AF00 flags=0x7C8 len=10: "<ptr=0x102A724FC>"
+  CF[3] isa=0x1EE30AF00 flags=0x7C8 len=8: "<ptr=0x102A72633>"
+
+__objc_classname ENTRIES
+------------------------------------------------------------
+Section: __TEXT,__objc_classname addr=0x437CC size=1 (0 names)
+
+__objc_methname ENTRIES
+------------------------------------------------------------
+  (no __objc_methname section)
+
+__objc_imageinfo
+------------------------------------------------------------
+  Version: 0
+  Flags: 0x40
+  Active: IS_SIMULATED
+
+__DATA,__const ANALYSIS
+------------------------------------------------------------
+  (no __DATA,__const section or checking __TEXT,__const)
+  Found in __DATA_CONST: addr=0x44840 size=0xE8
+
+ALL SECTIONS SUMMARY
+------------------------------------------------------------
+  __TEXT,__text                       0x00007514    237176 bytes  flags=0x00000000
+  __TEXT,__stubs                      0x0004138C      2928 bytes  flags=0x00000000
+  __TEXT,__cstring                    0x00041EFC      3460 bytes  flags=0x00000000
+  __TEXT,__objc_classname             0x000437CC         1 bytes  flags=0x00000000
+  __TEXT,__unwind_info                0x000437D0      2028 bytes  flags=0x00000000
+  __TEXT,__eh_frame                   0x00043FC0        52 bytes  flags=0x00000000
+  __DATA_CONST,__got                  0x00044000      2112 bytes  flags=0x00000000
+  __DATA_CONST,__const                0x00044840       232 bytes  flags=0x00000000
+  __DATA_CONST,__cfstring             0x00044928       128 bytes  flags=0x00000000
+  __DATA_CONST,__objc_imageinfo       0x000449A8         8 bytes  flags=0x00000000
+  __DATA,__common                     0x00048000       256 bytes  flags=0x00000000

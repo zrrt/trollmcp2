@@ -1,0 +1,66 @@
+================================================================================
+CORUNA KERNEL EXPLOIT — SEGMENTS & SECTIONS
+================================================================================
+
+================================================================================
+SEGMENT: __TEXT
+  VM Range:   0x000000000000 - 0x000000044000 (278528 bytes)
+  File Range: 0x0 - 0x44000 (278528 bytes)
+  Max Prot:   r-x | Init Prot: r-x
+  Sections:   7
+
+  Section                            VM Address       Size   File Off Type                          
+  ------------------------------ -------------- ---------- ---------- ------------------------------
+  __TEXT,__text                  0x000000007514     237176 0x00007514 S_REGULAR
+  __TEXT,__stubs                 0x00000004138C       2928 0x0004138C S_REGULAR
+  __TEXT,__cstring               0x000000041EFC       3460 0x00041EFC S_REGULAR
+  __TEXT,__const                 0x000000042C80       2892 0x00042C80 S_REGULAR
+  __TEXT,__objc_classname        0x0000000437CC          1 0x000437CC S_REGULAR
+  __TEXT,__unwind_info           0x0000000437D0       2028 0x000437D0 S_REGULAR
+  __TEXT,__eh_frame              0x000000043FC0         52 0x00043FC0 S_REGULAR
+
+================================================================================
+SEGMENT: __DATA_CONST
+  VM Range:   0x000000044000 - 0x000000048000 (16384 bytes)
+  File Range: 0x44000 - 0x48000 (16384 bytes)
+  Max Prot:   rw- | Init Prot: rw-
+  Sections:   4
+
+  Section                            VM Address       Size   File Off Type                          
+  ------------------------------ -------------- ---------- ---------- ------------------------------
+  __DATA_CONST,__got             0x000000044000       2112 0x00044000 S_REGULAR
+  __DATA_CONST,__const           0x000000044840        232 0x00044840 S_REGULAR
+  __DATA_CONST,__cfstring        0x000000044928        128 0x00044928 S_REGULAR
+  __DATA_CONST,__objc_imageinfo  0x0000000449A8          8 0x000449A8 S_REGULAR
+
+================================================================================
+SEGMENT: __DATA
+  VM Range:   0x000000048000 - 0x00000004C000 (16384 bytes)
+  File Range: 0x0 - 0x0 (0 bytes)
+  Max Prot:   rw- | Init Prot: rw-
+  Sections:   1
+
+  Section                            VM Address       Size   File Off Type                          
+  ------------------------------ -------------- ---------- ---------- ------------------------------
+  __DATA,__common                0x000000048000        256 0x00000000 S_REGULAR
+
+================================================================================
+SEGMENT: __LINKEDIT
+  VM Range:   0x00000004C000 - 0x000000058000 (49152 bytes)
+  File Range: 0x48000 - 0x516C0 (38592 bytes)
+  Max Prot:   r-- | Init Prot: r--
+  Sections:   0
+
+
+TOTAL: 12 sections across all segments
+
+================================================================================
+MEMORY MAP SUMMARY
+================================================================================
+
+  Region                        Start            End       Size   Prot
+  -------------------- -------------- -------------- ---------- ------
+  __TEXT               0x000000000000 0x000000044000     278528    r-x
+  __DATA_CONST         0x000000044000 0x000000048000      16384    rw-
+  __DATA               0x000000048000 0x00000004C000      16384    rw-
+  __LINKEDIT           0x00000004C000 0x000000058000      49152    r--

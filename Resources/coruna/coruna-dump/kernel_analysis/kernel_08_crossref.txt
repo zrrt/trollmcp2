@@ -1,0 +1,170 @@
+================================================================================
+CORUNA KERNEL EXPLOIT — CROSS-REFERENCE WITH BROWSER CHAIN
+================================================================================
+
+DUMP.BIN HASHES
+------------------------------------------------------------
+  SHA-256: 3b52e3b489948ae491a44faf24a9634e4c959408b321b9c36c367324874a05dc
+  SHA-1:   fee91ff66deebea8708e6453f527833c95b67cd4
+  MD5:     ae3885437016750cb6b9367402fa3ac6
+  Size:    2097152 bytes
+
+COMPARISON WITH BROWSER CHAIN BINARIES
+============================================================
+
+--- _wasm_from_7994d095b1a601253c206c45c120a80c4c0f3736.wasm ---
+  Size: 92 bytes | SHA-256: 583a76e17d7e4a465272f01c41b8f279...
+  Magic: 0x6D736100
+  No shared byte sequences >= 64 bytes
+
+--- _wasm_from_9e7e6ec78463c5e6bdee39e9f3f33d6fa296ea72.wasm ---
+  Size: 117 bytes | SHA-256: 34a68bcd89dfdc0e5a4da9b891f0a5a2...
+  Magic: 0x6D736100
+  No shared byte sequences >= 64 bytes
+
+--- _wasm_from_KRfmo6_166411bd.wasm ---
+  Size: 165 bytes | SHA-256: 7d968bcba8527962299e883fc91fa575...
+  Magic: 0x6D736100
+  No shared byte sequences >= 64 bytes
+
+--- _wasm_from_b903659316e881e624062869c4cf4066d7886c28.wasm ---
+  Size: 165 bytes | SHA-256: 7d968bcba8527962299e883fc91fa575...
+  Magic: 0x6D736100
+  No shared byte sequences >= 64 bytes
+
+--- _wasm_from_d9a260b1c2f63ab5e5aac4261d8a0be5a8b64da0.wasm ---
+  Size: 306 bytes | SHA-256: bf231b70d13bef4ef041da4340cfd2db...
+  Magic: 0x6D736100
+  No shared byte sequences >= 64 bytes
+
+--- _wasm_from_yAerzw_d6cb72f5.wasm ---
+  Size: 92 bytes | SHA-256: 583a76e17d7e4a465272f01c41b8f279...
+  Magic: 0x6D736100
+  No shared byte sequences >= 64 bytes
+
+--- final_payload_A_16434916_blob0.bin ---
+  Size: 28377 bytes | SHA-256: c1939ee768b4f50124ef42b19114693b...
+  Magic: 0x2074656C
+  No shared byte sequences >= 64 bytes
+
+--- final_payload_A_16434916_blob1.bin ---
+  Size: 31308 bytes | SHA-256: f3d958350be201eda4bd226537809b68...
+  Magic: 0xA9BF7BFD
+  No shared byte sequences >= 64 bytes
+
+--- final_payload_A_16434916_blob2.bin ---
+  Size: 29908 bytes | SHA-256: 99d08243903b744261ecc1c3cbcb3b9b...
+  Magic: 0x00FA00CF
+  No shared byte sequences >= 64 bytes
+
+--- final_payload_A_16434916_macho.bin ---
+  Size: 89327 bytes | SHA-256: e04fcb2b674eac8cd6cc41e62da7af73...
+  Magic: MH_MAGIC_64
+  SHARED BYTE SEQUENCES FOUND:
+    binary[0xA77] == dump[0x7AE] for 21109 bytes
+    binary[0xDF4] == dump[0x7AE] for 20216 bytes
+    binary[0x1171] == dump[0x7AE] for 19323 bytes
+    binary[0x14EE] == dump[0x7AE] for 18430 bytes
+    binary[0x186B] == dump[0x7AE] for 17537 bytes
+  Mach-O File Type: DYLIB, Load Commands: 21
+  Same CPU type as dump.bin (ARM64)
+
+--- final_payload_A_16434916_macho_v2.bin ---
+  Size: 90112 bytes | SHA-256: 6d522977b4f5473050ae9f493cc34e83...
+  Magic: MH_MAGIC_64
+  SHARED BYTE SEQUENCES FOUND:
+    binary[0xA8F] == dump[0x7AE] for 21085 bytes
+    binary[0xE14] == dump[0x7AE] for 20184 bytes
+    binary[0x1199] == dump[0x7AE] for 19283 bytes
+    binary[0x151E] == dump[0x7AE] for 18382 bytes
+    binary[0x18A3] == dump[0x7AE] for 17481 bytes
+  Mach-O File Type: DYLIB, Load Commands: 21
+  Same CPU type as dump.bin (ARM64)
+
+--- final_payload_A_16434916_macho_verified.bin ---
+  Size: 90112 bytes | SHA-256: 6d522977b4f5473050ae9f493cc34e83...
+  Magic: MH_MAGIC_64
+  SHARED BYTE SEQUENCES FOUND:
+    binary[0xA8F] == dump[0x7AE] for 21085 bytes
+    binary[0xE14] == dump[0x7AE] for 20184 bytes
+    binary[0x1199] == dump[0x7AE] for 19283 bytes
+    binary[0x151E] == dump[0x7AE] for 18382 bytes
+    binary[0x18A3] == dump[0x7AE] for 17481 bytes
+  Mach-O File Type: DYLIB, Load Commands: 21
+  Same CPU type as dump.bin (ARM64)
+
+--- final_payload_A_16434916_shellcode.bin ---
+  Size: 31308 bytes | SHA-256: f3d958350be201eda4bd226537809b68...
+  Magic: 0xA9BF7BFD
+  No shared byte sequences >= 64 bytes
+
+--- final_payload_A_macho_trimmed.bin ---
+  Size: 89328 bytes | SHA-256: 443786dae18e7c0a859b72306b2f028e...
+  Magic: MH_MAGIC_64
+  SHARED BYTE SEQUENCES FOUND:
+    binary[0xA77] == dump[0x7AE] for 21109 bytes
+    binary[0xDF4] == dump[0x7AE] for 20216 bytes
+    binary[0x1171] == dump[0x7AE] for 19323 bytes
+    binary[0x14EE] == dump[0x7AE] for 18430 bytes
+    binary[0x186B] == dump[0x7AE] for 17537 bytes
+  Mach-O File Type: DYLIB, Load Commands: 21
+  Same CPU type as dump.bin (ARM64)
+
+--- final_payload_B_6241388a_blob0.bin ---
+  Size: 47076 bytes | SHA-256: bae30cc6b5a42e400c91cc8189deb40d...
+  Magic: 0x2074656C
+  No shared byte sequences >= 64 bytes
+
+--- final_payload_B_6241388a_blob1.bin ---
+  Size: 31308 bytes | SHA-256: f3d958350be201eda4bd226537809b68...
+  Magic: 0xA9BF7BFD
+  No shared byte sequences >= 64 bytes
+
+--- final_payload_B_6241388a_blob2.bin ---
+  Size: 29908 bytes | SHA-256: 99d08243903b744261ecc1c3cbcb3b9b...
+  Magic: 0x00FA00CF
+  No shared byte sequences >= 64 bytes
+
+--- final_payload_B_6241388a_macho.bin ---
+  Size: 89327 bytes | SHA-256: e04fcb2b674eac8cd6cc41e62da7af73...
+  Magic: MH_MAGIC_64
+  SHARED BYTE SEQUENCES FOUND:
+    binary[0xA77] == dump[0x7AE] for 21109 bytes
+    binary[0xDF4] == dump[0x7AE] for 20216 bytes
+    binary[0x1171] == dump[0x7AE] for 19323 bytes
+    binary[0x14EE] == dump[0x7AE] for 18430 bytes
+    binary[0x186B] == dump[0x7AE] for 17537 bytes
+  Mach-O File Type: DYLIB, Load Commands: 21
+  Same CPU type as dump.bin (ARM64)
+
+--- final_payload_B_6241388a_shellcode.bin ---
+  Size: 31308 bytes | SHA-256: f3d958350be201eda4bd226537809b68...
+  Magic: 0xA9BF7BFD
+  No shared byte sequences >= 64 bytes
+
+SHELLCODE BLOB ANALYSIS vs DUMP.BIN
+============================================================
+
+--- final_payload_A_16434916_shellcode.bin ---
+  Size: 31308 bytes
+  ARM64 branch instructions: 733
+
+--- final_payload_B_6241388a_shellcode.bin ---
+  Size: 31308 bytes
+  ARM64 branch instructions: 733
+
+============================================================
+CONNECTION SUMMARY
+============================================================
+
+Browser Chain → Kernel Exploit delivery path:
+  1. WebKit trigger (yAerzw/KRfmo6/Fq2t1Q/YGPUu7) grants arb R/W
+  2. PAC bypass + JIT cage escape → native code execution
+  3. Final payload builds YA(shellcode, macho, c2_url)
+  4. Shellcode runs in JIT page, C2 state machine polls
+  5. Shellcode uses C2 DOWNLOAD command → fetches dump.bin
+  6. dump.bin injected into powerd → kernel exploit
+
+dump.bin is the KERNEL STAGE delivered via C2 after browser exploit.
+It is NOT embedded in the JavaScript modules — it's fetched at runtime
+through the SharedArrayBuffer C2 channel documented in Section 9.

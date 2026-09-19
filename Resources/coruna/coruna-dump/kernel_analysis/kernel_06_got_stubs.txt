@@ -1,0 +1,521 @@
+================================================================================
+CORUNA KERNEL EXPLOIT — GOT & STUBS MAPPING
+================================================================================
+
+__DATA_CONST,__got (264 entries, NON_LAZY_SYMBOL_POINTERS)
+----------------------------------------------------------------------
+  Index    GOT Addr       Runtime Value  Symbol
+  -----  ----------  ------------------  ----------------------------------------
+  [  0]  0x00044000  0x00000001DD24F6C8  _CC_SHA1_Final
+  [  1]  0x00044008  0x00000001DD24FB6C  _CC_SHA1_Init
+  [  2]  0x00044010  0x00000001DD25000C  _CC_SHA1_Update
+  [  3]  0x00044018  0x00000001DD24F840  _CC_SHA256_Final
+  [  4]  0x00044020  0x00000001DD24FB08  _CC_SHA256_Init
+  [  5]  0x00044028  0x00000001DD2511C0  _CC_SHA256_Update
+  [  6]  0x00044030  0x00000001DD255E54  _CC_SHA384_Final
+  [  7]  0x00044038  0x00000001DD255DD8  _CC_SHA384_Init
+  [  8]  0x00044040  0x00000001DD255E3C  _CC_SHA384_Update
+  [  9]  0x00044048  0x0000000193383E74  _CFArrayAppendValue
+  [ 10]  0x00044050  0x00000001933061CC  _CFArrayApplyFunction
+  [ 11]  0x00044058  0x00000001933091BC  _CFArrayContainsValue
+  [ 12]  0x00044060  0x0000000193365BD8  _CFArrayGetCount
+  [ 13]  0x00044068  0x00000001933883D8  _CFArrayGetTypeID
+  [ 14]  0x00044070  0x0000000193365E8C  _CFBooleanGetTypeID
+  [ 15]  0x00044078  0x000000019336DC68  _CFDataCreate
+  [ 16]  0x00044080  0x000000019337A9CC  _CFDataCreateWithBytesNoCopy
+  [ 17]  0x00044088  0x00000001933659B4  _CFDataGetBytePtr
+  [ 18]  0x00044090  0x0000000193382BE4  _CFDataGetLength
+  [ 19]  0x00044098  0x000000019337906C  _CFDataGetTypeID
+  [ 20]  0x000440A0  0x0000000193386D94  _CFDictionaryAddValue
+  [ 21]  0x000440A8  0x000000019336F588  _CFDictionaryApplyFunction
+  [ 22]  0x000440B0  0x000000019337CEC4  _CFDictionaryCreateMutable
+  [ 23]  0x000440B8  0x00000001933A1120  _CFDictionaryCreateMutableCopy
+  [ 24]  0x000440C0  0x000000019337E900  _CFDictionaryGetTypeID
+  [ 25]  0x000440C8  0x00000001933016E0  _CFDictionaryGetValueIfPresent
+  [ 26]  0x000440D0  0x0000000193388BB4  _CFDictionarySetValue
+  [ 27]  0x000440D8  0x00000001932F2444  _CFEqual
+  [ 28]  0x000440E0  0x000000019336BF44  _CFGetTypeID
+  [ 29]  0x000440E8  0x000000019336B2E4  _CFNumberCreate
+  [ 30]  0x000440F0  0x000000019337C044  _CFNumberGetTypeID
+  [ 31]  0x000440F8  0x0000000193367600  _CFNumberGetValue
+  [ 32]  0x00044100  0x000000019337A4E4  _CFPropertyListCreateData
+  [ 33]  0x00044108  0x000000019338D890  _CFPropertyListCreateWithData
+  [ 34]  0x00044110  0x0000000193366A18  _CFPropertyListCreateWithStream
+  [ 35]  0x00044118  0x0000000193376C74  _CFReadStreamClose
+  [ 36]  0x00044120  0x0000000193378314  _CFReadStreamCreateWithBytesNoCopy
+  [ 37]  0x00044128  0x00000001933D0734  _CFReadStreamOpen
+  [ 38]  0x00044130  0x00000001933699AC  _CFRelease
+  [ 39]  0x00044138  0x000000019338545C  _CFRunLoopAddSource
+  [ 40]  0x00044140  0x00000001933682D4  _CFRunLoopGetCurrent
+  [ 41]  0x00044148  0x00000001933D0C34  _CFRunLoopRemoveSource
+  [ 42]  0x00044150  0x00000001933D2054  _CFRunLoopRunInMode
+  [ 43]  0x00044158  0x0000000193373550  _CFStringCreateWithCString
+  [ 44]  0x00044160  0x00000001933017E4  _CFStringGetCString
+  [ 45]  0x00044168  0x000000019337E9E4  _CFStringGetSystemEncoding
+  [ 46]  0x00044170  0x000000019337FB54  _CFStringGetTypeID
+  [ 47]  0x00044178  0x000000019336C510  _CFStringHasPrefix
+  [ 48]  0x00044180  0x000000019AA5A7BC  _IOCFSerialize
+  [ 49]  0x00044188  0x000000019AA507F4  _IOConnectCallMethod
+  [ 50]  0x00044190  0x000000019AA4FC84  _IOConnectCallScalarMethod
+  [ 51]  0x00044198  0x000000019AA507B4  _IOConnectCallStructMethod
+  [ 52]  0x000441A0  0x000000019AA80210  _IOConnectTrap4
+  [ 53]  0x000441A8  0x000000019AA80224  _IOConnectTrap6
+  [ 54]  0x000441B0  0x000000019AA5CB9C  _IOIteratorNext
+  [ 55]  0x000441B8  0x000000019AA65C54  _IONotificationPortCreate
+  [ 56]  0x000441C0  0x000000019AA65648  _IONotificationPortDestroy
+  [ 57]  0x000441C8  0x000000019AA67B28  _IONotificationPortGetRunLoopSource
+  [ 58]  0x000441D0  0x000000019AA57F44  _IOObjectRelease
+  [ 59]  0x000441D8  0x000000019AA58680  _IORegistryEntryCreateCFProperties
+  [ 60]  0x000441E0  0x000000019AA5479C  _IORegistryEntryCreateCFProperty
+  [ 61]  0x000441E8  0x000000019AA59820  _IORegistryEntryFromPath
+  [ 62]  0x000441F0  0x000000019AA77728  _IORegistryEntryGetChildIterator
+  [ 63]  0x000441F8  0x000000019AA555C4  _IORegistryEntrySearchCFProperty
+  [ 64]  0x00044200  0x000000019AA6A288  _IOServiceAddMatchingNotification
+  [ 65]  0x00044208  0x000000019AA5C43C  _IOServiceClose
+  [ 66]  0x00044210  0x000000019AA6611C  _IOServiceGetMatchingService
+  [ 67]  0x00044218  0x000000019AA54914  _IOServiceMatching
+  [ 68]  0x00044220  0x000000019AA63128  _IOServiceOpen
+  [ 69]  0x00044228  0x000000019AA7FD0C  _IOServiceWaitQuiet
+  [ 70]  0x00044230  0x00000001EAA85F30  __CFProcessPath
+  [ 71]  0x00044238  0x00000001DD2877FC  __IOServiceSetAuthorizationID
+  [ 72]  0x00044240  0x00000001933A2050  ___error
+  [ 73]  0x00044248  0x000000019AA80194  ___memcpy_chk
+  [ 74]  0x00044250  0x00000001EE2FEE30  ___memset_chk
+  [ 75]  0x00044258  0x00000001CDDE1C86  ___semwait_signal
+  [ 76]  0x00044260  0x00000001DD329730  ___stack_chk_fail
+  [ 77]  0x00044268  0x00000001CDDB34CC  ___strlcpy_chk
+  [ 78]  0x00044270  0x000000019A14556C  ___ulock_wait
+  [ 79]  0x00044278  0x000000019A146614  ___ulock_wake
+  [ 80]  0x00044280  0x00000001CDDB34A4  __get_cpu_capabilities
+  [ 81]  0x00044288  0x000000019A19D300  __os_alloc_once
+  [ 82]  0x00044290  0x00000001EE2FA190  _arc4random_buf
+  [ 83]  0x00044298  0x000000019A149DF8  _bzero
+  [ 84]  0x000442A0  0x00000001CDDB3AC8  _calloc
+  [ 85]  0x000442A8  0x00000001CDDB3B40  _chown
+  [ 86]  0x000442B0  0x00000001CDDB75AC  _close
+  [ 87]  0x000442B8  0x00000001DD299478  _connect
+  [ 88]  0x000442C0  0x00000001EE2F8578  _dlclose
+  [ 89]  0x000442C8  0x000000019A146D2C  _dlopen
+  [ 90]  0x000442D0  0x00000001EE2F8574  _dlsym
+  [ 91]  0x000442D8  0x00000001DD2921B0  _fcntl
+  [ 92]  0x000442E0  0x00000001A0A5403C  _ffsctl
+  [ 93]  0x000442E8  0x00000001CDDB87C4  _fileport_makefd
+  [ 94]  0x000442F0  0x00000001CDDB40C4  _fileport_makeport
+  [ 95]  0x000442F8  0x00000001CDDB84D8  _free
+  [ 96]  0x00044300  0x00000001B3175B5C  _fstat
+  [ 97]  0x00044308  0x00000001B3175C04  _getattrlist
+  [ 98]  0x00044310  0x00000001B3175C88  _getmntinfo
+  [ 99]  0x00044318  0x00000001B31947C8  _getpid
+  [100]  0x00044320  0x00000001CDDB4A1C  _getppid
+  [101]  0x00044328  0x00000001CDDB7FC8  _getuid
+  [102]  0x00044330  0x00000001CDDB51F8  _host_create_mach_voucher
+  [103]  0x00044338  0x00000001CDDB97CC  _host_get_io_master
+  [104]  0x00044340  0x00000001A0A541B4  _host_get_special_port
+  [105]  0x00044348  0x00000001CDDB577C  _host_kernel_version
+  [106]  0x00044350  0x00000001CDDB3674  _host_page_size
+  [107]  0x00044358  0x000000019A18282C  _host_processors
+  [108]  0x00044360  0x00000001CDDB3560  _host_security_set_task_token
+  [109]  0x00044368  0x00000001CDDBA008  _ioctl
+  [110]  0x00044370  0x00000001CDDB7444  _lstat
+  [111]  0x00044378  0x00000001CDDB3F60  _mach_absolute_time
+  [112]  0x00044380  0x00000001CDDBC334  _mach_host_self
+  [113]  0x00044388  0x00000001CDDBD1CC  _mach_make_memory_entry
+  [114]  0x00044390  0x00000001CDDD06C4  _mach_make_memory_entry_64
+  [115]  0x00044398  0x00000001CDDC4AB8  _mach_msg
+  [116]  0x000443A0  0x00000001CDDCF008  _mach_msg_destroy
+  [117]  0x000443A8  0x00000001CDDD0580  _mach_msg_send
+  [118]  0x000443B0  0x00000001CDDB7378  _mach_port_allocate
+  [119]  0x000443B8  0x00000001934A93D0  _mach_port_deallocate
+  [120]  0x000443C0  0x00000001EB5CEAB8  _mach_port_destroy
+  [121]  0x000443C8  0x00000001EB803B28  _mach_port_get_attributes
+  [122]  0x000443D0  0x00000001EB7F7ED0  _mach_port_insert_right
+  [123]  0x000443D8  0x00000001EB5CE8E0  _mach_port_mod_refs
+  [124]  0x000443E0  0x00000001EB5CE910  _mach_port_request_notification
+  [125]  0x000443E8  0x000000019AAF0788  _mach_port_set_attributes
+  [126]  0x000443F0  0x00000001CDDB5028  _mach_port_space_info
+  [127]  0x000443F8  0x00000001CDDB32D0  _mach_ports_register
+  [128]  0x00044400  0x00000001CDDB5698  _mach_reply_port
+  [129]  0x00044408  0x00000001CDDD67BC  _mach_thread_self
+  [130]  0x00044410  0x00000001CDDB6068  _mach_timebase_info
+  [131]  0x00044418  0x00000001CDDB3510  _mach_vm_allocate
+  [132]  0x00044420  0x00000001CDDB3930  _mach_vm_deallocate
+  [133]  0x00044428  0x00000001CDDC4DE0  _mach_vm_machine_attribute
+  [134]  0x00044430  0x00000001CDDB563C  _mach_vm_page_info
+  [135]  0x00044438  0x00000001CDDB3DB8  _mach_vm_read_overwrite
+  [136]  0x00044440  0x00000001CDDCCFD4  _mach_vm_wire
+  [137]  0x00044448  0x00000001CDDB459C  _mach_vm_write
+  [138]  0x00044450  0x00000001CDDB4BE0  _madvise
+  [139]  0x00044458  0x00000001CDDB5C68  _malloc
+  [140]  0x00044460  0x00000001CDDB5AF8  _memcmp
+  [141]  0x00044468  0x00000001CDDB8124  _memcpy
+  [142]  0x00044470  0x00000001CDDCCFF4  _mig_dealloc_reply_port
+  [143]  0x00044478  0x00000001CDDBC854  _mig_get_reply_port
+  [144]  0x00044480  0x00000001CDDB2F38  _mkdir
+  [145]  0x00044488  0x00000001EE2F8570  _mktemp
+  [146]  0x00044490  0x00000001CDDB6B7C  _mmap
+  [147]  0x00044498  0x00000001CDDB3A74  _mount
+  [148]  0x000444A0  0x00000001CDDB6CD0  _necp_client_action
+  [149]  0x000444A8  0x00000001CDDB3EA4  _necp_open
+  [150]  0x000444B0  0x00000001CDDD636C  _open
+  [151]  0x000444B8  0x00000001CDDD6AAC  _open_dprotected_np
+  [152]  0x000444C0  0x00000001CDDD5FDC  _pid_for_task
+  [153]  0x000444C8  0x00000001CDDCFE44  _pipe
+  [154]  0x000444D0  0x00000001CDDD5D88  _posix_spawn
+  [155]  0x000444D8  0x00000001CDDB384C  _posix_spawn_file_actions_addopen
+  [156]  0x000444E0  0x00000001A0A544D0  _posix_spawn_file_actions_destroy
+  [157]  0x000444E8  0x00000001DD292370  _posix_spawn_file_actions_init
+  [158]  0x000444F0  0x00000001DD291DC0  _posix_spawnattr_destroy
+  [159]  0x000444F8  0x00000001CDDB63D4  _posix_spawnattr_init
+  [160]  0x00044500  0x00000001CDDB389C  _posix_spawnattr_setflags
+  [161]  0x00044508  0x00000001CDDB6448  _posix_spawnattr_setpgroup
+  [162]  0x00044510  0x000000019A14A66C  _posix_spawnattr_setsigdefault
+  [163]  0x00044518  0x00000001CDDB4F10  _pread
+  [164]  0x00044520  0x00000001CDDC22B8  _proc_pidinfo
+  [165]  0x00044528  0x00000001CDDB7580  _processor_set_default
+  [166]  0x00044530  0x00000001CDDB96B4  _processor_set_info
+  [167]  0x00044538  0x00000001CDDB4A94  _pthread_attr_destroy
+  [168]  0x00044540  0x00000001CDDB6F38  _pthread_attr_init
+  [169]  0x00044548  0x00000001CDDB301C  _pthread_attr_setdetachstate
+  [170]  0x00044550  0x00000001CDDB6894  _pthread_create
+  [171]  0x00044558  0x00000001021F5C18  _pthread_create_suspended_np
+  [172]  0x00044560  0x00000001CDDBBEE4  _pthread_from_mach_thread_np
+  [173]  0x00044568  0x00000001CDDB68C8  _pthread_join
+  [174]  0x00044570  0x00000001CDDBA974  _pthread_mach_thread_np
+  [175]  0x00044578  0x00000001CDDB8B40  _pthread_mutex_destroy
+  [176]  0x00044580  0x00000001CDDBE7F0  _pthread_mutex_init
+  [177]  0x00044588  0x00000001CDDC7120  _pthread_mutex_lock
+  [178]  0x00044590  0x00000001CDDC72F4  _pthread_mutex_unlock
+  [179]  0x00044598  0x00000001CDDC72D0  _pthread_self
+  [180]  0x000445A0  0x00000001CDDB402C  _qsort
+  [181]  0x000445A8  0x00000001CDDB48B0  _read
+  [182]  0x000445B0  0x00000001CDDD1194  _realloc
+  [183]  0x000445B8  0x00000001CDDD7E04  _rmdir
+  [184]  0x000445C0  0x00000001DD32C3A8  _sandbox_check
+  [185]  0x000445C8  0x00000001DD32BCA4  _sched_yield
+  [186]  0x000445D0  0x00000001DD32FFE8  _semaphore_create
+  [187]  0x000445D8  0x00000001DD32CDAC  _semaphore_destroy
+  [188]  0x000445E0  0x00000001DD335400  _semaphore_signal
+  [189]  0x000445E8  0x00000001DD3352FC  _semaphore_timedwait
+  [190]  0x000445F0  0x00000001DD32E634  _semaphore_wait
+  [191]  0x000445F8  0x00000001DD32EB6C  _seteuid
+  [192]  0x00044600  0x00000001DD337478  _setsockopt
+  [193]  0x00044608  0x00000001DD337484  _snprintf
+  [194]  0x00044610  0x00000001DD337490  _socket
+  [195]  0x00044618  0x00000001DD3374A8  _sscanf
+  [196]  0x00044620  0x00000001DD32A6E0  _stat
+  [197]  0x00044628  0x000000019A146774  _statfs
+  [198]  0x00044630  0x00000001CDDB3D90  _strchr
+  [199]  0x00044638  0x00000001A0A55AF4  _strcmp
+  [200]  0x00044640  0x00000001CDDB6BFC  _strcpy
+  [201]  0x00044648  0x00000001DD284BD4  _strdup
+  [202]  0x00044650  0x00000001DD3302BC  _strlcpy
+  [203]  0x00044658  0x00000001CDDBCC78  _strlen
+  [204]  0x00044660  0x00000001CDDB898C  _strncmp
+  [205]  0x00044668  0x00000001CDDB463C  _strsep
+  [206]  0x00044670  0x00000001CDDB31DC  _strstr
+  [207]  0x00044678  0x00000001CDDB4E94  _strtol
+  [208]  0x00044680  0x00000001CDDB5C40  _syscall
+  [209]  0x00044688  0x00000001CDDB4EE8  _sysctl
+  [210]  0x00044690  0x000000019A1467C4  _sysctlbyname
+  [211]  0x00044698  0x00000001CDDB9F48  _task_get_special_port
+  [212]  0x000446A0  0x000000019A14A6B4  _task_info
+  [213]  0x000446A8  0x00000001CDDB36C4  _task_map_corpse_info_64
+  [214]  0x000446B0  0x00000001CDDB6914  _task_resume2
+  [215]  0x000446B8  0x00000001DD292C40  _task_set_special_port
+  [216]  0x000446C0  0x00000001DD292530  _task_suspend2
+  [217]  0x000446C8  0x00000001DD292D2C  _task_threads
+  [218]  0x000446D0  0x000000019A1465C4  _thread_create
+  [219]  0x000446D8  0x00000001DD292CB8  _thread_get_state
+  [220]  0x000446E0  0x00000001DD2924C0  _thread_policy_set
+  [221]  0x000446E8  0x00000001DD292750  _thread_resume
+  [222]  0x000446F0  0x000000019A15AEB0  _thread_set_exception_ports
+  [223]  0x000446F8  0x00000001DD292F40  _thread_set_state
+  [224]  0x00044700  0x000000019A1570DC  _thread_suspend
+  [225]  0x00044708  0x00000001CDDC188C  _thread_switch
+  [226]  0x00044710  0x000000019A148AF8  _thread_terminate
+  [227]  0x00044718  0x000000019A14E3C8  _uname
+  [228]  0x00044720  0x00000001CDDB81C4  _unlink
+  [229]  0x00044728  0x00000001CDDB5CCC  _unmount
+  [230]  0x00044730  0x00000001CDDBE06C  _usleep
+  [231]  0x00044738  0x00000001CDDBC554  _uuid_is_null
+  [232]  0x00044740  0x00000001CDDBE520  _vm_allocate
+  [233]  0x00044748  0x00000001CDDBCE68  _vm_copy
+  [234]  0x00044750  0x00000001CDDB5050  _vm_deallocate
+  [235]  0x00044758  0x00000001CDDD953C  _vm_map
+  [236]  0x00044760  0x00000001CDDB9AE4  _vm_protect
+  [237]  0x00044768  0x00000001CDDBC118  _vm_read_overwrite
+  [238]  0x00044770  0x00000001CDDB9DC8  _vm_region_64
+  [239]  0x00044778  0x00000001CDDB8C6C  _vm_region_recurse_64
+  [240]  0x00044780  0x00000001CDDDDB24  _vm_remap
+  [241]  0x00044788  0x00000001CDDBEE90  _vm_write
+  [242]  0x00044790  0x00000001CDDB8128  _waitpid
+  [243]  0x00044798  0x00000001CDDDD620  _write
+  [244]  0x000447A0  0x000000019A1606D0  _CC_SHA1_Final
+  [245]  0x000447A8  0x00000001CDDBA8F4  _CC_SHA1_Init
+  [246]  0x000447B0  0x00000001CDDBA030  _CC_SHA1_Update
+  [247]  0x000447B8  0x000000019A146050  _CC_SHA256_Final
+  [248]  0x000447C0  0x000000019A1482B0  _CC_SHA256_Init
+  [249]  0x000447C8  0x00000001CDDB4934  _CC_SHA256_Update
+  [250]  0x000447D0  0x00000001CDDB8360  _CC_SHA384_Final
+  [251]  0x000447D8  0x00000001CDDB3F5C  _CC_SHA384_Init
+  [252]  0x000447E0  0x00000001CDDBB924  _CC_SHA384_Update
+  [253]  0x000447E8  0x00000001EE2F8558  _CFArrayAppendValue
+  [254]  0x000447F0  0x00000001EE2F8560  _CFArrayApplyFunction
+  [255]  0x000447F8  0x00000001EE2F8568  _CFArrayContainsValue
+  [256]  0x00044800  0x00000001CDDB8AAC  _CFArrayGetCount
+  [257]  0x00044808  0x00000001CDDDFA64  _CFArrayGetTypeID
+  [258]  0x00044810  0x00000001CDDE02C8  _CFBooleanGetTypeID
+  [259]  0x00044818  0x00000001CDDE00B0  _CFDataCreate
+  [260]  0x00044820  0x00000001CDDB57A4  _CFDataCreateWithBytesNoCopy
+  [261]  0x00044828  0x00000001CDDDF92C  _CFDataGetBytePtr
+  [262]  0x00044830  0x000000019A15691C  _CFDataGetLength
+  [263]  0x00044838  0x00000001CDDB4888  _CFDataGetTypeID
+
+__TEXT,__stubs (244 entries, SYMBOL_STUBS, 12 bytes each)
+----------------------------------------------------------------------
+  Index   Stub Addr  Symbol
+  -----  ----------  ----------------------------------------
+  [  0]  0x0004138C  _CFDictionaryAddValue
+  [  1]  0x00041398  _CFDictionaryApplyFunction
+  [  2]  0x000413A4  _CFDictionaryCreateMutable
+  [  3]  0x000413B0  _CFDictionaryCreateMutableCopy
+  [  4]  0x000413BC  _CFDictionaryGetTypeID
+  [  5]  0x000413C8  _CFDictionaryGetValueIfPresent
+  [  6]  0x000413D4  _CFDictionarySetValue
+  [  7]  0x000413E0  _CFEqual
+  [  8]  0x000413EC  _CFGetTypeID
+  [  9]  0x000413F8  _CFNumberCreate
+  [ 10]  0x00041404  _CFNumberGetTypeID
+  [ 11]  0x00041410  _CFNumberGetValue
+  [ 12]  0x0004141C  _CFPropertyListCreateData
+  [ 13]  0x00041428  _CFPropertyListCreateWithData
+  [ 14]  0x00041434  _CFPropertyListCreateWithStream
+  [ 15]  0x00041440  _CFReadStreamClose
+  [ 16]  0x0004144C  _CFReadStreamCreateWithBytesNoCopy
+  [ 17]  0x00041458  _CFReadStreamOpen
+  [ 18]  0x00041464  _CFRelease
+  [ 19]  0x00041470  _CFRunLoopAddSource
+  [ 20]  0x0004147C  _CFRunLoopGetCurrent
+  [ 21]  0x00041488  _CFRunLoopRemoveSource
+  [ 22]  0x00041494  _CFRunLoopRunInMode
+  [ 23]  0x000414A0  _CFStringCreateWithCString
+  [ 24]  0x000414AC  _CFStringGetCString
+  [ 25]  0x000414B8  _CFStringGetSystemEncoding
+  [ 26]  0x000414C4  _CFStringGetTypeID
+  [ 27]  0x000414D0  _CFStringHasPrefix
+  [ 28]  0x000414DC  _IOCFSerialize
+  [ 29]  0x000414E8  _IOConnectCallMethod
+  [ 30]  0x000414F4  _IOConnectCallScalarMethod
+  [ 31]  0x00041500  _IOConnectCallStructMethod
+  [ 32]  0x0004150C  _IOConnectTrap4
+  [ 33]  0x00041518  _IOConnectTrap6
+  [ 34]  0x00041524  _IOIteratorNext
+  [ 35]  0x00041530  _IONotificationPortCreate
+  [ 36]  0x0004153C  _IONotificationPortDestroy
+  [ 37]  0x00041548  _IONotificationPortGetRunLoopSource
+  [ 38]  0x00041554  _IOObjectRelease
+  [ 39]  0x00041560  _IORegistryEntryCreateCFProperties
+  [ 40]  0x0004156C  _IORegistryEntryCreateCFProperty
+  [ 41]  0x00041578  _IORegistryEntryFromPath
+  [ 42]  0x00041584  _IORegistryEntryGetChildIterator
+  [ 43]  0x00041590  _IORegistryEntrySearchCFProperty
+  [ 44]  0x0004159C  _IOServiceAddMatchingNotification
+  [ 45]  0x000415A8  _IOServiceClose
+  [ 46]  0x000415B4  _IOServiceGetMatchingService
+  [ 47]  0x000415C0  _IOServiceMatching
+  [ 48]  0x000415CC  _IOServiceOpen
+  [ 49]  0x000415D8  _IOServiceWaitQuiet
+  [ 50]  0x000415E4  _NDR_record
+  [ 51]  0x000415F0  _SANDBOX_CHECK_NO_REPORT
+  [ 52]  0x000415FC  __CFProcessPath
+  [ 53]  0x00041608  __IOServiceSetAuthorizationID
+  [ 54]  0x00041614  __NSConcreteStackBlock
+  [ 55]  0x00041620  ____kernelVersionString
+  [ 56]  0x0004162C  ___chkstk_darwin
+  [ 57]  0x00041638  ___error
+  [ 58]  0x00041644  ___memcpy_chk
+  [ 59]  0x00041650  ___memset_chk
+  [ 60]  0x0004165C  ___semwait_signal
+  [ 61]  0x00041668  ___stack_chk_fail
+  [ 62]  0x00041674  ___stack_chk_guard
+  [ 63]  0x00041680  ___strlcpy_chk
+  [ 64]  0x0004168C  ___ulock_wait
+  [ 65]  0x00041698  ___ulock_wake
+  [ 66]  0x000416A4  __get_cpu_capabilities
+  [ 67]  0x000416B0  __os_alloc_once
+  [ 68]  0x000416BC  __os_alloc_once_table
+  [ 69]  0x000416C8  _arc4random_buf
+  [ 70]  0x000416D4  _bootstrap_port
+  [ 71]  0x000416E0  _bzero
+  [ 72]  0x000416EC  _calloc
+  [ 73]  0x000416F8  _chown
+  [ 74]  0x00041704  _close
+  [ 75]  0x00041710  _connect
+  [ 76]  0x0004171C  _dlclose
+  [ 77]  0x00041728  _dlopen
+  [ 78]  0x00041734  _dlsym
+  [ 79]  0x00041740  _dyldVersionNumber
+  [ 80]  0x0004174C  _fcntl
+  [ 81]  0x00041758  _ffsctl
+  [ 82]  0x00041764  _fileport_makefd
+  [ 83]  0x00041770  _fileport_makeport
+  [ 84]  0x0004177C  _free
+  [ 85]  0x00041788  _fstat
+  [ 86]  0x00041794  _getattrlist
+  [ 87]  0x000417A0  _getmntinfo
+  [ 88]  0x000417AC  _getpid
+  [ 89]  0x000417B8  _getppid
+  [ 90]  0x000417C4  _getuid
+  [ 91]  0x000417D0  _host_create_mach_voucher
+  [ 92]  0x000417DC  _host_get_io_master
+  [ 93]  0x000417E8  _host_get_special_port
+  [ 94]  0x000417F4  _host_kernel_version
+  [ 95]  0x00041800  _host_page_size
+  [ 96]  0x0004180C  _host_processors
+  [ 97]  0x00041818  _host_security_set_task_token
+  [ 98]  0x00041824  _ioctl
+  [ 99]  0x00041830  _kCFAllocatorDefault
+  [100]  0x0004183C  _kCFAllocatorNull
+  [101]  0x00041848  _kCFBooleanFalse
+  [102]  0x00041854  _kCFRunLoopDefaultMode
+  [103]  0x00041860  _kCFTypeDictionaryKeyCallBacks
+  [104]  0x0004186C  _kCFTypeDictionaryValueCallBacks
+  [105]  0x00041878  _kIOMasterPortDefault
+  [106]  0x00041884  _lstat
+  [107]  0x00041890  _mach_absolute_time
+  [108]  0x0004189C  _mach_host_self
+  [109]  0x000418A8  _mach_make_memory_entry
+  [110]  0x000418B4  _mach_make_memory_entry_64
+  [111]  0x000418C0  _mach_msg
+  [112]  0x000418CC  _mach_msg_destroy
+  [113]  0x000418D8  _mach_msg_send
+  [114]  0x000418E4  _mach_port_allocate
+  [115]  0x000418F0  _mach_port_deallocate
+  [116]  0x000418FC  _mach_port_destroy
+  [117]  0x00041908  _mach_port_get_attributes
+  [118]  0x00041914  _mach_port_insert_right
+  [119]  0x00041920  _mach_port_mod_refs
+  [120]  0x0004192C  _mach_port_request_notification
+  [121]  0x00041938  _mach_port_set_attributes
+  [122]  0x00041944  _mach_port_space_info
+  [123]  0x00041950  _mach_ports_register
+  [124]  0x0004195C  _mach_reply_port
+  [125]  0x00041968  _mach_task_self_
+  [126]  0x00041974  _mach_thread_self
+  [127]  0x00041980  _mach_timebase_info
+  [128]  0x0004198C  _mach_vm_allocate
+  [129]  0x00041998  _mach_vm_deallocate
+  [130]  0x000419A4  _mach_vm_machine_attribute
+  [131]  0x000419B0  _mach_vm_page_info
+  [132]  0x000419BC  _mach_vm_read_overwrite
+  [133]  0x000419C8  _mach_vm_wire
+  [134]  0x000419D4  _mach_vm_write
+  [135]  0x000419E0  _madvise
+  [136]  0x000419EC  _malloc
+  [137]  0x000419F8  _memcmp
+  [138]  0x00041A04  _memcpy
+  [139]  0x00041A10  _mig_dealloc_reply_port
+  [140]  0x00041A1C  _mig_get_reply_port
+  [141]  0x00041A28  _mkdir
+  [142]  0x00041A34  _mktemp
+  [143]  0x00041A40  _mmap
+  [144]  0x00041A4C  _mount
+  [145]  0x00041A58  _necp_client_action
+  [146]  0x00041A64  _necp_open
+  [147]  0x00041A70  _open
+  [148]  0x00041A7C  _open_dprotected_np
+  [149]  0x00041A88  _pid_for_task
+  [150]  0x00041A94  _pipe
+  [151]  0x00041AA0  _posix_spawn
+  [152]  0x00041AAC  _posix_spawn_file_actions_addopen
+  [153]  0x00041AB8  _posix_spawn_file_actions_destroy
+  [154]  0x00041AC4  _posix_spawn_file_actions_init
+  [155]  0x00041AD0  _posix_spawnattr_destroy
+  [156]  0x00041ADC  _posix_spawnattr_init
+  [157]  0x00041AE8  _posix_spawnattr_setflags
+  [158]  0x00041AF4  _posix_spawnattr_setpgroup
+  [159]  0x00041B00  _posix_spawnattr_setsigdefault
+  [160]  0x00041B0C  _pread
+  [161]  0x00041B18  _proc_pidinfo
+  [162]  0x00041B24  _processor_set_default
+  [163]  0x00041B30  _processor_set_info
+  [164]  0x00041B3C  _pthread_attr_destroy
+  [165]  0x00041B48  _pthread_attr_init
+  [166]  0x00041B54  _pthread_attr_setdetachstate
+  [167]  0x00041B60  _pthread_create
+  [168]  0x00041B6C  _pthread_create_suspended_np
+  [169]  0x00041B78  _pthread_from_mach_thread_np
+  [170]  0x00041B84  _pthread_join
+  [171]  0x00041B90  _pthread_mach_thread_np
+  [172]  0x00041B9C  _pthread_mutex_destroy
+  [173]  0x00041BA8  _pthread_mutex_init
+  [174]  0x00041BB4  _pthread_mutex_lock
+  [175]  0x00041BC0  _pthread_mutex_unlock
+  [176]  0x00041BCC  _pthread_self
+  [177]  0x00041BD8  _qsort
+  [178]  0x00041BE4  _read
+  [179]  0x00041BF0  _realloc
+  [180]  0x00041BFC  _rmdir
+  [181]  0x00041C08  _sandbox_check
+  [182]  0x00041C14  _sched_yield
+  [183]  0x00041C20  _semaphore_create
+  [184]  0x00041C2C  _semaphore_destroy
+  [185]  0x00041C38  _semaphore_signal
+  [186]  0x00041C44  _semaphore_timedwait
+  [187]  0x00041C50  _semaphore_wait
+  [188]  0x00041C5C  _seteuid
+  [189]  0x00041C68  _setsockopt
+  [190]  0x00041C74  _snprintf
+  [191]  0x00041C80  _socket
+  [192]  0x00041C8C  _sscanf
+  [193]  0x00041C98  _stat
+  [194]  0x00041CA4  _statfs
+  [195]  0x00041CB0  _strchr
+  [196]  0x00041CBC  _strcmp
+  [197]  0x00041CC8  _strcpy
+  [198]  0x00041CD4  _strdup
+  [199]  0x00041CE0  _strlcpy
+  [200]  0x00041CEC  _strlen
+  [201]  0x00041CF8  _strncmp
+  [202]  0x00041D04  _strsep
+  [203]  0x00041D10  _strstr
+  [204]  0x00041D1C  _strtol
+  [205]  0x00041D28  _syscall
+  [206]  0x00041D34  _sysctl
+  [207]  0x00041D40  _sysctlbyname
+  [208]  0x00041D4C  _task_get_special_port
+  [209]  0x00041D58  _task_info
+  [210]  0x00041D64  _task_map_corpse_info_64
+  [211]  0x00041D70  _task_resume2
+  [212]  0x00041D7C  _task_set_special_port
+  [213]  0x00041D88  _task_suspend2
+  [214]  0x00041D94  _task_threads
+  [215]  0x00041DA0  _thread_create
+  [216]  0x00041DAC  _thread_get_state
+  [217]  0x00041DB8  _thread_policy_set
+  [218]  0x00041DC4  _thread_resume
+  [219]  0x00041DD0  _thread_set_exception_ports
+  [220]  0x00041DDC  _thread_set_state
+  [221]  0x00041DE8  _thread_suspend
+  [222]  0x00041DF4  _thread_switch
+  [223]  0x00041E00  _thread_terminate
+  [224]  0x00041E0C  _uname
+  [225]  0x00041E18  _unlink
+  [226]  0x00041E24  _unmount
+  [227]  0x00041E30  _usleep
+  [228]  0x00041E3C  _uuid_is_null
+  [229]  0x00041E48  _vm_allocate
+  [230]  0x00041E54  _vm_copy
+  [231]  0x00041E60  _vm_deallocate
+  [232]  0x00041E6C  _vm_map
+  [233]  0x00041E78  _vm_page_mask
+  [234]  0x00041E84  _vm_page_shift
+  [235]  0x00041E90  _vm_page_size
+  [236]  0x00041E9C  _vm_protect
+  [237]  0x00041EA8  _vm_read_overwrite
+  [238]  0x00041EB4  _vm_region_64
+  [239]  0x00041EC0  _vm_region_recurse_64
+  [240]  0x00041ECC  _vm_remap
+  [241]  0x00041ED8  _vm_write
+  [242]  0x00041EE4  _waitpid
+  [243]  0x00041EF0  _write

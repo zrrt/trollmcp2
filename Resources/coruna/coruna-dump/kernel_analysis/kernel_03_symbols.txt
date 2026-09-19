@@ -1,0 +1,306 @@
+================================================================================
+CORUNA KERNEL EXPLOIT — SYMBOL TABLE
+================================================================================
+
+LINKEDIT vmaddr=0x4C000 fileoff=0x48000 slide=0x4000
+LC_SYMTAB: symoff=0x49AF0 nsyms=267 stroff=0x4B390 strsize=0x1248
+LC_DYSYMTAB: indirectsymoff=0x4ABA0 nindirectsyms=508
+Adjusted symoff=0x4DAF0 stroff=0x4F390 indoff=0x4EBA0
+
+DEFINED SYMBOLS (exports)
+------------------------------------------------------------
+  0x00007514  sect= 1  _driver [EXTERNAL]
+
+UNDEFINED/IMPORTED SYMBOLS (265 total)
+============================================================
+
+--- IOKit/Kernel (30) ---
+  _IOCFSerialize
+  _IOConnectCallMethod
+  _IOConnectCallScalarMethod
+  _IOConnectCallStructMethod
+  _IOConnectTrap4
+  _IOConnectTrap6
+  _IOIteratorNext
+  _IONotificationPortCreate
+  _IONotificationPortDestroy
+  _IONotificationPortGetRunLoopSource
+  _IOObjectRelease
+  _IORegistryEntryCreateCFProperties
+  _IORegistryEntryCreateCFProperty
+  _IORegistryEntryFromPath
+  _IORegistryEntryGetChildIterator
+  _IORegistryEntrySearchCFProperty
+  _IOServiceAddMatchingNotification
+  _IOServiceClose
+  _IOServiceGetMatchingService
+  _IOServiceMatching
+  _IOServiceOpen
+  _IOServiceWaitQuiet
+  __IOServiceSetAuthorizationID
+  _kCFAllocatorDefault
+  _kCFAllocatorNull
+  _kCFBooleanFalse
+  _kCFRunLoopDefaultMode
+  _kCFTypeDictionaryKeyCallBacks
+  _kCFTypeDictionaryValueCallBacks
+  _kIOMasterPortDefault
+
+--- Mach/VM (82) ---
+  _bootstrap_port
+  _fileport_makefd
+  _fileport_makeport
+  _host_create_mach_voucher
+  _host_get_io_master
+  _host_get_special_port
+  _host_kernel_version
+  _host_page_size
+  _host_processors
+  _host_security_set_task_token
+  _mach_absolute_time
+  _mach_host_self
+  _mach_make_memory_entry
+  _mach_make_memory_entry_64
+  _mach_msg
+  _mach_msg_destroy
+  _mach_msg_send
+  _mach_port_allocate
+  _mach_port_deallocate
+  _mach_port_destroy
+  _mach_port_get_attributes
+  _mach_port_insert_right
+  _mach_port_mod_refs
+  _mach_port_request_notification
+  _mach_port_set_attributes
+  _mach_port_space_info
+  _mach_ports_register
+  _mach_reply_port
+  _mach_task_self_
+  _mach_thread_self
+  _mach_timebase_info
+  _mach_vm_allocate
+  _mach_vm_deallocate
+  _mach_vm_machine_attribute
+  _mach_vm_page_info
+  _mach_vm_read_overwrite
+  _mach_vm_wire
+  _mach_vm_write
+  _mig_dealloc_reply_port
+  _mig_get_reply_port
+  _pthread_attr_destroy
+  _pthread_attr_init
+  _pthread_attr_setdetachstate
+  _pthread_create
+  _pthread_create_suspended_np
+  _pthread_from_mach_thread_np
+  _pthread_join
+  _pthread_mach_thread_np
+  _pthread_mutex_destroy
+  _pthread_mutex_init
+  _pthread_mutex_lock
+  _pthread_mutex_unlock
+  _pthread_self
+  _task_get_special_port
+  _task_info
+  _task_map_corpse_info_64
+  _task_resume2
+  _task_set_special_port
+  _task_suspend2
+  _task_threads
+  _thread_create
+  _thread_get_state
+  _thread_policy_set
+  _thread_resume
+  _thread_set_exception_ports
+  _thread_set_state
+  _thread_suspend
+  _thread_switch
+  _thread_terminate
+  _vm_allocate
+  _vm_copy
+  _vm_deallocate
+  _vm_map
+  _vm_page_mask
+  _vm_page_shift
+  _vm_page_size
+  _vm_protect
+  _vm_read_overwrite
+  _vm_region_64
+  _vm_region_recurse_64
+  _vm_remap
+  _vm_write
+
+--- CoreFoundation (41) ---
+  _CFArrayAppendValue
+  _CFArrayApplyFunction
+  _CFArrayContainsValue
+  _CFArrayGetCount
+  _CFArrayGetTypeID
+  _CFBooleanGetTypeID
+  _CFDataCreate
+  _CFDataCreateWithBytesNoCopy
+  _CFDataGetBytePtr
+  _CFDataGetLength
+  _CFDataGetTypeID
+  _CFDictionaryAddValue
+  _CFDictionaryApplyFunction
+  _CFDictionaryCreateMutable
+  _CFDictionaryCreateMutableCopy
+  _CFDictionaryGetTypeID
+  _CFDictionaryGetValueIfPresent
+  _CFDictionarySetValue
+  _CFEqual
+  _CFGetTypeID
+  _CFNumberCreate
+  _CFNumberGetTypeID
+  _CFNumberGetValue
+  _CFPropertyListCreateData
+  _CFPropertyListCreateWithData
+  _CFPropertyListCreateWithStream
+  _CFReadStreamClose
+  _CFReadStreamCreateWithBytesNoCopy
+  _CFReadStreamOpen
+  _CFRelease
+  _CFRunLoopAddSource
+  _CFRunLoopGetCurrent
+  _CFRunLoopRemoveSource
+  _CFRunLoopRunInMode
+  _CFStringCreateWithCString
+  _CFStringGetCString
+  _CFStringGetSystemEncoding
+  _CFStringGetTypeID
+  _CFStringHasPrefix
+  __CFProcessPath
+  ___CFConstantStringClassReference
+
+--- Memory (5) ---
+  _calloc
+  _free
+  _malloc
+  _mmap
+  _realloc
+
+--- Process/Thread (12) ---
+  _getpid
+  _getppid
+  _getuid
+  _posix_spawn
+  _posix_spawn_file_actions_destroy
+  _posix_spawn_file_actions_init
+  _posix_spawnattr_destroy
+  _posix_spawnattr_init
+  _posix_spawnattr_setflags
+  _posix_spawnattr_setpgroup
+  _posix_spawnattr_setsigdefault
+  _seteuid
+
+--- FileSystem (30) ---
+  ___semwait_signal
+  ___ulock_wait
+  _chown
+  _close
+  _dlclose
+  _dlopen
+  _fcntl
+  _fstat
+  _ioctl
+  _lstat
+  _mkdir
+  _mount
+  _necp_open
+  _open
+  _open_dprotected_np
+  _pipe
+  _posix_spawn_file_actions_addopen
+  _pread
+  _read
+  _rmdir
+  _semaphore_signal
+  _semaphore_timedwait
+  _semaphore_wait
+  _stat
+  _statfs
+  _strdup
+  _unlink
+  _unmount
+  _waitpid
+  _write
+
+--- Networking (3) ---
+  _connect
+  _setsockopt
+  _socket
+
+--- Security/Crypto (10) ---
+  _CC_SHA1_Final
+  _CC_SHA1_Init
+  _CC_SHA1_Update
+  _CC_SHA256_Final
+  _CC_SHA256_Init
+  _CC_SHA256_Update
+  _CC_SHA384_Final
+  _CC_SHA384_Init
+  _CC_SHA384_Update
+  _arc4random_buf
+
+--- String/Data (18) ---
+  ___memcpy_chk
+  ___memset_chk
+  ___strlcpy_chk
+  _bzero
+  _memcmp
+  _memcpy
+  _semaphore_destroy
+  _snprintf
+  _sscanf
+  _strchr
+  _strcmp
+  _strcpy
+  _strlcpy
+  _strlen
+  _strncmp
+  _strsep
+  _strstr
+  _strtol
+
+--- libSystem/libc (4) ---
+  _dlsym
+  _sysctl
+  _sysctlbyname
+  _usleep
+
+--- Other (30) ---
+  _NDR_record
+  _SANDBOX_CHECK_NO_REPORT
+  __NSConcreteStackBlock
+  ____kernelVersionString
+  ___chkstk_darwin
+  ___error
+  ___stack_chk_fail
+  ___stack_chk_guard
+  ___ulock_wake
+  __get_cpu_capabilities
+  __os_alloc_once
+  __os_alloc_once_table
+  _dyldVersionNumber
+  _ffsctl
+  _getattrlist
+  _getmntinfo
+  _madvise
+  _mktemp
+  _necp_client_action
+  _pid_for_task
+  _proc_pidinfo
+  _processor_set_default
+  _processor_set_info
+  _qsort
+  _sandbox_check
+  _sched_yield
+  _semaphore_create
+  _syscall
+  _uname
+  _uuid_is_null
+
+OTHER SYMBOL TYPES (1)
+------------------------------------------------------------
+  0x05614542 type=0x3C sect=0 radr://5614542

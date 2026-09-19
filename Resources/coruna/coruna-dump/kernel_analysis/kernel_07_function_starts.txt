@@ -1,0 +1,687 @@
+================================================================================
+CORUNA KERNEL EXPLOIT — FUNCTION STARTS
+================================================================================
+
+LC_FUNCTION_STARTS: dataoff=0x496B8 adjusted=0x4D6B8 size=1080
+__text section starts at: 0x7514
+
+Total functions: 649
+
+     #       Address  Size (est)
+  ----  ------------  ----------
+  [  0]  0x00007514     29972 bytes
+  [  1]  0x0000EA28       164 bytes
+  [  2]  0x0000EACC        56 bytes
+  [  3]  0x0000EB04        80 bytes
+  [  4]  0x0000EB54        60 bytes
+  [  5]  0x0000EB90        28 bytes
+  [  6]  0x0000EBAC        28 bytes
+  [  7]  0x0000EBC8        68 bytes
+  [  8]  0x0000EC0C       308 bytes
+  [  9]  0x0000ED40       348 bytes
+  [ 10]  0x0000EE9C        96 bytes
+  [ 11]  0x0000EEFC        92 bytes
+  [ 12]  0x0000EF58       108 bytes
+  [ 13]  0x0000EFC4        24 bytes
+  [ 14]  0x0000EFDC        24 bytes
+  [ 15]  0x0000EFF4       120 bytes
+  [ 16]  0x0000F06C       308 bytes
+  [ 17]  0x0000F1A0       496 bytes
+  [ 18]  0x0000F390        80 bytes
+  [ 19]  0x0000F3E0       176 bytes
+  [ 20]  0x0000F490       168 bytes
+  [ 21]  0x0000F538       352 bytes
+  [ 22]  0x0000F698       512 bytes
+  [ 23]  0x0000F898       108 bytes
+  [ 24]  0x0000F904       132 bytes
+  [ 25]  0x0000F988       156 bytes
+  [ 26]  0x0000FA24       312 bytes
+  [ 27]  0x0000FB5C       128 bytes
+  [ 28]  0x0000FBDC       128 bytes
+  [ 29]  0x0000FC5C       172 bytes
+  [ 30]  0x0000FD08       212 bytes
+  [ 31]  0x0000FDDC       128 bytes
+  [ 32]  0x0000FE5C       152 bytes
+  [ 33]  0x0000FEF4       472 bytes
+  [ 34]  0x000100CC       124 bytes
+  [ 35]  0x00010148       224 bytes
+  [ 36]  0x00010228      1548 bytes
+  [ 37]  0x00010834        96 bytes
+  [ 38]  0x00010894       120 bytes
+  [ 39]  0x0001090C        68 bytes
+  [ 40]  0x00010950        72 bytes
+  [ 41]  0x00010998       204 bytes
+  [ 42]  0x00010A64       336 bytes
+  [ 43]  0x00010BB4       216 bytes
+  [ 44]  0x00010C8C       328 bytes
+  [ 45]  0x00010DD4        48 bytes
+  [ 46]  0x00010E04       300 bytes
+  [ 47]  0x00010F30       232 bytes
+  [ 48]  0x00011018       288 bytes
+  [ 49]  0x00011138        52 bytes
+  [ 50]  0x0001116C      1664 bytes
+  [ 51]  0x000117EC       296 bytes
+  [ 52]  0x00011914       236 bytes
+  [ 53]  0x00011A00       308 bytes
+  [ 54]  0x00011B34       140 bytes
+  [ 55]  0x00011BC0       120 bytes
+  [ 56]  0x00011C38       336 bytes
+  [ 57]  0x00011D88        92 bytes
+  [ 58]  0x00011DE4       156 bytes
+  [ 59]  0x00011E80       212 bytes
+  [ 60]  0x00011F54       332 bytes
+  [ 61]  0x000120A0       456 bytes
+  [ 62]  0x00012268       536 bytes
+  [ 63]  0x00012480      1132 bytes
+  [ 64]  0x000128EC       144 bytes
+  [ 65]  0x0001297C       156 bytes
+  [ 66]  0x00012A18       688 bytes
+  [ 67]  0x00012CC8       152 bytes
+  [ 68]  0x00012D60       152 bytes
+  [ 69]  0x00012DF8       192 bytes
+  [ 70]  0x00012EB8       192 bytes
+  [ 71]  0x00012F78       496 bytes
+  [ 72]  0x00013168       112 bytes
+  [ 73]  0x000131D8       112 bytes
+  [ 74]  0x00013248       132 bytes
+  [ 75]  0x000132CC        44 bytes
+  [ 76]  0x000132F8       108 bytes
+  [ 77]  0x00013364       528 bytes
+  [ 78]  0x00013574       516 bytes
+  [ 79]  0x00013778      1540 bytes
+  [ 80]  0x00013D7C       708 bytes
+  [ 81]  0x00014040        28 bytes
+  [ 82]  0x0001405C        16 bytes
+  [ 83]  0x0001406C       972 bytes
+  [ 84]  0x00014438       180 bytes
+  [ 85]  0x000144EC       200 bytes
+  [ 86]  0x000145B4       104 bytes
+  [ 87]  0x0001461C       252 bytes
+  [ 88]  0x00014718       172 bytes
+  [ 89]  0x000147C4      3264 bytes
+  [ 90]  0x00015484       724 bytes
+  [ 91]  0x00015758        12 bytes
+  [ 92]  0x00015764        48 bytes
+  [ 93]  0x00015794     10656 bytes
+  [ 94]  0x00018134       640 bytes
+  [ 95]  0x000183B4       560 bytes
+  [ 96]  0x000185E4       276 bytes
+  [ 97]  0x000186F8       220 bytes
+  [ 98]  0x000187D4       300 bytes
+  [ 99]  0x00018900       364 bytes
+  [100]  0x00018A6C       100 bytes
+  [101]  0x00018AD0       516 bytes
+  [102]  0x00018CD4       284 bytes
+  [103]  0x00018DF0       204 bytes
+  [104]  0x00018EBC        36 bytes
+  [105]  0x00018EE0        48 bytes
+  [106]  0x00018F10        52 bytes
+  [107]  0x00018F44        56 bytes
+  [108]  0x00018F7C        48 bytes
+  [109]  0x00018FAC        36 bytes
+  [110]  0x00018FD0       488 bytes
+  [111]  0x000191B8       216 bytes
+  [112]  0x00019290       252 bytes
+  [113]  0x0001938C       132 bytes
+  [114]  0x00019410       324 bytes
+  [115]  0x00019554       176 bytes
+  [116]  0x00019604       196 bytes
+  [117]  0x000196C8        16 bytes
+  [118]  0x000196D8       208 bytes
+  [119]  0x000197A8       156 bytes
+  [120]  0x00019844       172 bytes
+  [121]  0x000198F0         8 bytes
+  [122]  0x000198F8      4684 bytes
+  [123]  0x0001AB44       144 bytes
+  [124]  0x0001ABD4       216 bytes
+  [125]  0x0001ACAC        88 bytes
+  [126]  0x0001AD04       400 bytes
+  [127]  0x0001AE94       152 bytes
+  [128]  0x0001AF2C       488 bytes
+  [129]  0x0001B114       152 bytes
+  [130]  0x0001B1AC       268 bytes
+  [131]  0x0001B2B8       132 bytes
+  [132]  0x0001B33C        60 bytes
+  [133]  0x0001B378       108 bytes
+  [134]  0x0001B3E4       368 bytes
+  [135]  0x0001B554        36 bytes
+  [136]  0x0001B578       588 bytes
+  [137]  0x0001B7C4       564 bytes
+  [138]  0x0001B9F8       528 bytes
+  [139]  0x0001BC08       240 bytes
+  [140]  0x0001BCF8       204 bytes
+  [141]  0x0001BDC4       444 bytes
+  [142]  0x0001BF80       300 bytes
+  [143]  0x0001C0AC        96 bytes
+  [144]  0x0001C10C       272 bytes
+  [145]  0x0001C21C       152 bytes
+  [146]  0x0001C2B4       128 bytes
+  [147]  0x0001C334       312 bytes
+  [148]  0x0001C46C       360 bytes
+  [149]  0x0001C5D4       136 bytes
+  [150]  0x0001C65C       260 bytes
+  [151]  0x0001C760       328 bytes
+  [152]  0x0001C8A8       220 bytes
+  [153]  0x0001C984       892 bytes
+  [154]  0x0001CD00       120 bytes
+  [155]  0x0001CD78       712 bytes
+  [156]  0x0001D040       180 bytes
+  [157]  0x0001D0F4       240 bytes
+  [158]  0x0001D1E4       296 bytes
+  [159]  0x0001D30C       148 bytes
+  [160]  0x0001D3A0        60 bytes
+  [161]  0x0001D3DC       156 bytes
+  [162]  0x0001D478      1136 bytes
+  [163]  0x0001D8E8       204 bytes
+  [164]  0x0001D9B4       732 bytes
+  [165]  0x0001DC90      1048 bytes
+  [166]  0x0001E0A8        32 bytes
+  [167]  0x0001E0C8        64 bytes
+  [168]  0x0001E108       420 bytes
+  [169]  0x0001E2AC     11340 bytes
+  [170]  0x00020EF8       592 bytes
+  [171]  0x00021148       136 bytes
+  [172]  0x000211D0       176 bytes
+  [173]  0x00021280       292 bytes
+  [174]  0x000213A4       112 bytes
+  [175]  0x00021414       228 bytes
+  [176]  0x000214F8       552 bytes
+  [177]  0x00021720       108 bytes
+  [178]  0x0002178C       868 bytes
+  [179]  0x00021AF0         4 bytes
+  [180]  0x00021AF4        32 bytes
+  [181]  0x00021B14        92 bytes
+  [182]  0x00021B70       164 bytes
+  [183]  0x00021C14         8 bytes
+  [184]  0x00021C1C       164 bytes
+  [185]  0x00021CC0       452 bytes
+  [186]  0x00021E84         8 bytes
+  [187]  0x00021E8C        96 bytes
+  [188]  0x00021EEC        96 bytes
+  [189]  0x00021F4C         4 bytes
+  [190]  0x00021F50       152 bytes
+  [191]  0x00021FE8       216 bytes
+  [192]  0x000220C0        16 bytes
+  [193]  0x000220D0       176 bytes
+  [194]  0x00022180        48 bytes
+  [195]  0x000221B0        80 bytes
+  [196]  0x00022200       208 bytes
+  [197]  0x000222D0       420 bytes
+  [198]  0x00022474        28 bytes
+  [199]  0x00022490      1028 bytes
+  [200]  0x00022894        32 bytes
+  [201]  0x000228B4       104 bytes
+  [202]  0x0002291C      1280 bytes
+  [203]  0x00022E1C        72 bytes
+  [204]  0x00022E64      1528 bytes
+  [205]  0x0002345C       276 bytes
+  [206]  0x00023570       188 bytes
+  [207]  0x0002362C       192 bytes
+  [208]  0x000236EC      1904 bytes
+  [209]  0x00023E5C         8 bytes
+  [210]  0x00023E64         8 bytes
+  [211]  0x00023E6C        16 bytes
+  [212]  0x00023E7C       168 bytes
+  [213]  0x00023F24        88 bytes
+  [214]  0x00023F7C       104 bytes
+  [215]  0x00023FE4        32 bytes
+  [216]  0x00024004       344 bytes
+  [217]  0x0002415C       236 bytes
+  [218]  0x00024248       108 bytes
+  [219]  0x000242B4       800 bytes
+  [220]  0x000245D4       816 bytes
+  [221]  0x00024904       396 bytes
+  [222]  0x00024A90       392 bytes
+  [223]  0x00024C18       756 bytes
+  [224]  0x00024F0C       396 bytes
+  [225]  0x00025098        84 bytes
+  [226]  0x000250EC       656 bytes
+  [227]  0x0002537C       748 bytes
+  [228]  0x00025668       616 bytes
+  [229]  0x000258D0       608 bytes
+  [230]  0x00025B30       820 bytes
+  [231]  0x00025E64       404 bytes
+  [232]  0x00025FF8       644 bytes
+  [233]  0x0002627C       236 bytes
+  [234]  0x00026368       256 bytes
+  [235]  0x00026468       260 bytes
+  [236]  0x0002656C       148 bytes
+  [237]  0x00026600       312 bytes
+  [238]  0x00026738       136 bytes
+  [239]  0x000267C0        12 bytes
+  [240]  0x000267CC       248 bytes
+  [241]  0x000268C4       212 bytes
+  [242]  0x00026998        80 bytes
+  [243]  0x000269E8         8 bytes
+  [244]  0x000269F0       316 bytes
+  [245]  0x00026B2C       208 bytes
+  [246]  0x00026BFC       184 bytes
+  [247]  0x00026CB4       544 bytes
+  [248]  0x00026ED4       280 bytes
+  [249]  0x00026FEC       524 bytes
+  [250]  0x000271F8        88 bytes
+  [251]  0x00027250        24 bytes
+  [252]  0x00027268        28 bytes
+  [253]  0x00027284        48 bytes
+  [254]  0x000272B4        68 bytes
+  [255]  0x000272F8        56 bytes
+  [256]  0x00027330       116 bytes
+  [257]  0x000273A4        48 bytes
+  [258]  0x000273D4       144 bytes
+  [259]  0x00027464       268 bytes
+  [260]  0x00027570       136 bytes
+  [261]  0x000275F8        56 bytes
+  [262]  0x00027630       108 bytes
+  [263]  0x0002769C       156 bytes
+  [264]  0x00027738        56 bytes
+  [265]  0x00027770       212 bytes
+  [266]  0x00027844        88 bytes
+  [267]  0x0002789C        88 bytes
+  [268]  0x000278F4        88 bytes
+  [269]  0x0002794C       104 bytes
+  [270]  0x000279B4       104 bytes
+  [271]  0x00027A1C        88 bytes
+  [272]  0x00027A74       192 bytes
+  [273]  0x00027B34        72 bytes
+  [274]  0x00027B7C        84 bytes
+  [275]  0x00027BD0       436 bytes
+  [276]  0x00027D84       240 bytes
+  [277]  0x00027E74       156 bytes
+  [278]  0x00027F10      1356 bytes
+  [279]  0x0002845C       180 bytes
+  [280]  0x00028510        36 bytes
+  [281]  0x00028534       144 bytes
+  [282]  0x000285C4       260 bytes
+  [283]  0x000286C8       336 bytes
+  [284]  0x00028818       428 bytes
+  [285]  0x000289C4       224 bytes
+  [286]  0x00028AA4       488 bytes
+  [287]  0x00028C8C        96 bytes
+  [288]  0x00028CEC       172 bytes
+  [289]  0x00028D98       104 bytes
+  [290]  0x00028E00       716 bytes
+  [291]  0x000290CC       400 bytes
+  [292]  0x0002925C        12 bytes
+  [293]  0x00029268       256 bytes
+  [294]  0x00029368       128 bytes
+  [295]  0x000293E8        56 bytes
+  [296]  0x00029420      1124 bytes
+  [297]  0x00029884         8 bytes
+  [298]  0x0002988C        96 bytes
+  [299]  0x000298EC        96 bytes
+  [300]  0x0002994C        76 bytes
+  [301]  0x00029998      2016 bytes
+  [302]  0x0002A178       152 bytes
+  [303]  0x0002A210       260 bytes
+  [304]  0x0002A314       176 bytes
+  [305]  0x0002A3C4       188 bytes
+  [306]  0x0002A480        12 bytes
+  [307]  0x0002A48C        60 bytes
+  [308]  0x0002A4C8         8 bytes
+  [309]  0x0002A4D0         8 bytes
+  [310]  0x0002A4D8       532 bytes
+  [311]  0x0002A6EC        64 bytes
+  [312]  0x0002A72C       348 bytes
+  [313]  0x0002A888       104 bytes
+  [314]  0x0002A8F0       500 bytes
+  [315]  0x0002AAE4       456 bytes
+  [316]  0x0002ACAC       188 bytes
+  [317]  0x0002AD68         4 bytes
+  [318]  0x0002AD6C      1496 bytes
+  [319]  0x0002B344       216 bytes
+  [320]  0x0002B41C       636 bytes
+  [321]  0x0002B698        88 bytes
+  [322]  0x0002B6F0        92 bytes
+  [323]  0x0002B74C       248 bytes
+  [324]  0x0002B844       224 bytes
+  [325]  0x0002B924       148 bytes
+  [326]  0x0002B9B8       852 bytes
+  [327]  0x0002BD0C       580 bytes
+  [328]  0x0002BF50       336 bytes
+  [329]  0x0002C0A0       236 bytes
+  [330]  0x0002C18C        72 bytes
+  [331]  0x0002C1D4       348 bytes
+  [332]  0x0002C330       348 bytes
+  [333]  0x0002C48C       240 bytes
+  [334]  0x0002C57C        96 bytes
+  [335]  0x0002C5DC       640 bytes
+  [336]  0x0002C85C        60 bytes
+  [337]  0x0002C898        36 bytes
+  [338]  0x0002C8BC        68 bytes
+  [339]  0x0002C900        96 bytes
+  [340]  0x0002C960       168 bytes
+  [341]  0x0002CA08       104 bytes
+  [342]  0x0002CA70       100 bytes
+  [343]  0x0002CAD4       132 bytes
+  [344]  0x0002CB58       416 bytes
+  [345]  0x0002CCF8        48 bytes
+  [346]  0x0002CD28       532 bytes
+  [347]  0x0002CF3C       164 bytes
+  [348]  0x0002CFE0        88 bytes
+  [349]  0x0002D038       148 bytes
+  [350]  0x0002D0CC         8 bytes
+  [351]  0x0002D0D4        64 bytes
+  [352]  0x0002D114       248 bytes
+  [353]  0x0002D20C        60 bytes
+  [354]  0x0002D248        92 bytes
+  [355]  0x0002D2A4       352 bytes
+  [356]  0x0002D404       352 bytes
+  [357]  0x0002D564       112 bytes
+  [358]  0x0002D5D4       188 bytes
+  [359]  0x0002D690         8 bytes
+  [360]  0x0002D698       204 bytes
+  [361]  0x0002D764      1116 bytes
+  [362]  0x0002DBC0       320 bytes
+  [363]  0x0002DD00        56 bytes
+  [364]  0x0002DD38       108 bytes
+  [365]  0x0002DDA4       940 bytes
+  [366]  0x0002E150      1224 bytes
+  [367]  0x0002E618       276 bytes
+  [368]  0x0002E72C       268 bytes
+  [369]  0x0002E838       516 bytes
+  [370]  0x0002EA3C       224 bytes
+  [371]  0x0002EB1C       480 bytes
+  [372]  0x0002ECFC       988 bytes
+  [373]  0x0002F0D8       608 bytes
+  [374]  0x0002F338        96 bytes
+  [375]  0x0002F398       136 bytes
+  [376]  0x0002F420       768 bytes
+  [377]  0x0002F720      2180 bytes
+  [378]  0x0002FFA4       120 bytes
+  [379]  0x0003001C       208 bytes
+  [380]  0x000300EC       148 bytes
+  [381]  0x00030180       216 bytes
+  [382]  0x00030258      1240 bytes
+  [383]  0x00030730        96 bytes
+  [384]  0x00030790        44 bytes
+  [385]  0x000307BC      1032 bytes
+  [386]  0x00030BC4        96 bytes
+  [387]  0x00030C24       180 bytes
+  [388]  0x00030CD8       400 bytes
+  [389]  0x00030E68      1568 bytes
+  [390]  0x00031488       304 bytes
+  [391]  0x000315B8       996 bytes
+  [392]  0x0003199C       164 bytes
+  [393]  0x00031A40       308 bytes
+  [394]  0x00031B74       104 bytes
+  [395]  0x00031BDC        72 bytes
+  [396]  0x00031C24       108 bytes
+  [397]  0x00031C90       724 bytes
+  [398]  0x00031F64         8 bytes
+  [399]  0x00031F6C       172 bytes
+  [400]  0x00032018         8 bytes
+  [401]  0x00032020       108 bytes
+  [402]  0x0003208C       348 bytes
+  [403]  0x000321E8       284 bytes
+  [404]  0x00032304         8 bytes
+  [405]  0x0003230C       224 bytes
+  [406]  0x000323EC         8 bytes
+  [407]  0x000323F4       180 bytes
+  [408]  0x000324A8       180 bytes
+  [409]  0x0003255C       188 bytes
+  [410]  0x00032618       172 bytes
+  [411]  0x000326C4       532 bytes
+  [412]  0x000328D8        80 bytes
+  [413]  0x00032928         8 bytes
+  [414]  0x00032930       636 bytes
+  [415]  0x00032BAC        24 bytes
+  [416]  0x00032BC4       644 bytes
+  [417]  0x00032E48       168 bytes
+  [418]  0x00032EF0       888 bytes
+  [419]  0x00033268        96 bytes
+  [420]  0x000332C8       240 bytes
+  [421]  0x000333B8       456 bytes
+  [422]  0x00033580       448 bytes
+  [423]  0x00033740       596 bytes
+  [424]  0x00033994       220 bytes
+  [425]  0x00033A70       112 bytes
+  [426]  0x00033AE0       320 bytes
+  [427]  0x00033C20       200 bytes
+  [428]  0x00033CE8       216 bytes
+  [429]  0x00033DC0       100 bytes
+  [430]  0x00033E24       176 bytes
+  [431]  0x00033ED4       508 bytes
+  [432]  0x000340D0      1716 bytes
+  [433]  0x00034784       124 bytes
+  [434]  0x00034800        80 bytes
+  [435]  0x00034850       192 bytes
+  [436]  0x00034910        76 bytes
+  [437]  0x0003495C      1120 bytes
+  [438]  0x00034DBC       680 bytes
+  [439]  0x00035064       188 bytes
+  [440]  0x00035120       128 bytes
+  [441]  0x000351A0       260 bytes
+  [442]  0x000352A4       328 bytes
+  [443]  0x000353EC       176 bytes
+  [444]  0x0003549C       560 bytes
+  [445]  0x000356CC       776 bytes
+  [446]  0x000359D4       544 bytes
+  [447]  0x00035BF4       108 bytes
+  [448]  0x00035C60       308 bytes
+  [449]  0x00035D94       768 bytes
+  [450]  0x00036094       460 bytes
+  [451]  0x00036260       220 bytes
+  [452]  0x0003633C      1416 bytes
+  [453]  0x000368C4       204 bytes
+  [454]  0x00036990       244 bytes
+  [455]  0x00036A84      1148 bytes
+  [456]  0x00036F00       252 bytes
+  [457]  0x00036FFC        48 bytes
+  [458]  0x0003702C      1264 bytes
+  [459]  0x0003751C       216 bytes
+  [460]  0x000375F4       144 bytes
+  [461]  0x00037684        84 bytes
+  [462]  0x000376D8        80 bytes
+  [463]  0x00037728        60 bytes
+  [464]  0x00037764      7868 bytes
+  [465]  0x00039620       632 bytes
+  [466]  0x00039898      1068 bytes
+  [467]  0x00039CC4       160 bytes
+  [468]  0x00039D64       132 bytes
+  [469]  0x00039DE8       208 bytes
+  [470]  0x00039EB8       224 bytes
+  [471]  0x00039F98        52 bytes
+  [472]  0x00039FCC       232 bytes
+  [473]  0x0003A0B4       368 bytes
+  [474]  0x0003A224       144 bytes
+  [475]  0x0003A2B4        96 bytes
+  [476]  0x0003A314       124 bytes
+  [477]  0x0003A390        88 bytes
+  [478]  0x0003A3E8       240 bytes
+  [479]  0x0003A4D8       132 bytes
+  [480]  0x0003A55C       272 bytes
+  [481]  0x0003A66C       172 bytes
+  [482]  0x0003A718       172 bytes
+  [483]  0x0003A7C4       164 bytes
+  [484]  0x0003A868       176 bytes
+  [485]  0x0003A918       152 bytes
+  [486]  0x0003A9B0        72 bytes
+  [487]  0x0003A9F8        20 bytes
+  [488]  0x0003AA0C       256 bytes
+  [489]  0x0003AB0C       152 bytes
+  [490]  0x0003ABA4       376 bytes
+  [491]  0x0003AD1C       204 bytes
+  [492]  0x0003ADE8       104 bytes
+  [493]  0x0003AE50       104 bytes
+  [494]  0x0003AEB8        44 bytes
+  [495]  0x0003AEE4       152 bytes
+  [496]  0x0003AF7C       132 bytes
+  [497]  0x0003B000       136 bytes
+  [498]  0x0003B088         8 bytes
+  [499]  0x0003B090       652 bytes
+  [500]  0x0003B31C        12 bytes
+  [501]  0x0003B328       368 bytes
+  [502]  0x0003B498       388 bytes
+  [503]  0x0003B61C       100 bytes
+  [504]  0x0003B680        20 bytes
+  [505]  0x0003B694        84 bytes
+  [506]  0x0003B6E8       268 bytes
+  [507]  0x0003B7F4       276 bytes
+  [508]  0x0003B908       132 bytes
+  [509]  0x0003B98C       320 bytes
+  [510]  0x0003BACC        56 bytes
+  [511]  0x0003BB04       288 bytes
+  [512]  0x0003BC24        56 bytes
+  [513]  0x0003BC5C       140 bytes
+  [514]  0x0003BCE8        64 bytes
+  [515]  0x0003BD28       360 bytes
+  [516]  0x0003BE90       188 bytes
+  [517]  0x0003BF4C       132 bytes
+  [518]  0x0003BFD0       496 bytes
+  [519]  0x0003C1C0       168 bytes
+  [520]  0x0003C268       208 bytes
+  [521]  0x0003C338       196 bytes
+  [522]  0x0003C3FC       160 bytes
+  [523]  0x0003C49C       112 bytes
+  [524]  0x0003C50C       152 bytes
+  [525]  0x0003C5A4       116 bytes
+  [526]  0x0003C618       720 bytes
+  [527]  0x0003C8E8        64 bytes
+  [528]  0x0003C928       512 bytes
+  [529]  0x0003CB28       152 bytes
+  [530]  0x0003CBC0        12 bytes
+  [531]  0x0003CBCC       980 bytes
+  [532]  0x0003CFA0        68 bytes
+  [533]  0x0003CFE4       132 bytes
+  [534]  0x0003D068        72 bytes
+  [535]  0x0003D0B0       100 bytes
+  [536]  0x0003D114       164 bytes
+  [537]  0x0003D1B8       180 bytes
+  [538]  0x0003D26C       208 bytes
+  [539]  0x0003D33C       408 bytes
+  [540]  0x0003D4D4       276 bytes
+  [541]  0x0003D5E8       140 bytes
+  [542]  0x0003D674       648 bytes
+  [543]  0x0003D8FC       128 bytes
+  [544]  0x0003D97C       112 bytes
+  [545]  0x0003D9EC        60 bytes
+  [546]  0x0003DA28       264 bytes
+  [547]  0x0003DB30        36 bytes
+  [548]  0x0003DB54       116 bytes
+  [549]  0x0003DBC8        16 bytes
+  [550]  0x0003DBD8        16 bytes
+  [551]  0x0003DBE8        16 bytes
+  [552]  0x0003DBF8       180 bytes
+  [553]  0x0003DCAC       120 bytes
+  [554]  0x0003DD24       104 bytes
+  [555]  0x0003DD8C        80 bytes
+  [556]  0x0003DDDC       144 bytes
+  [557]  0x0003DE6C       176 bytes
+  [558]  0x0003DF1C       152 bytes
+  [559]  0x0003DFB4      1932 bytes
+  [560]  0x0003E740       568 bytes
+  [561]  0x0003E978       960 bytes
+  [562]  0x0003ED38      1880 bytes
+  [563]  0x0003F490       224 bytes
+  [564]  0x0003F570       508 bytes
+  [565]  0x0003F76C       776 bytes
+  [566]  0x0003FA74       216 bytes
+  [567]  0x0003FB4C       288 bytes
+  [568]  0x0003FC6C       540 bytes
+  [569]  0x0003FE88       172 bytes
+  [570]  0x0003FF34       280 bytes
+  [571]  0x0004004C       172 bytes
+  [572]  0x000400F8       180 bytes
+  [573]  0x000401AC       180 bytes
+  [574]  0x00040260       264 bytes
+  [575]  0x00040368       856 bytes
+  [576]  0x000406C0       188 bytes
+  [577]  0x0004077C       192 bytes
+  [578]  0x0004083C       216 bytes
+  [579]  0x00040914       216 bytes
+  [580]  0x000409EC        48 bytes
+  [581]  0x00040A1C        60 bytes
+  [582]  0x00040A58        40 bytes
+  [583]  0x00040A80       184 bytes
+  [584]  0x00040B38       188 bytes
+  [585]  0x00040BF4      1844 bytes
+  [586]  0x00041328       408 bytes
+  [587]  0x000414C0       236 bytes
+  [588]  0x000415AC        88 bytes
+  [589]  0x00041604       332 bytes
+  [590]  0x00041750       488 bytes
+  [591]  0x00041938       300 bytes
+  [592]  0x00041A64       272 bytes
+  [593]  0x00041B74        76 bytes
+  [594]  0x00041BC0      1064 bytes
+  [595]  0x00041FE8       112 bytes
+  [596]  0x00042058       296 bytes
+  [597]  0x00042180       328 bytes
+  [598]  0x000422C8        96 bytes
+  [599]  0x00042328       332 bytes
+  [600]  0x00042474       764 bytes
+  [601]  0x00042770       356 bytes
+  [602]  0x000428D4      1540 bytes
+  [603]  0x00042ED8       132 bytes
+  [604]  0x00042F5C       696 bytes
+  [605]  0x00043214      1188 bytes
+  [606]  0x000436B8        12 bytes
+  [607]  0x000436C4       420 bytes
+  [608]  0x00043868      1052 bytes
+  [609]  0x00043C84       312 bytes
+  [610]  0x00043DBC       180 bytes
+  [611]  0x00043E70      1360 bytes
+  [612]  0x000443C0       768 bytes
+  [613]  0x000446C0      5420 bytes
+  [614]  0x00045BEC       592 bytes
+  [615]  0x00045E3C       160 bytes
+  [616]  0x00045EDC       108 bytes
+  [617]  0x00045F48        44 bytes
+  [618]  0x00045F74      3060 bytes
+  [619]  0x00046B68       472 bytes
+  [620]  0x00046D40      1024 bytes
+  [621]  0x00047140       220 bytes
+  [622]  0x0004721C       136 bytes
+  [623]  0x000472A4       340 bytes
+  [624]  0x000473F8       736 bytes
+  [625]  0x000476D8       104 bytes
+  [626]  0x00047740       160 bytes
+  [627]  0x000477E0        20 bytes
+  [628]  0x000477F4        20 bytes
+  [629]  0x00047808       132 bytes
+  [630]  0x0004788C        20 bytes
+  [631]  0x000478A0       272 bytes
+  [632]  0x000479B0        84 bytes
+  [633]  0x00047A04       108 bytes
+  [634]  0x00047A70        32 bytes
+  [635]  0x00047A90       156 bytes
+  [636]  0x00047B2C       148 bytes
+  [637]  0x00047BC0       124 bytes
+  [638]  0x00047C3C       584 bytes
+  [639]  0x00047E84       588 bytes
+  [640]  0x000480D0      1084 bytes
+  [641]  0x0004850C       744 bytes
+  [642]  0x000487F4         4 bytes
+  [643]  0x000487F8         4 bytes
+  [644]  0x000487FC        40 bytes
+  [645]  0x00048824        44 bytes
+  [646]  0x00048850        44 bytes
+  [647]  0x0004887C         4 bytes
+  [648]  0x00048880    -27380 bytes
+
+FUNCTION SIZE DISTRIBUTION
+----------------------------------------
+  Total functions:  649
+  Smallest:         4 bytes
+  Largest:          29972 bytes
+  Average:          412 bytes
+  Median:           180 bytes
+
+  Size Ranges:
+    tiny     (    0-   32):  51 ###################################################
+    small    (   32-  128): 167 #######################################################################################################################################################################
+    medium   (  128-  512): 312 ########################################################################################################################################################################################################################################################################################################################
+    large    (  512- 2048): 109 #############################################################################################################
+    huge     ( 2048-999999):   9 #########
+
+  TOP 10 LARGEST FUNCTIONS:
+    0x00007514   29972 bytes
+    0x0001E2AC   11340 bytes
+    0x00015794   10656 bytes
+    0x00037764    7868 bytes
+    0x000446C0    5420 bytes
+    0x000198F8    4684 bytes
+    0x000147C4    3264 bytes
+    0x00045F74    3060 bytes
+    0x0002F720    2180 bytes
+    0x00029998    2016 bytes

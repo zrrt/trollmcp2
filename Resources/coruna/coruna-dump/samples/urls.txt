@@ -1,0 +1,26 @@
+# Referenced config module (81502427ce4522c788a753600b04c8c9e13ac82c)
+https://b27.icu/feeee5ddaf2659ba86423519b13de879f59b326d.js
+# macOS exploit stage 1 (7b7a39f8e545fd38bcd390692185f5f367b98f61)
+https://b27.icu/055c5ab6028f7c0a3f8970975c332fe4417b054c.js
+# macOS exploit stage 2 (eOWEVG) (55afb1a69f9e35265f29b113adaa6f34e8215813)
+https://b27.icu/d9a260b1c2f63ab5e5aac4261d8a0be5a8b64da0.js
+# macOS exploit stage 2 (agTkHY) (5264a0694295c0a1978d1b4b03b2ab909e5c6d09)
+https://b27.icu/5aed00feae0b817db276377c1306e5fcae67cb95.js
+# iOS exploit (uOj89n) (bcb56dc5317128d4e53b8474535f4c099bf322b3)
+https://b27.icu/25bb1b38371a67e977ed534d251d95b6f07aff90.js
+# iOS exploit (qeqLdN) (ca6e6ce1111d4b90c50e68f202e31e0bc31f1155)
+https://b27.icu/d715f1db179d73edcc180a8e376b3c17a09e389a.js
+# Fallback exploit (2d2c721e64fbbb49c39654930563758332e4eff3)
+https://b27.icu/2cea19382f2b211e8caf609bc0bacc98f2557543.js
+# Final payload A (PtqWRQ=true) (164349160d3d35d83bfdcc001ccd23cd1b3b75d5)
+https://b27.icu/2839f4ff4e23733e6ba132e639ce96d36d23c6b6.js
+# Final payload B (PtqWRQ=false) (6241388ab7da11aa490d4ecfed44d952568f008a)
+https://b27.icu/ee164f985cd9a7786dad6ca922b2de314dde9231.js
+# KRfmo6 exploit loader (166411bd90ee39aed912bd49af8d86831b686337)
+https://b27.icu/b903659316e881e624062869c4cf4066d7886c28.js
+# yAerzw exploit loader (d6cb72f5888b2ec1282b584155490e3b6e90a977)
+https://b27.icu/7994d095b1a601253c206c45c120a80c4c0f3736.js
+# Fq2t1Q exploit loader (dbfd6e840218865cb2269e6b7ed7d10ea9f22f93)
+https://b27.icu/8d646979cf7f3e5e33a85024b6cf2bc81a6c5812.js
+# YGPUu7 table exploit loader (8dbfa3fdd44e287d57c55e74a97f526120ffd8f0)
+https://b27.icu/9e7e6ec78463c5e6bdee39e9f3f33d6fa296ea72.js
