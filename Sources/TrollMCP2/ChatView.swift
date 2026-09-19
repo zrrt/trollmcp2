@@ -1379,7 +1379,6 @@ struct ChatInputTextView: UIViewRepresentable {
         uiView.text = text
     }
 
-    @available(iOS 16.0, *)
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
         let proposedSize = proposal.replacingUnspecifiedDimensions(by: CGSize(width: 0, height: .greatestFiniteMagnitude))
         let fitSize = uiView.sizeThatFits(proposedSize)
