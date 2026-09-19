@@ -235,7 +235,7 @@ struct SettingsView: View {
                          destination: AnyView(CorunaShieldView())),
             SettingsItem(title: "Coruna Web 注入",
                          subtitle: "网页端漏洞利用 · 一键注入 dylib 到任意 App",
-                         icon: "bolt.shield.fill", color: .indigo,
+                         icon: "bolt.shield.fill", color: .tmIndigo,
                          destination: AnyView(CorunaInjectView())),
         ]))
 
