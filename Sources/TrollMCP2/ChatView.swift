@@ -596,24 +596,13 @@ struct ChatView: View {
             .padding(.top, 6)
 
             HStack(spacing: 8) {
-                HStack(spacing: 0) {
-                    ChatInputTextView(text: $inputText, onSend: {
-                        if !inputText.isEmpty { send() }
-                    })
-                        .frame(maxWidth: .infinity, maxHeight: 40)
-                        .padding(.leading, 12)
-                    if !inputText.isEmpty {
-                        Button(action: { inputText = "" }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 20))
-                                .foregroundColor(.secondary)
-                                .padding(.trailing, 8)
-                        }
-                    }
-                }
-                .frame(height: 40)
-                .background(Color(.secondarySystemBackground))
-                .cornerRadius(20)
+                TextEditor(text: $inputText)
+                    .font(.system(size: 16))
+                    .frame(minHeight: 36, maxHeight: 100)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(20)
 
                 Button(action: { attachmentSheet = .panel }) {
                     Image(systemName: "plus")
