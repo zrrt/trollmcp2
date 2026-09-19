@@ -492,12 +492,12 @@ final class SystemCleanupScanTool: MCPTool {
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         var result: [String: Any] = ["ok": true]
-        result["storage"] = SystemCleanupEngine.storageInfo()
+        result["storage"] = SystemCleanupEngine.storageInfo(), verified: true
         let all = SystemCleanupEngine.quickItems() + SystemCleanupEngine.advancedItems()
         result["items"] = all.map { i in
             ["id": i.id, "label": i.label, "detail": i.detail,
              "bytes": i.size, "bytes_readable": AppCacheScanner.humanSize(i.size),
-             "risk": i.risk == .safe ? "safe" : "warn"]
+             "risk": i.risk == .safe ? "safe" : "warn"], verified: true
         }
         let total = all.reduce(0) { $0 + $1.size }
         result["total_bytes"] = total

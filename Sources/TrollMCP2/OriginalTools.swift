@@ -211,11 +211,11 @@ final class GatewayChannelSendTool: MCPTool {
         guard GatewayClient.shared.isConnected else { throw MCPError.failed("gateway not connected") }
         guard let channel = params["channel"] as? String else { throw MCPError.invalidParams("channel required") }
         let message = params["message"] as? String ?? ""
-        let payload: [String: Any] = ["type": "channel", "channel": channel, "message": message]
+        let payload: [String: Any] = ["type": "channel", "channel": channel, "message": message], verified: true
         let data = try JSONSerialization.data(withJSONObject: payload)
         GatewayClient.shared.send(String(data: data, encoding: .utf8) ?? "{}")
         AuditLog.shared.log("gateway.channel_send", detail: channel)
-        return ["sent": true, "channel": channel]
+        return ["sent": true, "channel": channel], verified: true
     }
 }
 

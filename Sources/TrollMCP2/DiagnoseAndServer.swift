@@ -138,12 +138,12 @@ final class DiagnoseCrashTool: MCPTool {
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "count": "分析最近几次崩溃（默认 1）"
-        ],
+        ],, verified: true
     verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
+        guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {, verified: true
             throw MCPError.invalidParams("bundle_id required")
         }
         let count = (params["count"] as? Int) ?? 1
@@ -398,8 +398,8 @@ final class ServerStartTool: MCPTool {
         ]
     )
 
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let port = (params["port"] as? Int) ?? 8765
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {, verified: true
+        let port = (params["port"] as? Int) ?? 8765, verified: true
         let ok = LocalServerManager.shared.start(port: port)
         return [
             "message": ok ? "本地 HTTP 服务已启动（127.0.0.1:\(LocalServerManager.shared.port)）" : "启动失败（端口被占用或权限不足）",

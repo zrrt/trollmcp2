@@ -15,12 +15,12 @@ final class IPAInspectTool: MCPTool {
         parameters: [
             "path": "IPA 文件路径或 App Bundle 路径（必填，可用 artifact.find 定位）",
             "detail": "详细程度：basic（默认，架构+签名+版本）或 full（含依赖列表+entitlements全文）"
-        ],
+        ],, verified: true
     verified: true,
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let path = params["path"] as? String, !path.isEmpty else {
+        guard let path = params["path"] as? String, !path.isEmpty else {, verified: true
             throw MCPError.invalidParams("path required")
         }
         let detail = (params["detail"] as? String) ?? "basic"

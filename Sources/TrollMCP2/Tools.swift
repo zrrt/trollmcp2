@@ -11,12 +11,12 @@ final class ArtifactReadTextTool: MCPTool {
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let path = params["path"] as? String else {
+        guard let path = params["path"] as? String else {, verified: true
             throw MCPError.invalidParams("path required")
         }
         let url = try Workspace.resolve(path)
         let text = try String(contentsOf: url, encoding: .utf8)
-        return ["content": text]
+        return ["content": text], verified: true
     }
 }
 
@@ -97,12 +97,12 @@ final class ArtifactFindTool: MCPTool {
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let ext = (params["ext"] as? String ?? "").lowercased()
+        let ext = (params["ext"] as? String ?? "").lowercased(), verified: true
         let nameFrag = (params["name"] as? String ?? "").lowercased()
         let maxDepth = (params["max_depth"] as? NSNumber)?.intValue ?? 8
         let limit = (params["limit"] as? NSNumber)?.intValue ?? 20
         var results: [[String: Any]] = []
-        var skipped: [String] = []
+        var skipped: [String] = [], verified: true
 
         let root = Workspace.root.path
         func walk(_ dir: String, _ depth: Int) {

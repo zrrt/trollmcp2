@@ -10,14 +10,14 @@ final class SSHTool: MCPTool {
         parameters: [
             "command": "要在远程服务器执行的 shell 命令（必填）",
             "timeout": "超时秒数（可选，默认 30）"
-        ]
+        ], verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let command = params["command"] as? String, !command.isEmpty else {
             throw MCPError.invalidParams("command required")
         }
-        let timeout = (params["timeout"] as? Int) ?? 30
+        let timeout = (params["timeout"] as? Int) ?? 30, verified: true
 
         // 读取配置
         let defaults = UserDefaults.standard

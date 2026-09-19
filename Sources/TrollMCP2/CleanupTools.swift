@@ -110,13 +110,13 @@ final class CleanupScanTool: MCPTool {
         verified: true,
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
+        guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {, verified: true
             throw MCPError.invalidParams("bundle_id required")
         }
         let items = CleanupScanner.scan(bundleId: bundleId)
         guard !items.isEmpty else {
             return ["ok": false, "message": "无法定位 \(bundleId) 或数据容器不可访问（缺 AppDataContainers 权限）",
-                    "data": ["bundle_id": bundleId, "items": []]]
+                    "data": ["bundle_id": bundleId, "items": []]], verified: true
         }
         let payload = items.map { i -> [String: Any] in
             ["id": i.id, "label": i.label, "detail": i.detail,
