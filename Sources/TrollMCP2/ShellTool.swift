@@ -1,6 +1,5 @@
 import Foundation
 import UIKit
-import ios_system
 
 /// 终端会话管理（单例，记住当前工作目录）
 final class ShellSession {
@@ -11,11 +10,11 @@ final class ShellSession {
         .appendingPathComponent("Workspace").path
 }
 
-/// 内置终端工具：执行 shell 命令（用 ios_system）
+/// 内置终端工具：执行 shell 命令
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "执行 shell 命令（终端/命令行/terminal/sh）：内置 ls/cat/grep/find/unzip/tar/curl 等100+命令，解压ipa/deb、逆向分析（otool/strings）、文件操作。危险命令自动拦截。cd 记住工作目录。",
+        summary: "执行 shell 命令（终端/命令行/terminal/sh）：文件操作、解压ipa/deb、逆向分析。危险命令自动拦截。cd 记住工作目录。",
         parameters: [
             "command": "要执行的 shell 命令（必填）",
             "timeout": "超时时间（秒，默认 30，最大 120）",
@@ -58,32 +57,20 @@ final class ShellExecTool: MCPTool {
         // 先 cd 到当前目录，再执行命令
         let fullCommand = "cd '\(cwd)' && \(command)"
         
-        // 用 ios_system 执行，加超时
-        var output: String?
-        let sem = DispatchSemaphore(value: 0)
-        DispatchQueue.global().async {
-            output = ios_system(fullCommand)
-            sem.signal()
-        }
-        let timeoutResult = sem.wait(timeout: .now() + clampedTimeout)
-        if timeoutResult == .timedOut {
-            return [
-                "error": "命令超时（\(Int(clampedTimeout))秒）",
-                "command": command,
-                "hint": "命令执行时间太长被终止了"
-            ]
-        }
+        // 用系统 /bin/sh 执行
+        let (exitCode, output) = InjectionManager.shared.spawn("/bin/sh", args: ["sh", "-c", fullCommand], timeout: 30)
         
         // 输出截断到 2000 字符
-        var stdout = output ?? ""
+        var stdout = output
         if stdout.count > 2000 {
             stdout = String(stdout.prefix(2000)) + "\n... (输出太长，已截断，共 \(stdout.count) 字符)"
         }
         
         // 获取当前工作目录
         var newPwd = cwd
-        if let pwd = ios_system("pwd")?.trimmingCharacters(in: .whitespacesAndNewlines), !pwd.isEmpty {
-            newPwd = pwd
+        let (_, pwdOut) = InjectionManager.shared.spawn("/bin/sh", args: ["sh", "-c", "cd '\(cwd)' && pwd"], timeout: 5)
+        if !pwdOut.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            newPwd = pwdOut.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         ShellSession.shared.currentDir = newPwd
         
@@ -91,10 +78,11 @@ final class ShellExecTool: MCPTool {
         
         return [
             "command": command,
-            "exit_code": 0,
+            "exit_code": exitCode,
             "stdout": stdout,
             "cwd": newPwd,
-            "hint": "内置100+命令：ls/cat/grep/find/unzip/tar/curl/strings/otool 等。cd 记住目录。"
+            "hint": "常用命令：ls/cat/grep/find/unzip/tar/curl 等。cd 记住工作目录。"
         ]
     }
 }
+
