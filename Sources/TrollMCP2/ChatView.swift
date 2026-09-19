@@ -1162,18 +1162,29 @@ struct MessageBubble: View {
 
     private var toolBubble: some View {
         VStack(alignment: .leading, spacing: 6) {
+            // v2.9.378：工具调用小气泡（蓝色扳手，微信式）
+            HStack(spacing: 6) {
+                Image(systemName: "wrench.and.screwdriver")
+                    .font(.system(size: 12))
+                    .foregroundColor(.blue)
+                Text("调用工具 \(message.toolName ?? "")")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.blue.opacity(0.08))
+            .cornerRadius(12)
+
+            // 工具结果气泡（绿色对勾）
             HStack(spacing: 8) {
                 Image(systemName: message.isError ? "exclamationmark.circle" : "checkmark.circle")
                     .font(.system(size: 18))
                     .foregroundColor(message.isError ? .red : .green)
-                Text(L10n.t("ui_51"))
+                Text("工具结果")
                     .font(.subheadline)
                     .fontWeight(.medium)
                 Spacer()
-                Text(message.toolName ?? "")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(.secondary)
                 Image(systemName: expanded ? "chevron.up" : "chevron.down")
                     .font(.caption)
                     .foregroundColor(.secondary)
