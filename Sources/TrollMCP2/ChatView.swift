@@ -596,38 +596,24 @@ struct ChatView: View {
             .padding(.top, 6)
 
             HStack(spacing: 8) {
-                ZStack(alignment: .topLeading) {
-                    TextEditor(text: $inputText)
-                        .font(.system(size: 16))
-                        .frame(maxWidth: .infinity, minHeight: 36, maxHeight: 100)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
-                        .background(Color(.secondarySystemBackground))
-                        .cornerRadius(20)
-                        .onAppear {
-                            UITextView.appearance().backgroundColor = .clear
-                        }
-                    if inputText.isEmpty {
-                        Text("输入消息...")
-                            .font(.system(size: 16))
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                            .allowsHitTesting(false)
-                    }
+                HStack(spacing: 0) {
+                    ChatInputTextView(text: $inputText, onSend: {
+                        if !inputText.isEmpty { send() }
+                    })
+                        .frame(maxWidth: .infinity, maxHeight: 40)
+                        .padding(.leading, 12)
                     if !inputText.isEmpty {
-                        HStack {
-                            Spacer()
-                            Button(action: { inputText = "" }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.trailing, 8)
-                            .padding(.top, 8)
+                        Button(action: { inputText = "" }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 20))
+                                .foregroundColor(.secondary)
+                                .padding(.trailing, 8)
                         }
                     }
                 }
+                .frame(height: 40)
+                .background(Color(.secondarySystemBackground))
+                .cornerRadius(20)
 
                 Button(action: { attachmentSheet = .panel }) {
                     Image(systemName: "plus")
@@ -1076,26 +1062,25 @@ struct MessageBubble: View {
 
     private var textBubble: some View {
         VStack(alignment: isUser ? .trailing : .leading, spacing: 2) {
+            // v2.9.10：消息内图片缩略图（用户选择相册图片后，气泡里直接显示图片）
             if let imgs = message.imageDataURLs, !imgs.isEmpty {
                 messageImageStrip(imgs)
             }
+            // v2.9.20：思考记录（reasoning）可展开显示
             if !isUser, let th = message.thinking, !th.isEmpty {
                 thinkingView(th)
             }
+            // v2.9.127：执行轨迹（豆包/Codex 式过程流）——历史消息可展开回看
             if !isUser, let trail = message.trail, !trail.isEmpty {
                 TrailCard(steps: trail)
             }
-            // v2.9.317：工具调用记录做成小气泡（"调用工具 xxx"）
-            if !isUser && message.content.hasPrefix("调用工具") {
-                toolCallBubble(message.content)
-            } else {
-                Text(message.content)
-                    .font(.body)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(
-                        Group {
+            Text(message.content)
+                .font(.body)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                // v2.9.93：用户气泡改巨魔蓝渐变（浅青→蓝，品牌化），助手保持系统色
+                .background(
+                    Group {
                             if isUser {
                                 LinearGradient(colors: [.tmCyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
                             } else if message.isError {
@@ -1104,158 +1089,13 @@ struct MessageBubble: View {
                                 Color(.secondarySystemBackground)
                             }
                         }
-                    )
-                    .foregroundColor(isUser ? .white : .primary)
-                    .cornerRadius(18)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18)
-                            .strokeBorder(isSelected ? (isUser ? Color.white : Color.blue) : Color.clear, lineWidth: 2)
-                    )
-            }
-        }
-    }
-
-    /// v2.9.322：工具调用记录小气泡（微信式，AI实时思考说明）
-    private func toolCallBubble(_ text: String) -> some View {
-        let lines = text.components(separatedBy: .newlines).filter { !$0.isEmpty }
-        // v2.9.322：第一行是AI思考说明，后面是工具调用
-        let think = lines.first(where: { !$0.hasPrefix("调用工具") })
-        let toolLines = lines.filter { $0.hasPrefix("调用工具") }
-        return VStack(alignment: .leading, spacing: 4) {
-            if let think = think, !think.isEmpty {
-                HStack(spacing: 6) {
-                    Image(systemName: "brain")
-                        .font(.system(size: 12))
-                        .foregroundColor(.orange)
-                    Text(think)
-                        .font(.subheadline)
-                        .foregroundColor(.primary)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.orange.opacity(0.08))
-                .cornerRadius(12)
-            }
-            ForEach(Array(toolLines.enumerated()), id: \.offset) { _, line in
-                HStack(spacing: 6) {
-                    Image(systemName: "wrench.and.screwdriver")
-                        .font(.system(size: 12))
-                        .foregroundColor(.blue)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(toolThinkReason(line))
-                            .font(.subheadline)
-                            .foregroundColor(.primary)
-                        Text(line)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.blue.opacity(0.08))
-                .cornerRadius(12)
-            }
-        }
-    }
-
-    /// v2.9.317：根据工具名生成简短思考说明
-    private func toolThinkReason(_ line: String) -> String {
-        guard line.hasPrefix("调用工具 ") else { return line }
-        let tool = String(line.dropFirst(5))
-        switch tool {
-        case "injection.enable": return "注入插件到目标 App"
-        case "injection.restore": return "恢复备份，移除注入"
-        case "injection.list": return "列出已安装的 App"
-        case "injection.status": return "检查注入状态"
-        case "injection.inspect": return "查看注入详情"
-        case "injection.diagnose": return "诊断注入闪退原因"
-        case "screenshot", "ui.screenshot": return "截图查看当前界面"
-        case "app.status": return "检查 App 运行状态"
-        case "app.launch", "app.start": return "启动目标 App"
-        case "app.restart": return "重启目标 App"
-        case "fs.read", "fs.tree": return "读取文件系统"
-        case "web.search": return "搜索网络信息"
-        case "web.fetch": return "读取网页内容"
-        case "tool_search": return "查找可用工具"
-        case "progress.notify": return "更新进度通知"
-        case "diagnose.crash": return "查看崩溃日志"
-        case "app.decrypt": return "砸壳解密二进制"
-        case "control.tap": return "点击屏幕坐标"
-        case "control.swipe": return "滑动屏幕"
-        case "app.open": return "打开指定 App"
-        case "device_info", "system.info": return "查看设备信息"
-        case "device_probe", "probe.inspect": return "探测设备状态"
-        case "workspace_info", "workspace.info": return "查看工作区信息"
-        case "fs.read", "fs.tree": return "读取文件系统"
-        case "fs.write", "fs.edit": return "修改文件"
-        case "fs.find", "fs.grep": return "搜索文件内容"
-        case "app.list", "apps.list": return "列出已安装 App"
-        case "app.status": return "检查 App 运行状态"
-        case "app.launch", "app.start": return "启动目标 App"
-        case "app.restart": return "重启目标 App"
-        case "app.uninstall": return "卸载 App"
-        case "app.install": return "安装 App"
-        case "web.search": return "搜索网络信息"
-        case "web.fetch": return "读取网页内容"
-        case "tool_search": return "查找可用工具"
-        case "progress.notify": return "更新进度通知"
-        case "diagnose.crash": return "查看崩溃日志"
-        case "app.decrypt": return "砸壳解密二进制"
-        case "control.tap", "ui.tap": return "点击屏幕坐标"
-        case "control.swipe", "ui.swipe": return "滑动屏幕"
-        case "control.type", "ui.type": return "输入文字"
-        case "control.screenshot", "ui.screenshot": return "截图查看界面"
-        case "notification.send": return "发送通知"
-        case "clipboard.read": return "读取剪贴板"
-        case "clipboard.write": return "写入剪贴板"
-        case "location.get": return "获取位置"
-        case "location.fake": return "模拟位置"
-        case "calendar.list": return "查看日历"
-        case "reminder.create": return "创建提醒"
-        case "phone.call": return "拨打电话"
-        case "ssh.exec": return "执行 SSH 命令"
-        case "github.trigger_build": return "触发 GitHub 构建"
-        case "github.fetch_runs": return "查看构建状态"
-        case "artifact_list", "artifacts.list": return "列出产物文件"
-        case "artifact_read", "artifacts.read": return "读取产物内容"
-        case "artifact_delete", "artifacts.delete": return "删除产物文件"
-        case "memory": return "查看记忆"
-        case "model.config": return "查看模型配置"
-        default: return "执行操作"
-        }
-    }
-
-    /// v2.9.320：工具结果中文说明
-    private func toolResultTitle(_ tool: String, isError: Bool) -> String {
-        let ok = isError ? "失败" : "完成"
-        switch tool {
-        case "device_info", "system.info": return "设备信息已获取"
-        case "device_probe", "probe.inspect": return "设备探测完成"
-        case "workspace_info", "workspace.info": return "工作区信息已读取"
-        case "injection.enable": return "注入完成"
-        case "injection.restore": return "恢复完成"
-        case "injection.list": return "App列表已获取"
-        case "injection.status": return "注入状态已查询"
-        case "injection.diagnose": return "诊断完成"
-        case "screenshot", "ui.screenshot": return "截图已保存"
-        case "app.status": return "App状态已查询"
-        case "app.launch", "app.start": return "App已启动"
-        case "app.restart": return "App已重启"
-        case "fs.read", "fs.tree": return "文件已读取"
-        case "fs.write", "fs.edit": return "文件已修改"
-        case "fs.find", "fs.grep": return "搜索完成"
-        case "web.search": return "搜索结果已返回"
-        case "web.fetch": return "网页内容已读取"
-        case "tool_search": return "工具列表已返回"
-        case "artifact_list", "artifacts.list": return "产物列表已返回"
-        case "app.decrypt": return "砸壳完成"
-        case "control.tap", "ui.tap": return "点击已执行"
-        case "control.swipe", "ui.swipe": return "滑动已执行"
-        case "control.type", "ui.type": return "输入已完成"
-        case "ssh.exec": return "命令已执行"
-        case "github.trigger_build": return "构建已触发"
-        case "github.fetch_runs": return "构建状态已获取"
-        default: return "工具执行\(ok)"
+                )
+                .foregroundColor(isUser ? .white : .primary)
+                .cornerRadius(18)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18)
+                        .strokeBorder(isSelected ? (isUser ? Color.white : Color.blue) : Color.clear, lineWidth: 2)
+                )
         }
     }
 
@@ -1328,7 +1168,7 @@ struct MessageBubble: View {
                 Image(systemName: message.isError ? "exclamationmark.circle" : "checkmark.circle")
                     .font(.system(size: 18))
                     .foregroundColor(message.isError ? .red : .green)
-                Text(toolResultTitle(message.toolName ?? "", isError: message.isError))
+                Text(L10n.t("ui_51"))
                     .font(.subheadline)
                     .fontWeight(.medium)
                 Spacer()
@@ -1515,4 +1355,47 @@ struct TrailRow: View {
     }
 }
 
-// MARK: - v2.9.335 输入框：完全重写，用SwiftUI TextEditor
+// MARK: - v2.9.234 输入框：UITextView 包装(检测 markedText，修复"没打完自动回车")
+// SwiftUI TextField 读不到输入法 markedText(拼音未上屏)，iOS16+第三方输入法组合下
+// 按回车会直接 submit → 发出去一串拼音。UITextView delegate 可读 markedTextRange：
+// 组词中按回车=上屏候选词(return true)，无组词按回车=发送(return false)。
+
+struct ChatInputTextView: UIViewRepresentable {
+    @Binding var text: String
+    var onSend: () -> Void
+
+    func makeUIView(context: Context) -> UITextView {
+        let tv = UITextView()
+        tv.font = .systemFont(ofSize: 16)
+        tv.backgroundColor = .clear
+        tv.isScrollEnabled = false
+        tv.textContainerInset = UIEdgeInsets(top: 9, left: 2, bottom: 7, right: 2)
+        tv.textContainer.widthTracksTextView = true
+        tv.returnKeyType = .send
+        tv.enablesReturnKeyAutomatically = true
+        tv.delegate = context.coordinator
+        return tv
+    }
+    func updateUIView(_ uiView: UITextView, context: Context) {
+        if uiView.text != text { uiView.text = text }
+    }
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        var parent: ChatInputTextView
+        init(_ p: ChatInputTextView) { parent = p }
+        func textViewDidChange(_ tv: UITextView) {
+            parent.text = tv.text
+        }
+        func textView(_ tv: UITextView, shouldChangeTextIn range: NSRange, replacementText t: String) -> Bool {
+            if t == "\n" {
+                // 输入法组词中(拼音未上屏)按回车 → 上屏候选词，不发送
+                if tv.markedTextRange != nil { return true }
+                // 无组词按回车 → 发送
+                parent.onSend()
+                return false
+            }
+            return true
+        }
+    }
+}
