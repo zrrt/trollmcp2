@@ -611,7 +611,7 @@ struct ChatView: View {
                         }
                     }
                 }
-                .frame(minHeight: 40, maxHeight: 120)
+                .frame(minHeight: 36, maxHeight: 120)
                 .background(Color(.secondarySystemBackground))
                 .cornerRadius(20)
 
@@ -1523,7 +1523,7 @@ struct ChatInputTextView: UIViewRepresentable {
         tv.font = .systemFont(ofSize: 16)
         tv.backgroundColor = .clear
         tv.isScrollEnabled = false
-        tv.textContainerInset = UIEdgeInsets(top: 9, left: 8, bottom: 7, right: 8)
+        tv.textContainerInset = UIEdgeInsets(top: 6, left: 6, bottom: 6, right: 6)
         tv.textContainer.lineFragmentPadding = 0
         tv.textContainer.widthTracksTextView = true
         tv.returnKeyType = .default
