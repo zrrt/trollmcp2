@@ -599,9 +599,11 @@ struct ChatView: View {
             HStack(spacing: 8) {
                 HStack(spacing: 0) {
                     ZStack(alignment: .topLeading) {
-                        ChatInputTextView(text: $inputText, onSend: { send() }, height: $inputHeight)
-                            .frame(height: inputHeight)
-                            .padding(.horizontal, 8)
+                        GeometryReader { geo in
+                            ChatInputTextView(text: $inputText, onSend: { send() }, height: $inputHeight, maxWidth: geo.size.width - 16)
+                                .frame(height: inputHeight)
+                                .padding(.horizontal, 8)
+                        }
                         if inputText.isEmpty {
                             Text("输入消息...")
                                 .font(.system(size: 16))
@@ -1377,12 +1379,15 @@ struct ChatInputTextView: UIViewRepresentable {
     @Binding var text: String
     var onSend: () -> Void
     @Binding var height: CGFloat
+    var maxWidth: CGFloat
 
     func makeUIView(context: Context) -> UITextView {
         let tv = UITextView()
         tv.backgroundColor = .clear
         tv.font = .systemFont(ofSize: 16)
         tv.isScrollEnabled = false
+        tv.textContainerInset = .zero
+        tv.textContainer.lineFragmentPadding = 0
         tv.textContainer.widthTracksTextView = true
         tv.delegate = context.coordinator
         return tv
@@ -1390,7 +1395,8 @@ struct ChatInputTextView: UIViewRepresentable {
 
     func updateUIView(_ uiView: UITextView, context: Context) {
         uiView.text = text
-        let size = uiView.sizeThatFits(uiView.bounds.size)
+        let width = max(maxWidth, 10)
+        let size = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
         height = min(max(size.height, 20), 80)
     }
 
@@ -1401,7 +1407,8 @@ struct ChatInputTextView: UIViewRepresentable {
         init(_ p: ChatInputTextView) { parent = p }
         func textViewDidChange(_ tv: UITextView) {
             parent.text = tv.text ?? ""
-            let size = tv.sizeThatFits(tv.bounds.size)
+            let width = max(parent.maxWidth, 10)
+            let size = tv.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
             parent.height = min(max(size.height, 20), 80)
         }
     }
