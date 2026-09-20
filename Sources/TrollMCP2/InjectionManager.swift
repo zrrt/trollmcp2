@@ -356,13 +356,22 @@ final class InjectionManager {
                 let r = spawnRootDetailed("/usr/bin/codesign", args: args, timeout: 20)
                 rc = r.code; ro = r.output
             } else if tool == "ctchain" {
-                // ldid -S 伪签 → ct_bypass -r -i -t ""（Team ID 可空：TrollFools teamIdentifierOfMachO ?? ""）
+                // v3.0.53: 先提目标进程真实 Team ID（teamid 解析其 CodeDirectory TeamID 字段），
+                // 再 ldid -S 伪签 → ct_bypass -r -i -t <teamID>（CoreTrust 多签名者漏洞，CVE-2023-41991）
+                let (tc, to) = runAsRoot("teamid", args: ["\(pid)"], timeout: 15)
+                var teamID = ""
+                if tc == 0 {
+                    for line in to.components(separatedBy: "\n") where line.hasPrefix("team_id: ") {
+                        teamID = String(line.dropFirst(9)).trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                }
+                diag += "【\(desc)】teamid(\(tc)) team=\(teamID.isEmpty ? "(空)" : teamID)\n"
                 (rc, ro) = runAsRoot("ldid", args: ["-S", dylib], timeout: 20)
                 if rc != 0 {
                     diag += "【\(desc)】ldid 伪签失败(\(rc)) \(ro.prefix(150))\n"
                     continue
                 }
-                (rc, ro) = runAsRoot("ct_bypass", args: ["-r", "-i", dylib, "-t", ""], timeout: 30)
+                (rc, ro) = runAsRoot("ct_bypass", args: ["-r", "-i", dylib, "-t", teamID], timeout: 30)
                 if rc != 0 {
                     diag += "【\(desc)】ct_bypass 失败(\(rc)) \(ro.prefix(200))\n"
                     continue

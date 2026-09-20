@@ -77,6 +77,18 @@ jobs:
             echo "no arm64 opainject output, keeping old binary"
           fi
 
+      - name: Build teamid (CodeDirectory TeamID extractor)
+        # v3.0.53：ct_bypass 签名需要目标 App 真实 Team ID（TrollFools teamIdentifierOfMachO 同款）。
+        # 直接 clang + iPhoneOS SDK 编 arm64（只依赖 libproc/libSystem），失败不阻塞保留旧二进制。
+        run: |
+          export SDK="$THEOS/sdks/iPhoneOS17.5.sdk"
+          ln -sfn "$SDK" "$THEOS/sdks/iPhoneOS16.5.sdk" 2>/dev/null || true
+          clang -isysroot "$SDK" -arch arm64 -miphoneos-version-min=14.0 \
+            -framework Foundation -o /tmp/teamid "$GITHUB_WORKSPACE/tools/teamid.c" \
+            && cp /tmp/teamid "$GITHUB_WORKSPACE/Resources/bin/teamid" \
+            && echo "teamid built:" && file "$GITHUB_WORKSPACE/Resources/bin/teamid" \
+            || echo "TEAMID BUILD FAILED, keeping old binary"
+
       - name: Cache iSH engine build
         # v3.0.37：iSH 编译 40 分钟，缓存 ish-stage（libs+include+resources+源码），命中直接跳过构建
         # v3.0.40：key 带脚本 hash，改 prepare_alpine_rootfs.sh（如预装包/DNS）时自动重编 rootfs
