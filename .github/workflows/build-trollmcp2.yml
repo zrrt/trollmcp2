@@ -71,8 +71,8 @@ jobs:
           make ARCHS="arm64" opainject_PRIVATE_FRAMEWORKS= || { echo "OPAINJECT BUILD FAILED, keeping old binary"; exit 0; }
           OUT=$(find .theos -name opainject -type f | head -1)
           if [ -n "$OUT" ] && file "$OUT" | grep -q "arm64"; then
-            cp "$OUT" "$GITHUB_WORKSPACE/trollmcp2/Resources/bin/opainject"
-            echo "opainject rebuilt:"; file "$GITHUB_WORKSPACE/trollmcp2/Resources/bin/opainject"
+            cp "$OUT" "$GITHUB_WORKSPACE/Resources/bin/opainject"
+            echo "opainject rebuilt:"; file "$GITHUB_WORKSPACE/Resources/bin/opainject"
           else
             echo "no arm64 opainject output, keeping old binary"
           fi
