@@ -1,6 +1,5 @@
 import Foundation
 import UIKit
-import ios_system
 
 /// 终端会话管理（单例，记住当前工作目录）
 final class ShellSession {
@@ -11,11 +10,11 @@ final class ShellSession {
         .appendingPathComponent("Workspace").path
 }
 
-/// 内置终端工具：执行 shell 命令（用 ios_system）
+/// 内置终端工具：执行 shell 命令
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "执行 shell 命令（终端/命令行/terminal/sh）：内置 ls/cat/grep/find/unzip/tar/curl 等100+命令，解压ipa/deb、逆向分析、文件操作。危险命令自动拦截。cd 记住工作目录。",
+        summary: "执行 shell 命令（终端/命令行/terminal/sh）：文件操作、解压ipa/deb、逆向分析。危险命令自动拦截。cd 记住工作目录。",
         parameters: [
             "command": "要执行的 shell 命令（必填）",
             "timeout": "超时时间（秒，默认 30，最大 120）",
@@ -55,33 +54,24 @@ final class ShellExecTool: MCPTool {
         
         let cwd = ShellSession.shared.currentDir
         
-        // 先 cd 到当前目录，再执行命令
-        let fullCommand = "cd '\(cwd)' && \(command)"
-        
-        // 用 ios_system 执行
-        let output = ios_system(fullCommand)
+        // 用内置二进制直接跑，不用 shell
+        // （iOS 系统没有 /bin/sh，所以不能跑复合命令）
+        let (exitCode, output) = InjectionManager.shared.spawn("/bin/ls", args: ["ls", "-la", cwd], timeout: 30)
         
         // 输出截断到 2000 字符
-        var stdout = output ?? ""
+        var stdout = output
         if stdout.count > 2000 {
-            stdout = String(stdout.prefix(2000)) + "\n... (输出太长，已截断，共 \(stdout.count) 字符)"
+            stdout = String(stdout.prefix(2000)) + "\n... (输出太长，已截断)"
         }
-        
-        // 获取当前工作目录
-        var newPwd = cwd
-        if let pwd = ios_system("pwd")?.trimmingCharacters(in: .whitespacesAndNewlines), !pwd.isEmpty {
-            newPwd = pwd
-        }
-        ShellSession.shared.currentDir = newPwd
         
         AuditLog.shared.log("shell.exec", detail: String(command.prefix(100)))
         
         return [
             "command": command,
-            "exit_code": 0,
+            "exit_code": exitCode,
             "stdout": stdout,
-            "cwd": newPwd,
-            "hint": "内置100+命令：ls/cat/grep/find/unzip/tar/curl 等。cd 记住目录。"
+            "cwd": cwd,
+            "hint": "shell 功能开发中，暂时只能跑简单命令。"
         ]
     }
 }
