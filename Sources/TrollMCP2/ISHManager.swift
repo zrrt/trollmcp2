@@ -1,5 +1,6 @@
 import Foundation
 import ZIPFoundation
+import CISH
 
 /// iSH-ARM64 引擎（TrollAgent 版）
 /// - boot：首次调用时把 bundle 内 alpine-rootfs.zip 解压到 Documents，再 cish_boot 挂载 fakefs
