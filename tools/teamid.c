@@ -7,7 +7,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <limits.h>
-#include <libproc.h>
+// libproc.h 不在 iPhoneOS SDK 公共头，proc_pidpath 是 libSystem 符号，直接声明
+extern int proc_pidpath(int pid, void *buffer, uint32_t buffersize);
 
 #define MH_MAGIC_64   0xfeedfacf
 #define MH_CIGAM_64   0xcffaedfe
