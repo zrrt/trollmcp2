@@ -94,7 +94,14 @@ static int parseTeamID(FILE *f, long base, long size, char *out) {
         uint32_t type = be32(sbuf + 12 + 8 * i);
         uint32_t off = be32(sbuf + 12 + 8 * i + 4);
         if (dbg) fprintf(stderr, "    blob[%u] type=%08x off=%u\n", i, type, off);
-        if (type == CSMAGIC_CODEDIRECTORY && off + 52 <= sigSize) {
+        // SuperBlob index 的 type 是 CSSLOT 编号（0=CodeDirectory，2=AlternateCD），不是 blob magic！
+        if ((type == 0 || type == 2) && off + 4 <= sigSize) {
+            uint32_t cdMagic = be32(sbuf + off);
+            if (cdMagic != CSMAGIC_CODEDIRECTORY) {
+                if (dbg) fprintf(stderr, "    slot type=%u but magic=%08x (skip)\n", type, cdMagic);
+                continue;
+            }
+            if (off + 52 > sigSize) { free(sbuf); return -1; }
             const struct CS_CodeDirectory *cd = (const struct CS_CodeDirectory *)(sbuf + off);
             uint32_t version = be32(&cd->version);
             uint32_t flags = be32(&cd->flags);
