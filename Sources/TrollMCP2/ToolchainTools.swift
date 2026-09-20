@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 // MARK: - toolchain.status：检查toolchainstatus
 
@@ -134,6 +135,47 @@ final class ToolchainUninstallTool: MCPTool {
             "freed_bytes": size,
             "freed_readable": ByteCountFormatter.string(fromByteCount: size, countStyle: .file),
             "note": "Toolchain deleted. Reinstall with toolchain.install."
+        ]
+    }
+}
+
+// MARK: - v3.0.71：tool.load_dylib — 加载外部 dylib，注册新工具（AI 自我进化）
+
+final class ToolLoadDylibTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "tool.load_dylib",
+        summary: "Load an external dylib into TrollAgent process, registers its tools. Use when: (1) AI compiled a new dylib and wants to install it, (2) hot-reload a custom tool, (3) self-evolution. The dylib must call TARegisterTool() in its constructor.",
+        parameters: [
+            "path": "Absolute path to .dylib file (REQUIRED)"
+        ],
+        verified: false,
+        category: "build")
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let path = params["path"] as? String else {
+            throw MCPError.invalidParams("path required")
+        }
+        guard FileManager.default.fileExists(atPath: path) else {
+            throw MCPError.failed("dylib not found: \(path)")
+        }
+
+        // dlopen
+        guard let handle = dlopen(path, RTLD_NOW) else {
+            let err = String(cString: dlerror() ?? "unknown dlopen error")
+            throw MCPError.failed("dlopen failed: \(err)")
+        }
+
+        // 检查 dylib 里有没有 TARegisterTool（dlsym）
+        let sym = dlsym(handle, "TARegisterTool")
+        let hasRegister = sym != nil
+
+        return [
+            "ok": true,
+            "path": path,
+            "handle": "\(handle)",
+            "has_register_symbol": hasRegister,
+            "note": hasRegister ? "dylib loaded, tools registered via TARegisterTool()" : "dylib loaded but TARegisterTool not found (did it register tools?)",
+            "loaded_tools": ToolRegistry.shared.allToolNames().filter { $0.hasPrefix("ext.") }
         ]
     }
 }

@@ -194,6 +194,13 @@ public final class ToolRegistry: ObservableObject {
         lock.unlock()
     }
 
+    /// v3.0.71：外部 dylib 注册工具（AI 自我进化——AI 写 dylib 注入自己，注册新工具）
+    public func registerExternalTool(_ def: ToolDefinition, handler: @escaping ([String: Any]) throws -> [String: Any]) {
+        let wrapper = ExternalMCPTool(definition: def, handler: handler)
+        register(wrapper)
+        print("[TA] external tool registered: \(def.name)")
+    }
+
     public var definitions: [ToolDefinition] {
         lock.lock()
         defer { lock.unlock() }
@@ -882,6 +889,13 @@ public final class ToolRegistry: ObservableObject {
         register(MacroDeleteTool())
         register(MacroExportTool())
 
+        // v3.0.67：toolchain 工具
+        register(ToolchainStatusTool())
+        register(ToolchainInstallTool())
+        register(ToolchainUninstallTool())
+        // v3.0.71：AI 自我进化——加载外部 dylib 注册新工具
+        register(ToolLoadDylibTool())
+
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
     }
 }
@@ -960,5 +974,56 @@ public enum Workspace {
             throw MCPError.invalidParams("path escapes workspace: \(path)")
         }
         return url
+    }
+}
+
+// MARK: - v3.0.71：外部 dylib 工具注册（AI 自我进化）
+
+/// 外部工具包装：把 dylib 的 handler 包装成 MCPTool
+public final class ExternalMCPTool: MCPTool {
+    public let definition: ToolDefinition
+    private let handler: ([String: Any]) throws -> [String: Any]
+
+    public init(definition: ToolDefinition, handler: @escaping ([String: Any]) throws -> [String: Any]) {
+        self.definition = definition
+        self.handler = handler
+    }
+
+    public func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        try handler(params)
+    }
+}
+
+/// C 函数签名：让外部 dylib 能注册工具
+/// dylib 加载后调用 TARegisterTool(name, summary, paramsJSON, handler)
+/// handler 是 C 函数指针：NSDictionary* (^)(NSDictionary*)
+typealias TAExternalHandler = @convention(block) (NSDictionary) -> NSDictionary
+
+/// 全局注册函数——dylib 里调这个
+@_cdecl("TARegisterTool")
+public func TARegisterTool(_ name: UnsafePointer<CChar>,
+                           _ summary: UnsafePointer<CChar>,
+                           _ paramsJSON: UnsafePointer<CChar>,
+                           _ handler: @escaping @convention(block) (NSDictionary) -> NSDictionary) {
+    let n = String(cString: name)
+    let s = String(cString: summary)
+    let p = String(cString: paramsJSON)
+
+    // 解析 params JSON
+    var params: [String: String] = [:]
+    if let data = p.data(using: .utf8),
+       let obj = try? JSONSerialization.jsonObject(with: data) as? [String: String] {
+        params = obj
+    }
+
+    let def = ToolDefinition(name: n, summary: s, parameters: params, verified: true, category: "external")
+    ToolRegistry.shared.registerExternalTool(def) { params in
+        let result = handler(params as NSDictionary)
+        // NSDictionary → [String: Any]
+        var dict: [String: Any] = [:]
+        for (k, v) in result {
+            if let key = k as? String { dict[key] = v }
+        }
+        return dict
     }
 }
