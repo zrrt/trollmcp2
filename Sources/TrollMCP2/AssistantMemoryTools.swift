@@ -33,7 +33,7 @@ final class AssistantMemorySetTool: MCPTool {
     let definition = ToolDefinition(
         name: "assistant.memory_set",
         summary: "Save an assistant memory entry (key-value pair)",
-        parameters: ["key": "Memory key (REQUIRED)", "value": "Memory value (REQUIRED)"],
+        parameters: ["key": "Memory key", "value": "Memory value"],
     verified: true, category: "knowledge")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -71,7 +71,7 @@ final class AssistantMemoryDeleteTool: MCPTool {
     let definition = ToolDefinition(
         name: "assistant.memory_delete",
         summary: "Delete a specific assistant memory entry",
-        parameters: ["key": "Memory key to delete (REQUIRED)"],
+        parameters: ["key": "Memory key to delete"],
     verified: true, category: "knowledge")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

@@ -14,7 +14,7 @@ final class IPAInspectTool: MCPTool {
         summary: "Parse IPA or installed app: arch, signature, entitlements, dylibs, Info.plist, URL schemes, background modes.",
         parameters: [
             "path": "IPA file path or App Bundle path (required, locate via artifact.find)",
-            "detail": "Verbosity: basic (default, arch+signature+version) or full (deps list + entitlements full text) (optional)"
+            "detail": "Verbosity: basic (default, arch+signature+version) or full (deps list + entitlements full text)"
         ],
     verified: true, category: "analysis")
 
@@ -419,13 +419,13 @@ final class InjectionDiagnoseTool: MCPTool {
 // MARK: - 日志采集器
 
 final class LogCollectTool: MCPTool {
-    let definition = ToolDefinitioname: "log.collect",
+    let definition = ToolDefinition(
+        name: "log.collect",
         summary: "Collect logs and crash info for an app: system logs, stdout, crash reports, injection logs. Writes to workspace for AI analysis.",
         parameters: [
             "bundle_id": "Target App bundle_id (optional, default TrollAgent own logs)",
-            "type": "Log type: system / crash / injection / all (default) (optional)",
-            "lines": "Max lines (default 200) (optional)"
-        ]"
+            "type": "Log type: system / crash / injection / all (default)",
+            "lines": "Max lines (default 200)"
         ],
     verified: true, category: "diagnose")
 
@@ -494,13 +494,13 @@ final class LogCollectTool: MCPTool {
 // MARK: - HTTP 抓包工具
 
 final class NetworkCaptureTool: MCPTool {
-    let definame: "network.capture",
+    let definition = ToolDefinition(
+        name: "network.capture",
         summary: "HTTP packet capture. Inject built-in NetworkTweak.dylib first; all HTTP/HTTPS requests logged locally. View list/URL/method/status/headers/JSON.",
         parameters: [
-            "action": "Action: status / start / stop / requests / analyze (REQUIRED)",
+            "action": "Action: status / start / stop / requests / analyze",
             "bundle_id": "Target App bundle_id (required for start)",
-            "limit": "Max requests (default 50) (optional)"
-        ] requests (default 50)"
+            "limit": "Max requests (default 50)"
         ],
         verified: true, category: "diagnose")
 

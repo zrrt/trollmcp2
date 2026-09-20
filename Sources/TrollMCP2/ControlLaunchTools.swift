@@ -105,7 +105,7 @@ final class AppLaunchOptionsTool: MCPTool {
 final class LocationFakeTool: MCPTool {
     let definition = ToolDefinition(name: "location.fake",
         summary: "Write simulated location coordinates. Note: system-wide mock needs hooking locationd (not possible with TrollStore); affects target app only if the app has an injected hook reading this config.",
-        parameters: ["lat": "Latitude (REQUIRED)", "lon": "Longitude (REQUIRED)", "reason": "Why (optional)"], verified: true, category: "device")
+        parameters: ["lat": "Latitude", "lon": "Longitude", "reason": "Why (optional)"], verified: true, category: "device")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let lat = params["lat"] as? Double, let lon = params["lon"] as? Double else {
             throw MCPError.invalidParams("lat, lon required")

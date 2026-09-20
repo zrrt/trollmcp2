@@ -12,7 +12,7 @@ final class DiagnoseStartupTool: MCPTool {
         summary: "Auto-diagnose app launch failure. Checks: signature, architecture, dependencies, entitlements, injection state, process cache, crash logs. Gives clear cause and fix steps.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
-            "auto_fix": "Auto-attempt fix (default false, diagnose only) (optional)"
+            "auto_fix": "Auto-attempt fix (default false, diagnose only)"
         ],
         verified: true, category: "diagnose")
 
@@ -131,12 +131,12 @@ final class DiagnoseStartupTool: MCPTool {
 }
 
 final class DiagnoseCrashTool: MCPTool {
-    let definition = ToolDefinitioname: "diagnose.crash",
+    let definition = ToolDefinition(
+        name: "diagnose.crash",
         summary: "Analyze recent crash logs for an app, auto-extract: exception type, termination reason, crashed thread, call stack, dyld errors, signature issues. Gives root cause and fix suggestions.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
-            "count": "Analyze recent crashes (default 1) (optional)"
-        ]"
+            "count": "Analyze recent crashes (default 1)"
         ],
     verified: true, category: "diagnose")
 
@@ -388,11 +388,11 @@ final class LocalServerManager {
 }
 
 final class ServerStartTool: MCPTool {
-    let definition = Toname: "server.start",
+    let definition = ToolDefinition(
+        name: "server.start",
         summary: "Start local HTTP server (localhost), other scripts/tools can call all TrollAgent tools via REST API. Default port 8765.",
         parameters: [
-            "port": "Port (default 8765) (optional)"
-        ]fault 8765)"
+            "port": "Port (default 8765)"
         ], verified: true, category: "diagnose")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

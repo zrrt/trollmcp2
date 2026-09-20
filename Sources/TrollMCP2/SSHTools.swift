@@ -119,9 +119,9 @@ final class SCPTool: MCPTool {
         name: "ssh.scp",
         summary: "Transfer files between local and remote Linux via SCP (configure SSH first). direction=upload or download.",
         parameters: [
-            "direction": "upload (local→remote) or download (remote→local) (REQUIRED)",
-            "local_path": "Local file path (REQUIRED)",
-            "remote_path": "Remote file path (REQUIRED)"
+            "direction": "upload (local→remote) or download (remote→local)",
+            "local_path": "Local file path",
+            "remote_path": "Remote file path"
         ],
         verified: true, category: "shell")
 

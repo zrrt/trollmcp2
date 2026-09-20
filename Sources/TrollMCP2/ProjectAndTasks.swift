@@ -153,12 +153,12 @@ final class ProjectTool: MCPTool {
         name: "project",
         summary: "Project context management. Create/switch/view current project; AI auto-reads target app, dylib, history.",
         parameters: [
-            "action": "current | list | create | select | delete | history (REQUIRED)",
-            "name": "Project name (for create) (optional)",
-            "bundle_id": "Target App bundle_id (for create) (optional)",
-            "app_name": "Target App name (for create) (optional)",
-            "dylib_path": "dylib path (for create/update) (optional)",
-            "project_id": "Project id (for select/delete/history) (optional)"
+            "action": "current | list | create | select | delete | history",
+            "name": "Project name (for create)",
+            "bundle_id": "Target App bundle_id (for create)",
+            "app_name": "Target App name (for create)",
+            "dylib_path": "dylib path (for create/update)",
+            "project_id": "Project id (for select/delete/history)"
         ], verified: true, category: "build")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -319,7 +319,7 @@ final class TaskTemplateRunner {
 
         case .injectVerify:
             guard let dylib = dylibPath else {
-                return TemplateResult(success: false, summary: "dylib_path required", steps: [], reportPath: nil, durationMs: Int(Date().timeIntervalSince(start) * 1000))
+                return TemplateResult(success: false, summary: "需要 dylib_path", steps: [], reportPath: nil, durationMs: Int(Date().timeIntervalSince(start) * 1000))
             }
 
             // 1. 预检
@@ -489,11 +489,11 @@ final class TaskTemplateRunner {
             if !injected {
                 let dylib = ProcessHelper.tweakPath("NetworkTweak.dylib") ?? ""
                 if dylib.isEmpty {
-                    return TemplateResult(success: false, summary: "Built-in NetworkTweak.dylib not found", steps: [], reportPath: nil, durationMs: 0)
+                    return TemplateResult(success: false, summary: "内置 NetworkTweak.dylib 不存在", steps: [], reportPath: nil, durationMs: 0)
                 }
                 let r = try? InjectionManager.shared.enable(bundleId: bundleId, dylibSourcePath: dylib)
                 if (r?["status"] as? String) != "injected" {
-                    return TemplateResult(success: false, summary: "NetworkTweak injection failed", steps: [], reportPath: nil, durationMs: 0)
+                    return TemplateResult(success: false, summary: "NetworkTweak 注入失败", steps: [], reportPath: nil, durationMs: 0)
                 }
             }
             steps.append(["step": "NetworkTweak 就绪", "success": true])
@@ -612,14 +612,15 @@ final class TaskTemplateRunner {
     }
 }
 
-final classname: "task.run",
+final class TaskTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "task.run",
         summary: "Run a task template. One-click common flows: diagnose injection, capture crash, verify injection (with rollback), IPA health, perf regression, emergency recovery, packet capture, new device, AI analyze, crash triage.",
         parameters: [
-            "template": "Template id: diagnose_injection | capture_crash | inject_verify | ipa_health | perf_regression | emergency_recover | network_probe | new_device | ai_analyze | crash_triage (REQUIRED)",
-            "bundle_id": "Target App bundle_id (default current project) (REQUIRED)",
+            "template": "Template id: diagnose_injection | capture_crash | inject_verify | ipa_health | perf_regression | emergency_recover | network_probe | new_device | ai_analyze | crash_triage",
+            "bundle_id": "Target App bundle_id (default current project)",
             "dylib_path": "dylib path (required for inject_verify)",
-            "options": "Template params (JSON): network_probe duration/limit, new_device reset_keychain/refresh_idfa/name/model_identifier, ai_analyze direction/custom_hint/max_classes/prefix (REQUIRED)"
-        ]er, ai_analyze direction/custom_hint/max_classes/prefix"
+            "options": "Template params (JSON): network_probe duration/limit, new_device reset_keychain/refresh_idfa/name/model_identifier, ai_analyze direction/custom_hint/max_classes/prefix"
         ],
     verified: true, category: "build")
 

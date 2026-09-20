@@ -200,7 +200,7 @@ final class ProgressNotifier {
 final class UITapTool: MCPTool {
     let definition = ToolDefinition(name: "ui.tap",
         summary: "Tap at screen coordinates (AI controls any foreground app: Meituan/Xiaohongshu etc). Coordinates in points (iPhone fullscreen ~390x844 logical points), origin top-left. Always include reason.",
-        parameters: ["x": "X coordinate in points (REQUIRED)", "y": "Y coordinate in points (REQUIRED)", "reason": "Why tap here (required, e.g. screenshot shows search box at (100,55))"], verified: true, category: "ui_control")
+        parameters: ["x": "X coordinate in points", "y": "Y coordinate in points", "reason": "Why tap here (required, e.g. screenshot shows search box at (100,55))"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x = params["x"] as? Double, let y = params["y"] as? Double else {
             throw MCPError.invalidParams("x, y required（浮点 points）")
@@ -220,9 +220,9 @@ final class UITapTool: MCPTool {
 }
 
 final class UISwipeTool: MCPTool {
-    let definition = Toolname: "ui.swipe",
+    let definition = ToolDefinition(name: "ui.swipe",
         summary: "Swipe on screen (from A to B), for paging/scrolling/back gesture. Always include reason.",
-        parameters: ["x1": "Start X (REQUIRED)", "y1": "Start Y (REQUIRED)", "x2": "End X (REQUIRED)", "y2": "End Y (REQUIRED)", "duration_ms": "Duration ms (default 300) (optional)", "reason": "Why swipe (required)"]required)"], verified: true, category: "ui_control")
+        parameters: ["x1": "Start X", "y1": "Start Y", "x2": "End X", "y2": "End Y", "duration_ms": "Duration ms (default 300)", "reason": "Why swipe (required)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x1 = params["x1"] as? Double, let y1 = params["y1"] as? Double,
               let x2 = params["x2"] as? Double, let y2 = params["y2"] as? Double else {
@@ -243,9 +243,10 @@ final class UISwipeTool: MCPTool {
     }
 }
 
-final class UILongPrname: "ui.long_press",
+final class UILongPressTool: MCPTool {
+    let definition = ToolDefinition(name: "ui.long_press",
         summary: "Long-press at screen coordinates (for popup menu/text selection/paste menu). Always include reason.",
-        parameters: ["x": "X (REQUIRED)", "y": "Y (REQUIRED)", "duration_ms": "Long press duration ms (default 800) (optional)", "reason": "Why long press (required)"]al)", "reason": "Why long press (required)"]required)"], verified: true, category: "ui_control")
+        parameters: ["x": "X", "y": "Y", "duration_ms": "Long press duration ms (default 800)", "reason": "Why long press (required)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x = params["x"] as? Double, let y = params["y"] as? Double else {
             throw MCPError.invalidParams("x, y required")
@@ -268,7 +269,7 @@ final class UILongPrname: "ui.long_press",
 final class UIClipboardTool: MCPTool {
     let definition = ToolDefinition(name: "ui.clipboard",
         summary: "Write text to system clipboard (combine with ui.long_press + tap Paste for cross-app text input; iOS has no public text injection API). Always include reason.",
-        parameters: ["text": "Text to write to clipboard (REQUIRED)", "reason": "Why (required)"], verified: true, category: "ui_control")
+        parameters: ["text": "Text to write to clipboard", "reason": "Why (required)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let text = params["text"] as? String else { throw MCPError.invalidParams("text required") }
         let reason = params["reason"] as? String ?? ""
@@ -309,9 +310,10 @@ final class UIScreenshotTool: MCPTool {
 
 // MARK: - 进度横幅（执行中节点汇报）
 
-final class ProgressNotname: "progress.notify",
+final class ProgressNotifyTool: MCPTool {
+    let definition = ToolDefinition(name: "progress.notify",
         summary: "During AI app control, send a system notification banner (visible at top of any screen) to report step progress.",
-        parameters: ["title": "Title (e.g. ✅ Store selected) (REQUIRED)", "body": "Body (e.g. Burger King - 2nd store) (REQUIRED)"]UIRED)", "body": "Body (e.g. Burger King - 2nd store)"], verified: true, category: "ui_control")
+        parameters: ["title": "Title (e.g. ✅ Store selected)", "body": "Body (e.g. Burger King - 2nd store)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let title = params["title"] as? String, !title.isEmpty else {
             throw MCPError.invalidParams("title required")
@@ -325,9 +327,10 @@ final class ProgressNotname: "progress.notify",
 
 // MARK: - 控制会话（计划→执行→报告）
 
-final clasname: "control.begin",
+final class ControlBeginTool: MCPTool {
+    let definition = ToolDefinition(name: "control.begin",
         summary: "Start an AI app-control session: register target app and plan (AI reports each step via control.update, UI shows live progress; target app must be brought to foreground first).",
-        parameters: ["target": "Target App name (e.g. Meituan) (REQUIRED)", "bundle_id": "Target bundle_id (optional)", "plan": "Plan steps array (string list) (REQUIRED)"]t bundle_id (optional)", "plan": "Plan steps array (string list)"],
+        parameters: ["target": "Target App name (e.g. Meituan)", "bundle_id": "Target bundle_id (optional)", "plan": "Plan steps array (string list)"],
         verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let target = params["target"] as? String, !target.isEmpty else {
@@ -344,7 +347,7 @@ final clasname: "control.begin",
 final class ControlUpdateTool: MCPTool {
     let definition = ToolDefinition(name: "control.update",
         summary: "Update a control session step status (running/done/failed) + details, UI refreshes live.",
-        parameters: ["step": "Step index (0-based, REQUIRED)", "status": "Status (REQUIRED): pending|running|done|failed", "detail": "Details (optional)", "reason": "Why (optional)"],
+        parameters: ["step": "Step index (0-based)", "status": "pending/running/done/failed", "detail": "Details (optional)", "reason": "Why (optional)"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let idx = params["step"] as? Int else { throw MCPError.invalidParams("step required") }
@@ -367,7 +370,7 @@ final class ControlUpdateTool: MCPTool {
 final class ControlFinishTool: MCPTool {
     let definition = ToolDefinition(name: "control.finish",
         summary: "End control session, record final result (UI shows full report).",
-        parameters: ["result": "Result summary (what done / where stuck / next steps) (optional)"],
+        parameters: ["result": "Result summary (what done / where stuck / next steps)"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let result = params["result"] as? String ?? "完成"

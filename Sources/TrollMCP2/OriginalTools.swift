@@ -159,7 +159,7 @@ func cronSeconds(_ expr: String) -> Int? {
 
 final class InjectionRemoveTool: MCPTool {
     let definition = ToolDefinition(name: "injection.remove", summary: "Completely remove injection from an app (including dylib files)",
-        parameters: ["bundle_id": "Target App bundle_id (REQUIRED)"])
+        parameters: ["bundle_id": "Target App bundle_id"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
         let result = try InjectionManager.shared.disable(bundleId: bid)
@@ -183,7 +183,7 @@ final class InjectionRemoveTool: MCPTool {
 
 final class ContainerDeleteTool: MCPTool {
     let definition = ToolDefinition(name: "container.delete", summary: "Delete a file or directory inside an app container",
-        parameters: ["bundle_id": "Target App (REQUIRED)", "path": "Path inside container (REQUIRED)"], verified: true, category: "filesystem")
+        parameters: ["bundle_id": "Target App", "path": "Path inside container"], verified: true, category: "filesystem")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String,
               let path = params["path"] as? String else {
@@ -206,7 +206,7 @@ final class ContainerDeleteTool: MCPTool {
 
 final class GatewayChannelSendTool: MCPTool {
     let definition = ToolDefinition(name: "gateway.channel_send", summary: "Broadcast a message to a Gateway channel",
-        parameters: ["channel": "Channel name (REQUIRED)", "message": "Message content (optional)"], verified: true, category: "automation")
+        parameters: ["channel": "Channel name", "message": "Message content"], verified: true, category: "automation")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard GatewayClient.shared.isConnected else { throw MCPError.failed("gateway not connected") }
         guard let channel = params["channel"] as? String else { throw MCPError.invalidParams("channel required") }
@@ -221,7 +221,7 @@ final class GatewayChannelSendTool: MCPTool {
 
 final class GatewayCronCreateTool: MCPTool {
     let definition = ToolDefinition(name: "gateway.cron_create", summary: "Create a Gateway scheduled task (real local notification scheduling)",
-        parameters: ["name": "Task name (REQUIRED)", "schedule": "cron expression (optional)", "action": "Action description (optional)"], verified: true, category: "automation")
+        parameters: ["name": "Task name", "schedule": "cron expression", "action": "Action description"], verified: true, category: "automation")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
         let schedule = params["schedule"] as? String ?? "*/5 * * * *"
@@ -240,7 +240,7 @@ final class GatewayCronCreateTool: MCPTool {
 
 final class GatewayCronRunTool: MCPTool {
     let definition = ToolDefinition(name: "gateway.cron_run", summary: "Immediately run a scheduled task",
-        parameters: ["name": "Task name (REQUIRED)"], verified: true, category: "automation")
+        parameters: ["name": "Task name"], verified: true, category: "automation")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
         guard AutomationStore.shared.run(name: name) else {
@@ -252,7 +252,7 @@ final class GatewayCronRunTool: MCPTool {
 
 final class GatewayCronCancelTool: MCPTool {
     let definition = ToolDefinition(name: "gateway.cron_cancel", summary: "Cancel or delete a scheduled task",
-        parameters: ["name": "Task name (REQUIRED)"], verified: true, category: "automation")
+        parameters: ["name": "Task name"], verified: true, category: "automation")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
         guard let task = AutomationStore.shared.tasks.first(where: { $0.name == name }) else {
@@ -265,8 +265,8 @@ final class GatewayCronCancelTool: MCPTool {
 }
 
 final class GatewayNodeInvokeTool: MCPTool {
-    let definition = Toolname: "gateway.node_invoke", summary: "Remote-invoke a Gateway node method (original naming)",
-        parameters: ["node": "Node name (optional)", "method": "Method (optional)", "params": "Params object (REQUIRED)"]ms object"], verified: true, category: "automation")
+    let definition = ToolDefinition(name: "gateway.node_invoke", summary: "Remote-invoke a Gateway node method (original naming)",
+        parameters: ["node": "Node name", "method": "Method", "params": "Params object"], verified: true, category: "automation")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard GatewayClient.shared.isConnected else { throw MCPError.failed("gateway not connected") }
         let payload: [String: Any] = [
@@ -285,7 +285,7 @@ final class GatewayNodeInvokeTool: MCPTool {
 
 final class AutomationCancelTool: MCPTool {
     let definition = ToolDefinition(name: "automation.cancel", summary: "Cancel scheduled automation. Use for: stop task.",
-        parameters: ["name": "Task name or id (REQUIRED)"], verified: true, category: "device")
+        parameters: ["name": "Task name or id"], verified: true, category: "device")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
         let store = AutomationStore.shared
@@ -299,7 +299,7 @@ final class AutomationCancelTool: MCPTool {
 }
 
 final class AutomationHistoryTool: MCPTool {
-    let defininame: "automation.history", summary: "Show automation execution history. Use for: review past runs.")
+    let definition = ToolDefinition(name: "automation.history", summary: "Show automation execution history. Use for: review past runs.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let entries = AutomationStore.shared.history.prefix(50)
         return [
@@ -311,7 +311,7 @@ final class AutomationHistoryTool: MCPTool {
 
 final class AutomationSetEnabledTool: MCPTool {
     let definition = ToolDefinition(name: "automation.set_enabled", summary: "Enable/disable automation. Use for: toggle task.",
-        parameters: ["name": "Task name (REQUIRED)", "enabled": "true/false (optional)"]nabled": "true/false"], verified: true)
+        parameters: ["name": "Task name", "enabled": "true/false"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String,
               let task = AutomationStore.shared.tasks.first(where: { $0.name == name }) else {

@@ -138,7 +138,7 @@ final class BuildRunner {
 final class BuildEnvironmentTool: MCPTool {
     let definition = ToolDefinition(name: "build.environment", 
         summary: "Check local build environment: toolchain dir, clang/make/perl/ldid, Theos, iOS SDK",
-        parameters: ["toolchain": "Toolchain path: relative (toolchain = Workspace/toolchain) or absolute (/usr/local/theos etc.) (optional)"], verified: true, category: "build")
+        parameters: ["toolchain": "Toolchain path: relative (toolchain = Workspace/toolchain) or absolute (/usr/local/theos etc.)"], verified: true, category: "build")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let tcRel = params["toolchain"] as? String ?? "toolchain"
@@ -391,16 +391,16 @@ final class BuildRunTool: MCPTool {
     let definition = ToolDefinition(name: "build.run",
         summary: "Build a project (theos make or bare clang), returns exit code/output/artifacts",
         parameters: [
-            "project": "Project name (Workspace/projects/<project>) (optional)",
-            "mode": "theos or clang (default theos) (optional)",
-            "package": "Whether to run make package to produce .deb (true/false) (optional)",
-            "clean": "Run make clean before build (true/false) (optional)",
-            "toolchain": "Toolchain path: relative (toolchain = Workspace/toolchain) or absolute (/usr/local/theos etc.) (optional)",
+            "project": "Project name (Workspace/projects/<project>)",
+            "mode": "theos or clang (default theos)",
+            "package": "Whether to run make package to produce .deb (true/false)",
+            "clean": "Run make clean before build (true/false)",
+            "toolchain": "Toolchain path: relative (toolchain = Workspace/toolchain) or absolute (/usr/local/theos etc.)",
             "sdk": "SDK name (optional, auto-detect toolchain/sdk/iPhoneOS*.sdk)",
-            "output": "clang output filename (default <project>.dylib) (optional)",
-            "cflags": "Extra clang compile flags array (REQUIRED)",
-            "frameworks": "clang linked frameworks array (default Foundation) (optional)",
-            "timeout": "Timeout seconds (default 300) (optional)"
+            "output": "clang output filename (default <project>.dylib)",
+            "cflags": "Extra clang compile flags array",
+            "frameworks": "clang linked frameworks array (default Foundation)",
+            "timeout": "Timeout seconds (default 300)"
         ])
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

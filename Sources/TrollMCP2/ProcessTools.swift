@@ -17,7 +17,7 @@ final class AppStartTool: MCPTool {
         summary: "Launch an app. Multi-strategy: open -b -> registry path direct exec -> URL scheme, each level logs real errors/stderr.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
-            "wait_seconds": "Wait seconds after launch (default 3, to confirm alive) (optional)"
+            "wait_seconds": "Wait seconds after launch (default 3, to confirm alive)"
         ],
         verified: true, category: "app_control")
 
@@ -128,12 +128,12 @@ final class AppStopTool: MCPTool {
 }
 
 final class AppRestartTool: MCPTool {
-    let definition = ToolDefinitioname: "app.restart",
+    let definition = ToolDefinition(
+        name: "app.restart",
         summary: "Restart an app (kill then launch). Returns new PID and restart time.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
-            "wait_seconds": "Wait seconds after launch (default 3) (optional)"
-        ]"
+            "wait_seconds": "Wait seconds after launch (default 3)"
         ],
         verified: true, category: "app_control")
 
@@ -251,13 +251,13 @@ final class AppStatusTool: MCPTool {
 }
 
 final class AppStatsTool: MCPTool {
-    let definition = Toname: "app.stats",
+    let definition = ToolDefinition(
+        name: "app.stats",
         summary: "Sample CPU/memory of an app for N seconds, output avg/peak/trend. For perf analysis and leak detection.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
-            "duration": "Sampling duration in seconds (default 10) (optional)",
-            "interval": "Sampling interval in seconds (default 1) (optional)"
-        ](default 1)"
+            "duration": "Sampling duration in seconds (default 10)",
+            "interval": "Sampling interval in seconds (default 1)"
         ],
     verified: true, category: "app_control")
 
@@ -317,16 +317,16 @@ final class AppStatsTool: MCPTool {
 // MARK: - 测试编排器
 
 final class TestRunTool: MCPTool {
- name: "test.run",
+    let definition = ToolDefinition(
+        name: "test.run",
         summary: "One-click test pipeline: inject dylib -> launch app -> wait stable -> collect logs/perf -> stop -> report.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
             "dylib_path": "dylib path to inject (optional, skip if empty)",
-            "steps": "Steps comma-separated: inject,start,wait,stats,logs,stop,report (default all) (optional)",
-            "wait_seconds": "Wait seconds after launch (default 5) (optional)",
-            "stats_duration": "Stats sampling duration (default 10) (optional)",
-            "report_name": "Report name (default test_report_<timestamp>) (optional)"
-        ](default test_report_<timestamp>)"
+            "steps": "Steps comma-separated: inject,start,wait,stats,logs,stop,report (default all)",
+            "wait_seconds": "Wait seconds after launch (default 5)",
+            "stats_duration": "Stats sampling duration (default 10)",
+            "report_name": "Report name (default test_report_<timestamp>)"
         ],
     verified: true)
 

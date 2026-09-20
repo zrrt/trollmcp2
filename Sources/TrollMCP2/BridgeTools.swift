@@ -80,7 +80,7 @@ enum AppContainer {
 final class BridgeContainerTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.container",
         summary: "Get any app's bundle path + data container path + container size (foundation for cross-app data bridge).",
-        parameters: ["bundle_id": "Target App bundle_id (REQUIRED)"], verified: true, category: "filesystem")
+        parameters: ["bundle_id": "Target App bundle_id"], verified: true, category: "filesystem")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -105,7 +105,7 @@ final class BridgeContainerTool: MCPTool {
 final class BridgeLsTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.ls",
         summary: "List a directory inside any app container (bundle=app install dir / data=data container).",
-        parameters: ["bundle_id": "Target App bundle_id (REQUIRED)", "scope": "bundle or data (default data) (optional)", "path": "Relative path inside container (default root) (optional)"], verified: true, category: "filesystem")
+        parameters: ["bundle_id": "Target App bundle_id", "scope": "bundle or data (default data)", "path": "Relative path inside container (default root)"], verified: true, category: "filesystem")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -137,7 +137,7 @@ final class BridgeLsTool: MCPTool {
 final class BridgeReadTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.read",
         summary: "Read a file inside any app container (text/plist/JSON, truncated at 4000 chars; use fs.hexdump for binary).",
-        parameters: ["bundle_id": "Target App bundle_id (REQUIRED)", "scope": "bundle or data (optional)", "path": "Relative path inside container (REQUIRED)"], verified: true, category: "filesystem")
+        parameters: ["bundle_id": "Target App bundle_id", "scope": "bundle or data", "path": "Relative path inside container"], verified: true, category: "filesystem")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -172,9 +172,9 @@ final class BridgeReadTool: MCPTool {
 }
 
 final class BridgeCopyTool: MCPTool {
-    let defininame: "bridge.copy",
+    let definition = ToolDefinition(name: "bridge.copy",
         summary: "Copy file/dir across app containers (A container → B container, or → workspace). Confirm target data is not corrupted before write.",
-        parameters: ["from_bundle": "Source App bundle_id (REQUIRED)", "from_scope": "Source scope (REQUIRED)", "from_path": "Source relative path (REQUIRED)", "to_bundle": "Target App bundle_id (use workspace for workspace) (REQUIRED)", "to_scope": "Target scope (REQUIRED)", "to_path": "Target relative path (REQUIRED)"]Target relative path"], verified: true, category: "filesystem")
+        parameters: ["from_bundle": "Source App bundle_id", "from_scope": "Source scope", "from_path": "Source relative path", "to_bundle": "Target App bundle_id (use workspace for workspace)", "to_scope": "Target scope", "to_path": "Target relative path"], verified: true, category: "filesystem")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let fb = params["from_bundle"] as? String, !fb.isEmpty,
               let fs = params["from_scope"] as? String else {
@@ -207,9 +207,15 @@ final class BridgeCopyTool: MCPTool {
             let size = AppContainer.size(of: dst)
             return ["message": "已复制 \(src) → \(dst)", "src": src, "dst": dst, "size": AppContainer.human(size.bytes)]
         } catch {
-            throw MCPError.failed("复制失败: \(error.localizedDescriptionname: "bridge.export",
+            throw MCPError.failed("复制失败: \(error.localizedDescription)")
+        }
+    }
+}
+
+final class BridgeExportTool: MCPTool {
+    let definition = ToolDefinition(name: "bridge.export",
         summary: "Export a file/dir from any app container to workspace (default bridge_exports/<bundle_id>/), for backup/migration.",
-        parameters: ["bundle_id": "Target App bundle_id (REQUIRED)", "scope": "bundle or data (optional)", "path": "Relative path (default root = whole container) (optional)"]r data", "path": "Relative path (default root = whole container) (optional)"]t = whole container)"], verified: true, category: "filesystem")
+        parameters: ["bundle_id": "Target App bundle_id", "scope": "bundle or data", "path": "Relative path (default root = whole container)"], verified: true, category: "filesystem")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -231,9 +237,14 @@ final class BridgeCopyTool: MCPTool {
             return ["message": "已导出到工作区", "src": full, "dst": dst, "size": AppContainer.human(size.bytes), "files": size.files]
         } catch {
             throw MCPError.failed("导出失败: \(error.localizedDescription)")
-       name: "bridge.import",
+        }
+    }
+}
+
+final class BridgeImportTool: MCPTool {
+    let definition = ToolDefinition(name: "bridge.import",
         summary: "Import a file/dir from workspace into any app container (restore/migration). High-risk write, confirm target data can be overwritten.",
-        parameters: ["src_path": "Source path inside workspace (REQUIRED)", "bundle_id": "Target App bundle_id (REQUIRED)", "scope": "bundle or data (optional)", "to_path": "Target relative path inside container (REQUIRED)"]ndle_id", "scope": "bundle or data", "to_path": "Target relative path inside container"])
+        parameters: ["src_path": "Source path inside workspace", "bundle_id": "Target App bundle_id", "scope": "bundle or data", "to_path": "Target relative path inside container"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let src = params["src_path"] as? String, !src.isEmpty,
               let bid = params["bundle_id"] as? String, !bid.isEmpty,

@@ -193,7 +193,7 @@ final class MacroRunner {
 final class MacroRecordTool: MCPTool {
     let definition = ToolDefinition(name: "macro.record",
         summary: "Start recording an AI action macro: subsequent ui.tap/swipe/long_press/clipboard calls are recorded. Use macro.stop to save.",
-        parameters: ["name": "Macro name (REQUIRED)"], verified: true, category: "macro")
+        parameters: ["name": "Macro name"], verified: true, category: "macro")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
             throw MCPError.invalidParams("name required")
@@ -229,7 +229,7 @@ final class MacroListTool: MCPTool {
 final class MacroRunTool: MCPTool {
     let definition = ToolDefinition(name: "macro.run",
         summary: "Replay a macro: pure execution (no AI thinking), shows progress in control center + screenshot evidence at end. Target app must be in foreground.",
-        parameters: ["name": "Macro name (REQUIRED)", "loop": "Loop count (default 1, max 100) (optional)", "step_delay_ms": "Delay between steps ms (default 300) (optional)"], verified: true, category: "macro")
+        parameters: ["name": "Macro name", "loop": "Loop count (default 1, max 100)", "step_delay_ms": "Delay between steps ms (default 300)"], verified: true, category: "macro")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
             throw MCPError.invalidParams("name required")
@@ -254,7 +254,7 @@ final class MacroRunTool: MCPTool {
 final class MacroDeleteTool: MCPTool {
     let definition = ToolDefinition(name: "macro.delete",
         summary: "Delete a macro.",
-        parameters: ["name": "Macro name (REQUIRED)"], verified: true, category: "macro")
+        parameters: ["name": "Macro name"], verified: true, category: "macro")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
             throw MCPError.invalidParams("name required")
@@ -268,7 +268,7 @@ final class MacroDeleteTool: MCPTool {
 final class MacroExportTool: MCPTool {
     let definition = ToolDefinition(name: "macro.export",
         summary: "Export a macro as JSON to workspace (backup/share).",
-        parameters: ["name": "Macro name (REQUIRED)"], verified: true, category: "macro")
+        parameters: ["name": "Macro name"], verified: true, category: "macro")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
             throw MCPError.invalidParams("name required")

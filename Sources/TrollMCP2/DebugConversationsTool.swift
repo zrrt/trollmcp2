@@ -6,7 +6,7 @@ final class DebugDumpConversationsTool: MCPTool {
     let definition = ToolDefinition(
         name: "debug.dump_conversations",
         summary: "Debug: export conversation list (title/message count/first message content), to diagnose title garbling",
-        parameters: ["limit": "Max conversations to export (default 5, max 30) (optional)"], verified: true, category: "debug")
+        parameters: ["limit": "Max conversations to export (default 5, max 30)"], verified: true, category: "debug")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let limit = max(1, min((params["limit"] as? Int) ?? 5, 30))
@@ -31,9 +31,10 @@ final class DebugDumpConversationsTool: MCPTool {
 
 /// v2.9.297：调试工具——导出网络日志（最近100条请求/降级/错误记录），排查AI不回消息
 final class DebugDumpNetworkLogTool: MCPTool {
-    let definition = ToolDefinitioname: "debug.dump_network_log",
+    let definition = ToolDefinition(
+        name: "debug.dump_network_log",
         summary: "Debug: export NetworkLog recent request logs (fallbacks/errors/HTTP status), to diagnose AI request failures and empty replies",
-        parameters: ["limit": "Max entries (default 50, max 100) (optional)"] max 100)"], verified: true, category: "debug")
+        parameters: ["limit": "Max entries (default 50, max 100)"], verified: true, category: "debug")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let limit = max(1, min((params["limit"] as? Int) ?? 50, 100))

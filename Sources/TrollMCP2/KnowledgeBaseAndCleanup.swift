@@ -151,10 +151,10 @@ final class KnowledgeBaseTool: MCPTool {
         summary: "Query crash/error knowledge base. Input error text, auto-match known patterns and return cause + fix. Can also add new patterns.",
         parameters: [
             "error": "Error text (required, to match)",
-            "action": "query (default) or add (optional)",
-            "keyword": "Keyword when adding (REQUIRED)",
-            "cause": "Cause when adding (REQUIRED)",
-            "fix": "Fix when adding (REQUIRED)"
+            "action": "query (default) or add",
+            "keyword": "Keyword when adding",
+            "cause": "Cause when adding",
+            "fix": "Fix when adding"
         ],
     verified: true, category: "knowledge")
 
@@ -189,14 +189,14 @@ final class KnowledgeBaseTool: MCPTool {
 // MARK: - 工作区清理工具
 
 final class WorkspaceCleanupTool: MCPTool {
-    let definition = ToolDefinitioname: "workspace.cleanup",
+    let definition = ToolDefinition(
+        name: "workspace.cleanup",
         summary: "Clean workspace temp files: old build artifacts, download cache, logs, reports. Filter by age or size, supports dry-run preview.",
         parameters: [
-            "dry_run": "Preview only, no delete (default true) (optional)",
-            "max_age_days": "Delete files older than N days (default 7) (optional)",
-            "max_size_mb": "Clean old files when a dir exceeds N MB (default 500) (optional)",
-            "targets": "Clean targets: downloads,logs,reports,all (default all) (optional)"
-        ]"
+            "dry_run": "Preview only, no delete (default true)",
+            "max_age_days": "Delete files older than N days (default 7)",
+            "max_size_mb": "Clean old files when a dir exceeds N MB (default 500)",
+            "targets": "Clean targets: downloads,logs,reports,all (default all)"
         ],
     verified: true, category: "cleanup")
 

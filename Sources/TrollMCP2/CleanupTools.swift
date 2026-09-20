@@ -143,7 +143,7 @@ final class CleanupExecuteTool: MCPTool {
         summary: "Execute cleanup: clean specified items (cache/keychain/adid/container/idfv) on an app. danger-level container resets all data (auto-backup restorable). dry_run=true previews only",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
-            "items": "Items to clean, e.g. [\ (REQUIRED)"cache\",\"keychain\"] (required)",
+            "items": "Items to clean, e.g. [\"cache\",\"keychain\"] (required)",
             "dry_run": "Optional: true preview only (default false)"
         ], verified: true, category: "cleanup")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
