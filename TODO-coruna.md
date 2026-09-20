@@ -12,8 +12,11 @@
   - 根因2（命令找不到）：缺 commandDictionary.plist 命令表 + 同伴框架 → v3.0.33 实测 echo/pwd/ls 全 127 command not found → v3.0.34 打包命令表 + 扁平框架（ios_system/files/shell/text/tar/awk，60 命令），库名改 @executable_path 定位 → 实测 echo/ls/cd/管道/cat/tar/退出码全部正常
   - 根因3（卡死命令拖垮整机）：v3.0.34 实测 ls/cd/cat 访问 /private/var/containers/Bundle/Application（App bundle 挂载点）会阻塞 ~2 分钟且持有 ios_system 命令锁，整个远程终端不可用；in-process 执行 + ios_kill 无法回收阻塞 syscall → v3.0.35 改为 posix_spawn 独立 ShellHelper 子进程执行命令，超时 SIGKILL 进程组，主进程永不卡死；helper 回报最终 cwd 保留 cd 会话记忆
   - 根因4（会话 cwd 被 ~ 前缀污染）：v3.0.35 实测所有命令 exit 3——invoke 用 pwd 探测结果(~ 前缀显示值)覆盖会话目录，helper chdir("~/...") 失败 → v3.0.36 去掉 pwd 探测、只用 helper 报告的真实绝对路径，并对非 / 开头 cwd 做归一化；另加 shell-diag.log 诊断日志 + 超时 exit 137
+- ✅ **v3.0.36 真机回归全绿（2026-09-20 13:1x）**：echo/pwd/ls exit 0 秒回；cd 会话记忆跨调用保留；管道 echo|cat 正常；cat /etc/hosts 正常；重定向写读正常；tar 打包 exit 0；失败命令返回真实退出码（ls 不存在→1）；危险拦截正常（rm -rf /、dd if= 均被拒）；**死循环 awk(timeout=4)→4.1s 返回 exit 137 timed_out=true，且下一条命令立即正常执行（卡死回收成功，不再拖垮终端）**；shell-diag.log 正常生成（逐条 exec start/spawned/end 记录）
+  - ⚠️ 本轮测试最大坑：**测试脚本 python urllib 默认走沙箱代理导致所有 POST 超时**，误判为 App 挂起——必须禁代理（ProxyHandler({}) 或 curl --noproxy "*"）再测
+  - ⚠️ 遗留小项：tar -tf 列表输出为空（exit 0）；head/which/false 不在 60 命令表（command not found）；$APPDIR/bin/ldid -h 报 command not found（PATH 已含 bin、文件在，待查 ios_system 外部二进制查找逻辑）；App 测试期偶发被 iOS 重启（device.probe 时间戳推进，无信号崩溃记录）
 - 🔧 已知未实测 bug：pidOf 找不到进程、ldid entitlements 解析错、GitHub 授权轮询不更新、phone.call 改 telprompt 未实测
-- 📝 待办：curl（需 libssh2+openssl 框架）、network_ios（ping/nc/telnet）、Python IDE、终端按需下载、远程截图定时清理、备份功能（登录信息/游戏存档）
+- 📝 待办：**iSH 替换 ios_system（见第九节）**；curl（iSH 落地后自动解决）、network_ios（iSH 落地后自动解决）、Python IDE（iSH 落地后自动解决）、终端按需下载、远程截图定时清理、备份功能（登录信息/游戏存档）
 
 ---
 
@@ -207,4 +210,39 @@
 - Python 解释器体积大（~10MB+）
 - 第三方库更占空间
 - iOS 沙箱限制，有些库跑不了
+
+
+---
+
+## 九、终端引擎升级：iSH 替换 ios_system 🔄
+
+**决策（2026-09-20）**：评估 OpenMinis 的 iSH-ARM64 集成方案后确认——iSH 可用后 ios_system 无不可替代价值，**验证通过直接全删，不留双引擎**（git 历史保留可找回）。
+
+### 为什么换
+| 痛点（现状 ios_system） | iSH 解决方式 |
+|---|---|
+| 60 命令限制，缺这缺那 | 完整 Alpine Linux，`apk add` 装任何包 |
+| 外部 Mach-O 不能 exec（ldid 127） | Linux 二进制随便跑（guest 内） |
+| curl 缺 libssh2/openssl 未集成 | Alpine 自带 |
+| 危险命令靠正则拦截 | fakefs 沙箱天然隔离（rm -rf / 不伤真机） |
+
+### 参考实现（OpenMinis，已生产验证 10000+ 用户）
+- 引擎：`https://github.com/OpenMinis/ish-arm64`（feature-arm64 分支，aarch64 同架构模拟，不生成机器码、无需 JIT entitlement，iOS 14+）
+- 集成文档：`OpenMinis/OpenMinis` 仓库 `deps/ISH_INTEGRATION.md`（526 行，静态库 + rootfs + ISHKernel + TTY）
+- 执行器：`ISHShellExecutor.m`（1196 行：/bin/sh -c、行回调、退出码、killProcessGroup、finalizeTimedOutPid 防超时泄漏——与我们的死锁教训同款）
+- 构建脚本：`deps/build_ish.sh`（libish/libish_emu/libfakefs 静态库）+ `deps/prepare_alpine_rootfs.sh`（Alpine aarch64 rootfs → fakefs 格式），本机无 Xcode 也能走我们自己的 GitHub Actions(macos-latest)
+- 本地参考源码：`/home/user/Doubao/chats/38439081911741442/OpenMinis-src/`、`/home/user/Doubao/chats/38439081911741442/ish-arm64-src/`（持久目录，勿删）
+
+### 执行步骤
+1. **CI 验证性构建**：把 build_ish.sh + prepare_alpine_rootfs.sh 接进 workflow，确认静态库能编出来 + 体积（估算 tipa 从 ~10MB → ~35-45MB）
+2. **iOS 工程集成**：libish.a×3 + 头文件 + rootfs.zip；移植 ISHKernel（boot：mount_root fakefs + become_first_process + 设备节点 + procfs + exit_hook）与 ShellExecutor（复用 OpenMinis 模式）
+3. **shell.exec 切 iSH**：/bin/sh -c + 行回调 + 退出码；移植现有超时/危险拦截/cwd 会话/shell-diag.log 封装（架构不变，底层换 guest sh）
+4. **真机回归**：v3.0.36 全套（echo/ls/cd 记忆/管道/tar/死循环超时回收）+ iSH 特有项（rootfs 首次解压、内核 boot、后台挂起、并发调用、大程序 python/node）
+5. **全绿后删 ios_system**：Resources 里 ios_system/files/shell/text/tar/awk framework + commandDictionary.plist + ShellTool 的 IOSSystem.load 全删
+
+### 风险与回退
+- 最大不确定性：fork 构建脚本隐藏依赖 → 先做第 1 步试验
+- iSH 内核常驻内存/后台挂起行为 → 真机验证
+- 行为差异（busybox vs coreutils、模拟器 syscall 边角）→ 回归清单覆盖
+- **唯一留 fallback 的情形**：iSH 构建/真机验证失败——那时再考虑双引擎过渡
 

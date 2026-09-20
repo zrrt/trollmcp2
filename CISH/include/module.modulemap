@@ -1,0 +1,4 @@
+module CISH {
+    header "wrapper.h"
+    export *
+}

@@ -52,6 +52,24 @@ jobs:
             tools/sqlite_wipe.c -lsqlite3 -o Resources/bin/sqlite_wipe || { echo "SQLITE_WIPE FAILED"; exit 1; }
           ls -lh Resources/bin/sqlite_wipe
 
+      - name: Build iSH engine (libish.a + alpine rootfs)
+        # v3.0.37：编译 iSH-ARM64 静态库与 Alpine rootfs，供 shell.exec 新引擎使用。
+        # 脚本来自 OpenMinis（build_ish.sh / prepare_alpine_rootfs.sh），产出 ish-stage/{libs,include,resources}。
+        run: |
+          brew install meson ninja libarchive >/dev/null 2>&1 || true
+          mkdir -p ish-stage
+          cd ish-stage
+          cp ../scripts/ish-build/build_ish.sh .
+          cp ../scripts/ish-build/prepare_alpine_rootfs.sh .
+          git clone --depth 1 -q -b feature-arm64 https://github.com/OpenMinis/ish-arm64.git ish
+          cd ish && git submodule update --init --recursive --depth 1 -q && cd ..
+          bash build_ish.sh
+          bash prepare_alpine_rootfs.sh
+          echo "=== iSH 产物 ==="
+          ls -la libs/ include/ resources/ | head -40
+          du -sh libs include resources
+          cd ..
+
       - name: Build unsigned IPA
         # v3.0.33: 不再覆盖 RELEASE_VERSION（此前用 v<run>.<sha> 导致装上看不清版本，
         # 且 v3.0.32 时误下旧 artifact，手机显示 3.0.31）。版本直接读 Support/Info.plist，

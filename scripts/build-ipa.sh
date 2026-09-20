@@ -8,6 +8,14 @@ cd "$(dirname "$0")/.."
 SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
 echo ">>> iphoneos SDK: $SDK"
 
+# v3.0.37: iSH 引擎依赖——CI 已由 workflow 的 "Build iSH engine" 步骤生成 ish-stage/
+# （libs/include/resources + alpine-rootfs.zip）；本地构建需先跑 scripts/ish-build/*.sh
+if [ ! -f "ish-stage/libs/libish.a" ]; then
+    echo "!!! ish-stage/libs/libish.a 缺失——本地构建请先运行 scripts/ish-build/build_ish.sh 与 prepare_alpine_rootfs.sh" >&2
+    exit 1
+fi
+echo ">>> iSH libs: $(du -sh ish-stage/libs | cut -f1)"
+
 # v2.9.249: 部署目标 16→15 治本——按 ios16 编译会引用 iOS16+ 符号(URLRequest.httpMethod/timeoutInterval 等 availability 标注错误的 Swift setter),iOS 15.6 dyld 启动崩;降到 ios14 后编译器自动避免 iOS16+ API
 echo ">>> swift build (arm64-apple-ios15.0, release)"
 swift build -c release \
@@ -92,6 +100,19 @@ if [ -d "Resources" ]; then
         cp -R "$d" "$APP/$dirname"
     done
     echo ">>> bundled resources: $(find Resources -maxdepth 1 -type f | wc -l | tr -d ' ') files + $(find Resources -maxdepth 1 -type d | tail -n +2 | wc -l | tr -d ' ') dirs"
+fi
+
+# v3.0.37: iSH 引擎资源——alpine-rootfs.zip（首次启动解压）+ VDSO + RootfsPatch
+if [ -f "ish-stage/resources/alpine-rootfs.zip" ]; then
+    cp "ish-stage/resources/alpine-rootfs.zip" "$APP/alpine-rootfs.zip"
+    echo ">>> bundled alpine-rootfs.zip ($(du -h "$APP/alpine-rootfs.zip" | cut -f1))"
+fi
+if [ -f "ish-stage/resources/libvdso.so.elf" ]; then
+    cp "ish-stage/resources/libvdso.so.elf" "$APP/"
+fi
+if [ -d "ish-stage/resources/RootfsPatch.bundle" ]; then
+    rm -rf "$APP/RootfsPatch.bundle"
+    cp -R "ish-stage/resources/RootfsPatch.bundle" "$APP/"
 fi
 
 # v3.0.34：先给主二进制加 LC_RPATH @executable_path——ios_system 同伴框架依赖 @rpath/ios_system.framework/ios_system，

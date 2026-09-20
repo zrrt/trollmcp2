@@ -187,7 +187,7 @@ enum ShellDiag {
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "执行 shell 命令（终端/命令行/terminal/sh）：内置 ls/cat/grep/find/tar/awk/echo/cd 等 60 个命令 + $APPDIR/bin 外部工具（ldid/optool），解压ipa/deb、逆向分析、文件操作。危险命令自动拦截。cd 记住工作目录。",
+        summary: "执行 shell 命令（终端/命令行/terminal/sh）：完整 Alpine Linux 环境（iSH 引擎），内置 ls/cat/grep/find/tar/curl/python/busybox 全套 + apk 装包 + shell 脚本，cd 记住工作目录。危险命令自动拦截。",
         parameters: [
             "command": "要执行的 shell 命令（必填）",
             "timeout": "超时时间（秒，默认 30，最大 120）",
@@ -238,9 +238,17 @@ final class ShellExecTool: MCPTool {
         let timeout = min(max((params["timeout"] as? Double) ?? 30, 1), 120)
         let cwd = ShellSession.shared.currentDir
         
-        // 先切到会话工作目录，再执行命令（分开两次调用，不依赖 shell 对 && 的支持）
-        _ = IOSSystem.exec("cd '\(cwd)'", timeout: 5)
-        let (output, exitCode, timedOut) = IOSSystem.exec(command, timeout: timeout)
+        // v3.0.37：默认 iSH 引擎（完整 Alpine Linux，支持任意命令/装包/脚本）。
+        // 初始化失败（rootfs 缺失/内核 boot 失败）时回退 ios_system 旧引擎（60 内置命令）。
+        var (output, exitCode, timedOut) = ISHEngine.exec(command, timeout: timeout)
+        if output.hasPrefix("[ish] 内核初始化失败") || output.hasPrefix("[ish] 内核未就绪") {
+            ShellDiag.log("ISH unavailable, fallback ios_system: \(output)")
+            _ = IOSSystem.exec("cd '\(cwd)'", timeout: 5)
+            let r = IOSSystem.exec(command, timeout: timeout)
+            output = r.output
+            exitCode = r.exitCode
+            timedOut = r.timedOut
+        }
         
         // 过滤 ios_system 的 NSLog 调试噪音（格式：2026-09-20 09:36:27.156 TrollMCP2[15683:942233] ...）
         var stdout = ShellExecTool.filterNoise(output)
@@ -258,7 +266,7 @@ final class ShellExecTool: MCPTool {
             "exit_code": exitCode,
             "stdout": stdout,
             "cwd": newPwd,
-            "hint": "内置命令：ls/cat/grep/find/tar/awk/cd/echo 等 60 个 + $APPDIR/bin 外部工具（ldid/optool 等）。cd 记住目录。"
+            "hint": "Alpine Linux 环境：ls/cat/grep/find/tar/curl/python 等全套命令，可 apk add 装包。cd 记住目录。"
         ]
         if timedOut {
             result["timed_out"] = true
