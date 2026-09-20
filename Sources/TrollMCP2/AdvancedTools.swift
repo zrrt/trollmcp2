@@ -942,7 +942,7 @@ enum ProcessHelper {
 final class InjectionMemTool: MCPTool {
     let definition = ToolDefinition(
         name: "injection.mem",
-        summary: "内存注入：用 opainject 向运行中的目标 App 进程注入 dylib（task_for_pid + ROP → dlopen）。不改二进制、无备份、零残留，App 重启后注入自动消失。适合临时测试/探测。",
+        summary: "Memory injection: inject dylib into running target App via opainject (task_for_pid + ROP dlopen). No file change, zero residual, auto-removed on restart. Use for: temporary testing/probing.",
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "dylib_path": "要注入的 dylib 绝对路径（可选，不填则用内置 tweaks/ProbeAgent.dylib）",
@@ -1010,7 +1010,7 @@ final class InjectionMemTool: MCPTool {
 final class ProbeInspectTool: MCPTool {
     let definition = ToolDefinition(
         name: "probe.inspect",
-        summary: "运行时探测目标 App：枚举 ObjC 类/类详情（方法·属性·ivars）/UserDefaults/进程信息。用 ProbeAgent 内存注入 + localhost:4791 查询，探测完可自动清理。",
+        summary: "Runtime probe target App: enumerate ObjC classes / class details (methods, properties, ivars) / UserDefaults / process info. Uses ProbeAgent memory injection + localhost:4791 query. Use for: inspecting target App internals.",
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "query": "查询类型：classes（类列表）/ class（类详情）/ userdefaults / info，默认 classes",
@@ -1123,7 +1123,7 @@ final class ProbeInspectTool: MCPTool {
 final class HookApplyTool: MCPTool {
     let definition = ToolDefinition(
         name: "hook.apply",
-        summary: "配置化 Hook：向目标 App 注入 ConfigHook，并写入 hook_config.json（导航栏颜色/全局 tint/启动弹窗/方法调用日志）。改配置后重启 App 即生效，无需重新注入。",
+        summary: "Config hook: inject ConfigHook into target App and write hook_config.json (navbar color / global tint / startup alert / method log). Restart App to apply config changes. Use for: UI customization.",
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "config": "配置 JSON 字符串：{\"navBarColor\":\"#1A73E8\",\"navBarTitleColor\":\"#FFFFFF\",\"windowTint\":\"#FF0000\",\"alert\":{\"title\":\"..\",\"message\":\"..\"},\"methodLog\":[{\"class\":\"X\",\"selector\":\"y\"}]}",
@@ -1190,7 +1190,7 @@ final class HookApplyTool: MCPTool {
 final class DeviceFakeTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.fake",
-        summary: "设备伪装（内存注入版，v2.9.93）：写 fake_device.json 后向目标 App 进程内存注入 FakeDevice.dylib（opainject，不改二进制、零残留、重启还原）。默认 memory 模式绝不修改 App 文件，杜绝注入损坏。",
+        summary: "Device spoofing (memory injection): write fake_device.json then inject FakeDevice.dylib into target App process (no file change, zero residual, restored on restart). Use for: fake device model (e.g. fake iPhone 16 Pro Max).",
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "name": "伪装机型名称（如 iPhone 16 Pro Max）",

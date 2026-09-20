@@ -7,7 +7,7 @@ import Foundation
 final class AppReplaceDecryptedTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.replace_decrypted",
-        summary: "把 app.decrypt 砸壳产出的解密主二进制就地替换到已安装 App（不重装、保留数据容器）。替换后主二进制 cryptID=0，control.inject 即可注入主二进制（启动必加载）。替换前自动备份 .troll-fools.bak，可 injection.disable 恢复。",
+        summary: "Replace decrypted main binary in-place (no reinstall, keeps data container). After replace, cryptID=0, control.inject can inject main binary. Auto-backup .troll-fools.bak, restore via injection.disable.",
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "ipa_path": "砸壳 ipa 绝对路径（可选；缺省自动找工作区 decrypted/ 下匹配的 ipa）"
@@ -131,7 +131,7 @@ final class AppReplaceDecryptedTool: MCPTool {
 final class AppDecryptTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.decrypt",
-        summary: "对已安装的 App 进行砸壳解密（去除 App Store 加密）。需要目标 App 正在运行（未运行会自动启动）。输出解密后的 IPA 到工作区 decrypted/ 目录。",
+        summary: "Decrypt (dump decrypted) target App to IPA in decrypted/ workspace. Requires target App running. Use for: decrypted IPA for main-binary injection.",
         parameters: [
             "bundle_id": "目标 App 的 Bundle ID（必填，可用 injection.list 搜索）",
             "output_name": "输出文件名前缀（可选，默认用 App 名称）"
@@ -184,7 +184,7 @@ final class AppDecryptTool: MCPTool {
 final class AppEncryptInfoTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.encrypt_info",
-        summary: "查看指定 App 的加密状态（cryptid/cryptoff/cryptsize、签名）。App 正在运行时读进程内存精确解析，未运行时用 otool 且区分解析失败与未加密。",
+        summary: "Check target App encryption status (cryptid/cryptoff/cryptsize, signature). Reads process memory for accurate parse if running, else otool.",
         parameters: [
             "bundle_id": "目标 App 的 Bundle ID（必填）"
         ],

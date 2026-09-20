@@ -9,7 +9,7 @@ import Vision
 // MARK: - M3 注入工具
 
 final class InjectionEnableTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.enable", summary: "向指定 App 注入插件（dylib/framework/zip/deb，对齐 TrollFools：自动内置 CydiaSubstrate + 多资产 + 注入策略）。v3.0.59 智能注入：无静态可注入目标（全加密/无framework）时自动降级内存注入（免砸壳免改文件），Team ID 用 teamid 工具解析。",
+    let definition = ToolDefinition(name: "injection.enable", summary: "Inject plugin (dylib/framework/zip/deb) into target App (TrollFools-style: auto CydiaSubstrate + multi-asset + strategy). v3.0.59 smart: fallback to memory injection if no static target. Use for: persistent injection (survives restart).",
         parameters: ["bundle_id": "目标 App Bundle ID", "dylib_path": "插件本地路径（.dylib/.framework/.zip/.deb，如 Workspace/downloads/.../xxx.deb），缺省注入内置 ControlAgent.dylib", "weak_reference": "可选 Bool：是否弱引用注入（默认 false 强引用，对齐 TrollFools）", "inject_strategy": "可选 String：注入目标选择策略 lexicographic（默认）/fast（文件小优先）/preorder/postorder，对齐 TrollFools Strategy", "smart_fallback": "可选 Bool：无可静态注入目标时自动降级内存注入（默认 true）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
@@ -60,7 +60,7 @@ final class InjectionEnableTool: MCPTool {
 }
 
 final class InjectionDisableTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.disable", summary: "移除指定 App 的 dylib 注入（desist=false 时仅关闭、保留持久化副本，可再启用）",
+    let definition = ToolDefinition(name: "injection.disable", summary: "Remove dylib injection from target App (desist=false: disable but keep backup for re-enable).",
         parameters: ["bundle_id": "目标 App Bundle ID", "desist": "可选 Bool：是否彻底移除（默认 true；false=关闭插件保留持久化，之后可 injection.restore 重新启用）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
@@ -72,7 +72,7 @@ final class InjectionDisableTool: MCPTool {
 }
 
 final class InjectionEnablePersistedTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.enable_persisted", summary: "从持久化区重新启用已关闭的插件（对齐 TrollFools 启用开关：先 injection.disable desist=false 关闭，再本工具启用）",
+    let definition = ToolDefinition(name: "injection.enable_persisted", summary: "Re-enable disabled plugin from persistent backup (TrollFools-style enable toggle).",
         parameters: ["bundle_id": "目标 App Bundle ID"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
@@ -83,14 +83,14 @@ final class InjectionEnablePersistedTool: MCPTool {
 }
 
 final class InjectionStatusTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.status", summary: "查看注入统计（应用总数/已注入数/工具链）；要拿具体 App 的 bundle_id 请调用 injection.list", verified: true)
+    let definition = ToolDefinition(name: "injection.status", summary: "Show injection stats (total apps / injected count / toolchain). Use injection.list for specific App bundle_id.", verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         InjectionManager.shared.status()
     }
 }
 
 final class InjectionInspectTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.inspect", summary: "检查指定 App 的 dylib 加载状态",
+    let definition = ToolDefinition(name: "injection.inspect", summary: "Check dylib loading status of target App.",
         parameters: ["bundle_id": "目标 App Bundle ID"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
@@ -101,7 +101,7 @@ final class InjectionInspectTool: MCPTool {
 final class InjectionListTool: MCPTool {
     // v2.9.41：检索式——query 按名称/bundle_id 模糊匹配，只返回命中项，不再全量 266 条塞给 AI
     let definition = ToolDefinition(name: "injection.list", 
-        summary: "按关键字搜索设备已安装 App（返回 bundle_id + 名称，供 injection.enable 的 bundle_id 参数使用）；务必带 query 缩小范围，避免返回全量列表",
+        summary: "Search installed apps by keyword (returns bundle_id + name for injection.enable). Use query to narrow results.",
         parameters: ["query": "搜索关键字（App 名称或 bundle_id 片段，可选）；不带则只返回前 20 条"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let apps = AppCatalog.list()
