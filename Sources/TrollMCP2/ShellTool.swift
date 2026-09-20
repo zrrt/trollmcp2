@@ -18,18 +18,35 @@ final class ShellSession {
 ///   - 同时捕获 stdout + stderr
 ///   - 真实超时：超时后调 ios_kill 终止卡住的命令，调用方不被阻塞
 ///   - 返回真实退出码（ios_system 返回值）
+/// v3.0.34 补全命令表：
+///   - 打包 commandDictionary.plist（库名改 @executable_path 绝对定位）+ 扁平 framework（ios_system/files/shell/text/tar/awk）
+///   - 加载后调用 initializeEnvironment()（设置 PATH/APPDIR，让 $APPDIR/bin 的外部工具可用）
+///   - 预加载同伴框架，保证依赖解析
 enum IOSSystem {
     static var handle: UnsafeMutableRawPointer?
     
     static func load() {
         guard handle == nil else { return }
-        guard let fwPath = Bundle.main.path(forResource: "ios_system", ofType: nil, inDirectory: "ios_system.xcframework/ios-arm64/ios_system.framework") else {
+        guard let fwPath = Bundle.main.path(forResource: "ios_system", ofType: nil, inDirectory: "ios_system.framework") else {
             print("ios_system.framework not found")
             return
         }
         handle = dlopen(fwPath, RTLD_NOW)
         if handle == nil {
             print("dlopen failed: \(String(cString: dlerror()))")
+            return
+        }
+        // 初始化环境（PATH/APPDIR 等），否则外部工具找不到
+        if let envPtr = dlsym(handle, "initializeEnvironment") {
+            typealias env_func = @convention(c) () -> Void
+            let envFn = unsafeBitCast(envPtr, to: env_func.self)
+            envFn()
+        }
+        // 预加载同伴框架（绝对路径，RTLD_GLOBAL），保证 ios_system 内部按名 dlopen 时依赖已就绪
+        let companions = ["files.framework/files", "shell.framework/shell", "text.framework/text", "tar.framework/tar", "awk.framework/awk"]
+        for c in companions {
+            let p = Bundle.main.bundlePath + "/" + c
+            _ = dlopen(p, RTLD_NOW | RTLD_GLOBAL)
         }
     }
     
@@ -146,8 +163,8 @@ final class ShellExecTool: MCPTool {
         _ = IOSSystem.exec("cd '\(cwd)'", timeout: 5)
         let (output, exitCode, timedOut) = IOSSystem.exec(command, timeout: timeout)
         
-        // 输出截断到 2000 字符
-        var stdout = output
+        // 过滤 ios_system 的 NSLog 调试噪音（格式：2026-09-20 09:36:27.156 TrollMCP2[15683:942233] ...）
+        var stdout = ShellExecTool.filterNoise(output)
         if stdout.count > 2000 {
             stdout = String(stdout.prefix(2000)) + "\n... (输出太长，已截断，共 \(stdout.count) 字符)"
         }
@@ -155,7 +172,7 @@ final class ShellExecTool: MCPTool {
         // 获取当前工作目录
         var newPwd = cwd
         let pwdResult = IOSSystem.exec("pwd", timeout: 5)
-        let pwd = pwdResult.output.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pwd = ShellExecTool.filterNoise(pwdResult.output).trimmingCharacters(in: .whitespacesAndNewlines)
         if !pwd.isEmpty { newPwd = pwd }
         ShellSession.shared.currentDir = newPwd
         
@@ -166,12 +183,22 @@ final class ShellExecTool: MCPTool {
             "exit_code": exitCode,
             "stdout": stdout,
             "cwd": newPwd,
-            "hint": "内置100+命令：ls/cat/grep/find/unzip/tar/curl 等。cd 记住目录。"
+            "hint": "内置命令：ls/cat/grep/find/tar/awk/cd/echo 等 + $APPDIR/bin 外部工具（ldid/optool 等）。cd 记住目录。"
         ]
         if timedOut {
             result["timed_out"] = true
             result["hint"] = "命令超过 \(Int(timeout)) 秒未完成，已尝试用 ios_kill 终止。"
         }
         return result
+    }
+    
+    /// 过滤 ios_system 的 NSLog 调试噪音行
+    static func filterNoise(_ output: String) -> String {
+        let noisePattern = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3} \\S+\\[\\d+:\\d+\\]"
+        let lines = output.components(separatedBy: "\n")
+        let filtered = lines.filter { line in
+            line.range(of: noisePattern, options: .regularExpression) == nil
+        }
+        return filtered.joined(separator: "\n")
     }
 }

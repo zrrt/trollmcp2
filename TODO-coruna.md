@@ -2,16 +2,16 @@
 
 ---
 
-## 🚀 当前版本进度（v3.0.33）
+## 🚀 当前版本进度（v3.0.34）
 - ✅ 工具标签打完 174 个（排除注入类7+bug6+危险3）
-- ✅ 版本号对齐 v3.0.33（Support/Info.plist 递增，CI 不再覆盖 RELEASE_VERSION）
-- ✅ 集成 ios_system（dlopen 动态加载，只留 arm64 二进制）
+- ✅ 版本号对齐 v3.0.34（Support/Info.plist 递增，CI 不再覆盖 RELEASE_VERSION）
+- ✅ 集成 ios_system（dlopen 动态加载，扁平 framework，只留 arm64）
 - ✅ 修复 ldid 签名错误（删掉 simulator/maccatalyst/dSYM）
 - ❌ **v3.0.32 shell.exec 实测：全部卡死**（远程直连 121.31.137.51:18790 实测 echo/pwd 均超时无返回）
-  - 根因：v3.0.32 把 C 风格 pipe 改成 Foundation Pipe 时没关写端句柄，readDataToEndOfFile 永远等不到 EOF
-  - 已修复：v3.0.33 改回 C 风格 pipe（dup2 后立刻 close 写端）+ 真实超时（ios_kill 终止）+ 返回真实退出码 + 同时捕获 stderr
+  - 根因1（死锁）：v3.0.32 把 C 风格 pipe 改成 Foundation Pipe 时没关写端句柄，readDataToEndOfFile 永远等不到 EOF → 已修复（v3.0.33）
+  - 根因2（命令找不到）：缺 commandDictionary.plist 命令表 + 同伴框架 → v3.0.33 实测 echo/pwd/ls 全 127 command not found → v3.0.34 打包命令表 + 扁平框架（ios_system/files/shell/text/tar/awk，60 命令），库名改 @executable_path 定位
 - 🔧 已知未实测 bug：pidOf 找不到进程、ldid entitlements 解析错、GitHub 授权轮询不更新、phone.call 改 telprompt 未实测
-- 📝 待办：Python IDE、终端按需下载、远程截图定时清理、备份功能（登录信息/游戏存档）
+- 📝 待办：curl（需 libssh2+openssl 框架）、network_ios（ping/nc/telnet）、Python IDE、终端按需下载、远程截图定时清理、备份功能（登录信息/游戏存档）
 
 ---
 

@@ -94,6 +94,12 @@ if [ -d "Resources" ]; then
     echo ">>> bundled resources: $(find Resources -maxdepth 1 -type f | wc -l | tr -d ' ') files + $(find Resources -maxdepth 1 -type d | tail -n +2 | wc -l | tr -d ' ') dirs"
 fi
 
+# v3.0.34：先给主二进制加 LC_RPATH @executable_path——ios_system 同伴框架依赖 @rpath/ios_system.framework/ios_system，
+# 有 @executable_path rpath 才能解析到 App 根目录下的框架（install_name_tool 改完由下方 ldid 重签）
+if command -v install_name_tool >/dev/null 2>&1; then
+    install_name_tool -add_rpath @executable_path "$APP/TrollMCP2" 2>/dev/null || true
+fi
+
 # 把特权 entitlements 签入主二进制，TrollStore 安装时才能继承 no-sandbox/no-container/task_for_pid 等权限
 # v2.9.64：强制用 ldid 签名（TrollStore 官方明确要求 ldid -S 格式；codesign ad-hoc 签名格式不同，可能导致 entitlements 不被保留）
 if [ -f "Support/TrollMCP2.entitlements" ]; then
