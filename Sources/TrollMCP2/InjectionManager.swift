@@ -343,6 +343,9 @@ final class InjectionManager {
             ("ldid", ["-S", dylib], "ldid -S 空签"),
             ("ldid", ["-S" + entPath, dylib], "ldid -S platform+no-sandbox"),
             ("codesign", ["-f", "-s", "-", dylib], "/usr/bin/codesign adhoc"),
+            // v3.0.52: TrollFools 同款 CoreTrust bypass 链——ldid 伪签 + ct_bypass 多签名者漏洞签名
+            //（CVE-2023-41991；iOS16 arm64e dyld 放行非 trust-cache dylib 的唯一途径，TrollFools/InjectorV3+Command.swift 实测）
+            ("ctchain", [dylib], "ldid -S + ct_bypass CoreTrust"),
         ]
         var diag = ""
         // 先试各种签名方案
@@ -352,6 +355,18 @@ final class InjectionManager {
             if tool == "codesign" {
                 let r = spawnRootDetailed("/usr/bin/codesign", args: args, timeout: 20)
                 rc = r.code; ro = r.output
+            } else if tool == "ctchain" {
+                // ldid -S 伪签 → ct_bypass -r -i -t ""（Team ID 可空：TrollFools teamIdentifierOfMachO ?? ""）
+                (rc, ro) = runAsRoot("ldid", args: ["-S", dylib], timeout: 20)
+                if rc != 0 {
+                    diag += "【\(desc)】ldid 伪签失败(\(rc)) \(ro.prefix(150))\n"
+                    continue
+                }
+                (rc, ro) = runAsRoot("ct_bypass", args: ["-r", "-i", dylib, "-t", ""], timeout: 30)
+                if rc != 0 {
+                    diag += "【\(desc)】ct_bypass 失败(\(rc)) \(ro.prefix(200))\n"
+                    continue
+                }
             } else {
                 (rc, ro) = runAsRoot(tool, args: args, timeout: 20)
             }
