@@ -36,12 +36,9 @@ enum IOSSystem {
         let exec = unsafeBitCast(funcPtr, to: ios_system_func.self)
         
         // 重定向 stdout 到 pipe
-        var pipe: [Int32] = [-1, -1]
-        pipe(&pipe)
-        
+        let pipe = Pipe()
         let oldStdout = dup(STDOUT_FILENO)
-        dup2(pipe[1], STDOUT_FILENO)
-        close(pipe[1])
+        dup2(pipe.fileHandleForWriting.fileDescriptor, STDOUT_FILENO)
         
         _ = command.withCString { cCmd in
             exec(cCmd)
@@ -52,14 +49,7 @@ enum IOSSystem {
         dup2(oldStdout, STDOUT_FILENO)
         close(oldStdout)
         
-        var output = ""
-        var buf: [CChar] = Array(repeating: 0, count: 1024)
-        while read(pipe[0], &buf, 1024) > 0 {
-            output += String(cString: buf)
-            buf = Array(repeating: 0, count: 1024)
-        }
-        close(pipe[0])
-        
+        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
         return output
     }
 }
