@@ -125,7 +125,7 @@ final class ToolchainUninstallTool: MCPTool {
             }
         }
         
-        try? fm.removeItem(at: toolchainDir.path)
+        try? fm.removeItem(at: toolchainDir)
         
         AuditLog.shared.log("toolchain.uninstall", detail: "freed \(size) bytes")
         
