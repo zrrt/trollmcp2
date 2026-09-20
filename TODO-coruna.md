@@ -254,6 +254,20 @@
 - [x] ldid entitlements 二进制 plist 解析（SpawnResult.rawStdout Data 通道 + runAsRootData + 两处解析点改造）——真机验证备忘录完整 entitlements
 - [x] GitHub 设备授权轮询：网络错误/解析失败不再终止轮询（仅 access_denied/expired_token 等终止性错误停）
 - [x] phone.call 号码清空 bug（components(separatedBy:) 把数字全删 → filter 保留）——真机验证 +8610086
-## v3.0.43（构建中）
-- [ ] **opainject arm64e → EBADARCH(85)**：TrollStore arm64 进程 spawn 不了 arm64e 二进制，device.fake/injection.mem/probe 注入全失效。workflow 已加 Theos 按 ARCHS=arm64 重编步骤（失败 fallback 旧版）
-- [ ] 真机回归：device.fake 豆包（pidOf→opainject 注入全链路）、GitHub 授权（需用户浏览器实测）
+
+## 注入全链路打通（v3.0.43~v3.0.57，2026-09-20 完成）
+**最终成功方案（真机验证 iOS16.3 arm64e 豆包 pid 18453）**：
+1. **opainject 重编 arm64**（Theos ARCHS=arm64，SDK16.5 软链 + stdint patch + CoreSymbolication 清除）——TrollStore arm64 进程 spawn 不再 EBADARCH
+2. **tweaks dylib lipo -thin arm64**（去 arm64e slice——arm64e slice 的 adhoc 签名 iOS16 dyld 必报 invalid）
+3. **签名 = ldid -S 伪签 + ct_bypass -r -i -t <目标App真实TeamID>**（CoreTrust 多签名者漏洞 CVE-2023-41991，TrollFools 同款）
+   - **关键认知**：iOS16 dyld 拒绝一切普通 adhoc 签名 dylib（xerub/Procursus/TrollFools 版 ldid 全试过，errno=1）；只有 CoreTrust bypass 双签名者 blob 能骗过 amfid
+   - **Team ID 必须 = 目标 App（豆包）的**（dyld 校验 dylib 与进程 Team ID 一致；ct_bypass 内置模板是 GTA Car Tracker 证书，Team ID 需现场提取）
+   - **teamid 工具**（tools/teamid.c，CI clang 编译）：解析目标 App 二进制 CodeSignature → CodeDirectory（SuperBlob slot type=0 CSSLOT，**不是 blob magic**）→ teamOffset 字段
+4. **验证结果**：device.fake 豆包 → `status: faked`；injection.mem → `status: injected`；dlopen succeeded；豆包进程存活未崩
+- [x] device.fake / injection.mem 打 verified 标签（v3.0.58）
+- [ ] iOS 15 真机回归（用户要求 15.0 必支持；链路依赖 iOS14.0 部署基线，理论覆盖但未实测）
+- [ ] probe.inspect 全链路回归（注入通了，探测查询需再测）
+- [ ] GitHub 授权（需用户浏览器实测）
+
+## 仍开放
+- [ ] 崩溃自动恢复：注入闪退自动检测 → 自动回滚 → 提示用户

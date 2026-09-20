@@ -338,14 +338,13 @@ final class InjectionManager {
         """
         _ = try? entXML.data(using: .utf8)?.write(to: URL(fileURLWithPath: entPath))
 
-        // (签名工具, 参数, 描述)。ldid 参数 -S 后跟文件名即带该 entitlements。
+        // (签名工具, 参数, 描述)。v3.0.58: ctchain 排第一（真机验证成功路径），失败依次降级。
+        // 成功路径 = teamid 提目标 App Team ID + ldid -S 伪签 + ct_bypass CoreTrust（CVE-2023-41991 多签名者）。
         let signSteps: [(String, [String], String)] = [
+            ("ctchain", [dylib], "ldid -S + ct_bypass CoreTrust"),
             ("ldid", ["-S", dylib], "ldid -S 空签"),
             ("ldid", ["-S" + entPath, dylib], "ldid -S platform+no-sandbox"),
             ("codesign", ["-f", "-s", "-", dylib], "/usr/bin/codesign adhoc"),
-            // v3.0.52: TrollFools 同款 CoreTrust bypass 链——ldid 伪签 + ct_bypass 多签名者漏洞签名
-            //（CVE-2023-41991；iOS16 arm64e dyld 放行非 trust-cache dylib 的唯一途径，TrollFools/InjectorV3+Command.swift 实测）
-            ("ctchain", [dylib], "ldid -S + ct_bypass CoreTrust"),
         ]
         var diag = ""
         // 先试各种签名方案

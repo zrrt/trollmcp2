@@ -947,7 +947,8 @@ final class InjectionMemTool: MCPTool {
             "bundle_id": "目标 App Bundle ID（必填）",
             "dylib_path": "要注入的 dylib 绝对路径（可选，不填则用内置 tweaks/ProbeAgent.dylib）",
             "auto_launch": "App 未运行时是否尝试自动启动（true/false，默认 true）"
-        ]
+        ],
+        verified: true
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
