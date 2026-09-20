@@ -988,18 +988,32 @@ final class InjectionMemTool: MCPTool {
         let success = output.contains("dlopen succeeded") || (exit == 0 && output.contains("handle"))
         // v3.0.59：注入后确认进程存活（一键闭环：启动→注入→存活确认）
         let alive = ProcessHelper.pidOf(executableName: exeName) != nil
+        // v3.0.65：注入后 HTTP 就绪检查（ProbeAgent/ControlAgent localhost:4791）
+        var httpReady = false
+        if success && alive {
+            for _ in 0..<10 {
+                usleep(500_000)  // 0.5s × 10 = 5s
+                if let url = URL(string: "http://127.0.0.1:4791/"),
+                   let resp = try? Data(contentsOf: url, options: .alwaysMapped),
+                   !resp.isEmpty {
+                    httpReady = true
+                    break
+                }
+            }
+        }
         return [
-            "status": success ? "injected" : "failed",
+            "status": success ? (alive ? (httpReady ? "injected_alive_http" : "injected_alive_nohttp") : "injected_crashed") : "failed",
             "mode": "memory",
             "bundle_id": bundleId,
             "app": app.name,
             "pid": targetPid,
             "app_alive": alive,
+            "http_ready": httpReady,
             "dylib": dylibPath,
             "exit": exit,
             "output": output,
             "note": success
-                ? (alive ? "内存注入成功：进程存活，已 dlopen；App 重启后注入自动消失" : "内存注入成功但进程已退出（arm64e 非 trust-cache dylib 可能崩溃，需换 Trust Cache 方案）")
+                ? (alive ? (httpReady ? "内存注入成功：进程存活+HTTP 就绪，可立即 probe.inspect 查询" : "内存注入成功：进程存活但 HTTP 未就绪（dylib 加载了但服务没起，检查 dylib 依赖/端口占用）") : "内存注入成功但 App 已闪退（dylib 导致崩溃，需换 dylib 或回滚）")
                 : "opainject 失败，见 output 定位原因（权限/架构/进程状态）"
         ]
     }

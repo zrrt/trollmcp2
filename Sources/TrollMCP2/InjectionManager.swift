@@ -1502,10 +1502,15 @@ final class InjectionManager {
             } else {
                 // v2.9.316：第二层自动重试建议——返回排序后的候选列表，AI 看到失败后自动换目标
                 let nextTargets = scoredNames.filter { $0 != (targetMachO as NSString).lastPathComponent }.prefix(3)
-                selfcheckNote = selfcheckAlive
-                    ? "app launched and alive"
-                    : "selfcheck: 25s内未探测到进程。建议：injection.restore 后重试 target=\(nextTargets.joined(separator: "/"))；若全失败，app.decrypt 砸壳主二进制"
-                AuditLog.shared.log("injection.selfcheck_warn", detail: "\(bundleId) → \(targetMachO): \(selfcheckNote)")
+                // v3.0.65：闪退自动回滚——selfcheck 失败（App 启动后 25s 内进程消失）= dylib 导致崩溃，自动 disable 回滚
+                do {
+                    _ = try self.disable(bundleId: bundleId, desist: true)
+                    selfcheckNote = "selfcheck: 25s内未探测到进程（疑似闪退）→ 已自动回滚注入。建议：换 target=\(nextTargets.joined(separator: "/"))；若全失败，app.decrypt 砸壳主二进制"
+                    AuditLog.shared.log("injection.auto_rollback", detail: "\(bundleId) → \(targetMachO): \(selfcheckNote)")
+                } catch {
+                    selfcheckNote = "selfcheck: 25s内未探测到进程（疑似闪退），自动回滚失败：\(error.localizedDescription)。建议：手动 injection.disable"
+                    AuditLog.shared.log("injection.selfcheck_warn", detail: "\(bundleId) → \(targetMachO): \(selfcheckNote)")
+                }
             }
         }
         var persisted = false
