@@ -56,7 +56,9 @@ jobs:
         # v3.0.37：编译 iSH-ARM64 静态库与 Alpine rootfs，供 shell.exec 新引擎使用。
         # 脚本来自 OpenMinis（build_ish.sh / prepare_alpine_rootfs.sh），产出 ish-stage/{libs,include,resources}。
         run: |
-          brew install meson ninja libarchive >/dev/null 2>&1 || true
+          brew install meson ninja libarchive llvm >/dev/null 2>&1 || true
+          # lld 供 iSH VDSO 构建（-fuse-ld=lld）使用；llvm 的 clang 留作备用
+          echo "/opt/homebrew/opt/llvm/bin" >> "$GITHUB_PATH"
           mkdir -p ish-stage
           cd ish-stage
           cp ../scripts/ish-build/build_ish.sh .
