@@ -358,7 +358,7 @@ final class InjectionManager {
             } else if tool == "ctchain" {
                 // v3.0.53: 先提目标进程真实 Team ID（teamid 解析其 CodeDirectory TeamID 字段），
                 // 再 ldid -S 伪签 → ct_bypass -r -i -t <teamID>（CoreTrust 多签名者漏洞，CVE-2023-41991）
-                let (tc, to) = runAsRoot("teamid", args: ["\(pid)"], timeout: 15)
+                let (tc, to) = runAsRoot("teamid", args: ["\(pid)", "-v"], timeout: 15)
                 var teamID = ""
                 if tc == 0 {
                     for line in to.components(separatedBy: "\n") where line.hasPrefix("team_id: ") {

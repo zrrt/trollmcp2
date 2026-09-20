@@ -45,6 +45,8 @@ static uint32_t le32(const void *p) {
     return ((uint32_t)b[3] << 24) | ((uint32_t)b[2] << 16) | ((uint32_t)b[1] << 8) | b[0];
 }
 
+static int dbg = 0;
+
 // 从一个 Mach-O 文件里解析 teamID，写进 out（最大 32B）。返回 0 找到，-1 未找到。
 static int parseTeamID(FILE *f, long base, long size, char *out) {
     (void)size;
@@ -56,7 +58,7 @@ static int parseTeamID(FILE *f, long base, long size, char *out) {
     uint32_t magic = le32(buf);
     int swap = 0;
     if (magic == MH_CIGAM_64) { swap = 1; magic = MH_MAGIC_64; }
-    if (magic != MH_MAGIC_64) { free(buf); return -1; }
+    if (magic != MH_MAGIC_64) { if (dbg) fprintf(stderr, "  not 64-bit mach-o magic=%08x\n", magic); free(buf); return -1; }
     const struct mach_header_64 *mh = (const struct mach_header_64 *)buf;
     uint32_t ncmds = swap ? be32(&mh->ncmds) : le32(&mh->ncmds);
     uint32_t sizeofcmds = swap ? be32(&mh->sizeofcmds) : le32(&mh->sizeofcmds);
@@ -77,7 +79,7 @@ static int parseTeamID(FILE *f, long base, long size, char *out) {
         cmds += cmdsize;
     }
     free(buf);
-    if (!sigOff || !sigSize) return -1;
+    if (!sigOff || !sigSize) { if (dbg) fprintf(stderr, "  no LC_CODE_SIGNATURE\n"); return -1; }
 
     uint8_t *sbuf = malloc(sigSize);
     if (!sbuf) return -1;
@@ -86,21 +88,26 @@ static int parseTeamID(FILE *f, long base, long size, char *out) {
     if (sigSize < 12) { free(sbuf); return -1; }
     uint32_t smagic = be32(sbuf);
     uint32_t scount = be32(sbuf + 8);
+    if (dbg) fprintf(stderr, "  SuperBlob magic=%08x count=%u size=%u\n", smagic, scount, sigSize);
     if (smagic != CSMAGIC_EMBEDDED_SIGNATURE) { free(sbuf); return -1; }
     for (uint32_t i = 0; i < scount && (12 + 8 * (i + 1)) <= sigSize; i++) {
         uint32_t type = be32(sbuf + 12 + 8 * i);
         uint32_t off = be32(sbuf + 12 + 8 * i + 4);
+        if (dbg) fprintf(stderr, "    blob[%u] type=%08x off=%u\n", i, type, off);
         if (type == CSMAGIC_CODEDIRECTORY && off + 52 <= sigSize) {
             const struct CS_CodeDirectory *cd = (const struct CS_CodeDirectory *)(sbuf + off);
             uint32_t version = be32(&cd->version);
+            uint32_t flags = be32(&cd->flags);
             uint32_t teamOffset = 0;
             // v2.0+ (0x20400) 才有 teamOffset；v1 (0x20000) 没有 TeamID 字段
             if (version >= 0x20400) {
                 teamOffset = be32(&cd->teamOffset);
             }
+            if (dbg) fprintf(stderr, "    CodeDirectory ver=%08x flags=%08x teamOffset=%u\n", version, flags, teamOffset);
             if (teamOffset && off + teamOffset < sigSize) {
                 const char *team = (const char *)(sbuf + off + teamOffset);
                 size_t tlen = strnlen(team, sigSize - off - teamOffset);
+                if (dbg) fprintf(stderr, "    team string len=%zu first8=%.8s\n", tlen, team);
                 if (tlen > 0 && tlen < 32) {
                     memcpy(out, team, tlen);
                     out[tlen] = '\0';
@@ -117,7 +124,8 @@ static int parseTeamID(FILE *f, long base, long size, char *out) {
 }
 
 int main(int argc, char *argv[]) {
-    if (argc < 2) { fprintf(stderr, "usage: %s <pid | path>\n", argv[0]); return 1; }
+    if (argc < 2) { fprintf(stderr, "usage: %s <pid | path> [-v]\n", argv[0]); return 1; }
+    if (argc >= 3 && strcmp(argv[2], "-v") == 0) dbg = 1;
     char path[PATH_MAX] = {0};
     const char *arg = argv[1];
     if (arg[0] >= '0' && arg[0] <= '9') {
@@ -137,6 +145,7 @@ int main(int argc, char *argv[]) {
     int found = -1;
     if (magic == FAT_MAGIC || magic == FAT_CIGAM) {
         uint32_t nfat = be32(hdr + 4);
+        if (dbg) fprintf(stderr, "FAT magic=%08x nfat=%u\n", magic, nfat);
         for (uint32_t i = 0; i < nfat && i < 16; i++) {
             uint8_t fa[20];
             fseek(f, 8 + 20 * i, SEEK_SET);
@@ -144,6 +153,7 @@ int main(int argc, char *argv[]) {
             uint32_t cputype = be32(fa);
             uint32_t offset = be32(fa + 8);
             uint32_t size = be32(fa + 12);
+            if (dbg) fprintf(stderr, "  slice[%u] cputype=%08x off=%u size=%u\n", i, cputype, offset, size);
             if (cputype == CPU_TYPE_ARM64) {
                 found = parseTeamID(f, offset, size, team);
                 if (found == 0) break;
@@ -161,6 +171,7 @@ int main(int argc, char *argv[]) {
             }
         }
     } else {
+        if (dbg) fprintf(stderr, "thin mach-o magic=%08x\n", magic);
         fseek(f, 0, SEEK_END);
         long size = ftell(f);
         found = parseTeamID(f, 0, size, team);
@@ -170,6 +181,7 @@ int main(int argc, char *argv[]) {
         printf("team_id: %s\n", team);
         return 0;
     }
+    if (dbg) fprintf(stderr, "team id not found\n");
     printf("team_id: \n");
     return 0;
 }
