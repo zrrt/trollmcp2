@@ -319,7 +319,7 @@ final class TaskTemplateRunner {
 
         case .injectVerify:
             guard let dylib = dylibPath else {
-                return TemplateResult(success: false, summary: "需要 dylib_path", steps: [], reportPath: nil, durationMs: Int(Date().timeIntervalSince(start) * 1000))
+                return TemplateResult(success: false, summary: "dylib_path required", steps: [], reportPath: nil, durationMs: Int(Date().timeIntervalSince(start) * 1000))
             }
 
             // 1. 预检
@@ -489,11 +489,11 @@ final class TaskTemplateRunner {
             if !injected {
                 let dylib = ProcessHelper.tweakPath("NetworkTweak.dylib") ?? ""
                 if dylib.isEmpty {
-                    return TemplateResult(success: false, summary: "内置 NetworkTweak.dylib 不存在", steps: [], reportPath: nil, durationMs: 0)
+                    return TemplateResult(success: false, summary: "Built-in NetworkTweak.dylib not found", steps: [], reportPath: nil, durationMs: 0)
                 }
                 let r = try? InjectionManager.shared.enable(bundleId: bundleId, dylibSourcePath: dylib)
                 if (r?["status"] as? String) != "injected" {
-                    return TemplateResult(success: false, summary: "NetworkTweak 注入失败", steps: [], reportPath: nil, durationMs: 0)
+                    return TemplateResult(success: false, summary: "NetworkTweak injection failed", steps: [], reportPath: nil, durationMs: 0)
                 }
             }
             steps.append(["step": "NetworkTweak 就绪", "success": true])

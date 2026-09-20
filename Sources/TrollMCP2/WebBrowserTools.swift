@@ -111,7 +111,7 @@ struct BrowserFillFormTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.fill_form",
         summary: "Fill form fields. Use for: auto-fill web form. Keys are field name/placeholder/label, values are what to fill. Auto-matches inputs/selects/checkboxes. Use {__xpath: ..., __value: ...} for precise targeting. Set submit=true to auto-submit.",
-        parameters: ["values": "{\ (REQUIRED)"field\":\"value\"} map (required)", "submit": "Auto-submit form (default false) (optional)"], verified: true)
+        parameters: ["values": "{\"field\":\"value\"} map (REQUIRED)", "submit": "Auto-submit form (default false) (optional)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let values = params["values"] as? [String: String] else {
             throw MCPError.invalidParams("browser.fill_form 需要 values 参数，如 {\"用户名\":\"me\",\"密码\":\"xx\"}")

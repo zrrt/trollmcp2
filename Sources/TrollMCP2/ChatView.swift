@@ -609,7 +609,7 @@ struct ChatView: View {
                             }
                         )
                 }
-                .background(Color.white)
+                .background(Color(.secondarySystemBackground))
                 .cornerRadius(20)
                 .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 2)
 
@@ -1009,7 +1009,14 @@ struct MessageBubble: View {
     var onShare: (() -> Void)? = nil
 
     @State private var expanded = false
-    @State private var thinkingExpanded = false
+    @State private var expandedToolIds: Set<String> = []
+    private var thinkingExpanded: Bool {
+        get { expandedToolIds.contains(message.id) }
+        set {
+            if newValue { expandedToolIds.insert(message.id) }
+            else { expandedToolIds.remove(message.id) }
+        }
+    }
 
     private var isUser: Bool { message.role == "user" }
     private var isTool: Bool { message.isTool }
@@ -1178,14 +1185,36 @@ struct MessageBubble: View {
                 .cornerRadius(12)
             }
 
-            // 🔧 调用工具（蓝色扳手）
-            HStack(spacing: 6) {
-                Image(systemName: "wrench.and.screwdriver")
-                    .font(.system(size: 12))
-                    .foregroundColor(.blue)
-                Text("调用工具 \(message.toolName ?? "")")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+            // 🔧 调用工具（蓝色扳手）——工具名 + AI 思考说明，可折叠
+            VStack(alignment: .leading, spacing: 2) {
+                Button(action: { withAnimation { thinkingExpanded.toggle() } }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "wrench.and.screwdriver")
+                            .font(.system(size: 12))
+                            .foregroundColor(.blue)
+                        Text("调用工具 \(message.toolName ?? "")")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+                        if let th = message.thinking, !th.isEmpty {
+                            Text("  \(th)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .lineLimit(thinkingExpanded ? nil : 1)
+                        }
+                        Spacer()
+                        Image(systemName: thinkingExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+                if thinkingExpanded, let th = message.thinking, !th.isEmpty {
+                    Text(th)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 24)
+                }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
