@@ -41,19 +41,25 @@ static atomic_int g_booted = 0;
 // 通知管道写端（串行：一次只有一个在跑的命令会收到退出通知）
 static pthread_mutex_t g_notify_mtx = PTHREAD_MUTEX_INITIALIZER;
 static int g_notify_fd = -1;
+static pid_t_ g_notify_pid = -1;
 
+// 只通知 spawn 的主进程退出（防 guest 内子进程先退导致通知错序/提前 close）
 static void cish_exit_hook(struct task *task, int code) {
     if (task == NULL) return;
     int32_t pid = (int32_t)task->pid;
     int32_t rc = (int32_t)code;
     pthread_mutex_lock(&g_notify_mtx);
     int fd = g_notify_fd;
-    if (fd >= 0) {
+    if (fd >= 0 && task->pid == g_notify_pid) {
         // 写 8 字节 (pid, code)。管道满等罕见；一次只写 8 字节不会阻塞
         ssize_t wr = write(fd, &pid, 4);
         if (wr == 4) {
             wr = write(fd, &rc, 4);
         }
+        // 写完即关：Swift 侧读满 8 字节即完成，无需 EOF；不关会泄漏 fd
+        close(fd);
+        g_notify_fd = -1;
+        g_notify_pid = -1;
     }
     pthread_mutex_unlock(&g_notify_mtx);
 }
@@ -137,20 +143,26 @@ long cish_spawn(const char *path, const char *argv_buf, const char *envp_buf,
         }
     }
 
-    // 注册通知管道（串行）
+    // 注册通知管道（串行）：dup 保持写端存活（Swift 会关闭原 fd）；主进程 pid 稍后记录
     pthread_mutex_lock(&g_notify_mtx);
-    g_notify_fd = notify_fd;
+    if (notify_fd >= 0) {
+        g_notify_fd = dup(notify_fd);
+    }
     pthread_mutex_unlock(&g_notify_mtx);
 
     const char *env = envp_buf != NULL ? envp_buf : "";
     err = do_execve(path, argc, (char *)argv_buf, (char *)env);
     if (err < 0) {
         pthread_mutex_lock(&g_notify_mtx);
-        g_notify_fd = -1;
+        if (g_notify_fd >= 0) { close(g_notify_fd); g_notify_fd = -1; }
         pthread_mutex_unlock(&g_notify_mtx);
         current = saved_current;
         return err;
     }
+
+    pthread_mutex_lock(&g_notify_mtx);
+    g_notify_pid = task->pid;
+    pthread_mutex_unlock(&g_notify_mtx);
 
     long pid = (long)task->pid;
     task_start(task);
@@ -170,7 +182,22 @@ int cish_kill(long pid, int sig) {
     return t != NULL ? 0 : -1;
 }
 
-int cish_killpg(long pid) {
+// OpenMinis 同款：t->parent 链上溯找 rootPid（busybox ash 有时 setpgid 起新组，
+// 仅 pgid 匹配会漏杀 sleep 等孙进程）
+static int task_is_descendant_of(struct task *t, pid_t_ root_pid) {
+    int hops = 0;
+    while (t != NULL && hops < MAX_PID) {
+        if (t->pid == root_pid) return 1;
+        t = t->parent;
+        hops++;
+    }
+    return 0;
+}
+
+/// 清掉命令进程组：匹配 pgid 或根 pid 的后代，统一发 sig。
+/// pid<=1 拒绝（pid 1 是 init，扫根于 init 会误杀整个内核）。
+/// 调用方（Swift）先 SIGTERM 再 SIGKILL（OpenMinis 语义）。
+int cish_killpg(long pid, int sig) {
     if (pid <= 1) return -1;
     struct siginfo_ info = SIGINFO_NIL;
     lock(&pids_lock);
@@ -182,8 +209,9 @@ int cish_killpg(long pid) {
             struct task *t = pid_get_task(i);
             if (t == NULL) continue;
             int byPgid = (pgid != 0 && t->group->pgid == pgid);
-            if (byPgid) {
-                send_signal(t, SIGKILL_, info);
+            int byAncestry = task_is_descendant_of(t, (pid_t_)pid);
+            if (byPgid || byAncestry) {
+                send_signal(t, (dword_t)sig, info);
             }
         }
     }

@@ -31,8 +31,8 @@ long cish_spawn(const char *path, const char *argv_buf, const char *envp_buf,
 /// 向 guest 进程发信号
 int cish_kill(long pid, int sig);
 
-/// 清掉 guest 进程组：SIGKILL 该 pgid 全部任务（pid<=1 拒绝，防误杀 init）
-int cish_killpg(long pid);
+/// 向命令进程组统一发信号（匹配 pgid 或根 pid 的后代）。调用方先 SIGTERM 再 SIGKILL。
+int cish_killpg(long pid, int sig);
 
 #ifdef __cplusplus
 }

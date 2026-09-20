@@ -175,7 +175,10 @@ enum ISHEngine {
         var timedOut = false
         if done.wait(timeout: .now() + timeout) == .timedOut {
             timedOut = true
-            _ = cish_killpg(pid)
+            // OpenMinis 语义：先 SIGTERM 让命令善后/落盘，1 秒后 SIGKILL 兜底
+            _ = cish_killpg(pid, Int32(SIGTERM))
+            _ = done.wait(timeout: .now() + 1)
+            _ = cish_killpg(pid, Int32(SIGKILL))
             // 最多再等 3 秒收尾（guest 退出 → exit_hook 通知 → 读线程完成）
             _ = done.wait(timeout: .now() + 3)
             exitCode = 137
