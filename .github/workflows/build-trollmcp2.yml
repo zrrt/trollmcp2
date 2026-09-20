@@ -59,6 +59,8 @@ jobs:
         run: |
           export THEOS="$THEOS"
           export THEOS_PACKAGE_SCHEME=rootless
+          # opainject Makefile TARGET 要 iphone:clang:16.5 —— CI 只有 17.5，软链别名兼容
+          ln -sfn "$THEOS/sdks/iPhoneOS17.5.sdk" "$THEOS/sdks/iPhoneOS16.5.sdk" 2>/dev/null || true
           rm -rf /tmp/opainject && git clone --depth 1 -q https://github.com/opa334/opainject.git /tmp/opainject
           cd /tmp/opainject
           make ARCHS="arm64" || { echo "OPAINJECT BUILD FAILED, keeping old binary"; exit 0; }
