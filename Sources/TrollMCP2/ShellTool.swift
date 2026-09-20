@@ -256,8 +256,8 @@ final class ShellExecTool: MCPTool {
             stdout = String(stdout.prefix(2000)) + "\n... (输出太长，已截断，共 \(stdout.count) 字符)"
         }
         
-        // 会话目录已在 exec 内由 helper 报告的 CWD 更新（真实绝对路径）
-        var newPwd = ShellSession.shared.currentDir
+        // 会话目录：iSH 模式返回 guest 路径，fallback/ios_system 返回 iOS 路径
+        var newPwd = ISHEngine.isBooted ? ISHEngine.cwd : ShellSession.shared.currentDir
         
         AuditLog.shared.log("shell.exec", detail: String(command.prefix(100)))
         

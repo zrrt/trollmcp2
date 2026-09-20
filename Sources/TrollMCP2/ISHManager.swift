@@ -15,6 +15,9 @@ enum ISHEngine {
     private static let lock = NSLock()
     private static var state: BootState = .idle
 
+    /// iSH 会话 cwd（guest 路径，与 ios_system 的 iOS 沙箱路径完全隔离）
+    private static var guestCwd = "/root"
+
     private static var rootfsDir: String {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("alpine-rootfs").path
@@ -25,6 +28,9 @@ enum ISHEngine {
         if case .booted = state { return true }
         return false
     }
+
+    /// 当前 guest 会话目录（返回给 shell.exec 的 cwd 字段）
+    static var cwd: String { guestCwd }
 
     /// 确保内核已 boot（首次解压 rootfs + 挂载）。线程安全，重复调用幂等。
     static func ensureBooted() -> String? {
@@ -83,7 +89,7 @@ enum ISHEngine {
         defer { lock.unlock() }
         guard case .booted = state else { return ("[ish] 内核未就绪", -1, false) }
 
-        let cwd = ShellSession.shared.currentDir
+        let cwd = guestCwd
         let tStart = Date()
         ShellDiag.log("ISH exec start cmd=\(command.prefix(80)) timeout=\(timeout) cwd=\(cwd)")
 
@@ -183,11 +189,11 @@ enum ISHEngine {
             stdout += stderr
         }
 
-        // 纯 cd：从 pwd 输出解析新会话目录
+        // 纯 cd：从 pwd 输出解析新会话目录（guest 路径）
         if isPureCd {
             let lines = stdout.components(separatedBy: "\n").filter { $0.hasPrefix("/") }
             if let p = lines.last, p.hasPrefix("/") {
-                ShellSession.shared.currentDir = p
+                guestCwd = p
             }
         }
 
