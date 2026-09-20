@@ -142,10 +142,9 @@ final class ShellExecTool: MCPTool {
         let timeout = min(max((params["timeout"] as? Double) ?? 30, 1), 120)
         let cwd = ShellSession.shared.currentDir
         
-        // 先 cd 到当前目录，再执行命令
-        let fullCommand = "cd '\(cwd)' && \(command)"
-        
-        let (output, exitCode, timedOut) = IOSSystem.exec(fullCommand, timeout: timeout)
+        // 先切到会话工作目录，再执行命令（分开两次调用，不依赖 shell 对 && 的支持）
+        _ = IOSSystem.exec("cd '\(cwd)'", timeout: 5)
+        let (output, exitCode, timedOut) = IOSSystem.exec(command, timeout: timeout)
         
         // 输出截断到 2000 字符
         var stdout = output
