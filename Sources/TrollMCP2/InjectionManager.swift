@@ -405,7 +405,7 @@ final class InjectionManager {
         // v3.0.62：智能失败归因——不是干巴巴的错误，告诉用户为什么失败+怎么办
         var reason = "未知"
         var advice = ""
-        if diag.contains("team=\(空)") || diag.contains("team=\(空)") {
+        if diag.contains("team=(空)") {
             reason = "目标 App 无 Team ID（Apple 系统 App 常见）"
             advice = "系统 App 签名里没有 Team ID 字段，ct_bypass 无法匹配。这类 App 暂不支持内存注入。"
         } else if diag.contains("Failed to read process memory") || diag.contains("__LINKEDIT not found") {
