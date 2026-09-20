@@ -235,6 +235,14 @@ alias grep='grep --color=auto'
 cd ~
 EOF
 
+    # DNS（v3.0.40）：minirootfs 无 /etc/resolv.conf，guest 内 DNS 解析全失败。
+    # 预置国内可达的公共 DNS（阿里/腾讯 + Google 兜底），apk/curl/python 网络即开即用。
+    cat > "$ROOTFS_DATA/etc/resolv.conf" << 'EOF'
+nameserver 223.5.5.5
+nameserver 119.29.29.29
+nameserver 8.8.8.8
+EOF
+
     # Create /etc/motd
     cat > "$ROOTFS_DATA/etc/motd" << 'EOF'
 

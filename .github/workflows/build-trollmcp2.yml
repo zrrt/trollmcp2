@@ -54,11 +54,12 @@ jobs:
 
       - name: Cache iSH engine build
         # v3.0.37：iSH 编译 40 分钟，缓存 ish-stage（libs+include+resources+源码），命中直接跳过构建
+        # v3.0.40：key 带脚本 hash，改 prepare_alpine_rootfs.sh（如预装包/DNS）时自动重编 rootfs
         id: cache-ish
         uses: actions/cache@v4
         with:
           path: ish-stage
-          key: ish-stage-v1
+          key: ish-stage-${{ hashFiles('scripts/ish-build/*.sh') }}-v2
 
       - name: Build iSH engine (libish.a + alpine rootfs)
         # v3.0.37：编译 iSH-ARM64 静态库与 Alpine rootfs，供 shell.exec 新引擎使用。
