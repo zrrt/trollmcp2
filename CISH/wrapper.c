@@ -12,8 +12,10 @@
 #include "ish/kernel/signal.h"
 #include "ish/kernel/memory.h"
 #include "ish/kernel/errno.h"
+#include "ish/util/sync.h"   // lock/unlock（pids_lock 配套）
 #include "ish/fs/fd.h"
 #include "ish/fs/stat.h"
+#include "ish/fs/path.h"   // AT_PWD
 #include "ish/fs/tty.h"
 #include "ish/fs/fake.h"
 #include "ish/fs/real.h"
@@ -27,6 +29,9 @@
 
 #include <pthread.h>
 #include <stdatomic.h>
+#include <sys/stat.h>   // S_IFCHR/S_IFDIR/S_IFREG（host 宏，值与 Linux guest 一致）
+#include <fcntl.h>      // O_RDONLY
+#include <unistd.h>     // dup/open
 
 // 退出通知钩子（iSH 全局）：guest 进程退出时被调
 extern void (*exit_hook)(struct task *task, int code);
@@ -73,9 +78,9 @@ int cish_boot(const char *data_path) {
     generic_mkdirat(AT_PWD, "/dev/pts", 0755);
     generic_mknodat(AT_PWD, "/dev/tty1", S_IFCHR | 0666, dev_make(TTY_CONSOLE_MAJOR, 1));
     generic_mknodat(AT_PWD, "/dev/tty2", S_IFCHR | 0666, dev_make(TTY_CONSOLE_MAJOR, 2));
-    generic_mknodat(AT_PWD, "/dev/console", S_IFCHR | 0666, dev_make(TTY_CONSOLE_MAJOR, 1));
-    generic_mknodat(AT_PWD, "/dev/tty", S_IFCHR | 0666, dev_make(TTY_MAJOR, 0));
-    generic_mknodat(AT_PWD, "/dev/ptmx", S_IFCHR | 0666, dev_make(TTY_ALTERNATE_MAJOR, 2));
+    generic_mknodat(AT_PWD, "/dev/tty", S_IFCHR | 0666, dev_make(TTY_ALTERNATE_MAJOR, DEV_TTY_MINOR));
+    generic_mknodat(AT_PWD, "/dev/console", S_IFCHR | 0666, dev_make(TTY_ALTERNATE_MAJOR, DEV_CONSOLE_MINOR));
+    generic_mknodat(AT_PWD, "/dev/ptmx", S_IFCHR | 0666, dev_make(TTY_ALTERNATE_MAJOR, DEV_PTMX_MINOR));
     generic_mknodat(AT_PWD, "/dev/null", S_IFCHR | 0666, dev_make(MEM_MAJOR, DEV_NULL_MINOR));
     generic_mknodat(AT_PWD, "/dev/zero", S_IFCHR | 0666, dev_make(MEM_MAJOR, DEV_ZERO_MINOR));
     generic_mknodat(AT_PWD, "/dev/full", S_IFCHR | 0666, dev_make(MEM_MAJOR, DEV_FULL_MINOR));
