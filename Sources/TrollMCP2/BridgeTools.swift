@@ -174,7 +174,7 @@ final class BridgeReadTool: MCPTool {
 final class BridgeCopyTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.copy",
         summary: "跨 App 容器复制文件/目录（A 的容器 → B 的容器，或 → 工作区）。写操作前请确认不破坏目标数据。",
-        parameters: ["from_bundle": "Source App bundle_id", "from_scope": "Source scope", "from_path": "Source relative path", "to_bundle": "Target App bundle_id (use "workspace" for workspace)", "to_scope": "Target scope", "to_path": "Target relative path"], verified: true, category: "filesystem")
+        parameters: ["from_bundle": "Source App bundle_id", "from_scope": "Source scope", "from_path": "Source relative path", "to_bundle": "Target App bundle_id (use workspace for workspace)", "to_scope": "Target scope", "to_path": "Target relative path"], verified: true, category: "filesystem")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let fb = params["from_bundle"] as? String, !fb.isEmpty,
               let fs = params["from_scope"] as? String else {

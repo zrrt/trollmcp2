@@ -34,32 +34,15 @@ final class BackupCreateTool: MCPTool {
         let filename = "\(bundleId)_\(timestamp).zip"
         let zipPath = backupDir.appendingPathComponent(filename)
         
-        // 3. 打包 zip（用 shell.exec 调 zip 命令）
-        // 先 cd 到容器directory的父directory，打包整个容器
+        // 3. 打包 zip（用 iSH 引擎执行）
         let containerParent = (container as NSString).deletingLastPathComponent
         let containerName = (container as NSString).lastPathComponent
-        
-        // 用 shell.exec 执行 zip
         let zipCmd = "cd \(containerParent) && zip -r -y \(zipPath.path) \(containerName) 2>&1"
-        
-        // 直接用 Process 执行
-        let task = Process()
-        task.launchPath = "/usr/bin/zip"
-        task.arguments = ["-r", "-y", zipPath.path, containerName]
-        task.currentDirectoryPath = containerParent
-        
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = pipe
-        task.launch()
-        task.waitUntilExit()
-        
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let output = String(data: data, encoding: .utf8) ?? ""
+        let (output, exitCode, _) = ISHEngine.exec(zipCmd, timeout: 120)
         
         // 4. 验证
         guard fm.fileExists(atPath: zipPath.path) else {
-            return ["ok": false, "error": "Zip failed: \(output)", "exit": task.terminationStatus]
+            return ["ok": false, "error": "Zip failed: \(output)", "exit": exitCode]
         }
         
         let attrs = try? fm.attributesOfItem(atPath: zipPath.path)
@@ -76,7 +59,7 @@ final class BackupCreateTool: MCPTool {
             "backup_size_readable": ByteCountFormatter.string(fromByteCount: size, countStyle: .file),
             "container_path": container,
             "note": "Restore with backup.restore",
-            "exit": task.terminationStatus
+            "exit": exitCode
         ]
     }
 }
@@ -195,30 +178,18 @@ final class BackupRestoreTool: MCPTool {
         let containerParent = (container as NSString).deletingLastPathComponent
         let containerName = (container as NSString).lastPathComponent
         
-        let preTask = Process()
-        preTask.launchPath = "/usr/bin/zip"
-        preTask.arguments = ["-r", "-y", currentBackupPath.path, containerName]
-        preTask.currentDirectoryPath = containerParent
-        preTask.launch()
-        preTask.waitUntilExit()
+        // 3. 先 zip 当前数据（iSH）
+        _ = ISHEngine.exec("cd \(containerParent) && zip -r -y \(currentBackupPath.path) \(containerName) 2>&1", timeout: 120)
         
         // 4. delete旧容器
         try? fm.removeItem(atPath: container)
         
-        // 5. 解压backup
-        let unzipTask = Process()
-        unzipTask.launchPath = "/usr/bin/unzip"
-        unzipTask.arguments = ["-o", backupPath.path, "-d", containerParent]
-        unzipTask.launch()
-        unzipTask.waitUntilExit()
+        // 5. 解压backup（iSH）
+        _ = ISHEngine.exec("unzip -o \(backupPath.path) -d \(containerParent) 2>&1", timeout: 120)
         
         guard fm.fileExists(atPath: container) else {
             // restore失败，从 pre_restore restore
-            let restoreTask = Process()
-            restoreTask.launchPath = "/usr/bin/unzip"
-            restoreTask.arguments = ["-o", currentBackupPath.path, "-d", containerParent]
-            restoreTask.launch()
-            restoreTask.waitUntilExit()
+            _ = ISHEngine.exec("unzip -o \(currentBackupPath.path) -d \(containerParent) 2>&1", timeout: 120)
             return ["ok": false, "error": "Restore failed, rolled back from pre_restore"]
         }
         
@@ -390,14 +361,9 @@ final class BackupFullNewDeviceTool: MCPTool {
             steps.append(["step": "keychain", "ok": false, "note": "TODO: keychain export not implemented yet"])
         }
         
-        // 4. 打包成单个 zip
+        // 4. 打包成单个 zip（iSH）
         let archiveZipPath = backupDir.appendingPathComponent("\(archiveName).zip")
-        let zipTask = Process()
-        zipTask.launchPath = "/usr/bin/zip"
-        zipTask.arguments = ["-r", "-y", archiveZipPath.path, archiveName]
-        zipTask.currentDirectoryPath = backupDir.path
-        zipTask.launch()
-        zipTask.waitUntilExit()
+        _ = ISHEngine.exec("cd \(backupDir.path) && zip -r -y \(archiveZipPath.path) \(archiveName) 2>&1", timeout: 120)
         
         // 计算size
         let attrs = try? fm.attributesOfItem(atPath: archiveZipPath.path)

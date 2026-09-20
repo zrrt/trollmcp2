@@ -110,7 +110,7 @@ struct BrowserFormFieldsTool: MCPTool {
 struct BrowserFillFormTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.fill_form",
-        summary: "Fill form fields. Use for: auto-fill web form."字段名或占位符或标签\":\"值\"}，自动匹配页面所有输入框/下拉框/勾选框（React/Vue 受控组件兼容）。下拉框传选项文字，勾选框传 true/false。需要精确指定时用 {\"__xpath\":\"元素xpath\",\"__value\":\"值\"}。填完可 submit=true 自动提交表单。适合登录/注册/搜索/下单填表。",
+        summary: "Fill form fields. Use for: auto-fill web form. Keys are field name/placeholder/label, values are what to fill. Auto-matches inputs/selects/checkboxes. Use {__xpath: ..., __value: ...} for precise targeting. Set submit=true to auto-submit.",
         parameters: ["values": "{\"field\":\"value\"} map (required)", "submit": "Auto-submit form (default false)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let values = params["values"] as? [String: String] else {
@@ -126,7 +126,7 @@ struct BrowserFillFormTool: MCPTool {
 struct BrowserWaitForTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.wait_for",
-        summary: "Wait for element to appear. Use for: sync with specific element."搜索结果\"）。用于 open 后等待结果页加载完成、登录后等待用户名出现。返回 found 是否出现。",
+        summary: "Wait for element to appear. Use for: sync with specific element. Returns whether found.",
         parameters: ["selector": "CSS selector (choose one with text)", "text": "Body text keyword (choose one with selector)", "timeout": "Max wait seconds (default 15)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let text = params["text"] as? String
@@ -141,7 +141,7 @@ struct BrowserWaitForTool: MCPTool {
 struct BrowserSnapshotTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.snapshot",
-        summary: "Take browser snapshot (HTML/DOM). Use for: inspect page structure."登录\"），避免长页面全量返回。AI 按 idx 用 browser.click / browser.type / browser.submit 操作。",
+        summary: "Take browser snapshot (HTML/DOM). Use for: inspect page structure. Filter by keyword to avoid huge pages.",
         parameters: ["query": "Filter keyword (fuzzy match by element text/tag/placeholder/href/name, optional. If empty, return first 20)"],
     verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
