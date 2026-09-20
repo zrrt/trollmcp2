@@ -866,7 +866,7 @@ enum ProcessHelper {
             let len = pidPath(pids[i], &buf, UInt32(buf.count))
             if len > 0 {
                 let path = String(cString: buf)
-                if path.lastPathComponent == executableName {
+                if (path as NSString).lastPathComponent == executableName {
                     return Int(pids[i])
                 }
             }
