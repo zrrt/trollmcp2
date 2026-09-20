@@ -57,8 +57,9 @@ jobs:
         # 脚本来自 OpenMinis（build_ish.sh / prepare_alpine_rootfs.sh），产出 ish-stage/{libs,include,resources}。
         run: |
           brew install meson ninja libarchive llvm >/dev/null 2>&1 || true
-          # lld 供 iSH VDSO 构建（-fuse-ld=lld）使用；llvm 的 clang 留作备用
-          echo "/opt/homebrew/opt/llvm/bin" >> "$GITHUB_PATH"
+          # lld 供 iSH VDSO 构建（-fuse-ld=lld）使用——必须在本 step 内 export（$GITHUB_PATH 对当前 step 无效）
+          export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
+          which lld || true
           mkdir -p ish-stage
           cd ish-stage
           cp ../scripts/ish-build/build_ish.sh .
