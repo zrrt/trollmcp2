@@ -16,7 +16,7 @@
   - ⚠️ 本轮测试最大坑：**测试脚本 python urllib 默认走沙箱代理导致所有 POST 超时**，误判为 App 挂起——必须禁代理（ProxyHandler({}) 或 curl --noproxy "*"）再测
   - ⚠️ 遗留小项：tar -tf 列表输出为空（exit 0）；head/which/false 不在 60 命令表（command not found）；$APPDIR/bin/ldid -h 报 command not found（PATH 已含 bin、文件在，待查 ios_system 外部二进制查找逻辑）；App 测试期偶发被 iOS 重启（device.probe 时间戳推进，无信号崩溃记录）
 - 🔧 已知未实测 bug：pidOf 找不到进程、ldid entitlements 解析错、GitHub 授权轮询不更新、phone.call 改 telprompt 未实测
-- 📝 待办：**iSH 替换 ios_system（见第九节）**；curl（iSH 落地后自动解决）、network_ios（iSH 落地后自动解决）、Python IDE（iSH 落地后自动解决）、终端按需下载、远程截图定时清理、备份功能（登录信息/游戏存档）
+- 📝 待办：**iSH 替换 ios_system ✅（v3.0.41 已交付，ios_system 全删）**；curl/network_ios/Python/SSH/clang ✅（iSH 落地后 apk 直接解决）；剩余：待修 Bug×4、远程截图定时清理、备份功能、稳定性、工具说明优化
 
 ---
 
@@ -160,16 +160,17 @@
 - 支持本地打包编译 tweak/dylib，不用 GitHub Actions 等
 - 支持调用系统里的越狱插件命令（NewTerm3 风格）
 
-### 待做：
-- [ ] 设计终端工具的安全策略（白名单/黑名单/二次确认）
-- [ ] 内置轻量小工具（unzip/tar/curl/grep/sed/awk，加起来 <5MB）
-- [ ] 加输出截断（防止输出太多撑爆上下文）
-- [ ] 加超时机制（防止命令卡死）
+### 待做（iSH 落地后大部分已解决）：
+- [x] 设计终端工具的安全策略（白名单/黑名单/二次确认）——已有危险命令拦截
+- [x] 内置轻量小工具（unzip/tar/curl/grep/sed/awk）——Alpine 全套内置
+- [x] 加输出截断——2000 字符截断已有
+- [x] 加超时机制——timeout+SIGTERM/SIGKILL 回收已有
+- [x] 危险命令二次确认——拦截已有
+- [ ] 首次用终端时，弹窗问用户是否下载完整工具链（Theos + clang + llvm）
 - [ ] 首次用终端时，弹窗问用户是否下载完整工具链（Theos + clang + llvm）
 - [ ] 完整工具链按需下载，不内置，不占 App 体积
 - [ ] 下载到工作区目录，用完可以删
-- [ ] 加危险命令二次确认（rm/mv/chmod 改系统）
-- [ ] 测试沙箱限制，看哪些系统命令能用
+- [x] 测试沙箱限制——fakefs 隔离，guest 内全可用
 
 ### 核心用途（不是用来编译的）：
 **解包逆向分析才是终端的正确用法！**
@@ -187,9 +188,10 @@
 
 ---
 
-## 八、Python IDE（用户需求）🐍
+## 八、Python IDE（用户需求）🐍 —— ✅ 已由 iSH 解决（2026-09-20）
 
 **用户需求：** 有人想要 Python IDE，在手机上写 Python 代码跑。
+**结论：** iSH 引擎落地后 `apk add python3 py3-pip` 直接内建 Python 3.12，shell.exec 一条命令跑任意脚本（已验证：urllib 外网通）；**独立的 python.exec 工具与 IDE UI 砍掉**（用户拍板，shell.exec 已覆盖，不做冗余工具）。
 
 ### 功能描述：
 - 内置 Python3 解释器（轻量版，~10MB）
@@ -214,7 +216,7 @@
 
 ---
 
-## 九、终端引擎升级：iSH 替换 ios_system 🔄
+## 九、终端引擎升级：iSH 替换 ios_system 🔄 —— ✅ 全部完成（v3.0.41 已交付）
 
 **决策（2026-09-20）**：评估 OpenMinis 的 iSH-ARM64 集成方案后确认——iSH 可用后 ios_system 无不可替代价值，**验证通过直接全删，不留双引擎**（git 历史保留可找回）。
 

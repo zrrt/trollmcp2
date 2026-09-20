@@ -206,6 +206,8 @@ final class InjectionManager {
         var signaled: Bool
         var signal: Int32
         var diagPrefix: String
+        /// v3.0.42：stdout 原始字节（二进制安全，如 ldid -e 输出的 bplist）。解析用 rawStdout，展示用 stdout。
+        var rawStdout: Data = Data()
         var output: String { diagPrefix + stdout + stderr }
         var isTimeout: Bool { code == -2 || timedOut }
         var isSpawnFailed: Bool { code == -1 }
@@ -305,6 +307,13 @@ final class InjectionManager {
         // v2.9.284：同 runAsRoot，去掉 [name] 前缀（argv[0]=bin，argv[1:] 纯参数）
         let r = spawnRootDetailed(bin, args: args, timeout: timeout)
         return (r.code, r.stdout)
+    }
+
+    /// v3.0.42：root 执行返回原始 stdout 字节（二进制安全）——ldid -e 输出 bplist 时用。
+    func runAsRootData(_ name: String, args: [String], timeout: Double = 60) -> (Int32, Data) {
+        guard let bin = binaryPath(name) else { return (-1, Data()) }
+        let r = spawnRootDetailed(bin, args: args, timeout: timeout)
+        return (r.code, r.rawStdout)
     }
 
     /// 非 root 版 posix_spawn（部分场景需要 mobile 身份执行）。
@@ -462,6 +471,7 @@ final class InjectionManager {
 
         var stdoutStr = ""
         var stderrStr = ""
+        var stdoutData = Data()   // v3.0.42：原始字节（二进制安全，bplist 等）
         let outputLock = NSLock()
         let bufsiz = 65536
 
@@ -482,11 +492,11 @@ final class InjectionManager {
                 outSource.cancel()
                 return
             }
-            let arr = Array(UnsafeBufferPointer(start: buf, count: n)) + [UInt8(0)]
-            arr.withUnsafeBufferPointer { ptr in
-                let s = String(cString: unsafeBitCast(ptr.baseAddress, to: UnsafePointer<CChar>.self))
-                outputLock.lock(); stdoutStr += s; outputLock.unlock()
-            }
+            let arr = Array(UnsafeBufferPointer(start: buf, count: n))
+            outputLock.lock()
+            stdoutData.append(contentsOf: arr)
+            stdoutStr += String(decoding: arr, as: UTF8.self)
+            outputLock.unlock()
         }
         errSource.setEventHandler {
             let buf = UnsafeMutablePointer<UInt8>.allocate(capacity: bufsiz)
@@ -530,11 +540,15 @@ final class InjectionManager {
             while true {
                 let n = read(fd, &buf, buf.count)
                 if n > 0 {
-                    let arr = Array(buf.prefix(n)) + [UInt8(0)]
-                    arr.withUnsafeBufferPointer { ptr in
-                        let s = String(cString: unsafeBitCast(ptr.baseAddress, to: UnsafePointer<CChar>.self))
-                        outputLock.lock(); stdoutStr += s; outputLock.unlock()
+                    let chunk = Array(buf.prefix(n))
+                    outputLock.lock()
+                    if fd == outPipe[0] {
+                        stdoutData.append(contentsOf: chunk)
+                        stdoutStr += String(decoding: chunk, as: UTF8.self)
+                    } else {
+                        stderrStr += String(decoding: chunk, as: UTF8.self)
                     }
+                    outputLock.unlock()
                 } else { break }
             }
         }
@@ -559,7 +573,8 @@ final class InjectionManager {
         let exitCode = signaled ? -100 - signal : Int32((UInt32(st) >> 8) & 0xff)
 
         return SpawnResult(code: exitCode, stdout: stdoutStr, stderr: stderrStr, timedOut: false,
-                           signaled: signaled, signal: signal, diagPrefix: diagPrefix)
+                           signaled: signaled, signal: signal, diagPrefix: diagPrefix,
+                           rawStdout: stdoutData)
     }
 
     // MARK: - 路径解析

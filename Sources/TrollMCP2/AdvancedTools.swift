@@ -807,8 +807,30 @@ final class CrashReproTool: MCPTool {
 // MARK: - 进程/启动辅助
 
 enum ProcessHelper {
-    /// 按可执行名查 pid（ps -A 解析；App 主进程名 = CFBundleExecutable）
+    // MARK: - libproc 进程枚举（v3.0.42：根治 pidOf——不依赖 /bin/ps 输出解析）
+    // iOS 系统库 /usr/lib/libproc.dylib：proc_listpids 枚举全部 pid，proc_pidpath 拿可执行路径。
+    // 比 ps 解析稳（Darwin ps 的 comm= 列有 15 字符截断/格式差异问题），且无需额外权限。
+    private enum LibProc {
+        typealias ListPidsFn = @convention(c) (UInt32, UInt32, UnsafeMutableRawPointer?, Int32) -> Int32
+        typealias PidPathFn = @convention(c) (Int32, UnsafeMutableRawPointer?, UInt32) -> Int32
+        static let handle: UnsafeMutableRawPointer? = dlopen("/usr/lib/libproc.dylib", RTLD_LAZY)
+        static let listPids: ListPidsFn? = {
+            guard let h = handle, let s = dlsym(h, "proc_listpids") else { return nil }
+            return unsafeBitCast(s, to: ListPidsFn.self)
+        }()
+        static let pidPath: PidPathFn? = {
+            guard let h = handle, let s = dlsym(h, "proc_pidpath") else { return nil }
+            return unsafeBitCast(s, to: PidPathFn.self)
+        }()
+    }
+
+    /// 按可执行名查 pid：优先 libproc（枚举所有 pid + 完整可执行路径），失败回退 ps 解析。
     static func pidOf(executableName: String) -> Int? {
+        // 方案 A：libproc（平台原生）
+        if let pid = pidOfViaLibProc(executableName: executableName) {
+            return pid
+        }
+        // 方案 B：ps -A 解析（兜底）
         let (_, out) = InjectionManager.shared.spawn("/bin/ps", args: ["ps", "-A", "-o", "pid=,comm="])
         for line in out.components(separatedBy: "\n") {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -825,6 +847,27 @@ enum ProcessHelper {
                 let lastPath = (comm as NSString).lastPathComponent
                 if lastPath == executableName {
                     return pid
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func pidOfViaLibProc(executableName: String) -> Int? {
+        guard let listPids = LibProc.listPids, let pidPath = LibProc.pidPath else { return nil }
+        let capacity = 4096
+        var pids = [Int32](repeating: 0, count: capacity)
+        let bytes = listPids(1 /* PROC_ALL_PIDS */, 0, &pids, Int32(capacity * MemoryLayout<Int32>.size))
+        guard bytes > 0 else { return nil }
+        let count = Int(bytes) / MemoryLayout<Int32>.size
+        for i in 0..<min(count, capacity) {
+            if pids[i] <= 0 { continue }
+            var buf = [CChar](repeating: 0, count: 4096)
+            let len = pidPath(pids[i], &buf, UInt32(buf.count))
+            if len > 0 {
+                let path = String(cString: buf)
+                if path.lastPathComponent == executableName {
+                    return Int(pids[i])
                 }
             }
         }
@@ -1315,8 +1358,10 @@ final class AppEntitlementsTool: MCPTool {
         }
         var dict: [String: Any] = [:]
         var parseError = ""
-        if let data = o.data(using: .utf8),
-           let d = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] {
+        // v3.0.42：用原始字节解析（系统 App entitlements 是二进制 plist，UTF-8 转 String 会损坏）
+        let (rc, raw) = InjectionManager.shared.runAsRootData("ldid", args: ["-e", main])
+        if rc == 0,
+           let d = try? PropertyListSerialization.propertyList(from: raw, options: [], format: nil) as? [String: Any] {
             dict = d
         } else {
             parseError = cryptID > 0 ? "加密 App（cryptid=\(cryptID)）entitlements 无法解析，先砸壳" : "ldid 输出非 plist，解析失败"
@@ -1357,6 +1402,15 @@ final class KeychainWipeTool: MCPTool {
            let d = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any],
            let gs = d["keychain-access-groups"] as? [String] {
             groups = gs
+        }
+        // v3.0.42：ldid 可能输出二进制 plist——用原始字节重试
+        if groups.isEmpty {
+            let (rc2, raw2) = InjectionManager.shared.runAsRootData("ldid", args: ["-e", main])
+            if rc2 == 0,
+               let d2 = try? PropertyListSerialization.propertyList(from: raw2, options: [], format: nil) as? [String: Any],
+               let gs2 = d2["keychain-access-groups"] as? [String] {
+                groups = gs2
+            }
         }
         if groups.isEmpty { groups = ["TROLLTROLL.dev.trollmcp2.app"] }
         var deleted = 0

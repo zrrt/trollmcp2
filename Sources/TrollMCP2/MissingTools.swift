@@ -534,7 +534,10 @@ final class PhoneCallTool: MCPTool {
         parameters: ["number": "电话号码"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let number = params["number"] as? String, !number.isEmpty else { throw MCPError.invalidParams("number required") }
-        let cleaned = number.components(separatedBy: CharacterSet(charactersIn: "+0123456789")).joined()
+        // v3.0.42：修复号码被清空 bug——之前 components(separatedBy: 数字字符集) 把数字全当分隔符删了，
+        // 返回空号码导致拨号器无反应。改为 filter 只保留数字和 +。
+        let cleaned = String(number.filter { "+0123456789".contains($0) })
+        guard !cleaned.isEmpty else { throw MCPError.invalidParams("number 无有效数字: \(number)") }
         // 用 telprompt:// 弹确认框，兼容性更好
         guard let url = URL(string: "telprompt://" + cleaned) else {
             throw MCPError.failed("URL 构造失败: \(number)")

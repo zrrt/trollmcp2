@@ -230,18 +230,21 @@ final class GitHubAccountStore: ObservableObject {
                             completion(ok, msg)
                         }
                     }
-                } else if error == "authorization_pending" {
-                    // 用户还没授权，继续轮询
-                } else if error == "slow_down" {
-                    // 需要放慢，重新调度会自然多等一个 interval
                 } else if let error = error {
-                    timer.cancel()
-                    self.pollTimer = nil
-                    DispatchQueue.main.async {
-                        self.isDevicePolling = false
-                        self.deviceFlowState = nil
-                        completion(false, error)
+                    // v3.0.42：只有"终止性"错误才停轮询；网络错误/解析失败/authorization_pending/slow_down
+                    // 一律继续等下一次——之前网络错误会 cancel timer，移动网络一抖授权流程就死，卡"等待授权"。
+                    let terminalErrors = ["access_denied", "expired_token",
+                                          "incorrect_client_credentials", "invalid_grant"]
+                    if terminalErrors.contains(error) {
+                        timer.cancel()
+                        self.pollTimer = nil
+                        DispatchQueue.main.async {
+                            self.isDevicePolling = false
+                            self.deviceFlowState = nil
+                            completion(false, error)
+                        }
                     }
+                    // 可重试错误：继续轮询（timer 按 interval 再次触发）
                 }
             }
         }
