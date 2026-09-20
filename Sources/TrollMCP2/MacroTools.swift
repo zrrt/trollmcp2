@@ -207,7 +207,7 @@ final class MacroRecordTool: MCPTool {
 final class MacroStopTool: MCPTool {
     let definition = ToolDefinition(name: "macro.stop",
         summary: "结束宏录制并保存。",
-        parameters: [:], category: "macro")
+        parameters: [:])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let (ok, msg) = MacroRecorder.shared.stop()
         guard ok else { throw MCPError.failed(msg) }
@@ -261,14 +261,14 @@ final class MacroDeleteTool: MCPTool {
         }
         let ok = MacroStore.delete(name)
         guard ok else { throw MCPError.failed("宏「\(name)」不存在") }
-        return ["message": "已删除宏「\(name, category: "macro")」"]
+        return ["message": "已删除宏「\(name)」"]
     }
 }
 
 final class MacroExportTool: MCPTool {
     let definition = ToolDefinition(name: "macro.export",
         summary: "导出宏为 JSON 到工作区（备份/分享）。",
-        parameters: ["name": "Macro name"], verified: true)
+        parameters: ["name": "Macro name"], verified: true, category: "macro")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
             throw MCPError.invalidParams("name required")

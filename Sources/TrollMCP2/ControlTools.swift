@@ -301,7 +301,7 @@ final class ControlScreenshotTool: MCPTool {
         verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         AuditLog.shared.log("control.screenshot", detail: "capture")
-        return ControlAgentTools.shared.screenshot(, category: "ui_control")
+        return ControlAgentTools.shared.screenshot()
     }
 }
 
@@ -319,7 +319,7 @@ final class ControlTapTool: MCPTool {
             throw MCPError.invalidParams("x and y required (numbers)")
         }
         AuditLog.shared.log("control.tap", detail: "(\(x),\(y))")
-        return ControlAgentTools.shared.tap(x: x, y: y, category: "ui_control")
+        return ControlAgentTools.shared.tap(x: x, y: y)
     }
 }
 
@@ -340,7 +340,7 @@ final class ControlSwipeTool: MCPTool {
         }
         let duration = params["duration"] as? Double ?? 0.3
         AuditLog.shared.log("control.swipe", detail: "(\(x1),\(y1))→(\(x2),\(y2))")
-        return ControlAgentTools.shared.swipe(x1: x1, y1: y1, x2: x2, y2: y2, duration: duration, category: "ui_control")
+        return ControlAgentTools.shared.swipe(x1: x1, y1: y1, x2: x2, y2: y2, duration: duration)
     }
 }
 
@@ -354,7 +354,7 @@ final class ControlTypeTool: MCPTool {
         guard let text = params["text"] as? String else {
             throw MCPError.invalidParams("text required")
         }
-        AuditLog.shared.log("control.type", detail: text, category: "ui_control")
+        AuditLog.shared.log("control.type", detail: text)
         return ControlAgentTools.shared.type(text: text)
     }
 }

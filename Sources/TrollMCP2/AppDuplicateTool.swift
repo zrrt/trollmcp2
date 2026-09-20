@@ -12,8 +12,8 @@ final class AppDuplicateTool: MCPTool {
         summary: "双开/改包名：复制指定 App 生成共存副本（新 Bundle ID + 可改显示名），打包后经 TrollStore 静默安装。副本拥有独立数据容器与登录态。对加密的 App Store App 无效（需先砸壳）。",
         parameters: [
             "bundle_id": "Source App bundle_id to clone (required)",
-            "new_name": "Copy display name (optional, default "<name> Clone")",
-            "new_bundle_id": "Copy bundle_id (optional, default "<orig>.dup", auto-append index on conflict)"
+            "new_name": "Copy display name (optional, default <name> Clone)",
+            "new_bundle_id": "Copy bundle_id (optional, default <orig>.dup, auto-append index on conflict)"
         ], verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

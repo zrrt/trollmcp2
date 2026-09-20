@@ -309,7 +309,7 @@ final class AppStatsTool: MCPTool {
             "cpu": ["avg": String(format: "%.1f", avgCpu), "max": String(format: "%.1f", maxCpu), "unit": "%"],
             "memory": ["avg_kb": avgMem, "max_kb": maxMem, "min_kb": minMem, "growth_kb": memGrowth],
             "trend": samples,
-            "leak_suspect": memGrowth > 1024 ? "⚠️ 内存增长 \(memGrowth, category: "app_control")KB，疑似泄漏" : "内存稳定"
+            "leak_suspect": memGrowth > 1024 ? "⚠️ 内存增长 \(memGrowth)KB，疑似泄漏" : "内存稳定"
         ]
     }
 }

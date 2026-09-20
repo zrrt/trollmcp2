@@ -245,7 +245,7 @@ final class InjectionDiagnoseTool: MCPTool {
             "bundle_id": "Target App bundle_id (required)",
             "dylib_path": "dylib path to inject (optional, check injected if empty)"
         ]
-    , category: "injection")
+    )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {

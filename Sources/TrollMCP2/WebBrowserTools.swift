@@ -75,7 +75,7 @@ struct BrowserScrollTool: MCPTool {
         }
         let msg = BrowserManager.shared.scroll(direction)
         AuditLog.shared.log("browser.scroll", detail: direction)
-        return ["ok": !msg.hasPrefix("ERR", category: "browser"), "message": msg]
+        return ["ok": !msg.hasPrefix("ERR"), "message": msg]
     }
 }
 
@@ -90,7 +90,7 @@ struct BrowserSubmitTool: MCPTool {
         }
         let msg = BrowserManager.shared.submit(idx)
         AuditLog.shared.log("browser.submit", detail: "idx=\(idx) \(msg)")
-        return ["ok": !msg.hasPrefix("ERR", category: "browser"), "message": msg]
+        return ["ok": !msg.hasPrefix("ERR"), "message": msg]
     }
 }
 
@@ -102,7 +102,7 @@ struct BrowserFormFieldsTool: MCPTool {
     verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let r = BrowserManager.shared.formFields()
-        AuditLog.shared.log("browser.form_fields", detail: "count=\(r["count"] ?? 0)", category: "browser")
+        AuditLog.shared.log("browser.form_fields", detail: "count=\(r["count"] ?? 0)")
         return r
     }
 }
@@ -118,7 +118,7 @@ struct BrowserFillFormTool: MCPTool {
         }
         let submit = params["submit"] as? Bool ?? false
         let r = BrowserManager.shared.fillForm(values: values, submit: submit)
-        AuditLog.shared.log("browser.fill_form", detail: "filled=\(r["filled"] ?? 0, category: "browser") missed=\(r["missed"] ?? [])")
+        AuditLog.shared.log("browser.fill_form", detail: "filled=\(r["filled"] ?? 0) missed=\(r["missed"] ?? [])")
         return r
     }
 }
@@ -133,7 +133,7 @@ struct BrowserWaitForTool: MCPTool {
         let selector = params["selector"] as? String
         let timeout = params["timeout"] as? Int ?? 15
         let r = BrowserManager.shared.waitFor(text: text, selector: selector, timeout: timeout)
-        AuditLog.shared.log("browser.wait_for", detail: "found=\(r["found"] ?? false)", category: "browser")
+        AuditLog.shared.log("browser.wait_for", detail: "found=\(r["found"] ?? false)")
         return r
     }
 }
@@ -146,7 +146,7 @@ struct BrowserSnapshotTool: MCPTool {
     verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let q = params["query"] as? String
-        let r = BrowserManager.shared.snapshot(query: q, category: "browser")
+        let r = BrowserManager.shared.snapshot(query: q)
         AuditLog.shared.log("browser.snapshot", detail: "count=\(r["count"] ?? 0) query=\(q ?? "")")
         return r
     }
@@ -161,7 +161,7 @@ struct BrowserClickTool: MCPTool {
         guard let idx = params["idx"] as? Int ?? (params["idx"] as? String).flatMap({ Int($0) }) else {
             throw MCPError.invalidParams("browser.click 需要整数 idx 参数")
         }
-        let msg = BrowserManager.shared.clickElement(idx, category: "browser")
+        let msg = BrowserManager.shared.clickElement(idx)
         AuditLog.shared.log("browser.click", detail: "idx=\(idx) \(msg)")
         return ["ok": !msg.hasPrefix("ERR"), "message": msg]
     }
@@ -179,7 +179,7 @@ struct BrowserTypeTool: MCPTool {
         guard let text = params["text"] as? String else {
             throw MCPError.invalidParams("browser.type 需要 text 参数")
         }
-        let msg = BrowserManager.shared.typeText(idx, text, category: "browser")
+        let msg = BrowserManager.shared.typeText(idx, text)
         AuditLog.shared.log("browser.type", detail: "idx=\(idx) len=\(text.count)")
         return ["ok": !msg.hasPrefix("ERR"), "message": msg]
     }
@@ -195,7 +195,7 @@ struct BrowserEvalTool: MCPTool {
         guard let js = params["js"] as? String else {
             throw MCPError.invalidParams("browser.eval 需要 js 参数")
         }
-        let r = BrowserManager.shared.evaluate(js, category: "browser")
+        let r = BrowserManager.shared.evaluate(js)
         AuditLog.shared.log("browser.eval", detail: String(js.prefix(60)))
         return ["ok": !r.hasPrefix("ERR"), "result": r]
     }
@@ -206,7 +206,7 @@ struct BrowserNavigateTool: MCPTool {
         name: "browser.navigate",
         summary: "Navigate to URL. Use for: change page.",
         parameters: ["url": "URL to open (optional)", "action": "back/forward/reload (optional)"],
-    verified: true)
+    verified: true, category: "browser")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         // v2.9.251: 兼容 url 参数——AI 常用 browser.navigate {url} 开网页,此前只认 action 导致"打开失败"
         if let url = params["url"] as? String, !url.isEmpty {

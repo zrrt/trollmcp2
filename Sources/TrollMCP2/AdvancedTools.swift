@@ -956,7 +956,7 @@ final class InjectionMemTool: MCPTool {
             "note": "Human-readable result explanation"
         ],
         verified: true
-    , category: "injection")
+    )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -1040,7 +1040,7 @@ final class ProbeInspectTool: MCPTool {
             "limit": "Max classes (default 30, max 100)",
             "cleanup": "Remove injection after query (default false—repeat queries while process alive)"
         ]
-    , category: "analysis")
+    )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -1364,7 +1364,7 @@ final class AppEntitlementsTool: MCPTool {
         name: "app.entitlements",
         summary: "Get App entitlements (code signing). Use for: check cs_debug/task_for_pid permissions.",
         parameters: ["bundle_id": "Target App bundle_id (required)"]
-    , category: "app_control")
+    )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -1414,7 +1414,7 @@ final class KeychainWipeTool: MCPTool {
         name: "device.keychain_wipe",
         summary: "Wipe target App keychain items by keychain-access-groups. Use for: reset login state.",
         parameters: ["bundle_id": "Target App bundle_id (required)"]
-    , category: "device")
+    )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -1534,7 +1534,7 @@ final class IdfvTool: MCPTool {
         var extra: [String: Any] = ["system_idfv": sys]
         if let bid = params["bundle_id"] as? String, !bid.isEmpty {
             extra["requested_bundle_id"] = bid
-            extra["app_idfv"] = "(需在目标 App 进程内读取；设备级 IDFV 见上, category: "device")"
+            extra["app_idfv"] = "(需在目标 App 进程内读取；设备级 IDFV 见上)"
         }
         extra["hint"] = "IDFV 无公开刷新 API：删除 App 后由系统决定是否变更，备份恢复场景一般不变"
         return extra
@@ -1605,7 +1605,7 @@ private func httpGet(port: Int, path: String, timeout: TimeInterval = 4) -> (Int
         }
         sem.signal()
     }.resume()
-    _ = sem.wait(timeout: .now() + timeout + 1, category: "device")
+    _ = sem.wait(timeout: .now() + timeout + 1)
     return result
 }
 

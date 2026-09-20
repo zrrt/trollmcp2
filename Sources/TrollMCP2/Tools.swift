@@ -141,10 +141,10 @@ final class ArtifactFindTool: MCPTool {
 // MARK: - 基础工具
 
 final class PingTool: MCPTool {
-    let definition = ToolDefinition(name: "ping", summary: "连通性测试：返回 pong 与耗时，验证设备/工具链是否在线。", category: "system")
+    let definition = ToolDefinition(name: "ping", summary: "连通性测试：返回 pong 与耗时，验证设备/工具链是否在线。")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        ["pong": true, "ts": Int(Date().timeIntervalSince1970, category: "device")]
+        ["pong": true, "ts": Int(Date().timeIntervalSince1970)]
     }
 }
 
@@ -214,7 +214,7 @@ final class MemoryTweakTool: MCPTool {
             "type": "Data type: int(default)|int64|float|double|byte|short",
             "address": "Memory address (required for write/freeze/unfreeze, 0x hex)"
         ]
-    , category: "system")
+    )
 
     private let port = 8765
 

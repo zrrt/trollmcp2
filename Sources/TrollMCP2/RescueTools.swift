@@ -10,7 +10,7 @@ import Foundation
 final class InjectionRestoreTool: MCPTool {
     let definition = ToolDefinition(name: "injection.restore",
         summary: "紧急恢复：移除指定 App 的所有注入并还原原始二进制（对齐 TrollFools 卸载策略；注入后 App 打不开时第一选择）",
-        parameters: ["bundle_id": "Target App bundle_id (required)"], category: "injection")
+        parameters: ["bundle_id": "Target App bundle_id (required)"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
         guard AppCatalog.find(bid) != nil else { throw MCPError.failed("app not found: \(bid)") }
@@ -83,7 +83,7 @@ final class RescueScanTool: MCPTool {
 /// rescue.recover_all：一键全恢复——对所有有备份/损坏的 App 执行恢复
 final class RescueRecoverAllTool: MCPTool {
     let definition = ToolDefinition(name: "rescue.recover_all",
-        summary: "紧急一键恢复：扫描并自动恢复所有存在注入痕迹或损坏二进制的 App（高风险操作，恢复后可正常启动）", category: "diagnose")
+        summary: "紧急一键恢复：扫描并自动恢复所有存在注入痕迹或损坏二进制的 App（高风险操作，恢复后可正常启动）")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let apps = AppCatalog.list()
         var results: [[String: Any]] = []

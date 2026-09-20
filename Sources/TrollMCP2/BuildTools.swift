@@ -401,7 +401,7 @@ final class BuildRunTool: MCPTool {
             "cflags": "Extra clang compile flags array",
             "frameworks": "clang linked frameworks array (default Foundation)",
             "timeout": "Timeout seconds (default 300)"
-        ], category: "build")
+        ])
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let project = params["project"] as? String ?? ""

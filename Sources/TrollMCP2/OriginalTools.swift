@@ -159,7 +159,7 @@ func cronSeconds(_ expr: String) -> Int? {
 
 final class InjectionRemoveTool: MCPTool {
     let definition = ToolDefinition(name: "injection.remove", summary: "彻底移除指定 App 的注入（含 dylib 文件）",
-        parameters: ["bundle_id": "Target App bundle_id"], category: "injection")
+        parameters: ["bundle_id": "Target App bundle_id"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
         let result = try InjectionManager.shared.disable(bundleId: bid)
@@ -293,7 +293,7 @@ final class AutomationCancelTool: MCPTool {
             throw MCPError.failed("task not found: \(name)")
         }
         store.remove(task)
-        AuditLog.shared.log("automation.cancel", detail: name, category: "device")
+        AuditLog.shared.log("automation.cancel", detail: name)
         return ["cancelled": true, "name": name]
     }
 }
@@ -304,7 +304,7 @@ final class AutomationHistoryTool: MCPTool {
         let entries = AutomationStore.shared.history.prefix(50)
         return [
             "count": entries.count,
-            "history": entries.map { ["time": ISO8601DateFormatter(, category: "device").string(from: $0.timestamp), "category": $0.category, "detail": $0.detail] }
+            "history": entries.map { ["time": ISO8601DateFormatter().string(from: $0.timestamp), "category": $0.category, "detail": $0.detail] }
         ]
     }
 }
@@ -318,7 +318,7 @@ final class AutomationSetEnabledTool: MCPTool {
             throw MCPError.invalidParams("unknown task name")
         }
         let enabled = params["enabled"] as? Bool ?? true
-        AutomationStore.shared.setEnabled(task, enabled: enabled, category: "system")
+        AutomationStore.shared.setEnabled(task, enabled: enabled)
         return ["name": name, "enabled": enabled]
     }
 }
@@ -360,7 +360,7 @@ final class ModelSelectedProfileIDTool: MCPTool {
             return ["selected": target.name, "id": newId]
         }
         guard let current = store.defaultConfig else {
-            throw MCPError.failed("no model configured", category: "cleanup")
+            throw MCPError.failed("no model configured")
         }
         return ["selected": current.name, "id": current.id.uuidString]
     }
@@ -375,7 +375,7 @@ final class WorkspaceOutputBookmarkTool: MCPTool {
         let key = "trollmcp2.output_bookmark"
         if let bookmark = params["bookmark"] as? String {
             UserDefaults.standard.set(bookmark, forKey: key)
-            AuditLog.shared.log("workspace.outputBookmark", detail: bookmark, category: "cleanup")
+            AuditLog.shared.log("workspace.outputBookmark", detail: bookmark)
             return ["set": bookmark]
         }
         return ["bookmark": UserDefaults.standard.string(forKey: key) ?? "Output"]
@@ -384,7 +384,7 @@ final class WorkspaceOutputBookmarkTool: MCPTool {
 
 final class WorkspaceOutputNameTool: MCPTool {
     let definition = ToolDefinition(name: "workspace.outputName", summary: "获取/设置工作区输出产物命名",
-        parameters: ["name": "Optional: output name"], verified: true)
+        parameters: ["name": "Optional: output name"], verified: true, category: "system")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let key = "trollmcp2.output_name"
         if let name = params["name"] as? String {

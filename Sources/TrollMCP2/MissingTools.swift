@@ -94,7 +94,7 @@ final class ReminderScheduleRecurringTool: MCPTool {
 // MARK: - 设备快照（电池/存储/系统）
 
 final class DeviceSnapshotTool: MCPTool {
-    let definition = ToolDefinition(name: "device.snapshot", summary: "Capture device status: battery/memory/storage/disk/iOS version. Use for: system snapshot.", category: "device")
+    let definition = ToolDefinition(name: "device.snapshot", summary: "Capture device status: battery/memory/storage/disk/iOS version. Use for: system snapshot.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         UIDevice.current.isBatteryMonitoringEnabled = true
         let battery = UIDevice.current.batteryLevel
@@ -478,7 +478,7 @@ final class KnowledgeImportFileTool: MCPTool {
         let dst = KnowledgeStore.shared.dir.appendingPathComponent(name)
         try? FileManager.default.removeItem(at: dst)
         try FileManager.default.copyItem(at: src, to: dst)
-        AuditLog.shared.log("knowledge.import_file", detail: name, category: "knowledge")
+        AuditLog.shared.log("knowledge.import_file", detail: name)
         return ["imported": true, "name": name]
     }
 }
@@ -486,7 +486,7 @@ final class KnowledgeImportFileTool: MCPTool {
 final class KnowledgeSearchTool: MCPTool {
     let definition = ToolDefinition(name: "knowledge.search",
         summary: "Search knowledge base. Use for: retrieve saved info.",
-        parameters: ["query": "Query", "limit": "Max results (default 15, max 50)"], verified: true)
+        parameters: ["query": "Query", "limit": "Max results (default 15, max 50)"], verified: true, category: "knowledge")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let query = params["query"] as? String, !query.isEmpty else { throw MCPError.invalidParams("query required") }
         KnowledgeStore.shared.ensure()
@@ -509,7 +509,7 @@ final class KnowledgeSearchTool: MCPTool {
                 if hits.count >= limit { break }
             }
         }
-        AuditLog.shared.log("knowledge.search", detail: "\(query) → contains \(hits.count, category: "knowledge") 条")
+        AuditLog.shared.log("knowledge.search", detail: "\(query) → contains \(hits.count) 条")
         return ["query": query, "engine": "contains", "count": hits.count, "hits": hits]
     }
 }
@@ -521,7 +521,7 @@ final class KnowledgeDeleteTool: MCPTool {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
         let file = KnowledgeStore.shared.dir.appendingPathComponent(name)
         guard FileManager.default.fileExists(atPath: file.path) else { throw MCPError.failed("not found: \(name)") }
-        try FileManager.default.removeItem(at: file, category: "system")
+        try FileManager.default.removeItem(at: file)
         AuditLog.shared.log("knowledge.delete", detail: name)
         return ["deleted": true, "name": name]
     }
@@ -563,7 +563,7 @@ final class PhoneCallTool: MCPTool {
                 }
             }
         }
-        _ = sem.wait(timeout: .now() + 5, category: "system")
+        _ = sem.wait(timeout: .now() + 5)
         AuditLog.shared.log("phone.call", detail: number)
         return result
     }
@@ -572,7 +572,7 @@ final class PhoneCallTool: MCPTool {
 final class PhoneScheduleCallTool: MCPTool {
     let definition = ToolDefinition(name: "phone.schedule_call",
         summary: "Schedule phone call. Use for: timed call.",
-        parameters: ["number": "Phone number", "display_name": "Display name (optional)", "delay_seconds": "Delay in seconds"], verified: true)
+        parameters: ["number": "Phone number", "display_name": "Display name (optional)", "delay_seconds": "Delay in seconds"], verified: true, category: "system")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let number = params["number"] as? String, !number.isEmpty else { throw MCPError.invalidParams("number required") }
         let delay = max(params["delay_seconds"] as? Int ?? 60, 1)
@@ -585,7 +585,7 @@ final class PhoneScheduleCallTool: MCPTool {
         let req = UNNotificationRequest(identifier: id,
             content: content, trigger: UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(delay), repeats: false))
         UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
-        AuditLog.shared.log("phone.schedule_call", detail: "\(name) +\(delay)s", category: "skills")
+        AuditLog.shared.log("phone.schedule_call", detail: "\(name) +\(delay)s")
         return ["scheduled": true, "id": id, "number": number, "requiresUserTap": true]
     }
 }
@@ -595,7 +595,7 @@ final class PhoneScheduleCallTool: MCPTool {
 final class SkillsSetEnabledTool: MCPTool {
     let definition = ToolDefinition(name: "skills.set_enabled",
         summary: "Enable/disable skill. Use for: toggle skill availability.",
-        parameters: ["name": "Skill name", "enabled": "true/false"], verified: true)
+        parameters: ["name": "Skill name", "enabled": "true/false"], verified: true, category: "skills")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
         let enabled = params["enabled"] as? Bool ?? true

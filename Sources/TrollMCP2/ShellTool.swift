@@ -44,7 +44,7 @@ final class ShellExecTool: MCPTool {
             "reset_cwd": "Optional Bool: reset working dir to default (default false)"
         ],
         verified: true
-    , category: "shell")
+    )
     
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let command = params["command"] as? String, !command.isEmpty else {

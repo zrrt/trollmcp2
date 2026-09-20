@@ -350,7 +350,7 @@ final class AppsControlTool: MCPTool {
             "text": "type text",
             "direction": "scroll direction up/down/left/right"
         ]
-    , category: "app_control")
+    )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let action = params["action"] as? String else {

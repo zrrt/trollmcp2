@@ -340,7 +340,7 @@ final class ControlBeginTool: MCPTool {
         let bundleId = params["bundle_id"] as? String ?? ""
         ControlSession.shared.begin(target: target, bundleId: bundleId, plan: plan)
         return ["message": "控制会话已开始：\(target)，共 \(plan.count) 步。用户正在控制中心查看进度。",
-                "steps": plan.enumerated(, category: "ui_control").map { ["index": $0.offset, "title": $0.element] }]
+                "steps": plan.enumerated().map { ["index": $0.offset, "title": $0.element] }]
     }
 }
 
@@ -363,7 +363,7 @@ final class ControlUpdateTool: MCPTool {
         }
         let detail = params["detail"] as? String ?? ""
         ControlSession.shared.updateStep(index: idx, status: st, detail: detail)
-        return ["message": "步骤\(idx + 1, category: "ui_control") 已更新为 \(raw)", "step": idx, "status": raw]
+        return ["message": "步骤\(idx + 1) 已更新为 \(raw)", "step": idx, "status": raw]
     }
 }
 

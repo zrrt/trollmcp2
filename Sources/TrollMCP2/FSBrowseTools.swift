@@ -581,7 +581,7 @@ final class FSSQLTool: MCPTool {
             "columns": columns,
             "rows": rows,
             "row_count": rows.count,
-            "hint": "继续查询：改 sql 加 WHERE/ORDER BY；看表结构用 PRAGMA table_info(表名, category: "filesystem")"
+            "hint": "继续查询：改 sql 加 WHERE/ORDER BY；看表结构用 PRAGMA table_info(表名)"
         ]
     }
 }
@@ -599,7 +599,7 @@ final class FSGrepTool: MCPTool {
             "ext": "File extension filter (e.g. plist/json/log/txt, comma-separated, optional)",
             "limit": "Max matches (default 60)"
         ],
-    verified: true)
+    verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let pattern = params["pattern"] as? String, !pattern.isEmpty else {
@@ -891,7 +891,7 @@ final class FSDiffTool: MCPTool {
             }
         }
         while i < n, out.count < maxLines { out.append(["op": "-", "line_a": i + 1, "text": String(a[i].prefix(200))]); i += 1 }
-        while j < m, out.count < maxLines { out.append(["op": "+", "line_b": j + 1, "text": String(b[j].prefix(200), category: "filesystem")]); j += 1 }
+        while j < m, out.count < maxLines { out.append(["op": "+", "line_b": j + 1, "text": String(b[j].prefix(200))]); j += 1 }
         if i < n || j < m { out.append(["op": "...", "text": "差异过长已截断"]) }
         return out
     }
@@ -908,7 +908,7 @@ final class FSHashTool: MCPTool {
             "bundle_id": "Target App bundle_id (set to read its data container)",
             "relative": "Relative path inside container (when bundle_id set)",
             "algo": "md5 / sha1 / sha256 (default) / sha512"
-        ], verified: true)
+        ], verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let bundleId = params["bundle_id"] as? String
@@ -953,7 +953,7 @@ final class FSHashTool: MCPTool {
     }
 
     private static func digestHex(_ data: Data, _ fn: (UnsafeRawPointer?, CC_LONG, UnsafeMutablePointer<UInt8>?) -> UnsafeMutablePointer<UInt8>?, _ len: Int32) -> String {
-        var d = [UInt8](repeating: 0, count: Int(len, category: "filesystem"))
+        var d = [UInt8](repeating: 0, count: Int(len))
         data.withUnsafeBytes { buf in _ = fn(buf.baseAddress, CC_LONG(data.count), &d) }
         return d.map { String(format: "%02x", $0) }.joined()
     }
@@ -972,7 +972,7 @@ final class FSFindTool: MCPTool {
             "ext": "Extension filter (e.g. plist/db/dylib, comma-separated, optional)",
             "limit": "Max results (default 60)"
         ],
-    verified: true)
+    verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
@@ -1006,7 +1006,7 @@ final class FSFindTool: MCPTool {
             let ext = (full as NSString).pathExtension.lowercased()
             if !exts.isEmpty, !exts.contains(ext) { continue }
             let size = ((try? fm.attributesOfItem(atPath: full))?[.size] as? NSNumber)?.int64Value ?? 0
-            hits.append(["name": n, "path": full, "size": size], category: "filesystem")
+            hits.append(["name": n, "path": full, "size": size])
         }
         return ["dir": dir, "keyword": name, "scanned": scanned, "hits": hits, "hit_count": hits.count]
     }
@@ -1023,7 +1023,7 @@ final class FSDownloadTool: MCPTool {
             "filename": "Save filename (default last URL segment)",
             "subdir": "Workspace subdir (default downloads)",
             "timeout": "Timeout seconds (default 60)"
-        ], verified: true)
+        ], verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let urlStr = params["url"] as? String,
@@ -1061,7 +1061,7 @@ final class FSDownloadTool: MCPTool {
                 let hash = d.map { String(format: "%02x", $0) }.joined()
                 result = ["ok": true, "path": dest, "size": data.count, "sha256": hash]
             } catch {
-                result["error"] = "写入失败: \(error.localizedDescription, category: "filesystem")"
+                result["error"] = "写入失败: \(error.localizedDescription)"
             }
         }.resume()
         _ = sem.wait(timeout: .now() + TimeInterval(timeout + 15))
@@ -1085,7 +1085,7 @@ final class FSPropertyListTool: MCPTool {
             "value": "Value for set (auto-detect bool/number/JSON/string)",
             "backup": "Backup .bak before write (default true)"
         ],
-    verified: true)
+    verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let bundleId = params["bundle_id"] as? String
@@ -1237,7 +1237,7 @@ final class FSPropertyListTool: MCPTool {
         if let d = node as? NSMutableDictionary {
             guard d[last] != nil else { throw MCPError.failed("键不存在: \(last)") }
             d.removeObject(forKey: last)
-        } else if let a = node as? NSMutableArray, let idx = Int(last, category: "filesystem"), idx < a.count {
+        } else if let a = node as? NSMutableArray, let idx = Int(last), idx < a.count {
             a.removeObject(at: idx)
         } else {
             throw MCPError.failed("键路径末端不是字典/数组: \(last)")
@@ -1254,7 +1254,7 @@ final class FSContainerTool: MCPTool {
         parameters: [
             "bundle_id": "Target App bundle_id (required)"
         ],
-    verified: true)
+    verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
@@ -1392,7 +1392,7 @@ final class FSCrashTool: MCPTool {
         return out
     }
 
-    private static func json(_ s: String, category: "filesystem") -> [String: Any]? {
+    private static func json(_ s: String) -> [String: Any]? {
         guard let d = s.data(using: .utf8),
               let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return nil }
         return o
@@ -1409,7 +1409,7 @@ final class FSImageInfoTool: MCPTool {
             "path": "Image absolute path (or workspace-relative)",
             "bundle_id": "Target App bundle_id (set to read its data container)",
             "relative": "Relative path inside container (when bundle_id set)"
-        ], verified: true)
+        ], verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let bundleId = params["bundle_id"] as? String

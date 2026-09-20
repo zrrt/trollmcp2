@@ -85,7 +85,7 @@ final class InjectionEnablePersistedTool: MCPTool {
 final class InjectionStatusTool: MCPTool {
     let definition = ToolDefinition(name: "injection.status", summary: "Show injection stats. Use for: check injection status.", verified: true, category: "injection")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        InjectionManager.shared.status(, category: "injection")
+        InjectionManager.shared.status()
     }
 }
 
@@ -103,7 +103,7 @@ final class InjectionListTool: MCPTool {
     let definition = ToolDefinition(name: "injection.list", 
         summary: "Search installed apps by keyword. Use for: find bundle_id for injection.",
         parameters: ["query": "Search keyword (App name or bundle_id fragment, optional). If empty, return first 20 only"],
-        returns: ["apps": "List of matching apps (bundle_id + name)", "count": "Number of results"]
+        returns: ["apps": "List of matching apps (bundle_id + name)", "count": "Number of results"],
         verified: true, category: "injection")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let apps = AppCatalog.list()
@@ -128,7 +128,7 @@ final class InjectionListTool: MCPTool {
 
 final class ContainerWriteTextTool: MCPTool {
     let definition = ToolDefinition(name: "container.write_text", summary: "Write text file to App container (DANGEROUS). Use for: modify App data.",
-        parameters: ["bundle_id": "Target App bundle_id", "path": "Path inside container", "content": "Text content"], category: "filesystem")
+        parameters: ["bundle_id": "Target App bundle_id", "path": "Path inside container", "content": "Text content"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String,
               let path = params["path"] as? String,
@@ -149,7 +149,7 @@ final class ContainerWriteTextTool: MCPTool {
 // MARK: - M4 Gateway 工具
 
 final class GatewayStatusTool: MCPTool {
-    let definition = ToolDefinition(name: "gateway.status", summary: "[DEPRECATED] Gateway status removed.", category: "automation")
+    let definition = ToolDefinition(name: "gateway.status", summary: "[DEPRECATED] Gateway status removed.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         [
             "connected": GatewayClient.shared.isConnected,
@@ -165,7 +165,7 @@ final class GatewayConnectTool: MCPTool {
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let url = params["url"] as? String else { throw MCPError.invalidParams("url required") }
         GatewayClient.shared.pairedToken = params["token"] as? String
-        GatewayClient.shared.connect(url: url, category: "automation")
+        GatewayClient.shared.connect(url: url)
         AuditLog.shared.log("gateway.connect", detail: url)
         return ["connecting": true, "url": url]
     }
@@ -176,7 +176,7 @@ final class CronFireTool: MCPTool {
         parameters: ["task": "Task name"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let task = params["task"] as? String ?? "unnamed"
-        AuditLog.shared.log("cron.fire", detail: task, category: "device")
+        AuditLog.shared.log("cron.fire", detail: task)
         return ["fired": true, "task": task]
     }
 }
@@ -191,7 +191,7 @@ final class AutomationRunNowTool: MCPTool {
         let store = AutomationStore.shared
         let matched = store.tasks.first { $0.name == name || $0.id.uuidString == name }
         guard let task = matched else { throw MCPError.failed("task not found: \(name)") }
-        guard store.run(name: task.name, category: "device") else { throw MCPError.failed("task disabled or not found: \(name)") }
+        guard store.run(name: task.name) else { throw MCPError.failed("task disabled or not found: \(name)") }
         return ["ran": true, "name": task.name, "kind": task.kind]
     }
 }
@@ -208,7 +208,7 @@ final class AutomationListTool: MCPTool {
                 "schedule": t.schedule,
                 "delay": t.delay,
                 "interval": t.interval,
-                "lastRun": t.lastRun.map { ISO8601DateFormatter(, category: "device").string(from: $0) } ?? ""
+                "lastRun": t.lastRun.map { ISO8601DateFormatter().string(from: $0) } ?? ""
             ] as [String: Any]
         }
         return ["count": tasks.count, "tasks": tasks]
@@ -236,7 +236,7 @@ final class AutomationStopTool: MCPTool {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
         let store = AutomationStore.shared
         guard let task = store.tasks.first(where: { $0.name == name || $0.id.uuidString == name }) else {
-            throw MCPError.failed("task not found: \(name)", category: "device")
+            throw MCPError.failed("task not found: \(name)")
         }
         store.remove(task)
         AuditLog.shared.log("automation.stop", detail: name)
@@ -271,7 +271,7 @@ func AutomationSchedulerStatus() -> String {
         case .ephemeral: status = "ephemeral"
         @unknown default: status = "unknown"
         }
-        UserDefaults.standard.set(status, forKey: cacheKey, category: "system")
+        UserDefaults.standard.set(status, forKey: cacheKey)
     }
     return cached
 }
@@ -302,7 +302,7 @@ final class ContactsSearchTool: MCPTool {
             }
             if results.count >= 50 { stop.pointee = true }
         }
-        AuditLog.shared.log("contacts.search", detail: "query=\(query) found=\(results.count)", category: "system")
+        AuditLog.shared.log("contacts.search", detail: "query=\(query) found=\(results.count)")
         return ["contacts": results]
     }
 }
@@ -318,7 +318,7 @@ final class CalendarListTool: MCPTool {
         let endOf = cal.date(byAdding: .day, value: days, to: now) ?? now
 
         let predicate = store.predicateForEvents(withStart: now, end: endOf, calendars: nil)
-        let events = store.events(matching: predicate, category: "system")
+        let events = store.events(matching: predicate)
         return [
             "events": events.map { [
                 "title": $0.title ?? "",
@@ -334,7 +334,7 @@ final class ReminderCreateTool: MCPTool {
         parameters: ["title": "Title", "notes": "Notes (optional)"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let title = params["title"] as? String else { throw MCPError.invalidParams("title required") }
-        let store = EKEventStore(, category: "device")
+        let store = EKEventStore()
         let reminder = EKReminder(eventStore: store)
         reminder.title = title
         reminder.notes = params["notes"] as? String
@@ -346,7 +346,7 @@ final class ReminderCreateTool: MCPTool {
 
 final class LocationGetTool: MCPTool {
     let definition = ToolDefinition(name: "location.get", summary: "Get current device location. Use for: GPS coordinates.")
-    func invoke(_ params: [String: Any], category: "system") throws -> [String: Any] {
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let mgr = LocationProvider.shared
         return [
             "latitude": mgr.latitude ?? 0,
@@ -362,7 +362,7 @@ final class NotificationSendTool: MCPTool {
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let title = params["title"] as? String ?? "TrollMCP"
         let body = params["body"] as? String ?? ""
-        let content = UNMutableNotificationContent(, category: "system")
+        let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.sound = .default
@@ -382,7 +382,7 @@ final class ScanQRTool: MCPTool {
         guard let imgData = try? Data(contentsOf: url),
               let image = UIImage(data: imgData),
               let cgImage = image.cgImage else {
-            throw MCPError.failed("cannot load image: \(path)", category: "injection")
+            throw MCPError.failed("cannot load image: \(path)")
         }
         let request = VNDetectBarcodesRequest()
         let handler = VNImageRequestHandler(cgImage: cgImage)
@@ -394,7 +394,7 @@ final class ScanQRTool: MCPTool {
 
 final class ProcessListTool: MCPTool {
     let definition = ToolDefinition(name: "process.list", summary: "List running processes (all). Use for: find target App pid for injection.")
-    func invoke(_ params: [String: Any], category: "build") throws -> [String: Any] {
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
         var procs: [[String: Any]] = []
         for app in AppCatalog.list() {
             procs.append(["bundle_id": app.bundleId, "name": app.name])
@@ -412,7 +412,7 @@ final class BuildRunnerTokenTool: MCPTool {
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = params["action"] as? String ?? "generate"
         if action == "generate" {
-            let token = UUID(, category: "build").uuidString.replacingOccurrences(of: "-", with: "").prefix(32)
+            let token = UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(32)
             AuditLog.shared.log("build.token", detail: "generated")
             return ["token": String(token), "action": "generate"]
         }
@@ -422,7 +422,7 @@ final class BuildRunnerTokenTool: MCPTool {
 
 final class ProjectGenerateTweakTool: MCPTool {
     let definition = ToolDefinition(name: "project.generate_tweak", summary: "Generate Tweak project template (Makefile + Tweak.x + plist). Use for: start tweak project.",
-        parameters: ["name": "Project name", "bundle_id": "Target App (optional)"], verified: true)
+        parameters: ["name": "Project name", "bundle_id": "Target App (optional)"], verified: true, category: "build")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let name = params["name"] as? String ?? "MyTweak"
         let bid = params["bundle_id"] as? String ?? ""
@@ -453,7 +453,7 @@ final class ProjectGenerateTweakTool: MCPTool {
         // 最小 Tweak 模板：把下面的钩子目标替换为你要 hook 的类/方法。
         // 例如 hook SpringBoard 的 applicationDidFinishLaunching：
         %hook SpringBoard
-        - (void)applicationDidFinishLaunching:(id, category: "system")application {
+        - (void)applicationDidFinishLaunching:(id)application {
             %orig;
             NSLog(@"[\(name)] loaded");
         }
@@ -515,7 +515,7 @@ final class ModelUpdateTool: MCPTool {
             cfg.isDefault = d; changed.append("isDefault=\(d)")
         }
         if let rc = params["resetCompat"] as? Bool, rc {
-            cfg.compatLevel = 0; changed.append("compatLevel=0", category: "system")
+            cfg.compatLevel = 0; changed.append("compatLevel=0")
         }
         ModelStore.shared.configs[idx] = cfg
         ModelStore.shared.save()
@@ -558,7 +558,7 @@ final class ToolHealthTool: MCPTool {
                         "tool": h.tool,
                         "success": h.success,
                         "failure": h.failure,
-                        "failure_rate": String(format: "%.1f%%", h.failureRate * 100, category: "cleanup"),
+                        "failure_rate": String(format: "%.1f%%", h.failureRate * 100),
                         "avg_ms": h.avgMs,
                         "top_error_code": h.topCode,
                         "last_failure": h.lastFailureDetail

@@ -236,7 +236,7 @@ final class BridgeExportTool: MCPTool {
             let size = AppContainer.size(of: dst)
             return ["message": "已导出到工作区", "src": full, "dst": dst, "size": AppContainer.human(size.bytes), "files": size.files]
         } catch {
-            throw MCPError.failed("导出失败: \(error.localizedDescription)", category: "filesystem")
+            throw MCPError.failed("导出失败: \(error.localizedDescription)")
         }
     }
 }
