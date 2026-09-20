@@ -373,3 +373,137 @@ final class ControlKeyTool: MCPTool {
         return ControlAgentTools.shared.key(key)
     }
 }
+
+// MARK: - v3.0.72：control.tap_text — 语义化点击（传文字，自动找元素点）
+
+final class ControlTapTextTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "control.tap_text",
+        summary: "Tap an element by its visible text label (e.g. \"搜索\", \"登录\", \"取消\"). Auto-searches UI tree, finds matching element, taps its center. Use when: you know what text to tap but not the coordinates.",
+        parameters: [
+            "text": "Visible text label of the element to tap (REQUIRED)",
+            "partial": "If true, match partial text (default true) (optional)"
+        ],
+        verified: true, category: "ui_control")
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let text = params["text"] as? String, !text.isEmpty else {
+            throw MCPError.invalidParams("text required")
+        }
+        let partial = (params["partial"] as? Bool) ?? true
+
+        // 拿 UI 树
+        let tree = ControlAgentTools.shared.uiTree()
+        guard let nodes = tree["nodes"] as? [[String: Any]] ?? tree["elements"] as? [[String: Any]] else {
+            // 尝试其他格式
+            if let arr = tree["tree"] as? [[String: Any]] {
+                return try findAndTap(nodes: arr, text: text, partial: partial)
+            }
+            throw MCPError.failed("cannot parse UI tree: \(tree)")
+        }
+        return try findAndTap(nodes: nodes, text: text, partial: partial)
+    }
+
+    private func findAndTap(nodes: [[String: Any]], text: String, partial: Bool) throws -> [String: Any] {
+        // 递归遍历 UI 树找匹配的元素
+        var bestNode: [String: Any]?
+        var bestFrame: [Double] = [0, 0, 0, 0]
+
+        func search(_ node: [String: Any]) {
+            // 检查 text/label/accessibilityLabel
+            let nodeText = (node["text"] as? String) ?? (node["label"] as? String) ?? (node["accessibilityLabel"] as? String) ?? ""
+            var match = false
+            if partial {
+                match = nodeText.localizedCaseInsensitiveContains(text)
+            } else {
+                match = nodeText == text
+            }
+
+            if match, let frame = node["frame"] as? [String: Any] ?? node["frame"] as? [Double] {
+                // 优先用 visible/hittable 的
+                let visible = (node["isVisible"] as? Bool) ?? true
+                let hittable = (node["isHittable"] as? Bool) ?? true
+                if visible && hittable {
+                    bestNode = node
+                    if let x = frame["x"] as? Double,
+                       let y = frame["y"] as? Double,
+                       let w = frame["width"] as? Double,
+                       let h = frame["height"] as? Double {
+                        bestFrame = [x, y, w, h]
+                    }
+                    return
+                }
+            }
+
+            // 递归子节点
+            if let children = node["children"] as? [[String: Any]] {
+                for child in children { search(child) }
+            }
+        }
+
+        for node in nodes { search(node) }
+
+        guard bestNode != nil else {
+            throw MCPError.failed("no element matching \"\(text)\" found in UI tree")
+        }
+
+        // 算中心点
+        let cx = bestFrame[0] + bestFrame[2] / 2
+        let cy = bestFrame[1] + bestFrame[3] / 2
+
+        AuditLog.shared.log("control.tap_text", detail: "\"\(text)\" at (\(cx),\(cy))")
+        var result = ControlAgentTools.shared.tap(x: cx, y: cy)
+        result["matched_text"] = text
+        result["tap_x"] = cx
+        result["tap_y"] = cy
+        return result
+    }
+}
+
+// MARK: - v3.0.72：control.type_text — 语义化输入（找到输入框，输入文字）
+
+final class ControlTypeTextTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "control.type_text",
+        summary: "Find an input field by its placeholder/label text, tap it, then type text. Use when: you know which field to fill but not which one is focused.",
+        parameters: [
+            "placeholder": "Placeholder or label of the input field (e.g. \"搜索\", \"请输入手机号\") (REQUIRED)",
+            "text": "Text to type into the field (REQUIRED)",
+            "enter": "If true, press Enter after typing (default false) (optional)"
+        ],
+        verified: true, category: "ui_control")
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let placeholder = params["placeholder"] as? String else {
+            throw MCPError.invalidParams("placeholder required")
+        }
+        guard let text = params["text"] as? String else {
+            throw MCPError.invalidParams("text required")
+        }
+        let enter = (params["enter"] as? Bool) ?? false
+
+        // 1. 先点输入框（用 tap_text 找 placeholder）
+        let tapResult = try ControlTapTextTool().invoke(["text": placeholder])
+
+        // 2. 等一下让键盘弹出来
+        Thread.sleep(forTimeInterval: 0.3)
+
+        // 3. 输入文字
+        let typeResult = ControlAgentTools.shared.type(text: text)
+
+        // 4. 如果要按回车
+        if enter {
+            Thread.sleep(forTimeInterval: 0.2)
+            _ = ControlAgentTools.shared.key("enter")
+        }
+
+        return [
+            "ok": true,
+            "field": placeholder,
+            "text": text,
+            "tap": tapResult,
+            "type": typeResult,
+            "pressed_enter": enter
+        ]
+    }
+}

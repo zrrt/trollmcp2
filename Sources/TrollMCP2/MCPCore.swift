@@ -895,6 +895,10 @@ public final class ToolRegistry: ObservableObject {
         register(ToolchainUninstallTool())
         // v3.0.71：AI 自我进化——加载外部 dylib 注册新工具
         register(ToolLoadDylibTool())
+        // v3.0.72：语义化 UI 操作 + OCR
+        register(ControlTapTextTool())
+        register(ControlTypeTextTool())
+        register(OCRImageTool())
 
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
     }

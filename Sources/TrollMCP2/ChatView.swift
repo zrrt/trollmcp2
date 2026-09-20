@@ -1081,6 +1081,7 @@ struct MessageBubble: View {
             if !message.content.isEmpty {
                 Text(message.content)
                     .font(.body)
+                    .textSelection(.enabled)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     // v2.9.93：用户气泡改巨魔蓝渐变（浅青→蓝，品牌化），助手保持系统色
