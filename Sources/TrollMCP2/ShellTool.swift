@@ -59,10 +59,13 @@ enum IOSSystem {
         }
         let appDir = Bundle.main.bundlePath
         let cwd = ShellSession.shared.currentDir
+        let tStart = Date()
+        ShellDiag.log("exec start cmd=\(command.prefix(80)) timeout=\(timeout) cwd=\(cwd)")
 
         var outFds: [Int32] = [-1, -1]
         var repFds: [Int32] = [-1, -1]
         guard pipe(&outFds) == 0, pipe(&repFds) == 0 else {
+            ShellDiag.log("exec pipe fail")
             return ("[shell] pipe 创建失败", -1, false)
         }
 
@@ -96,8 +99,10 @@ enum IOSSystem {
         guard rc == 0 else {
             close(outFds[0])
             close(repFds[0])
+            ShellDiag.log("exec spawn fail rc=\(rc)")
             return ("[shell] posix_spawn 失败 rc=\(rc)", -1, false)
         }
+        ShellDiag.log("exec spawned pid=\(pid)")
 
         // 后台线程读输出与报告，主线程等带超时
         let outputBuf = NSMutableString()
@@ -130,9 +135,16 @@ enum IOSSystem {
         if done.wait(timeout: .now() + timeout) == .timedOut {
             timedOut = true
             // 杀整个进程组，回收卡死命令（阻塞 syscall 也能被 SIGKILL 打断）
-            kill(-pid, SIGKILL)
-            kill(pid, SIGKILL)
+            let k1 = kill(-pid, SIGKILL)
+            let k2 = kill(pid, SIGKILL)
+            // 等 2 秒让后台线程收完 EOF；若进程还活着再补一刀
             _ = done.wait(timeout: .now() + 2)
+            if kill(pid, 0) == 0 || errno == 0 {
+                _ = kill(-pid, SIGKILL)
+                _ = kill(pid, SIGKILL)
+            }
+            exitCode = 137
+            ShellDiag.log("exec TIMEOUT pid=\(pid) k1=\(k1) k2=\(k2) still=\(kill(pid, 0)) errno=\(errno)")
         } else {
             // 解析报告：EXIT:<code>\nCWD:<path>\n
             let text = reportBuf as String
@@ -141,12 +153,33 @@ enum IOSSystem {
                     exitCode = Int32(line.dropFirst(5)) ?? -1
                 } else if line.hasPrefix("CWD:") {
                     let p = String(line.dropFirst(4))
-                    if !p.isEmpty { ShellSession.shared.currentDir = p }
+                    if p.hasPrefix("/") { ShellSession.shared.currentDir = p }
                 }
             }
         }
-
+        ShellDiag.log("exec end elapsed=\(Int(Date().timeIntervalSince(tStart) * 1000))ms exit=\(exitCode) timedOut=\(timedOut)")
         return (outputBuf as String, exitCode, timedOut)
+    }
+}
+
+/// v3.0.36：shell 诊断日志（Documents/Workspace/shell-diag.log），追查超时/卡死真相
+enum ShellDiag {
+    private static let lock = NSLock()
+    private static var path: String = {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Workspace/shell-diag.log").path
+    }()
+    static func log(_ s: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        let line = "[\(Date())] \(s)\n"
+        if let h = FileHandle(forWritingAtPath: path) {
+            h.seekToEndOfFile()
+            h.write(Data(line.utf8))
+            try? h.close()
+        } else {
+            try? Data(line.utf8).write(to: URL(fileURLWithPath: path))
+        }
     }
 }
 
@@ -192,6 +225,16 @@ final class ShellExecTool: MCPTool {
                 .appendingPathComponent("Workspace").path
         }
         
+        // v3.0.36: cwd 必须归一化为绝对路径——之前用 pwd 探测的 ~ 前缀显示值覆盖会话目录，
+        // 导致 helper chdir("~/...") 失败、所有命令 exit 3
+        if !ShellSession.shared.currentDir.hasPrefix("/") {
+            if ShellSession.shared.currentDir.hasPrefix("~/") {
+                ShellSession.shared.currentDir = NSHomeDirectory() + String(ShellSession.shared.currentDir.dropFirst(1))
+            } else {
+                ShellSession.shared.currentDir = NSHomeDirectory() + "/Documents/Workspace"
+            }
+        }
+        
         let timeout = min(max((params["timeout"] as? Double) ?? 30, 1), 120)
         let cwd = ShellSession.shared.currentDir
         
@@ -205,12 +248,8 @@ final class ShellExecTool: MCPTool {
             stdout = String(stdout.prefix(2000)) + "\n... (输出太长，已截断，共 \(stdout.count) 字符)"
         }
         
-        // 获取当前工作目录
-        var newPwd = cwd
-        let pwdResult = IOSSystem.exec("pwd", timeout: 5)
-        let pwd = ShellExecTool.filterNoise(pwdResult.output).trimmingCharacters(in: .whitespacesAndNewlines)
-        if !pwd.isEmpty { newPwd = pwd }
-        ShellSession.shared.currentDir = newPwd
+        // 会话目录已在 exec 内由 helper 报告的 CWD 更新（真实绝对路径）
+        var newPwd = ShellSession.shared.currentDir
         
         AuditLog.shared.log("shell.exec", detail: String(command.prefix(100)))
         
@@ -223,7 +262,7 @@ final class ShellExecTool: MCPTool {
         ]
         if timedOut {
             result["timed_out"] = true
-            result["hint"] = "命令超过 \(Int(timeout)) 秒未完成，已尝试用 ios_kill 终止。"
+            result["hint"] = "命令超过 \(Int(timeout)) 秒未完成，已 SIGKILL 进程组回收。"
         }
         return result
     }
