@@ -248,3 +248,12 @@
 - 行为差异（busybox vs coreutils、模拟器 syscall 边角）→ 回归清单覆盖
 - **唯一留 fallback 的情形**：iSH 构建/真机验证失败——那时再考虑双引擎过渡
 
+
+## v3.0.42 完成（2026-09-20）
+- [x] pidOf 改 libproc（dlopen /usr/lib/libproc.dylib，proc_listpids+proc_pidpath），ps 兜底——真机验证 pid=18453 命中
+- [x] ldid entitlements 二进制 plist 解析（SpawnResult.rawStdout Data 通道 + runAsRootData + 两处解析点改造）——真机验证备忘录完整 entitlements
+- [x] GitHub 设备授权轮询：网络错误/解析失败不再终止轮询（仅 access_denied/expired_token 等终止性错误停）
+- [x] phone.call 号码清空 bug（components(separatedBy:) 把数字全删 → filter 保留）——真机验证 +8610086
+## v3.0.43（构建中）
+- [ ] **opainject arm64e → EBADARCH(85)**：TrollStore arm64 进程 spawn 不了 arm64e 二进制，device.fake/injection.mem/probe 注入全失效。workflow 已加 Theos 按 ARCHS=arm64 重编步骤（失败 fallback 旧版）
+- [ ] 真机回归：device.fake 豆包（pidOf→opainject 注入全链路）、GitHub 授权（需用户浏览器实测）
