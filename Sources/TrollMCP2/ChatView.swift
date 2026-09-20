@@ -1186,41 +1186,24 @@ struct MessageBubble: View {
                 .cornerRadius(12)
             }
 
-            // 🔧 调用工具（蓝色扳手）——工具名 + AI 思考说明，可折叠
-            VStack(alignment: .leading, spacing: 2) {
-                Button(action: { withAnimation { toggleThinking() } }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "wrench.and.screwdriver")
-                            .font(.system(size: 12))
-                            .foregroundColor(.blue)
-                        Text("调用工具 \(message.toolName ?? "")")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.primary)
-                        if let th = message.thinking, !th.isEmpty {
-                            Text("  \(th)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .lineLimit(thinkingExpanded ? nil : 1)
-                        }
-                        Spacer()
-                        Image(systemName: thinkingExpanded ? "chevron.up" : "chevron.down")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .buttonStyle(.plain)
-                if thinkingExpanded, let th = message.thinking, !th.isEmpty {
-                    Text(th)
+            // 🔧 调用工具——直接显示，不要背景框
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "wrench.and.screwdriver")
+                    .font(.system(size: 12))
+                    .foregroundColor(.blue)
+                Text("调用工具 \(message.toolName ?? "")")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                if let th = message.thinking, !th.isEmpty {
+                    Text("  \(th)")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                        .padding(.leading, 24)
                 }
+                Spacer()
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color.blue.opacity(0.08))
-            .cornerRadius(12)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 4)
 
             // ✅ 工具结果（绿色对勾）
             HStack(spacing: 8) {
