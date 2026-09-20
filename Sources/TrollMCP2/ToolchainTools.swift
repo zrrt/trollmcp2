@@ -161,7 +161,7 @@ final class ToolLoadDylibTool: MCPTool {
 
         // dlopen
         guard let handle = dlopen(path, RTLD_NOW) else {
-            let err = String(cString: dlerror() ?? "unknown dlopen error")
+            let err = dlerror().map { String(cString: $0) } ?? "unknown dlopen error"
             throw MCPError.failed("dlopen failed: \(err)")
         }
 
