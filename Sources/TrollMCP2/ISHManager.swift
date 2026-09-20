@@ -15,7 +15,7 @@ enum ISHEngine {
     private static let lock = NSLock()
     private static var state: BootState = .idle
 
-    /// iSH 会话 cwd（guest 路径，与 ios_system 的 iOS 沙箱路径完全隔离）
+    /// iSH 会话 cwd（guest 路径，与旧 ios_system 的 iOS 沙箱路径隔离）
     private static var guestCwd = "/root"
 
     private static var rootfsDir: String {

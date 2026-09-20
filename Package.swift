@@ -45,12 +45,5 @@ let package = Package(
             exclude: ["Resources"],
             linkerSettings: [.linkedLibrary("z")]
         ),
-        // v3.0.35：独立 shell helper 进程——主 App posix_spawn 拉起它执行 ios_system 命令，
-        // 超时 SIGKILL 进程组，卡死命令不影响主进程（v3.0.37 起 shell.exec 默认走 iSH，helper 保留作 fallback）
-        .executableTarget(
-            name: "ShellHelper",
-            path: "Sources/ShellHelper",
-            linkerSettings: [.linkedLibrary("z")]
-        )
     ]
 )
