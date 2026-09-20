@@ -402,6 +402,29 @@ final class InjectionManager {
         let ok2 = io2.contains("dlopen succeeded") || io2.contains("Injected") || io2.contains("injected successfully")
         diag += "【不重签直注】opainject \(ok2 ? "成功" : "失败"): " + io2.replacingOccurrences(of: "\n", with: " ").suffix(180) + "\n"
         if ok2 { return (ic2, io2) }
+        // v3.0.62：智能失败归因——不是干巴巴的错误，告诉用户为什么失败+怎么办
+        var reason = "未知"
+        var advice = ""
+        if diag.contains("team=\(空)") || diag.contains("team=\(空)") {
+            reason = "目标 App 无 Team ID（Apple 系统 App 常见）"
+            advice = "系统 App 签名里没有 Team ID 字段，ct_bypass 无法匹配。这类 App 暂不支持内存注入。"
+        } else if diag.contains("Failed to read process memory") || diag.contains("__LINKEDIT not found") {
+            reason = "opainject 读不到目标进程内存"
+            advice = "目标 App 有安全 SDK 防护（字节/腾讯/阿里系常见），或进程处于冻结/挂起态。试试：先手动打开目标 App 到前台，再注入。"
+        } else if diag.contains("Failed to find main thread") || diag.contains("task port") {
+            reason = "opainject 获取 task port 失败"
+            advice = "目标 App 有反调试/反注入保护（如聚安全/安全 SDK），或进程已崩溃。换无防护 App 测试。"
+        } else if diag.contains("EBADARCH") || diag.contains("spawnRoot failed (85)") {
+            reason = "opainject 架构不兼容"
+            advice = "opainject 二进制与 TrollMCP2 主二进制架构不匹配。检查 Resources/bin/opainject 架构。"
+        } else if diag.contains("spawnRoot failed (2)") {
+            reason = "/usr/bin/codesign 不存在（预期）"
+            advice = "TrollStore 环境没有 codesign，正常。ct_bypass 应该能替代。"
+        } else if diag.contains("ldid") || diag.contains("ct_bypass") {
+            reason = "签名工具失败"
+            advice = "ldid 或 ct_bypass 执行失败，检查 bin/ 目录下二进制完整性。"
+        }
+        diag += "\n【智能归因】失败原因：\(reason)\n【建议】\(advice)\n"
         return (1, diag)
     }
 
