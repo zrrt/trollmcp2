@@ -2,14 +2,15 @@
 
 ---
 
-## 🚀 当前版本进度（v3.0.34）
+## 🚀 当前版本进度（v3.0.35）
 - ✅ 工具标签打完 174 个（排除注入类7+bug6+危险3）
-- ✅ 版本号对齐 v3.0.34（Support/Info.plist 递增，CI 不再覆盖 RELEASE_VERSION）
+- ✅ 版本号对齐 v3.0.35（Support/Info.plist 递增，CI 不再覆盖 RELEASE_VERSION）
 - ✅ 集成 ios_system（dlopen 动态加载，扁平 framework，只留 arm64）
 - ✅ 修复 ldid 签名错误（删掉 simulator/maccatalyst/dSYM）
 - ❌ **v3.0.32 shell.exec 实测：全部卡死**（远程直连 121.31.137.51:18790 实测 echo/pwd 均超时无返回）
   - 根因1（死锁）：v3.0.32 把 C 风格 pipe 改成 Foundation Pipe 时没关写端句柄，readDataToEndOfFile 永远等不到 EOF → 已修复（v3.0.33）
-  - 根因2（命令找不到）：缺 commandDictionary.plist 命令表 + 同伴框架 → v3.0.33 实测 echo/pwd/ls 全 127 command not found → v3.0.34 打包命令表 + 扁平框架（ios_system/files/shell/text/tar/awk，60 命令），库名改 @executable_path 定位
+  - 根因2（命令找不到）：缺 commandDictionary.plist 命令表 + 同伴框架 → v3.0.33 实测 echo/pwd/ls 全 127 command not found → v3.0.34 打包命令表 + 扁平框架（ios_system/files/shell/text/tar/awk，60 命令），库名改 @executable_path 定位 → 实测 echo/ls/cd/管道/cat/tar/退出码全部正常
+  - 根因3（卡死命令拖垮整机）：v3.0.34 实测 ls/cd/cat 访问 /private/var/containers/Bundle/Application（App bundle 挂载点）会阻塞 ~2 分钟且持有 ios_system 命令锁，整个远程终端不可用；in-process 执行 + ios_kill 无法回收阻塞 syscall → v3.0.35 改为 posix_spawn 独立 ShellHelper 子进程执行命令，超时 SIGKILL 进程组，主进程永不卡死；helper 回报最终 cwd 保留 cd 会话记忆
 - 🔧 已知未实测 bug：pidOf 找不到进程、ldid entitlements 解析错、GitHub 授权轮询不更新、phone.call 改 telprompt 未实测
 - 📝 待办：curl（需 libssh2+openssl 框架）、network_ios（ping/nc/telnet）、Python IDE、终端按需下载、远程截图定时清理、备份功能（登录信息/游戏存档）
 

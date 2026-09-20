@@ -117,6 +117,18 @@ else
     exit 1
 fi
 
+# v3.0.35: shellhelper 独立进程——主 App posix_spawn 拉起执行 ios_system 命令，超时 SIGKILL 回收
+HELPER_BIN=".build/release/ShellHelper"
+if [ -f "$HELPER_BIN" ]; then
+    cp "$HELPER_BIN" "$APP/shellhelper"
+    # 与主二进制同 entitlements 签名（子进程同样需要 no-sandbox/task_for_pid）
+    "$LDID" -S"Support/TrollMCP2.entitlements" "$APP/shellhelper" 2>/dev/null || "$LDID" -S "$APP/shellhelper"
+    echo ">>> bundled + signed shellhelper ($(du -h "$APP/shellhelper" | cut -f1))"
+else
+    echo "!!! ShellHelper not built" >&2
+    exit 1
+fi
+
 mkdir -p Payload
 cp -R "$APP" Payload/
 

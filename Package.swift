@@ -18,6 +18,13 @@ let package = Package(
             path: "Sources/TrollMCP2",
             exclude: ["Resources"],
             linkerSettings: [.linkedLibrary("z")]
+        ),
+        // v3.0.35：独立 shell helper 进程——主 App posix_spawn 拉起它执行 ios_system 命令，
+        // 超时 SIGKILL 进程组，卡死命令不影响主进程
+        .executableTarget(
+            name: "ShellHelper",
+            path: "Sources/ShellHelper",
+            linkerSettings: [.linkedLibrary("z")]
         )
     ]
 )

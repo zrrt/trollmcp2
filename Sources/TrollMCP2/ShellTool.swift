@@ -50,66 +50,102 @@ enum IOSSystem {
         }
     }
     
-    /// 执行命令。返回 (输出, 退出码, 是否超时)
+    /// 执行命令（v3.0.35：posix_spawn 独立 helper 进程，可被 SIGKILL 回收）。
+    /// 返回 (输出, 退出码, 是否超时)
     static func exec(_ command: String, timeout: TimeInterval = 30) -> (output: String, exitCode: Int32, timedOut: Bool) {
         load()
-        guard let handle = handle else { return ("[shell] ios_system 未加载", -1, false) }
-        guard let funcPtr = dlsym(handle, "ios_system") else { return ("[shell] 找不到 ios_system 符号", -1, false) }
-        typealias ios_system_func = @convention(c) (UnsafePointer<CChar>) -> Int32
-        let execFn = unsafeBitCast(funcPtr, to: ios_system_func.self)
-        
-        // C 风格 pipe：dup2 后立刻关自己的写端引用，命令结束后读端才能收到 EOF
-        var fds: [Int32] = [-1, -1]
-        guard pipe(&fds) == 0 else { return ("[shell] pipe 创建失败", -1, false) }
-        let readFD = fds[0]
-        let writeFD = fds[1]
-        
-        let oldStdout = dup(STDOUT_FILENO)
-        let oldStderr = dup(STDERR_FILENO)
-        dup2(writeFD, STDOUT_FILENO)
-        dup2(writeFD, STDERR_FILENO)
-        close(writeFD)
-        
+        guard let helper = Bundle.main.path(forResource: "shellhelper", ofType: nil) else {
+            return ("[shell] shellhelper 未找到", -1, false)
+        }
+        let appDir = Bundle.main.bundlePath
+        let cwd = ShellSession.shared.currentDir
+
+        var outFds: [Int32] = [-1, -1]
+        var repFds: [Int32] = [-1, -1]
+        guard pipe(&outFds) == 0, pipe(&repFds) == 0 else {
+            return ("[shell] pipe 创建失败", -1, false)
+        }
+
+        // 子进程放入独立进程组，超时后 kill(-pid) 连子孙一起清
+        var attr: posix_spawnattr_t?
+        posix_spawnattr_init(&attr)
+        posix_spawnattr_setflags(&attr, Int16(POSIX_SPAWN_SETPGROUP))
+        posix_spawnattr_setpgroup(&attr, 0)
+
+        var actions: posix_spawn_file_actions_t?
+        posix_spawn_file_actions_init(&actions)
+        posix_spawn_file_actions_adddup2(&actions, outFds[1], STDOUT_FILENO)
+        posix_spawn_file_actions_adddup2(&actions, outFds[1], STDERR_FILENO)
+        posix_spawn_file_actions_adddup2(&actions, repFds[1], 3)
+        posix_spawn_file_actions_addclose(&actions, outFds[0])
+        posix_spawn_file_actions_addclose(&actions, repFds[0])
+        posix_spawn_file_actions_addclose(&actions, outFds[1])
+        posix_spawn_file_actions_addclose(&actions, repFds[1])
+
+        let argv: [UnsafeMutablePointer<CChar>?] = [strdup(helper), strdup(cwd), strdup(command), strdup(appDir), nil]
+        var pid: pid_t = 0
+        let rc = posix_spawn(&pid, helper, &actions, &attr, argv, environ)
+        // 清理
+        argv.forEach { free($0) }
+        posix_spawn_file_actions_destroy(&actions)
+        posix_spawnattr_destroy(&attr)
+        // 父进程关写端，读端才能收 EOF
+        close(outFds[1])
+        close(repFds[1])
+
+        guard rc == 0 else {
+            close(outFds[0])
+            close(repFds[0])
+            return ("[shell] posix_spawn 失败 rc=\(rc)", -1, false)
+        }
+
+        // 后台线程读输出与报告，主线程等带超时
         let outputBuf = NSMutableString()
-        var exitCode: Int32 = -1
+        var reportBuf = NSMutableString()
         let done = DispatchSemaphore(value: 0)
-        
         DispatchQueue.global(qos: .userInitiated).async {
-            var code: Int32 = -1
-            _ = command.withCString { cCmd in
-                code = execFn(cCmd)
-            }
-            fflush(stdout)
-            fflush(stderr)
-            dup2(oldStdout, STDOUT_FILENO)
-            dup2(oldStderr, STDERR_FILENO)
-            close(oldStdout)
-            close(oldStderr)
-            // 读剩余输出直到 EOF（写端已全部关闭，read 返回 0 即结束）
-            var buf = [UInt8](repeating: 0, count: 4096)
+            var out = Data()
+            var b = [UInt8](repeating: 0, count: 8192)
             while true {
-                let n = read(readFD, &buf, buf.count)
+                let n = read(outFds[0], &b, b.count)
                 if n <= 0 { break }
-                outputBuf.append(String(decoding: buf[0..<n], as: UTF8.self))
+                out.append(contentsOf: b[0..<n])
             }
-            close(readFD)
-            exitCode = code
+            close(outFds[0])
+            outputBuf.append(String(decoding: out, as: UTF8.self))
+
+            var rep = Data()
+            while true {
+                let n = read(repFds[0], &b, b.count)
+                if n <= 0 { break }
+                rep.append(contentsOf: b[0..<n])
+            }
+            close(repFds[0])
+            reportBuf = NSMutableString(string: String(decoding: rep, as: UTF8.self))
             done.signal()
         }
-        
+
         var timedOut = false
+        var exitCode: Int32 = -1
         if done.wait(timeout: .now() + timeout) == .timedOut {
             timedOut = true
-            // 尝试终止卡住的命令（ios_kill 结束当前正在运行的命令）
-            if let killPtr = dlsym(handle, "ios_kill") {
-                typealias kill_func = @convention(c) () -> Int32
-                let killFn = unsafeBitCast(killPtr, to: kill_func.self)
-                killFn()
-            }
-            // 最多再等 2 秒让后台线程清理；若命令真不退出，调用方先返回，避免 MCP 调用卡死
+            // 杀整个进程组，回收卡死命令（阻塞 syscall 也能被 SIGKILL 打断）
+            kill(-pid, SIGKILL)
+            kill(pid, SIGKILL)
             _ = done.wait(timeout: .now() + 2)
+        } else {
+            // 解析报告：EXIT:<code>\nCWD:<path>\n
+            let text = reportBuf as String
+            for line in text.split(separator: "\n") {
+                if line.hasPrefix("EXIT:") {
+                    exitCode = Int32(line.dropFirst(5)) ?? -1
+                } else if line.hasPrefix("CWD:") {
+                    let p = String(line.dropFirst(4))
+                    if !p.isEmpty { ShellSession.shared.currentDir = p }
+                }
+            }
         }
-        
+
         return (outputBuf as String, exitCode, timedOut)
     }
 }
@@ -118,7 +154,7 @@ enum IOSSystem {
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "执行 shell 命令（终端/命令行/terminal/sh）：内置 ls/cat/grep/find/unzip/tar/curl 等100+命令，解压ipa/deb、逆向分析、文件操作。危险命令自动拦截。cd 记住工作目录。",
+        summary: "执行 shell 命令（终端/命令行/terminal/sh）：内置 ls/cat/grep/find/tar/awk/echo/cd 等 60 个命令 + $APPDIR/bin 外部工具（ldid/optool），解压ipa/deb、逆向分析、文件操作。危险命令自动拦截。cd 记住工作目录。",
         parameters: [
             "command": "要执行的 shell 命令（必填）",
             "timeout": "超时时间（秒，默认 30，最大 120）",
@@ -183,7 +219,7 @@ final class ShellExecTool: MCPTool {
             "exit_code": exitCode,
             "stdout": stdout,
             "cwd": newPwd,
-            "hint": "内置命令：ls/cat/grep/find/tar/awk/cd/echo 等 + $APPDIR/bin 外部工具（ldid/optool 等）。cd 记住目录。"
+            "hint": "内置命令：ls/cat/grep/find/tar/awk/cd/echo 等 60 个 + $APPDIR/bin 外部工具（ldid/optool 等）。cd 记住目录。"
         ]
         if timedOut {
             result["timed_out"] = true
@@ -192,9 +228,9 @@ final class ShellExecTool: MCPTool {
         return result
     }
     
-    /// 过滤 ios_system 的 NSLog 调试噪音行
+    /// 过滤 ios_system 的调试噪音行（NSLog 时间戳行 + 文件描述符统计行）
     static func filterNoise(_ output: String) -> String {
-        let noisePattern = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3} \\S+\\[\\d+:\\d+\\]"
+        let noisePattern = "^(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3} \\S+\\[\\d+:\\d+\\]|Num file descriptors opened = )"
         let lines = output.components(separatedBy: "\n")
         let filtered = lines.filter { line in
             line.range(of: noisePattern, options: .regularExpression) == nil
