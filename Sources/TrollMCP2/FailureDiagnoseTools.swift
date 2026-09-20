@@ -8,7 +8,7 @@ import Foundation
 final class InjectionVerifyTool: MCPTool {
     let definition = ToolDefinition(
         name: "injection.verify",
-        summary: "注入后健康检查：确认 dylib 是否真的加载生效，而不是只看注入标记。检查①Mach-O 加载命令 ②目标进程是否存活 ③最近是否有崩溃记录。返回 healthy / crashed / not_injected / injected_but_dead 结论。",
+        summary: "Post-injection health check: confirm dylib actually loaded, not just marked. Checks Mach-O load commands, target process alive, recent crash records. Returns healthy/crashed/not_injected/injected_but_dead.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
             "dylib": "dylib filename to verify (optional, default auto-detect all injected assets)"
@@ -106,7 +106,7 @@ final class InjectionVerifyTool: MCPTool {
 final class AppDiagnoseTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.diagnose",
-        summary: "启动失败自动判因：检查①是否存在 ②注入残留 ③加密状态 ④签名状态 ⑤最近崩溃现场 ⑥尝试启动。输出明确原因 + 下一步，不再报误导性错误（如把加密解析失败当成 Bundle ID 错）。",
+        summary: "Auto-diagnose launch failure: checks existence, injection remnants, encryption state, signature state, recent crash, attempts launch. Outputs clear cause + next step, no misleading errors (e.g. not confusing encrypted parse failure with wrong bundle ID).",
         parameters: ["bundle_id": "Target App bundle_id (required)"],
     verified: true, category: "app_control")
 

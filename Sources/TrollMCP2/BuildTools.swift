@@ -137,7 +137,7 @@ final class BuildRunner {
 /// build.environment：检查本机编译环境（toolchain/clang/make/theos/iOS SDK）
 final class BuildEnvironmentTool: MCPTool {
     let definition = ToolDefinition(name: "build.environment", 
-        summary: "检查本机编译环境：toolchain 目录、clang/make/perl/ldid、Theos、iOS SDK",
+        summary: "Check local build environment: toolchain dir, clang/make/perl/ldid, Theos, iOS SDK",
         parameters: ["toolchain": "Toolchain path: relative (toolchain = Workspace/toolchain) or absolute (/usr/local/theos etc.)"], verified: true, category: "build")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -389,7 +389,7 @@ private func systemToolchainProfile() -> ToolchainProfile {
 ///  - mode="clang"：clang -arch arm64 -fobjc-arc -isysroot <sdk> -dynamiclib 编译 .c/.m/.mm
 final class BuildRunTool: MCPTool {
     let definition = ToolDefinition(name: "build.run",
-        summary: "编译工程（theos make 或裸 clang），返回退出码/输出/产物",
+        summary: "Build a project (theos make or bare clang), returns exit code/output/artifacts",
         parameters: [
             "project": "Project name (Workspace/projects/<project>)",
             "mode": "theos or clang (default theos)",

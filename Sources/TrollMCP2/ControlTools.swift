@@ -252,7 +252,7 @@ final class ControlAgentTools {
 final class ControlInjectTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.inject",
-        summary: "注入 ControlAgent.dylib 到目标 App，注入后 AI 可通过 localhost HTTP 控制目标 App 的 UI（点击/滑动/输入/截图/读取UI树）。参数 bundle_id 为目标 App 的 Bundle ID。注入后需重启目标 App。",
+        summary: "Inject ControlAgent.dylib into a target app. After injection, AI controls app UI via localhost HTTP (tap/swipe/type/screenshot/UI tree). bundle_id is target app. Restart after injection.",
         parameters: [
             "bundle_id": "Target App bundle_id (required, search via injection.list)",
             "target": "Optional: specific Mach-O to inject (framework name substring, e.g. BiliCr). Default auto-select main binary's mandatory framework",
@@ -273,7 +273,7 @@ final class ControlInjectTool: MCPTool {
 final class ControlStatusTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.status",
-        summary: "检查目标 App 的 ControlAgent 是否在线（localhost:4789 是否可连接）。返回 App 信息、PID、可用 API 列表。",
+        summary: "Check if ControlAgent is online in target app (localhost:4789 reachable). Returns app info, PID, available API list.",
         parameters: [:],
         verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -284,7 +284,7 @@ final class ControlStatusTool: MCPTool {
 final class ControlUITreeTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.ui_tree",
-        summary: "获取目标 App 当前的完整 UI 树（所有窗口、视图、frame、text、可访问性信息）。AI 根据 UI 树决定点击哪个元素。限制 500 节点。",
+        summary: "Get target app full UI tree (all windows, views, frames, text, accessibility info). AI decides which element to tap. Limited to 500 nodes.",
         parameters: [:],
         verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -296,7 +296,7 @@ final class ControlUITreeTool: MCPTool {
 final class ControlScreenshotTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.screenshot",
-        summary: "截取目标 App 当前屏幕，保存为 PNG 到工作区 screenshots/ 目录。返回文件路径，用 artifact.find 定位。",
+        summary: "Screenshot target app screen, save as PNG to workspace screenshots/. Returns file path, use artifact.find to locate.",
         parameters: [:],
         verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -308,7 +308,7 @@ final class ControlScreenshotTool: MCPTool {
 final class ControlTapTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.tap",
-        summary: "在目标 App 屏幕上模拟点击。参数 x,y 为屏幕坐标（从 ui_tree 的 frame 获取）。",
+        summary: "Simulate a tap on target app screen. x,y are screen coordinates (from ui_tree frame).",
         parameters: [
             "x": "Tap X coordinate (required, number)",
             "y": "Tap Y coordinate (required, number)"
@@ -326,7 +326,7 @@ final class ControlTapTool: MCPTool {
 final class ControlSwipeTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.swipe",
-        summary: "在目标 App 屏幕上模拟滑动。参数 x1,y1 起点，x2,y2 终点，duration 滑动时长（秒，默认0.3）。",
+        summary: "Simulate a swipe on target app screen. x1,y1 start, x2,y2 end, duration seconds (default 0.3).",
         parameters: [
             "x1": "Start X (required)", "y1": "Start Y (required)",
             "x2": "End X (required)", "y2": "End Y (required)",
@@ -347,7 +347,7 @@ final class ControlSwipeTool: MCPTool {
 final class ControlTypeTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.type",
-        summary: "在目标 App 当前输入框（第一响应者）输入文字。如果没有输入框被选中，文字会复制到剪贴板。",
+        summary: "Type text into target app current input field (first responder). If no field focused, text goes to clipboard.",
         parameters: ["text": "Text to input (required)"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -362,7 +362,7 @@ final class ControlTypeTool: MCPTool {
 final class ControlKeyTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.key",
-        summary: "模拟按键。支持 home（返回桌面）、back（返回）、enter（回车）。",
+        summary: "Simulate hardware key. Supports home (go to home), back (go back), enter (return).",
         parameters: ["key": "home/back/enter (required)"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

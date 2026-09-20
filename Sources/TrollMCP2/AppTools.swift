@@ -375,7 +375,7 @@ final class AppsControlTool: MCPTool {
 final class WeChatPrepareMessageTool: MCPTool {
     let definition = ToolDefinition(
         name: "wechat.prepare_message",
-        summary: "准备微信消息（复制到剪贴板并尝试跳转微信）",
+        summary: "Prepare a WeChat message (copy to clipboard and attempt to jump to WeChat)",
         parameters: [
             "text": "Message text",
             "recipient": "Optional: recipient"

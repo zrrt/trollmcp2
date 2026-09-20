@@ -486,7 +486,7 @@ struct SystemCleanupView: View {
 final class SystemCleanupScanTool: MCPTool {
     let definition = ToolDefinition(
         name: "system.cleanup_scan",
-        summary: "扫描设备级可清理项（系统缓存/应用缓存/照片缓存/临时文件/日志/下载/启动快照/垃圾箱/OTA 更新包 + 高级 WebKit/HTTP存储/Safari），返回各项大小与风险。先 scan 再 execute",
+        summary: "Scan device-level cleanable items (system/app/photo caches, temp, logs, downloads, snapshots, trash, OTA + advanced WebKit/HTTP/Safari). Returns sizes and risk. Scan before execute.",
         parameters: [:],
     verified: true, category: "cleanup")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -509,7 +509,7 @@ final class SystemCleanupScanTool: MCPTool {
 final class SystemCleanupExecuteTool: MCPTool {
     let definition = ToolDefinition(
         name: "system.cleanup_execute",
-        summary: "执行设备级清理：items 传 system.cleanup_scan 返回的 id（如 [\"app_cache\",\"sys_cache\",\"ota\"]）。risk=warn 项（下载/垃圾箱/OTA）会清空对应目录。返回释放大小与失败明细",
+        summary: "Execute device-level cleanup. Pass item ids from scan result (e.g. [\"app_cache\",\"sys_cache\",\"ota\"]). risk=warn items (downloads/trash/OTA) will clear those dirs. Returns freed size and failures.",
         parameters: ["items": "Item id array to clean (required)"], verified: true, category: "cleanup")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let items = params["items"] as? [String], !items.isEmpty else {

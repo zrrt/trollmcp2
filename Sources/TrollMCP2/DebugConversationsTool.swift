@@ -5,7 +5,7 @@ import Foundation
 final class DebugDumpConversationsTool: MCPTool {
     let definition = ToolDefinition(
         name: "debug.dump_conversations",
-        summary: "调试：导出会话列表（标题/消息数/首条消息内容），排查标题乱码问题",
+        summary: "Debug: export conversation list (title/message count/first message content), to diagnose title garbling",
         parameters: ["limit": "Max conversations to export (default 5, max 30)"], verified: true, category: "debug")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -33,7 +33,7 @@ final class DebugDumpConversationsTool: MCPTool {
 final class DebugDumpNetworkLogTool: MCPTool {
     let definition = ToolDefinition(
         name: "debug.dump_network_log",
-        summary: "调试：导出NetworkLog最近请求日志（降级/错误/HTTP状态），排查AI请求失败与空回复",
+        summary: "Debug: export NetworkLog recent request logs (fallbacks/errors/HTTP status), to diagnose AI request failures and empty replies",
         parameters: ["limit": "Max entries (default 50, max 100)"], verified: true, category: "debug")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -47,7 +47,7 @@ final class DebugDumpNetworkLogTool: MCPTool {
 final class DebugDumpModelConfigsTool: MCPTool {
     let definition = ToolDefinition(
         name: "debug.dump_model_configs",
-        summary: "调试：导出模型配置（baseURL/模型名/key掩码）与当前请求状态（isLoading/statusText/轮数），排查AI不回消息",
+        summary: "Debug: export model config (baseURL/model name/key masked) and current request state (isLoading/statusText/turns), to diagnose AI not replying",
         parameters: [:], verified: true, category: "debug")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

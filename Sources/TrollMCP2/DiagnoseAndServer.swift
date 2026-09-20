@@ -9,7 +9,7 @@
 final class DiagnoseStartupTool: MCPTool {
     let definition = ToolDefinition(
         name: "diagnose.startup",
-        summary: "自动诊断 App 启动失败原因。检查：签名、架构、依赖、entitlements、注入状态、进程缓存、崩溃日志。给出明确原因和修复步骤。",
+        summary: "Auto-diagnose app launch failure. Checks: signature, architecture, dependencies, entitlements, injection state, process cache, crash logs. Gives clear cause and fix steps.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
             "auto_fix": "Auto-attempt fix (default false, diagnose only)"
@@ -133,7 +133,7 @@ final class DiagnoseStartupTool: MCPTool {
 final class DiagnoseCrashTool: MCPTool {
     let definition = ToolDefinition(
         name: "diagnose.crash",
-        summary: "分析指定 App 的最近崩溃日志，自动提取：异常类型、终止原因、崩溃线程、调用栈、dyld 错误、签名问题。给出根因判断和修复建议。",
+        summary: "Analyze recent crash logs for an app, auto-extract: exception type, termination reason, crashed thread, call stack, dyld errors, signature issues. Gives root cause and fix suggestions.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
             "count": "Analyze recent crashes (default 1)"
@@ -390,7 +390,7 @@ final class LocalServerManager {
 final class ServerStartTool: MCPTool {
     let definition = ToolDefinition(
         name: "server.start",
-        summary: "启动本地 HTTP 服务（localhost），其他脚本/工具可通过 REST API 调用 TrollAgent 的所有工具。默认端口 8765。",
+        summary: "Start local HTTP server (localhost), other scripts/tools can call all TrollAgent tools via REST API. Default port 8765.",
         parameters: [
             "port": "Port (default 8765)"
         ], verified: true, category: "diagnose")
@@ -415,7 +415,7 @@ final class ServerStartTool: MCPTool {
 final class ServerStopTool: MCPTool {
     let definition = ToolDefinition(
         name: "server.stop",
-        summary: "停止本地 HTTP 服务。",
+        summary: "Stop local HTTP server.",
         parameters: [:],
         verified: true, category: "system")
 
@@ -428,7 +428,7 @@ final class ServerStopTool: MCPTool {
 final class ServerStatusTool: MCPTool {
     let definition = ToolDefinition(
         name: "server.status",
-        summary: "查看本地 HTTP 服务状态：是否运行、端口、可用工具数量。",
+        summary: "Check local HTTP server status: running, port, available tool count.",
         parameters: [:],
     verified: true, category: "system")
 

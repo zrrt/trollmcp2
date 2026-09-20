@@ -1404,7 +1404,7 @@ final class FSCrashTool: MCPTool {
 final class FSImageInfoTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.image_info",
-        summary: "图片元数据：格式/宽高/大小（PNG/JPEG/GIF/WebP）。识别后如需查看内容，用模型的视觉能力或截图工具。",
+        summary: "Image metadata: format/width/height/size (PNG/JPEG/GIF/WebP). To view content, use model vision or screenshot tool.",
         parameters: [
             "path": "Image absolute path (or workspace-relative)",
             "bundle_id": "Target App bundle_id (set to read its data container)",

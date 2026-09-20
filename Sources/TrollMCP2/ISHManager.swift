@@ -76,7 +76,18 @@ enum ISHEngine {
             return "[ish] 内核初始化失败: cish_boot rc=\(rc)"
         }
         state = .booted
-        ShellDiag.log("ISH boot ok data=\(dataPath)")
+
+        // 3. 挂载工作区：在 rootfs 里创建 /workspace → iOS Documents/Workspace 的 symlink
+        // 这样 iSH 终端里 cd /workspace 就能直接读写 TrollAgent 工作区文件，不沙盒隔离
+        let workspaceLink = dataPath + "/workspace"
+        let workspaceTarget = (rootfsDir as NSString).appendingPathComponent("../Workspace")
+        if !fm.fileExists(atPath: workspaceLink) {
+            try? fm.createSymbolicLink(atPath: workspaceLink, withDestinationPath: workspaceTarget)
+        }
+        // 默认 cwd 切到 /workspace
+        guestCwd = "/workspace"
+
+        ShellDiag.log("ISH boot ok data=\(dataPath) workspace symlink created")
         return nil
     }
 

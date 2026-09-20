@@ -79,7 +79,7 @@ enum AppContainer {
 
 final class BridgeContainerTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.container",
-        summary: "查任意 App 的 Bundle 路径 + 数据容器路径 + 容器大小（跨 App 数据桥的基础）。",
+        summary: "Get any app's bundle path + data container path + container size (foundation for cross-app data bridge).",
         parameters: ["bundle_id": "Target App bundle_id"], verified: true, category: "filesystem")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
@@ -104,7 +104,7 @@ final class BridgeContainerTool: MCPTool {
 
 final class BridgeLsTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.ls",
-        summary: "列出任意 App 容器内的目录（bundle=安装包目录 / data=数据容器）。",
+        summary: "List a directory inside any app container (bundle=app install dir / data=data container).",
         parameters: ["bundle_id": "Target App bundle_id", "scope": "bundle or data (default data)", "path": "Relative path inside container (default root)"], verified: true, category: "filesystem")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
@@ -136,7 +136,7 @@ final class BridgeLsTool: MCPTool {
 
 final class BridgeReadTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.read",
-        summary: "读取任意 App 容器内文件（文本/plist/JSON，>4000 字符截断；二进制请用 fs.hexdump）。",
+        summary: "Read a file inside any app container (text/plist/JSON, truncated at 4000 chars; use fs.hexdump for binary).",
         parameters: ["bundle_id": "Target App bundle_id", "scope": "bundle or data", "path": "Relative path inside container"], verified: true, category: "filesystem")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
@@ -173,7 +173,7 @@ final class BridgeReadTool: MCPTool {
 
 final class BridgeCopyTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.copy",
-        summary: "跨 App 容器复制文件/目录（A 的容器 → B 的容器，或 → 工作区）。写操作前请确认不破坏目标数据。",
+        summary: "Copy file/dir across app containers (A container → B container, or → workspace). Confirm target data is not corrupted before write.",
         parameters: ["from_bundle": "Source App bundle_id", "from_scope": "Source scope", "from_path": "Source relative path", "to_bundle": "Target App bundle_id (use workspace for workspace)", "to_scope": "Target scope", "to_path": "Target relative path"], verified: true, category: "filesystem")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let fb = params["from_bundle"] as? String, !fb.isEmpty,
@@ -214,7 +214,7 @@ final class BridgeCopyTool: MCPTool {
 
 final class BridgeExportTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.export",
-        summary: "导出任意 App 容器文件/目录到工作区（默认 bridge_exports/<bundle_id>/），用于备份/迁移。",
+        summary: "Export a file/dir from any app container to workspace (default bridge_exports/<bundle_id>/), for backup/migration.",
         parameters: ["bundle_id": "Target App bundle_id", "scope": "bundle or data", "path": "Relative path (default root = whole container)"], verified: true, category: "filesystem")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
@@ -243,7 +243,7 @@ final class BridgeExportTool: MCPTool {
 
 final class BridgeImportTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.import",
-        summary: "从工作区导入文件/目录到任意 App 容器（恢复/迁移）。写操作高风险，确认目标数据可覆盖。",
+        summary: "Import a file/dir from workspace into any app container (restore/migration). High-risk write, confirm target data can be overwritten.",
         parameters: ["src_path": "Source path inside workspace", "bundle_id": "Target App bundle_id", "scope": "bundle or data", "to_path": "Target relative path inside container"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let src = params["src_path"] as? String, !src.isEmpty,

@@ -8,7 +8,7 @@ import UIKit
 final class AppInstallTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.install",
-        summary: "安装 IPA 到设备：TrollStore 官方 trollstorehelper 静默安装优先，不可用时自动调起 TrollStore 确认安装。ipa_path 传本地 ipa 绝对路径（工作区下载的 ipa 可直接用）。安装成功后 AI 可继续注入/启动/控制。",
+        summary: "Install IPA to device: prefers TrollStore trollstorehelper silent install, falls back to TrollStore confirm dialog. ipa_path is local ipa absolute path. After install, AI can inject/launch/control.",
         parameters: ["ipa_path": "Local IPA absolute path (required)"], verified: true, category: "app_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["ipa_path"] as? String, !path.isEmpty else {
@@ -86,7 +86,7 @@ final class AppInstallTool: MCPTool {
 final class AppUninstallTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.uninstall",
-        summary: "卸载指定 bundle_id 的 App（trollstorehelper uninstall，TrollStore 环境）。卸载会删除该 App 数据容器，注意备份。",
+        summary: "Uninstall an app by bundle_id (trollstorehelper uninstall). Deletes app data container, back up first.",
         parameters: ["bundle_id": "App bundle_id to uninstall (required)"],
         verified: true, category: "app_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

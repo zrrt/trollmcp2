@@ -151,7 +151,7 @@ final class ProjectContext: ObservableObject {
 final class ProjectTool: MCPTool {
     let definition = ToolDefinition(
         name: "project",
-        summary: "项目上下文管理。创建/切换/查看当前项目，AI 自动读取目标 App、dylib、历史运行结果，无需用户重复说明。",
+        summary: "Project context management. Create/switch/view current project; AI auto-reads target app, dylib, history.",
         parameters: [
             "action": "current | list | create | select | delete | history",
             "name": "Project name (for create)",
@@ -615,7 +615,7 @@ final class TaskTemplateRunner {
 final class TaskTool: MCPTool {
     let definition = ToolDefinition(
         name: "task.run",
-        summary: "执行任务模板。把常见流程固化成一键执行：诊断注入失败、采集崩溃现场、注入验证闭环（含自动回滚）、IPA健康检查、性能回归、紧急恢复、抓包分析、一键新机、AI分析、闪退诊断。AI 无需逐步调用工具。",
+        summary: "Run a task template. One-click common flows: diagnose injection, capture crash, verify injection (with rollback), IPA health, perf regression, emergency recovery, packet capture, new device, AI analyze, crash triage.",
         parameters: [
             "template": "Template id: diagnose_injection | capture_crash | inject_verify | ipa_health | perf_regression | emergency_recover | network_probe | new_device | ai_analyze | crash_triage",
             "bundle_id": "Target App bundle_id (default current project)",

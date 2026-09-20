@@ -32,7 +32,7 @@ final class AssistantMemoryStore: ObservableObject {
 final class AssistantMemorySetTool: MCPTool {
     let definition = ToolDefinition(
         name: "assistant.memory_set",
-        summary: "保存一条 Assistant 记忆（键值对）",
+        summary: "Save an assistant memory entry (key-value pair)",
         parameters: ["key": "Memory key", "value": "Memory value"],
     verified: true, category: "knowledge")
 
@@ -50,7 +50,7 @@ final class AssistantMemorySetTool: MCPTool {
 final class AssistantMemoryListTool: MCPTool {
     let definition = ToolDefinition(
         name: "assistant.memory_list",
-        summary: "列出所有 Assistant 记忆",
+        summary: "List all assistant memory entries",
         parameters: ["query": "Optional: keyword filter"],
         verified: true, category: "knowledge")
 
@@ -70,7 +70,7 @@ final class AssistantMemoryListTool: MCPTool {
 final class AssistantMemoryDeleteTool: MCPTool {
     let definition = ToolDefinition(
         name: "assistant.memory_delete",
-        summary: "删除指定 Assistant 记忆",
+        summary: "Delete a specific assistant memory entry",
         parameters: ["key": "Memory key to delete"],
     verified: true, category: "knowledge")
 

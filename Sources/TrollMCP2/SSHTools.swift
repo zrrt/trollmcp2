@@ -6,7 +6,7 @@ import Foundation
 final class SSHTool: MCPTool {
     let definition = ToolDefinition(
         name: "ssh.exec",
-        summary: "通过 SSH 连接远程 Linux 服务器执行命令（需先在设置中配置 SSH 连接信息）。返回命令的 stdout/stderr 和 exit code。",
+        summary: "Execute a command on a remote Linux server via SSH (configure SSH in settings first). Returns stdout/stderr/exit code.",
         parameters: [
             "command": "Shell command to run on remote server (required)",
             "timeout": "Timeout seconds (optional, default 30)"
@@ -117,7 +117,7 @@ final class SSHTool: MCPTool {
 final class SCPTool: MCPTool {
     let definition = ToolDefinition(
         name: "ssh.scp",
-        summary: "通过 SCP 在本地和远程 Linux 服务器之间传输文件（需先配置 SSH 连接）。direction=upload 或 download。",
+        summary: "Transfer files between local and remote Linux via SCP (configure SSH first). direction=upload or download.",
         parameters: [
             "direction": "upload (local→remote) or download (remote→local)",
             "local_path": "Local file path",

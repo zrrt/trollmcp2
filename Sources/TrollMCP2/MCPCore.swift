@@ -894,7 +894,7 @@ public final class ToolRegistry: ObservableObject {
 final class ToolSearchTool: MCPTool {
     let definition = ToolDefinition(
         name: "tool_search",
-        summary: "搜索可用工具目录：按关键词返回匹配的工具名与用途摘要。当需要某项能力但当前可用工具中没有时，先用它搜索，再调用搜到的工具。",
+        summary: "Search available tool catalog: returns matching tool names and summaries by keyword. When you need a capability not in current tools, search first then call the found tool.",
         parameters: ["query": "Search keyword, e.g. github, injection, file, cron", "limit": "Max results (default 8)"], verified: true, category: "system")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

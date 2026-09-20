@@ -37,7 +37,7 @@ enum ShellDiag {
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "执行 shell 命令（终端/命令行/terminal/sh）：完整 Alpine Linux 环境（iSH 引擎），内置 ls/cat/grep/find/tar/curl/python/busybox 全套 + apk 装包 + shell 脚本，cd 记住工作目录。危险命令自动拦截。",
+        summary: "Run a shell command (terminal/command line/sh): full Alpine Linux (iSH engine), built-in ls/cat/grep/find/tar/curl/python/busybox + apk packages + scripts. cd persists. Dangerous commands auto-blocked.",
         parameters: [
             "command": "Shell command to execute (required)",
             "timeout": "Timeout seconds (default 30, max 120)",

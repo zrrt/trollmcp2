@@ -192,7 +192,7 @@ final class MacroRunner {
 
 final class MacroRecordTool: MCPTool {
     let definition = ToolDefinition(name: "macro.record",
-        summary: "开始录制 AI 操作宏：之后调用的 ui.tap/swipe/long_press/clipboard 会被记录。录制完用 macro.stop 保存。",
+        summary: "Start recording an AI action macro: subsequent ui.tap/swipe/long_press/clipboard calls are recorded. Use macro.stop to save.",
         parameters: ["name": "Macro name"], verified: true, category: "macro")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
@@ -206,7 +206,7 @@ final class MacroRecordTool: MCPTool {
 
 final class MacroStopTool: MCPTool {
     let definition = ToolDefinition(name: "macro.stop",
-        summary: "结束宏录制并保存。",
+        summary: "Stop macro recording and save.",
         parameters: [:])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let (ok, msg) = MacroRecorder.shared.stop()
@@ -218,7 +218,7 @@ final class MacroStopTool: MCPTool {
 
 final class MacroListTool: MCPTool {
     let definition = ToolDefinition(name: "macro.list",
-        summary: "列出已保存的宏（名称/步数/创建时间）。",
+        summary: "List saved macros (name/step count/creation time).",
         parameters: [:], verified: true, category: "macro")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let list = MacroStore.list()
@@ -228,7 +228,7 @@ final class MacroListTool: MCPTool {
 
 final class MacroRunTool: MCPTool {
     let definition = ToolDefinition(name: "macro.run",
-        summary: "回放宏：纯执行（不调 AI 思考），每步在控制中心显示进度 + 结束后留截图证据。目标 App 需已在前台。",
+        summary: "Replay a macro: pure execution (no AI thinking), shows progress in control center + screenshot evidence at end. Target app must be in foreground.",
         parameters: ["name": "Macro name", "loop": "Loop count (default 1, max 100)", "step_delay_ms": "Delay between steps ms (default 300)"], verified: true, category: "macro")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
@@ -253,7 +253,7 @@ final class MacroRunTool: MCPTool {
 
 final class MacroDeleteTool: MCPTool {
     let definition = ToolDefinition(name: "macro.delete",
-        summary: "删除一个宏。",
+        summary: "Delete a macro.",
         parameters: ["name": "Macro name"], verified: true, category: "macro")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
@@ -267,7 +267,7 @@ final class MacroDeleteTool: MCPTool {
 
 final class MacroExportTool: MCPTool {
     let definition = ToolDefinition(name: "macro.export",
-        summary: "导出宏为 JSON 到工作区（备份/分享）。",
+        summary: "Export a macro as JSON to workspace (backup/share).",
         parameters: ["name": "Macro name"], verified: true, category: "macro")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {

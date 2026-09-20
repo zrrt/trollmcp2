@@ -148,7 +148,7 @@ final class FailureKnowledgeBase {
 final class KnowledgeBaseTool: MCPTool {
     let definition = ToolDefinition(
         name: "kb.query",
-        summary: "查询崩溃/错误知识库。输入错误信息，自动匹配已知模式并返回原因和修复方案。也可添加新模式。",
+        summary: "Query crash/error knowledge base. Input error text, auto-match known patterns and return cause + fix. Can also add new patterns.",
         parameters: [
             "error": "Error text (required, to match)",
             "action": "query (default) or add",
@@ -191,7 +191,7 @@ final class KnowledgeBaseTool: MCPTool {
 final class WorkspaceCleanupTool: MCPTool {
     let definition = ToolDefinition(
         name: "workspace.cleanup",
-        summary: "清理工作区临时文件：旧编译产物、下载缓存、日志、报告。按天数或大小过滤，支持 dry-run 预览。",
+        summary: "Clean workspace temp files: old build artifacts, download cache, logs, reports. Filter by age or size, supports dry-run preview.",
         parameters: [
             "dry_run": "Preview only, no delete (default true)",
             "max_age_days": "Delete files older than N days (default 7)",

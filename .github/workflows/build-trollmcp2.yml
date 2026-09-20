@@ -140,8 +140,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TrollMCP2-ipa
-          path: |
-            TrollMCP2.ipa
-            TrollMCP2.tipa
+          name: TrollMCP2
+          path: TrollMCP2.tipa
           if-no-files-found: error

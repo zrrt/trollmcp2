@@ -11,7 +11,7 @@
 final class IPAInspectTool: MCPTool {
     let definition = ToolDefinition(
         name: "ipa.inspect",
-        summary: "解析 IPA 文件或已安装 App 的详细信息：架构、签名、entitlements、依赖库、Info.plist、URL schemes、后台模式。用于注入前检查和逆向分析。",
+        summary: "Parse IPA or installed app: arch, signature, entitlements, dylibs, Info.plist, URL schemes, background modes.",
         parameters: [
             "path": "IPA file path or App Bundle path (required, locate via artifact.find)",
             "detail": "Verbosity: basic (default, arch+signature+version) or full (deps list + entitlements full text)"
@@ -143,7 +143,7 @@ final class IPAInspectTool: MCPTool {
 final class DylibInspectTool: MCPTool {
     let definition = ToolDefinition(
         name: "dylib.inspect",
-        summary: "解析 dylib 文件的详细信息：架构、签名、依赖、导出符号、兼容的 iOS 版本。用于注入前验证 dylib 是否可用。",
+        summary: "Parse a dylib: arch, signature, dependencies, exports, min iOS version. Validate before injection.",
         parameters: [
             "path": "dylib file path (required, locate via artifact.find)"
         ], verified: true, category: "analysis")
@@ -240,7 +240,7 @@ private func machOArch(_ path: String) -> String {
 final class InjectionDiagnoseTool: MCPTool {
     let definition = ToolDefinition(
         name: "injection.diagnose",
-        summary: "诊断 dylib 注入失败的具体原因。检查：目标进程状态、dylib 架构/签名、依赖缺失、加载路径、权限、备份文件、Mach-O 完整性。给出明确的修复建议。",
+        summary: "Diagnose why dylib injection failed. Checks: target process, arch/signature, missing deps, load paths, permissions, backups, Mach-O integrity. Gives fix hints.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
             "dylib_path": "dylib path to inject (optional, check injected if empty)"
@@ -421,7 +421,7 @@ final class InjectionDiagnoseTool: MCPTool {
 final class LogCollectTool: MCPTool {
     let definition = ToolDefinition(
         name: "log.collect",
-        summary: "收集指定 App 的日志和崩溃信息：系统日志、App 标准输出、崩溃报告、注入日志。输出到工作区文件，方便 AI 分析。",
+        summary: "Collect logs and crash info for an app: system logs, stdout, crash reports, injection logs. Writes to workspace for AI analysis.",
         parameters: [
             "bundle_id": "Target App bundle_id (optional, default TrollAgent own logs)",
             "type": "Log type: system / crash / injection / all (default)",
@@ -496,7 +496,7 @@ final class LogCollectTool: MCPTool {
 final class NetworkCaptureTool: MCPTool {
     let definition = ToolDefinition(
         name: "network.capture",
-        summary: "HTTP 抓包与分析。需要先注入 NetworkTweak.dylib 到目标 App（内置），注入后 App 的所有 HTTP/HTTPS 请求会记录到本地文件。支持查看请求列表、URL、方法、状态码、Header、JSON 字段分析。",
+        summary: "HTTP packet capture. Inject built-in NetworkTweak.dylib first; all HTTP/HTTPS requests logged locally. View list/URL/method/status/headers/JSON.",
         parameters: [
             "action": "Action: status / start / stop / requests / analyze",
             "bundle_id": "Target App bundle_id (required for start)",

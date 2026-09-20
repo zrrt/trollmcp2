@@ -81,7 +81,7 @@ private enum GHAPI {
 final class GitHubAccountStatusTool: MCPTool {
     let definition = ToolDefinition(
         name: "github.account_status",
-        summary: "查看 App 内 GitHub 账号登录状态、仓库、最近线上编译记录",
+        summary: "Check in-app GitHub account login status, repos, recent CI build records",
         parameters: [:],
         verified: true, category: "build")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -121,7 +121,7 @@ final class GitHubAccountStatusTool: MCPTool {
 final class GitHubTriggerBuildTool: MCPTool {
     let definition = ToolDefinition(
         name: "github.trigger_build",
-        summary: "用当前登录账号触发 GitHub Actions 线上编译",
+        summary: "Trigger a GitHub Actions CI build with the logged-in account",
         parameters: ["workflow": "Workflow filename (default build-trollmcp2.yml; for tweak use build-tweak.yml)", "tweak": "Only for build-tweak: tweak project name (e.g. CompileProbe)", "ref": "Branch name (default main)"], verified: true, category: "build")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let token = GHConfig.activeToken else {
@@ -149,7 +149,7 @@ final class GitHubTriggerBuildTool: MCPTool {
 final class GitHubFetchRunsTool: MCPTool {
     let definition = ToolDefinition(
         name: "github.fetch_runs",
-        summary: "查询最近线上编译 run 的状态与结论",
+        summary: "Query recent CI build run status and conclusion",
         parameters: ["limit": "Max results (default 5)"], verified: true, category: "build")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let token = GHConfig.activeToken else {
@@ -177,7 +177,7 @@ final class GitHubFetchRunsTool: MCPTool {
 final class GitHubDownloadArtifactTool: MCPTool {
     let definition = ToolDefinition(
         name: "github.download_artifact",
-        summary: "下载指定 run（或最近成功 run）的编译产物 zip 到本地工作区 downloads 目录，解压后可用于注入测试",
+        summary: "Download CI artifact zip from a run (or latest successful run) to workspace downloads/, unzip for injection testing",
         parameters: ["run_id": "Optional: specific run id; default auto-use latest successful run", "artifact_name": "Optional: artifact name; default auto-use first one"], verified: true, category: "build")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let token = GHConfig.activeToken else {

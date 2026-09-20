@@ -9,7 +9,7 @@ import Foundation
 final class AppDuplicateTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.duplicate",
-        summary: "双开/改包名：复制指定 App 生成共存副本（新 Bundle ID + 可改显示名），打包后经 TrollStore 静默安装。副本拥有独立数据容器与登录态。对加密的 App Store App 无效（需先砸壳）。",
+        summary: "Clone an app to create a coexisting copy (new bundle ID + optional display name). Packaged and silently installed via TrollStore. Clone has its own data container and login state. Does not work on encrypted App Store apps (must decrypt first).",
         parameters: [
             "bundle_id": "Source App bundle_id to clone (required)",
             "new_name": "Copy display name (optional, default <name> Clone)",

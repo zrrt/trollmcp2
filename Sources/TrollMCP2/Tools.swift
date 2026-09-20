@@ -141,7 +141,7 @@ final class ArtifactFindTool: MCPTool {
 // MARK: - 基础工具
 
 final class PingTool: MCPTool {
-    let definition = ToolDefinition(name: "ping", summary: "连通性测试：返回 pong 与耗时，验证设备/工具链是否在线。")
+    let definition = ToolDefinition(name: "ping", summary: "Connectivity test: returns pong with latency. Verify device/toolchain is online.")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         ["pong": true, "ts": Int(Date().timeIntervalSince1970)]
@@ -149,7 +149,7 @@ final class PingTool: MCPTool {
 }
 
 final class DeviceInfoTool: MCPTool {
-    let definition = ToolDefinition(name: "device.info", summary: "查看设备信息：系统版本、机型、内存/存储/磁盘/电量、TrollAgent 版本、工作区路径。", verified: true)
+    let definition = ToolDefinition(name: "device.info", summary: "Device info: iOS version, model, memory/storage/disk/battery, TrollAgent version, workspace path.", verified: true, category: "device")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         [
@@ -165,7 +165,7 @@ final class DeviceInfoTool: MCPTool {
 final class DeviceProbeTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.probe",
-        summary: "检测本机环境：TrollStore/TrollFools、task_for_pid、App 容器读写、注入二进制、amfid 绕过推断",
+        summary: "Probe device environment: TrollStore/TrollFools, task_for_pid, app container read/write, injection binaries, amfid bypass inference",
         verified: true, category: "device")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -207,7 +207,7 @@ final class DeviceProbeTool: MCPTool {
 final class MemoryTweakTool: MCPTool {
     let definition = ToolDefinition(
         name: "memory",
-        summary: "H5gg式内存修改：需先将 MemoryTweak.dylib 注入目标App。action=search全内存搜索/refine在上次结果过滤/write写入/freeze冻结/unfreeze取消冻结/status服务器状态/frozen已冻结列表/results上次搜索结果。type支持int/int64/float/double/byte/short。address用0x十六进制。",
+        summary: "H5gg-style memory modification. Requires MemoryTweak.dylib injected into target app first. action: search (full memory scan) / refine (filter previous results) / write / freeze / unfreeze / status / frozen (list frozen) / results (last search results). type: int|int64|float|double|byte|short. address in 0x hex.",
         parameters: [
             "action": "search|refine|write|freeze|unfreeze|status|frozen|results",
             "value": "Value to search/write/freeze (required for search/refine/write/freeze)",
@@ -306,7 +306,7 @@ final class MemoryTweakTool: MCPTool {
 final class ClipboardReadTool: MCPTool {
     let definition = ToolDefinition(
         name: "clipboard.read",
-        summary: "读取系统剪贴板文本（用户复制的验证码、链接、token 等最近一次复制内容）",
+        summary: "Read system clipboard text (last copied content: verification code, link, token, etc.)",
         parameters: [:],
         verified: true, category: "system")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -321,7 +321,7 @@ final class ClipboardReadTool: MCPTool {
 final class ClipboardWriteTool: MCPTool {
     let definition = ToolDefinition(
         name: "clipboard.write",
-        summary: "写入系统剪贴板：把一段文本复制到剪贴板，供用户粘贴到其他 App",
+        summary: "Write text to system clipboard for user to paste into other apps",
         parameters: ["text": "Text to copy to clipboard (required)"],
     verified: true, category: "system")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

@@ -14,7 +14,7 @@ import Foundation
 final class AppStartTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.start",
-        summary: "启动指定 App。多级策略：open -b → 注册表路径直接执行主二进制 → URL scheme，每级记录真实错误与 stderr，不再误导归因于 Bundle ID。",
+        summary: "Launch an app. Multi-strategy: open -b -> registry path direct exec -> URL scheme, each level logs real errors/stderr.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
             "wait_seconds": "Wait seconds after launch (default 3, to confirm alive)"
@@ -98,7 +98,7 @@ final class AppStartTool: MCPTool {
 final class AppStopTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.stop",
-        summary: "停止（杀掉）指定 App 进程。返回是否成功、原 PID。",
+        summary: "Kill (stop) an app process. Returns success and original PID.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)"
         ],
@@ -130,7 +130,7 @@ final class AppStopTool: MCPTool {
 final class AppRestartTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.restart",
-        summary: "重启指定 App（先杀后启）。返回新 PID、重启耗时。",
+        summary: "Restart an app (kill then launch). Returns new PID and restart time.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
             "wait_seconds": "Wait seconds after launch (default 3)"
@@ -205,7 +205,7 @@ final class AppRestartTool: MCPTool {
 final class AppStatusTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.status",
-        summary: "查看指定 App 的运行状态：是否运行、PID、前台/后台、CPU 占用、内存占用、线程数、运行时长。",
+        summary: "Check app running status: running, PID, foreground/background, CPU%, memory, thread count, uptime.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)"
         ],
@@ -253,7 +253,7 @@ final class AppStatusTool: MCPTool {
 final class AppStatsTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.stats",
-        summary: "对指定 App 进行 CPU/内存采样（持续 N 秒），输出平均值、峰值、趋势。用于性能分析和泄漏检测。",
+        summary: "Sample CPU/memory of an app for N seconds, output avg/peak/trend. For perf analysis and leak detection.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
             "duration": "Sampling duration in seconds (default 10)",
@@ -319,7 +319,7 @@ final class AppStatsTool: MCPTool {
 final class TestRunTool: MCPTool {
     let definition = ToolDefinition(
         name: "test.run",
-        summary: "一键测试编排：注入 dylib → 启动 App → 等待稳定 → 采集日志/性能 → 停止 → 生成报告。把整个测试闭环自动化，返回每一步的结果和最终报告。",
+        summary: "One-click test pipeline: inject dylib -> launch app -> wait stable -> collect logs/perf -> stop -> report.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
             "dylib_path": "dylib path to inject (optional, skip if empty)",

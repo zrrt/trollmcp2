@@ -199,7 +199,7 @@ final class ProgressNotifier {
 
 final class UITapTool: MCPTool {
     let definition = ToolDefinition(name: "ui.tap",
-        summary: "在屏幕指定坐标点击（AI 控制任意前台 App：美团/小红书等）。坐标用 points（iPhone 全屏约 390x844 逻辑点），原点左上角。调用时务必带 reason 说明判断依据（为什么点这里）。",
+        summary: "Tap at screen coordinates (AI controls any foreground app: Meituan/Xiaohongshu etc). Coordinates in points (iPhone fullscreen ~390x844 logical points), origin top-left. Always include reason.",
         parameters: ["x": "X coordinate in points", "y": "Y coordinate in points", "reason": "Why tap here (required, e.g. screenshot shows search box at (100,55))"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x = params["x"] as? Double, let y = params["y"] as? Double else {
@@ -221,7 +221,7 @@ final class UITapTool: MCPTool {
 
 final class UISwipeTool: MCPTool {
     let definition = ToolDefinition(name: "ui.swipe",
-        summary: "在屏幕滑动（从 A 到 B），用于翻页/滚动/返回手势。调用时务必带 reason 说明判断依据。",
+        summary: "Swipe on screen (from A to B), for paging/scrolling/back gesture. Always include reason.",
         parameters: ["x1": "Start X", "y1": "Start Y", "x2": "End X", "y2": "End Y", "duration_ms": "Duration ms (default 300)", "reason": "Why swipe (required)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x1 = params["x1"] as? Double, let y1 = params["y1"] as? Double,
@@ -245,7 +245,7 @@ final class UISwipeTool: MCPTool {
 
 final class UILongPressTool: MCPTool {
     let definition = ToolDefinition(name: "ui.long_press",
-        summary: "长按屏幕坐标（弹出菜单/选择文本/粘贴菜单用）。调用时务必带 reason。",
+        summary: "Long-press at screen coordinates (for popup menu/text selection/paste menu). Always include reason.",
         parameters: ["x": "X", "y": "Y", "duration_ms": "Long press duration ms (default 800)", "reason": "Why long press (required)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x = params["x"] as? Double, let y = params["y"] as? Double else {
@@ -268,7 +268,7 @@ final class UILongPressTool: MCPTool {
 
 final class UIClipboardTool: MCPTool {
     let definition = ToolDefinition(name: "ui.clipboard",
-        summary: "把文本写入系统剪贴板（配合 ui.long_press 长按输入框 + 点「粘贴」实现跨 App 文本输入；iOS 无直接注入文本的公开 API）。调用时务必带 reason。",
+        summary: "Write text to system clipboard (combine with ui.long_press + tap Paste for cross-app text input; iOS has no public text injection API). Always include reason.",
         parameters: ["text": "Text to write to clipboard", "reason": "Why (required)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let text = params["text"] as? String else { throw MCPError.invalidParams("text required") }
@@ -284,7 +284,7 @@ final class UIClipboardTool: MCPTool {
 
 final class UIScreenshotTool: MCPTool {
     let definition = ToolDefinition(name: "ui.screenshot",
-        summary: "截取当前屏幕（安全版，v2.9.182 弃用 ReplayKit：iOS16.3 侧载环境 ReplayKit 系统级崩溃）。优先走 ControlAgent 注入截图（目标 App 在线时），兜底截 TrollAgent 自身窗口。调用时务必带 reason 说明要验证什么。",
+        summary: "Screenshot current screen (safe version; ReplayKit deprecated due to iOS 16.3 sideload crash). Prefers ControlAgent screenshot (when target app online), falls back to TrollAgent own window. Always include reason.",
         parameters: ["reason": "Why screenshot (required, e.g. verify search box is visible)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let reason = params["reason"] as? String ?? ""
@@ -312,7 +312,7 @@ final class UIScreenshotTool: MCPTool {
 
 final class ProgressNotifyTool: MCPTool {
     let definition = ToolDefinition(name: "progress.notify",
-        summary: "AI 控制 App 执行中，向用户弹系统通知横幅（任何界面顶部可见）汇报节点进度。",
+        summary: "During AI app control, send a system notification banner (visible at top of any screen) to report step progress.",
         parameters: ["title": "Title (e.g. ✅ Store selected)", "body": "Body (e.g. Burger King - 2nd store)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let title = params["title"] as? String, !title.isEmpty else {
@@ -329,7 +329,7 @@ final class ProgressNotifyTool: MCPTool {
 
 final class ControlBeginTool: MCPTool {
     let definition = ToolDefinition(name: "control.begin",
-        summary: "开始一次「AI 控制任意 App」会话：登记目标 App 与执行计划（AI 每步完成后用 control.update 汇报，UI 实时展示；目标 App 需先用启动工具唤醒到前台）。",
+        summary: "Start an AI app-control session: register target app and plan (AI reports each step via control.update, UI shows live progress; target app must be brought to foreground first).",
         parameters: ["target": "Target App name (e.g. Meituan)", "bundle_id": "Target bundle_id (optional)", "plan": "Plan steps array (string list)"],
         verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -346,7 +346,7 @@ final class ControlBeginTool: MCPTool {
 
 final class ControlUpdateTool: MCPTool {
     let definition = ToolDefinition(name: "control.update",
-        summary: "更新控制会话某一步的状态（running/done/failed）+ 详情，UI 实时刷新。",
+        summary: "Update a control session step status (running/done/failed) + details, UI refreshes live.",
         parameters: ["step": "Step index (0-based)", "status": "pending/running/done/failed", "detail": "Details (optional)", "reason": "Why (optional)"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -369,7 +369,7 @@ final class ControlUpdateTool: MCPTool {
 
 final class ControlFinishTool: MCPTool {
     let definition = ToolDefinition(name: "control.finish",
-        summary: "结束控制会话，登记最终结果（UI 展示完整报告）。",
+        summary: "End control session, record final result (UI shows full report).",
         parameters: ["result": "Result summary (what done / where stuck / next steps)"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
