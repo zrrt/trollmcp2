@@ -394,14 +394,16 @@ final class ControlTapTextTool: MCPTool {
 
         // 拿 UI 树
         let tree = ControlAgentTools.shared.uiTree()
-        guard let nodes = tree["nodes"] as? [[String: Any]] ?? tree["elements"] as? [[String: Any]] else {
-            // 尝试其他格式
-            if let arr = tree["tree"] as? [[String: Any]] {
-                return try findAndTap(nodes: arr, text: text, partial: partial)
-            }
-            throw MCPError.failed("cannot parse UI tree: \(tree)")
+        if let nodes = tree["nodes"] as? [[String: Any]] {
+            return try findAndTap(nodes: nodes, text: text, partial: partial)
         }
-        return try findAndTap(nodes: nodes, text: text, partial: partial)
+        if let nodes = tree["elements"] as? [[String: Any]] {
+            return try findAndTap(nodes: nodes, text: text, partial: partial)
+        }
+        if let nodes = tree["tree"] as? [[String: Any]] {
+            return try findAndTap(nodes: nodes, text: text, partial: partial)
+        }
+        throw MCPError.failed("cannot parse UI tree")
     }
 
     private func findAndTap(nodes: [[String: Any]], text: String, partial: Bool) throws -> [String: Any] {
@@ -419,13 +421,14 @@ final class ControlTapTextTool: MCPTool {
                 match = nodeText == text
             }
 
-            if match, let frame = node["frame"] as? [String: Any] ?? node["frame"] as? [Double] {
+            if match {
                 // 优先用 visible/hittable 的
                 let visible = (node["isVisible"] as? Bool) ?? true
                 let hittable = (node["isHittable"] as? Bool) ?? true
                 if visible && hittable {
                     bestNode = node
-                    if let x = frame["x"] as? Double,
+                    if let frame = node["frame"] as? [String: Any],
+                       let x = frame["x"] as? Double,
                        let y = frame["y"] as? Double,
                        let w = frame["width"] as? Double,
                        let h = frame["height"] as? Double {
