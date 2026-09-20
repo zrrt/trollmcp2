@@ -322,7 +322,7 @@ final class InjectionManager {
     /// 依次试：①ldid -S（空 entitlements adhoc）②ldid -S+platform/no-sandbox entitlements
     /// ③系统 /usr/bin/codesign adhoc ④不重签直接注入（对照）。返回最优结果 + 全链路诊断。
     @discardableResult
-    func injectDylib(pid: Int, dylib: String, timeout: Double = 60) -> (Int32, String) {
+    func injectDylib(pid: Int, dylib: String, timeout: Double = 25) -> (Int32, String) {
         let workDir = "/var/mobile/Documents/Workspace"
         let entPath = workDir + "/inject-ent.plist"
         let entXML = """
@@ -387,6 +387,15 @@ final class InjectionManager {
             let ok = io.contains("dlopen succeeded") || io.contains("Injected") || io.contains("injected successfully")
             diag += "【\(desc)】opainject \(ok ? "成功" : "失败"): " + io.replacingOccurrences(of: "\n", with: " ").suffix(180) + "\n"
             if ok { return (ic, io) }
+            // v3.0.62：ctchain（成功路径）opainject 失败且是"读内存/__LINKEDIT/task port"类环境问题，
+            // 说明 opainject 本身读不到目标进程内存，后续签名变体也救不了——直接停，避免 5 个 opainject 堆在手机上发烫
+            if desc.contains("CoreTrust") {
+                let envIssue = io.contains("Failed to read process memory") || io.contains("__LINKEDIT not found") || io.contains("Failed to find main thread") || io.contains("task port") || io.contains("EBADARCH") || io.contains("spawnRoot failed")
+                if envIssue {
+                    diag += "【v3.0.62】ctchain opainject 环境类失败，跳过后续签名策略（避免 opainject 堆积发烫）\n"
+                    break
+                }
+            }
         }
         // 最后：不重签直接注入（对照 TrollStore 安装签名）
         let (ic2, io2) = runAsRoot("opainject", args: ["\(pid)", dylib], timeout: timeout)
