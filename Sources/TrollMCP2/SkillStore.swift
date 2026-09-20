@@ -160,7 +160,7 @@ final class SkillsReadTool: MCPTool {
     let definition = ToolDefinition(
         name: "skills.read",
         summary: "Read full instructions for a skill and follow them.",
-        parameters: ["name": "Skill name"], verified: true, category: "skills")
+        parameters: ["name": "Skill name (REQUIRED)"], verified: true, category: "skills")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
             throw MCPError.invalidParams("name required")

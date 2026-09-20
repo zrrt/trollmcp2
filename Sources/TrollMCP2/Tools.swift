@@ -7,7 +7,7 @@ final class ArtifactReadTextTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.read_text",
         summary: "Read artifact as text. Use for: inspect file content.",
-        parameters: ["path": "Workspace-relative path"], verified: true, category: "filesystem")
+        parameters: ["path": "Workspace-relative path (REQUIRED)"], verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["path"] as? String else {
@@ -23,7 +23,7 @@ final class ArtifactWriteTextTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.write_text",
         summary: "Write text artifact. Use for: create file.",
-        parameters: ["path": "Workspace-relative path", "content": "Text content"], verified: true, category: "filesystem")
+        parameters: ["path": "Workspace-relative path (REQUIRED)", "content": "Text content (REQUIRED)"], verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["path"] as? String,
@@ -89,7 +89,7 @@ final class ArtifactFindTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.find",
         summary: "Find artifact by name/pattern. Use for: locate file.",
-        parameters: ["ext": "Extension without dot (e.g. dylib/deb/ipa)", "name": "Filename substring (optional)", "max_depth": "Max recursion depth (default 8)", "limit": "Max results (default 20)"],
+        parameters: ["ext": "Extension without dot (e.g. dylib/deb/ipa) (optional)", "name": "Filename substring (optional)", "max_depth": "Max recursion depth (default 8) (optional)", "limit": "Max results (default 20) (optional)"],
     verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -141,7 +141,7 @@ final class ArtifactFindTool: MCPTool {
 // MARK: - 基础工具
 
 final class PingTool: MCPTool {
-    let definition = ToolDefinition(name: "ping", summary: "Connectivity test: returns pong with latency. Verify device/toolchain is online.")
+    let defininame: "ping", summary: "Connectivity test: returns pong with latency. Verify device/toolchain is online.")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         ["pong": true, "ts": Int(Date().timeIntervalSince1970)]
@@ -209,10 +209,11 @@ final class MemoryTweakTool: MCPTool {
         name: "memory",
         summary: "H5gg-style memory modification. Requires MemoryTweak.dylib injected into target app first. action: search (full memory scan) / refine (filter previous results) / write / freeze / unfreeze / status / frozen (list frozen) / results (last search results). type: int|int64|float|double|byte|short. address in 0x hex.",
         parameters: [
-            "action": "search|refine|write|freeze|unfreeze|status|frozen|results",
+            "action": "search|refine|write|freeze|unfreeze|status|frozen|results (REQUIRED)",
             "value": "Value to search/write/freeze (required for search/refine/write/freeze)",
-            "type": "Data type: int(default)|int64|float|double|byte|short",
+            "type": "Data type: int(default)|int64|float|double|byte|short (optional)",
             "address": "Memory address (required for write/freeze/unfreeze, 0x hex)"
+        ]ze, 0x hex)"
         ]
     )
 

@@ -895,7 +895,7 @@ final class ToolSearchTool: MCPTool {
     let definition = ToolDefinition(
         name: "tool_search",
         summary: "Search available tool catalog: returns matching tool names and summaries by keyword. When you need a capability not in current tools, search first then call the found tool.",
-        parameters: ["query": "Search keyword, e.g. github, injection, file, cron", "limit": "Max results (default 8)"], verified: true, category: "system")
+        parameters: ["query": "Search keyword, e.g. github, injection, file, cron (REQUIRED)", "limit": "Max results (default 8) (optional)"], verified: true, category: "system")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let query = (params["query"] as? String) ?? ""

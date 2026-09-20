@@ -50,6 +50,13 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         window?.rootViewController = UIHostingController(rootView: RootView())
         window?.makeKeyAndVisible()
 
+        // 冷启动时从分享菜单传入的文件 URL
+        if let url = launchOptions?[.url] as? URL {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                _ = self.handleImportedFile(url: url)
+            }
+        }
+
         // v2.9.136：全局后台常驻开关（设置页「后台常驻」）——开启后 App 启动即启动静音保活引擎，
         // 与远程控制的临时保活互补，长任务/后台等待 AI 结果时不挂起。
         if UserDefaults.standard.bool(forKey: "trollagent.keepalive_global") {
@@ -89,6 +96,10 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     // 链接格式: trollagent://import?baseURL=...&apiKey=...&model=...&name=...&auth=Bearer&group=默认
     // 解析后存 pendingImport 并发通知，由 SwiftUI 层弹确认页（防误导入）
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        // file:// URL = 从分享菜单导入文件
+        if url.isFileURL {
+            return handleImportedFile(url: url)
+        }
         guard url.scheme?.lowercased() == "trollagent" else { return false }
         guard let comps = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let items = comps.queryItems else { return false }
@@ -132,5 +143,35 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             return true
         }
         return false
+    }
+
+    /// 处理从分享菜单导入的文件——复制到工作区 downloads/ 目录
+    private func handleImportedFile(url: URL) -> Bool {
+        let fm = FileManager.default
+        let needsStop = url.startAccessingSecurityScopedResource()
+        defer { if needsStop { url.stopAccessingSecurityScopedResource() } }
+
+        let downloadsDir = Workspace.root.appendingPathComponent("downloads")
+        try? fm.createDirectory(at: downloadsDir, withIntermediateDirectories: true)
+
+        let filename = url.lastPathComponent
+        let destURL = downloadsDir.appendingPathComponent(filename)
+        var finalDest = destURL
+        if fm.fileExists(atPath: finalDest.path) {
+            let ts = Int(Date().timeIntervalSince1970)
+            let ext = url.pathExtension
+            let base = url.deletingPathExtension().lastPathComponent
+            finalDest = downloadsDir.appendingPathComponent("\(base)_\(ts).\(ext)")
+        }
+        do {
+            if fm.fileExists(atPath: finalDest.path) {
+                try fm.removeItem(at: finalDest)
+            }
+            try fm.copyItem(at: url, to: finalDest)
+            ProgressNotifier.notify(title: "文件已导入", body: filename)
+            return true
+        } catch {
+            return false
+        }
     }
 }

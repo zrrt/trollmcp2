@@ -40,7 +40,7 @@ final class ShellExecTool: MCPTool {
         summary: "Run a shell command (terminal/command line/sh): full Alpine Linux (iSH engine), built-in ls/cat/grep/find/tar/curl/python/busybox + apk packages + scripts. cd persists. Dangerous commands auto-blocked.",
         parameters: [
             "command": "Shell command to execute (required)",
-            "timeout": "Timeout seconds (default 30, max 120)",
+            "timeout": "Timeout seconds (default 30, max 120) (optional)",
             "reset_cwd": "Optional Bool: reset working dir to default (default false)"
         ],
         verified: true

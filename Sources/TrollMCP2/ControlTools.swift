@@ -330,7 +330,7 @@ final class ControlSwipeTool: MCPTool {
         parameters: [
             "x1": "Start X (required)", "y1": "Start Y (required)",
             "x2": "End X (required)", "y2": "End Y (required)",
-            "duration": "Swipe duration seconds (default 0.3)"
+            "duration": "Swipe duration seconds (default 0.3) (optional)"
         ],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

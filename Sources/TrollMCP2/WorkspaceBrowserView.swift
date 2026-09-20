@@ -16,8 +16,6 @@ struct WorkspaceBrowserView: View {
     @State private var query = ""
     @State private var items: [FileItem] = []
     @State private var previewItem: FileItem?
-    @State private var showShare = false
-    @State private var shareURL: URL?
     @State private var confirmDelete: FileItem?
     @State private var showNewFolder = false
     @State private var newFolderName = ""
@@ -159,7 +157,11 @@ struct WorkspaceBrowserView: View {
                         .contextMenu {
                             Button { copyPath(item.path) } label: { Label("复制路径", systemImage: "doc.on.doc") }
                             if !item.isDir {
-                                Button { shareURL = URL(fileURLWithPath: item.path); showShare = true } label: { Label("分享", systemImage: "square.and.arrow.up") }
+                                Button {
+                                    if let url = URL(fileURLWithPath: item.path) as URL? {
+                                        SharePresenter.present([url])
+                                    }
+                                } label: { Label("分享", systemImage: "square.and.arrow.up") }
                             }
                             Button(role: .destructive) { confirmDelete = item } label: { Label("删除", systemImage: "trash") }
                         }
@@ -181,11 +183,6 @@ struct WorkspaceBrowserView: View {
         .onChange(of: currentPath) { _ in reload() }
         .sheet(item: $previewItem) { item in
              FilePreviewView(item: item) 
-        }
-        .sheet(isPresented: $showShare) {
-            if let url = shareURL {
-                ShareSheet(items: [url])
-            }
         }
         .alert("删除确认", isPresented: Binding(get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } })) {
             Button("取消", role: .cancel) { confirmDelete = nil }

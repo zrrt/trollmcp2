@@ -91,10 +91,10 @@ final class FSTreeTool: MCPTool {
         name: "fs.tree",
         summary: "Show directory tree. Use for: browse filesystem structure.",
         parameters: [
-            "bundle_id": "Target App bundle_id (choose one with path; if set, browse App container)",
-            "path": "Absolute path (choose one with bundle_id; default workspace root)",
-            "depth": "Recursion depth (default 1, max 3)",
-            "limit": "Max items per level (default 60)"
+            "bundle_id": "Target App bundle_id (choose one with path; if set, browse App container) (optional)",
+            "path": "Absolute path (choose one with bundle_id; default workspace root) (optional)",
+            "depth": "Recursion depth (default 1, max 3) (optional)",
+            "limit": "Max items per level (default 60) (optional)"
         ],
         verified: true, category: "filesystem")
 
@@ -171,17 +171,18 @@ final class FSTreeTool: MCPTool {
 // MARK: - 文件读取（智能识别）
 
 final class FSReadTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "fs.read",
+ name: "fs.read",
         summary: "Read file content (text). Use for: inspect file.",
         parameters: [
-            "bundle_id": "Target App bundle_id (choose one with path; if set, use relative container path)",
-            "relative": "Relative path inside container (for bundle_id mode, e.g. Library/Preferences/xx.plist)",
-            "path": "Absolute path (choose one with bundle_id)",
-            "max_bytes": "Max bytes to read (default 524288, 0 = unlimited)",
-            "as": "Force format: auto (default) / text / json / hex",
-            "line_start": "Start line (1-based, default 1)",
-            "line_end": "Return text up to which line (default all)"
+            "bundle_id": "Target App bundle_id (choose one with path; if set, use relative container path) (optional)",
+            "relative": "Relative path inside container (for bundle_id mode, e.g. Library/Preferences/xx.plist) (REQUIRED)",
+            "path": "Absolute path (choose one with bundle_id) (optional)",
+            "max_bytes": "Max bytes to read (default 524288, 0 = unlimited) (optional)",
+            "as": "Force format: auto (default) / text / json / hex (optional)",
+            "line_start": "Start line (1-based, default 1) (optional)",
+            "line_end": "Return text up to which line (default all) (optional)"
+        ]"
+        ]ich line (default all)"
         ],
         verified: true, category: "filesystem")
 
@@ -329,21 +330,16 @@ final class FSReadTool: MCPTool {
             }
             sqlite3_finalize(s)
         }
-        return rows
-    }
-}
-
-// MARK: - 二进制十六进制查看
-
-final class FSHexdumpTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "fs.hexdump",
+        retuname: "fs.hexdump",
         summary: "Hexdump file. Use for: inspect binary file.",
         parameters: [
-            "bundle_id": "Target App bundle_id (choose one with path)",
-            "relative": "Relative path inside container (when bundle_id set)",
-            "path": "Absolute path (choose one with bundle_id)",
-            "offset": "Start byte offset (default 0)",
+            "bundle_id": "Target App bundle_id (choose one with path) (optional)",
+            "relative": "Relative path inside container (when bundle_id set) (REQUIRED)",
+            "path": "Absolute path (choose one with bundle_id) (optional)",
+            "offset": "Start byte offset (default 0) (optional)",
+            "length": "Bytes to read (default 256, max 4096) (optional)"
+        ]default 256, max 4096) (optional)"
+        ] 0)",
             "length": "Bytes to read (default 256, max 4096)"
         ],
         verified: true, category: "filesystem")
@@ -389,24 +385,18 @@ final class FSHexdumpTool: MCPTool {
             "read": slice.count,
             "hex": FSReadTool.hexLines(slice, offset: offset, length: slice.count),
             "ascii": ascii,
-            "hint": "继续分段查看：把 offset 设为 \(offset + slice.count)"
-        ]
-    }
-}
-
-
-// MARK: - ZIP 浏览（IPA/归档分析）
-
-final class FSZipTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "fs.zip",
+            "hinname: "fs.zip",
         summary: "Create/extract zip archive. Use for: compress/decompress.",
         parameters: [
             "path": "Absolute path to ZIP/IPA file (required)",
-            "action": "list (default) / read",
-            "entry": "Entry name to read when action=read",
-            "as": "read format: auto (default) / text / json / hex",
+            "action": "list (default) / read (optional)",
+            "entry": "Entry name to read when action=read (optional)",
+            "as": "read format: auto (default) / text / json / hex (optional)",
             "filter": "Filename keyword filter when listing (optional)",
+            "limit": "Max list results (default 200) (optional)"
+        ]",
+            "limit": "Max list results (default 200) (optional)"
+        ]rd filter when listing (optional)",
             "limit": "Max list results (default 200)"
         ], verified: true, category: "filesystem")
 
@@ -485,24 +475,17 @@ final class FSZipTool: MCPTool {
             if entries.count > list.count { out["hint"] = "还有 \(entries.count - list.count) 个条目未显示（可用 filter 过滤）" }
             return out
         } catch let e as ZipExtractor.ZipError {
-            return ["error": e.description, "path": path]
-        } catch {
-            return ["error": "解析失败: \(error.localizedDescription)"]
-        }
-    }
-}
-
-// MARK: - SQLite 查询
-
-final class FSSQLTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "fs.sql",
+            return ["error": e.description,name: "fs.sql",
         summary: "Query SQLite database. Use for: read .sqlite/.db files.",
         parameters: [
-            "bundle_id": "Target App bundle_id (choose one with path)",
-            "relative": "Relative path inside container (e.g. Documents/xx.db)",
-            "path": "DB absolute path (choose one with bundle_id)",
-            "sql": "SQL statement (default list all tables/views)",
+            "bundle_id": "Target App bundle_id (choose one with path) (optional)",
+            "relative": "Relative path inside container (e.g. Documents/xx.db) (REQUIRED)",
+            "path": "DB absolute path (choose one with bundle_id) (optional)",
+            "sql": "SQL statement (default list all tables/views) (optional)",
+            "limit": "Max rows (default 100, max 500) (optional)"
+        ](optional)",
+            "limit": "Max rows (default 100, max 500) (optional)"
+        ]            "sql": "SQL statement (default list all tables/views)",
             "limit": "Max rows (default 100, max 500)"
         ], verified: true, category: "filesystem")
 
@@ -578,25 +561,17 @@ final class FSSQLTool: MCPTool {
             "path": p,
             "target": FSPolicy.describe(p),
             "sql": trimmed,
-            "columns": columns,
-            "rows": rows,
-            "row_count": rows.count,
-            "hint": "继续查询：改 sql 加 WHERE/ORDER BY；看表结构用 PRAGMA table_info(表名)"
-        ]
-    }
-}
-
-// MARK: - 文本搜索
-
-final class FSGrepTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "fs.grep",
+            "name: "fs.grep",
         summary: "Search file content by regex. Use for: find text in files.",
         parameters: [
-            "dir": "Search directory (default workspace; see bundle_id mode)",
-            "bundle_id": "Target App bundle_id (if set, search inside App container)",
+            "dir": "Search directory (default workspace; see bundle_id mode) (optional)",
+            "bundle_id": "Target App bundle_id (if set, search inside App container) (optional)",
             "pattern": "Search keyword (required, case-insensitive)",
             "ext": "File extension filter (e.g. plist/json/log/txt, comma-separated, optional)",
+            "limit": "Max matches (default 60) (optional)"
+        ].g. plist/json/log/txt, comma-separated, optional)",
+            "limit": "Max matches (default 60) (optional)"
+        ]            "ext": "File extension filter (e.g. plist/json/log/txt, comma-separated, optional)",
             "limit": "Max matches (default 60)"
         ],
     verified: true, category: "filesystem")
@@ -657,26 +632,17 @@ final class FSGrepTool: MCPTool {
         }
         return [
             "dir": dir,
-            "pattern": pattern,
-            "scanned_files": scanned,
-            "hits": hits,
-            "hit_count": hits.count,
-            "hint": "搜索到目标后用 fs.read 读取文件（line_start/line_end 定位行）"
-        ]
-    }
-}
-
-
-// MARK: - 文件写入（带自动备份）
-
-final class FSWriteTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "fs.write",
+            "pattname: "fs.write",
         summary: "Write file (DANGEROUS). Use for: modify file content.",
         parameters: [
-            "path": "Absolute path (or workspace relative path)",
-            "bundle_id": "Target App bundle_id (if set, write to App container)",
-            "relative": "Relative path inside container (for bundle_id mode)",
+            "path": "Absolute path (or workspace relative path) (REQUIRED)",
+            "bundle_id": "Target App bundle_id (if set, write to App container) (optional)",
+            "relative": "Relative path inside container (for bundle_id mode) (REQUIRED)",
+            "content": "Text content to write (required)",
+            "backup": "Backup to .bak before overwrite (default true) (optional)"
+        ]nt": "Text content to write (required)",
+            "backup": "Backup to .bak before overwrite (default true) (optional)"
+        ]ide container (for bundle_id mode)",
             "content": "Text content to write (required)",
             "backup": "Backup to .bak before overwrite (default true)"
         ], verified: true, category: "filesystem")
@@ -712,25 +678,20 @@ final class FSWriteTool: MCPTool {
         do {
             try Data(content.utf8).write(to: URL(fileURLWithPath: p))
         } catch {
-            return ["error": "写入失败: \(error.localizedDescription)", "path": p]
-        }
-        var out: [String: Any] = ["path": p, "bytes": content.utf8.count, "backup_created": bakCreated]
-        if bakCreated { out["backup_path"] = p + ".bak" }
-        return out
-    }
-}
-
-// MARK: - 行级编辑（带自动备份）
-
-final class FSEditTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "fs.edit",
+            return ["error": "name: "fs.edit",
         summary: "Edit file (find/replace). Use for: modify text file.",
         parameters: [
-            "path": "Absolute path (or workspace-relative)",
-            "bundle_id": "Target App bundle_id (set to edit its data container)",
-            "relative": "Relative path inside container (when bundle_id set)",
-            "line": "Line number to replace (1-based, with new_text)",
+            "path": "Absolute path (or workspace-relative) (REQUIRED)",
+            "bundle_id": "Target App bundle_id (set to edit its data container) (REQUIRED)",
+            "relative": "Relative path inside container (when bundle_id set) (REQUIRED)",
+            "line": "Line number to replace (1-based, with new_text) (REQUIRED)",
+            "new_text": "Replacement content (line mode) (REQUIRED)",
+            "old": "Old fragment (old/new mode) (REQUIRED)",
+            "new": "Replace with (old/new mode, omit to delete) (optional)"
+        ]acement content (line mode)",
+            "old": "Old fragment (old/new mode)",
+            "new": "Replace with (old/new mode, omit to delete) (optional)"
+        ])",
             "new_text": "Replacement content (line mode)",
             "old": "Old fragment (old/new mode)",
             "new": "Replace with (old/new mode, omit to delete)"
@@ -781,23 +742,16 @@ final class FSEditTool: MCPTool {
         do {
             try Data(text.utf8).write(to: URL(fileURLWithPath: p))
         } catch {
-            return ["error": "写入失败: \(error.localizedDescription)"]
-        }
-        return ["path": p, "changed": detail, "backup_path": p + ".bak"]
-    }
-}
-
-// MARK: - 文件对比
-
-final class FSDiffTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "fs.diff",
+            return ["erroname: "fs.diff",
         summary: "Compare two files. Use for: check file differences.",
         parameters: [
-            "path_a": "File A (absolute or workspace-relative)",
-            "path_b": "File B",
+            "path_a": "File A (absolute or workspace-relative) (REQUIRED)",
+            "path_b": "File B (REQUIRED)",
             "bundle_id_a": "File A App bundle_id (optional)",
-            "relative_a": "File A relative path in container (when bundle_id_a set)",
+            "relative_a": "File A relative path in container (when bundle_id_a set) (REQUIRED)",
+            "bundle_id_b": "File B App bundle_id (optional)",
+            "relative_b": "File B relative path in container (when bundle_id_b set) (REQUIRED)"
+        ] "relative_a": "File A relative path in container (when bundle_id_a set)",
             "bundle_id_b": "File B App bundle_id (optional)",
             "relative_b": "File B relative path in container (when bundle_id_b set)"
         ], verified: true, category: "filesystem")
@@ -888,25 +842,19 @@ final class FSDiffTool: MCPTool {
                 out.append(["op": "-", "line_a": i + 1, "text": String(a[i].prefix(200))]); i += 1
             } else {
                 out.append(["op": "+", "line_b": j + 1, "text": String(b[j].prefix(200))]); j += 1
-            }
-        }
-        while i < n, out.count < maxLines { out.append(["op": "-", "line_a": i + 1, "text": String(a[i].prefix(200))]); i += 1 }
-        while j < m, out.count < maxLines { out.append(["op": "+", "line_b": j + 1, "text": String(b[j].prefix(200))]); j += 1 }
-        if i < n || j < m { out.append(["op": "...", "text": "差异过长已截断"]) }
-        return out
-    }
-}
-
-// MARK: - 哈希与元数据
-
-final class FSHashTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "fs.hash",
+          name: "fs.hash",
         summary: "Get file hash (md5/sha256). Use for: verify file integrity.",
         parameters: [
-            "path": "Absolute path (or workspace-relative)",
-            "bundle_id": "Target App bundle_id (set to read its data container)",
-            "relative": "Relative path inside container (when bundle_id set)",
+            "path": "Absolute path (or workspace-relative) (REQUIRED)",
+            "bundle_id": "Target App bundle_id (set to read its data container) (REQUIRED)",
+            "relative": "Relative path inside container (when bundle_id set) (REQUIRED)",
+            "algo": "md5 / sha1 / sha256 (default) / sha512 (optional)"
+        ]e path (or workspace-relative)",
+            "bundle_id": "Target App bundle_id (set to read its data container) (optional)",
+            "relative": "Relative path inside container (when bundle_id set) (optional)",
+            "algo": "md5 / sha1 / sha256 (default) / sha512 (optional)"
+        ]App bundle_id (set to read its data container)",
+            "relative": "Relative path inside container (when bundle_id set) (optional)",
             "algo": "md5 / sha1 / sha256 (default) / sha512"
         ], verified: true, category: "filesystem")
 
@@ -948,27 +896,19 @@ final class FSHashTool: MCPTool {
         ]
         if let m = attrs?[.modificationDate] as? Date { out["modified"] = Int64(m.timeIntervalSince1970) }
         if let perm = attrs?[.posixPermissions] as? NSNumber { out["permissions"] = String(format: "%o", perm.intValue) }
-        if let owner = attrs?[.ownerAccountName] as? String { out["owner"] = owner }
-        return out
-    }
-
-    private static func digestHex(_ data: Data, _ fn: (UnsafeRawPointer?, CC_LONG, UnsafeMutablePointer<UInt8>?) -> UnsafeMutablePointer<UInt8>?, _ len: Int32) -> String {
-        var d = [UInt8](repeating: 0, count: Int(len))
-        data.withUnsafeBytes { buf in _ = fn(buf.baseAddress, CC_LONG(data.count), &d) }
-        return d.map { String(format: "%02x", $0) }.joined()
-    }
-}
-
-// MARK: - 文件名搜索
-
-final class FSFindTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "fs.find",
+        if let owner = attrs?[.ownerAccountName] as? String { out["owner"] = name: "fs.find",
         summary: "Find files by name/pattern. Use for: locate files.",
         parameters: [
-            "dir": "Search dir (default workspace)",
-            "bundle_id": "Target App bundle_id (set to search inside its container)",
+            "dir": "Search dir (default workspace) (optional)",
+            "bundle_id": "Target App bundle_id (set to search inside its container) (REQUIRED)",
             "name": "Filename keyword (required, case-insensitive)",
+            "ext": "Extension filter (e.g. plist/db/dylib, comma-separated, optional)",
+            "limit": "Max results (default 60) (optional)"
+        ]         "bundle_id": "Target App bundle_id (set to search inside its container)",
+            "name": "Filename keyword (required, case-insensitive)",
+            "ext": "Extension filter (e.g. plist/db/dylib, comma-separated, optional)",
+            "limit": "Max results (default 60) (optional)"
+        ]       "name": "Filename keyword (required, case-insensitive)",
             "ext": "Extension filter (e.g. plist/db/dylib, comma-separated, optional)",
             "limit": "Max results (default 60)"
         ],
@@ -1006,20 +946,14 @@ final class FSFindTool: MCPTool {
             let ext = (full as NSString).pathExtension.lowercased()
             if !exts.isEmpty, !exts.contains(ext) { continue }
             let size = ((try? fm.attributesOfItem(atPath: full))?[.size] as? NSNumber)?.int64Value ?? 0
-            hits.append(["name": n, "path": full, "size": size])
-        }
-        return ["dir": dir, "keyword": name, "scanned": scanned, "hits": hits, "hit_count": hits.count]
-    }
-}
-
-// MARK: - 下载到工作区
-
-final class FSDownloadTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "fs.download",
+            hits.append(["name": n, "path": full, "size": sname: "fs.download",
         summary: "Download file to workspace. Use for: fetch file from URL.",
         parameters: [
             "url": "http/https URL to download (required)",
+            "filename": "Save filename (default last URL segment) (optional)",
+            "subdir": "Workspace subdir (default downloads) (optional)",
+            "timeout": "Timeout seconds (default 60) (optional)"
+        ]tp/https URL to download (required)",
             "filename": "Save filename (default last URL segment)",
             "subdir": "Workspace subdir (default downloads)",
             "timeout": "Timeout seconds (default 60)"
@@ -1057,30 +991,22 @@ final class FSDownloadTool: MCPTool {
             do {
                 try data.write(to: URL(fileURLWithPath: dest))
                 var d = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
-                data.withUnsafeBytes { buf in _ = CC_SHA256(buf.baseAddress, CC_LONG(data.count), &d) }
-                let hash = d.map { String(format: "%02x", $0) }.joined()
-                result = ["ok": true, "path": dest, "size": data.count, "sha256": hash]
-            } catch {
-                result["error"] = "写入失败: \(error.localizedDescription)"
-            }
-        }.resume()
-        _ = sem.wait(timeout: .now() + TimeInterval(timeout + 15))
-        return result
-    }
-}
-
-
-// MARK: - plist 键值编辑（Filza 属性表编辑器写能力）
-
-final class FSPropertyListTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "fs.plist",
+                data.withUnsafeBytename: "fs.plist",
         summary: "Read plist file. Use for: parse property list.",
         parameters: [
-            "bundle_id": "Target App bundle_id (choose one with path)",
-            "relative": "Relative path inside container (when bundle_id set)",
-            "path": "plist absolute path (choose one with bundle_id)",
-            "action": "get (default) / set / delete",
+            "bundle_id": "Target App bundle_id (choose one with path) (optional)",
+            "relative": "Relative path inside container (when bundle_id set) (REQUIRED)",
+            "path": "plist absolute path (choose one with bundle_id) (optional)",
+            "action": "get (default) / set / delete (optional)",
+            "key": "Key path, dot-separated, e.g. Root.Foo.Bar (REQUIRED)",
+            "value": "Value for set (auto-detect bool/number/JSON/string) (REQUIRED)",
+            "backup": "Backup .bak before write (default true) (optional)"
+        ]choose one with bundle_id)",
+            "action": "get (default) / set / delete (optional)",
+            "key": "Key path, dot-separated, e.g. Root.Foo.Bar",
+            "value": "Value for set (auto-detect bool/number/JSON/string)",
+            "backup": "Backup .bak before write (default true) (optional)"
+        ]        "action": "get (default) / set / delete",
             "key": "Key path, dot-separated, e.g. Root.Foo.Bar",
             "value": "Value for set (auto-detect bool/number/JSON/string)",
             "backup": "Backup .bak before write (default true)"
@@ -1273,20 +1199,13 @@ final class FSContainerTool: MCPTool {
             out["documents"] = c + "/Documents"
             out["library"] = c + "/Library"
             out["library_caches"] = c + "/Library/Caches"
-            out["library_preferences"] = c + "/Library/Preferences"
-            out["tmp"] = c + "/tmp"
-        }
-        out["hint"] = "读取用 fs.tree/fs.read；修改用 fs.write/fs.edit/fs.plist（仅容器内可写）"
-        return out
-    }
-}
-
-// MARK: - 崩溃日志解析
-
-final class FSCrashTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "fs.crash",
+            out["library_preferences"name: "fs.crash",
         summary: "Analyze crash report. Use for: debug crashes.",
+        parameters: [
+            "bundle_id": "Filter by process name or bundle_id (optional)",
+            "limit": "Recent crashes (default 3, max 10) (optional)",
+            "dir": "Crash log dir (default system CrashReporter) (optional)"
+        ]mary: "Analyze crash report. Use for: debug crashes.",
         parameters: [
             "bundle_id": "Filter by process name or bundle_id (optional)",
             "limit": "Recent crashes (default 3, max 10)",
@@ -1388,27 +1307,17 @@ final class FSCrashTool: MCPTool {
                 if stack.count >= 6 { break }
             }
         }
-        if !stack.isEmpty { out["stack_top"] = stack }
-        return out
-    }
-
-    private static func json(_ s: String) -> [String: Any]? {
-        guard let d = s.data(using: .utf8),
-              let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return nil }
-        return o
-    }
-}
-
-// MARK: - 图片元数据
-
-final class FSImageInfoTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "fs.image_info",
+        if !stack.isEmpty { out["stack_top"]name: "fs.image_info",
         summary: "Image metadata: format/width/height/size (PNG/JPEG/GIF/WebP). To view content, use model vision or screenshot tool.",
         parameters: [
-            "path": "Image absolute path (or workspace-relative)",
-            "bundle_id": "Target App bundle_id (set to read its data container)",
-            "relative": "Relative path inside container (when bundle_id set)"
+            "path": "Image absolute path (or workspace-relative) (REQUIRED)",
+            "bundle_id": "Target App bundle_id (set to read its data container) (REQUIRED)",
+            "relative": "Relative path inside container (when bundle_id set) (REQUIRED)"
+        ]age metadata: format/width/height/size (PNG/JPEG/GIF/WebP). To view content, use model vision or screenshot tool.",
+        parameters: [
+            "path": "Image absolute path (or workspace-relative) (REQUIRED)",
+            "bundle_id": "Target App bundle_id (set to read its data container) (optional)",
+            "relative": "Relative path inside container (when bundle_id set) (optional)"
         ], verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

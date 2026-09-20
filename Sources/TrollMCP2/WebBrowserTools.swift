@@ -22,7 +22,7 @@ struct BrowserOpenTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.open",
         summary: "Open browser with URL. Use for: start web session.",
-        parameters: ["url": "string"],
+        parameters: ["url": "string (REQUIRED)"],
     verified: true, category: "browser")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let url = params["url"] as? String else {
@@ -38,7 +38,7 @@ struct BrowserWaitTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.wait",
         summary: "Wait for page load. Use for: sync with page.",
-        parameters: ["timeout": "Max wait seconds (default 15)"],
+        parameters: ["timeout": "Max wait seconds (default 15) (optional)"],
     verified: true, category: "browser")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let timeout = params["timeout"] as? Int ?? 15
@@ -52,7 +52,7 @@ struct BrowserTextTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.text",
         summary: "Get page text content. Use for: read web page.",
-        parameters: ["max_chars": "Max chars (default 3000)", "query": "Optional: only return context containing this keyword"],
+        parameters: ["max_chars": "Max chars (default 3000) (optional)", "query": "Optional: only return context containing this keyword"],
     verified: true, category: "browser")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let maxChars = params["max_chars"] as? Int ?? 3000
@@ -67,7 +67,7 @@ struct BrowserScrollTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.scroll",
         summary: "Scroll page up/down. Use for: navigate page.",
-        parameters: ["direction": "down/up/top/bottom"],
+        parameters: ["direction": "down/up/top/bottom (REQUIRED)"],
     verified: true, category: "browser")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let direction = params["direction"] as? String else {
@@ -83,7 +83,7 @@ struct BrowserSubmitTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.submit",
         summary: "Submit form. Use for: send form data.",
-        parameters: ["idx": "integer"], verified: true)
+        parameters: ["idx": "integer (REQUIRED)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let idx = params["idx"] as? Int ?? (params["idx"] as? String).flatMap({ Int($0) }) else {
             throw MCPError.invalidParams("browser.submit 需要整数 idx 参数")
@@ -111,7 +111,7 @@ struct BrowserFillFormTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.fill_form",
         summary: "Fill form fields. Use for: auto-fill web form. Keys are field name/placeholder/label, values are what to fill. Auto-matches inputs/selects/checkboxes. Use {__xpath: ..., __value: ...} for precise targeting. Set submit=true to auto-submit.",
-        parameters: ["values": "{\"field\":\"value\"} map (required)", "submit": "Auto-submit form (default false)"], verified: true)
+        parameters: ["values": "{\ (REQUIRED)"field\":\"value\"} map (required)", "submit": "Auto-submit form (default false) (optional)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let values = params["values"] as? [String: String] else {
             throw MCPError.invalidParams("browser.fill_form 需要 values 参数，如 {\"用户名\":\"me\",\"密码\":\"xx\"}")
@@ -127,7 +127,7 @@ struct BrowserWaitForTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.wait_for",
         summary: "Wait for element to appear. Use for: sync with specific element. Returns whether found.",
-        parameters: ["selector": "CSS selector (choose one with text)", "text": "Body text keyword (choose one with selector)", "timeout": "Max wait seconds (default 15)"], verified: true)
+        parameters: ["selector": "CSS selector (choose one with text) (optional)", "text": "Body text keyword (choose one with selector) (optional)", "timeout": "Max wait seconds (default 15) (optional)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let text = params["text"] as? String
         let selector = params["selector"] as? String
@@ -156,7 +156,7 @@ struct BrowserClickTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.click",
         summary: "Click element by selector. Use for: interact with page.",
-        parameters: ["idx": "integer"], verified: true)
+        parameters: ["idx": "integer (REQUIRED)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let idx = params["idx"] as? Int ?? (params["idx"] as? String).flatMap({ Int($0) }) else {
             throw MCPError.invalidParams("browser.click 需要整数 idx 参数")
@@ -168,10 +168,9 @@ struct BrowserClickTool: MCPTool {
 }
 
 struct BrowserTypeTool: MCPTool {
-    var definition = ToolDefinition(
-        name: "browser.type",
+    var definition = Toname: "browser.type",
         summary: "Type text into element. Use for: input text.",
-        parameters: ["idx": "integer", "text": "string"], verified: true)
+        parameters: ["idx": "integer (REQUIRED)", "text": "string (REQUIRED)"]D)", "text": "string"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let idx = params["idx"] as? Int ?? (params["idx"] as? String).flatMap({ Int($0) }) else {
             throw MCPError.invalidParams("browser.type 需要整数 idx 参数")
@@ -189,7 +188,7 @@ struct BrowserEvalTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.eval",
         summary: "Evaluate JavaScript in page. Use for: run JS in browser.",
-        parameters: ["js": "string"],
+        parameters: ["js": "string (REQUIRED)"],
     verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let js = params["js"] as? String else {

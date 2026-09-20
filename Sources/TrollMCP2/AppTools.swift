@@ -12,7 +12,7 @@ final class AppDepsTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.deps",
         summary: "Show App dependencies (linked dylibs). Use for: check binary linkage.",
-        parameters: ["bundle_id": "Target App bundle_id"],
+        parameters: ["bundle_id": "Target App bundle_id (REQUIRED)"],
         verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -90,7 +90,7 @@ final class AppCacheInspectTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.cache_inspect",
         summary: "Inspect App cache size. Use for: check cache usage.",
-        parameters: ["limit": "Max results (default 50)", "bundle_id": "Optional: filter by specific bundle_id"],
+        parameters: ["limit": "Max results (default 50) (optional)", "bundle_id": "Optional: filter by specific bundle_id"],
         verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -136,7 +136,7 @@ final class AppCacheClearTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.cache_clear",
         summary: "Clear App cache. Use for: free space.",
-        parameters: ["bundle_id": "Target App bundle_id", "dry_run": "Optional: true = calculate only, no delete"], verified: true, category: "app_control")
+        parameters: ["bundle_id": "Target App bundle_id (REQUIRED)", "dry_run": "Optional: true = calculate only, no delete"], verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else {
@@ -213,7 +213,7 @@ final class AppOpenTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.open",
         summary: "Open App by bundle_id. Use for: launch App.",
-        parameters: ["bundle_id": "Target App bundle_id"],
+        parameters: ["bundle_id": "Target App bundle_id (REQUIRED)"],
     verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -284,10 +284,10 @@ final class AppOpenAndInputTool: MCPTool {
         name: "apps.open_and_input",
         summary: "Open App and input text. Use for: automate App launch.",
         parameters: [
-            "bundle_id": "Target App bundle_id",
-            "text": "Text to input",
-            "submit": "Submit after input (default false)",
-            "wait": "Wait seconds for agent ready (default 8)"
+            "bundle_id": "Target App bundle_id (REQUIRED)",
+            "text": "Text to input (REQUIRED)",
+            "submit": "Submit after input (default false) (optional)",
+            "wait": "Wait seconds for agent ready (default 8) (optional)"
         ], verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -334,21 +334,21 @@ final class AppOpenAndInputTool: MCPTool {
 // MARK: - 通用 App 控制（v2.9.103：直连 ControlAgent v4.1 HTTP 4792）
 
 final class AppsControlTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "apps.control",
+    let definition = ToolDefinitioname: "apps.control",
         summary: "Control App (launch/stop/restart). Use for: manage App lifecycle.",
         parameters: [
-            "bundle_id": "Target App bundle_id (for reference)",
-            "action": "status | ui_tree | tap | swipe | type | scroll",
-            "x": "Tap X coordinate",
-            "y": "Tap Y coordinate",
-            "x1": "Swipe start X",
-            "y1": "Swipe start Y",
-            "x2": "swipe end x",
-            "y2": "swipe end y",
-            "duration": "swipe duration seconds",
-            "text": "type text",
-            "direction": "scroll direction up/down/left/right"
+            "bundle_id": "Target App bundle_id (for reference) (REQUIRED)",
+            "action": "status | ui_tree | tap | swipe | type | scroll (REQUIRED)",
+            "x": "Tap X coordinate (REQUIRED)",
+            "y": "Tap Y coordinate (REQUIRED)",
+            "x1": "Swipe start X (REQUIRED)",
+            "y1": "Swipe start Y (REQUIRED)",
+            "x2": "swipe end x (REQUIRED)",
+            "y2": "swipe end y (REQUIRED)",
+            "duration": "swipe duration seconds (REQUIRED)",
+            "text": "type text (REQUIRED)",
+            "direction": "scroll direction up/down/left/right (REQUIRED)"
+        ]"
         ]
     )
 
@@ -377,7 +377,7 @@ final class WeChatPrepareMessageTool: MCPTool {
         name: "wechat.prepare_message",
         summary: "Prepare a WeChat message (copy to clipboard and attempt to jump to WeChat)",
         parameters: [
-            "text": "Message text",
+            "text": "Message text (REQUIRED)",
             "recipient": "Optional: recipient"
         ], verified: true, category: "app_control")
 

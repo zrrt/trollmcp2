@@ -153,12 +153,12 @@ final class ProjectTool: MCPTool {
         name: "project",
         summary: "Project context management. Create/switch/view current project; AI auto-reads target app, dylib, history.",
         parameters: [
-            "action": "current | list | create | select | delete | history",
-            "name": "Project name (for create)",
-            "bundle_id": "Target App bundle_id (for create)",
-            "app_name": "Target App name (for create)",
-            "dylib_path": "dylib path (for create/update)",
-            "project_id": "Project id (for select/delete/history)"
+            "action": "current | list | create | select | delete | history (REQUIRED)",
+            "name": "Project name (for create) (optional)",
+            "bundle_id": "Target App bundle_id (for create) (optional)",
+            "app_name": "Target App name (for create) (optional)",
+            "dylib_path": "dylib path (for create/update) (optional)",
+            "project_id": "Project id (for select/delete/history) (optional)"
         ], verified: true, category: "build")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -612,15 +612,14 @@ final class TaskTemplateRunner {
     }
 }
 
-final class TaskTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "task.run",
+final classname: "task.run",
         summary: "Run a task template. One-click common flows: diagnose injection, capture crash, verify injection (with rollback), IPA health, perf regression, emergency recovery, packet capture, new device, AI analyze, crash triage.",
         parameters: [
-            "template": "Template id: diagnose_injection | capture_crash | inject_verify | ipa_health | perf_regression | emergency_recover | network_probe | new_device | ai_analyze | crash_triage",
-            "bundle_id": "Target App bundle_id (default current project)",
+            "template": "Template id: diagnose_injection | capture_crash | inject_verify | ipa_health | perf_regression | emergency_recover | network_probe | new_device | ai_analyze | crash_triage (REQUIRED)",
+            "bundle_id": "Target App bundle_id (default current project) (REQUIRED)",
             "dylib_path": "dylib path (required for inject_verify)",
-            "options": "Template params (JSON): network_probe duration/limit, new_device reset_keychain/refresh_idfa/name/model_identifier, ai_analyze direction/custom_hint/max_classes/prefix"
+            "options": "Template params (JSON): network_probe duration/limit, new_device reset_keychain/refresh_idfa/name/model_identifier, ai_analyze direction/custom_hint/max_classes/prefix (REQUIRED)"
+        ]er, ai_analyze direction/custom_hint/max_classes/prefix"
         ],
     verified: true, category: "build")
 

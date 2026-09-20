@@ -127,7 +127,7 @@ final class BackupRestoreTool: MCPTool {
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
             "backup_path": "Backup zip path (optional, use latest if not specified)",
-            "confirm": "Must be true to restore (overwrites current data)"
+            "confirm": "Must be true to restore (overwrites current data) (REQUIRED)"
         ],
         verified: false)
     
@@ -250,12 +250,12 @@ final class BackupDeviceFakeTool: MCPTool {
 // MARK: - backup.restore_device_fake：restoredevice伪装配置
 
 final class BackupRestoreDeviceFakeTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "backup.restore_device_fake",
+    let definition = ToolDefinitioname: "backup.restore_device_fake",
         summary: "Restore device spoofing config from backup. Use when: (1) re-apply saved fake device setup, (2) restore spoofing after reset, (3) clone config. Will overwrite current fake_device.json!",
         parameters: [
             "backup_name": "Backup name (optional, use latest if not specified)",
-            "confirm": "Must be true to overwrite current config"
+            "confirm": "Must be true to overwrite current config (REQUIRED)"
+        ]"
         ],
         verified: false)
     

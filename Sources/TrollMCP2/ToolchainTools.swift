@@ -59,7 +59,7 @@ final class ToolchainInstallTool: MCPTool {
         name: "toolchain.install",
         summary: "Download and install build toolchain (Theos+clang+llvm, ~1GB). Use when: (1) first time compiling on-device, (2) toolchain missing. Downloads to workspace/toolchain/.",
         parameters: [
-            "confirm": "Must be true to start download (~1 GB, may take 10+ min)"
+            "confirm": "Must be true to start download (~1 GB, may take 10+ min) (REQUIRED)"
         ],
         verified: false)
     
@@ -91,11 +91,11 @@ final class ToolchainInstallTool: MCPTool {
 // MARK: - toolchain.uninstall：deletetoolchain
 
 final class ToolchainUninstallTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "toolchain.uninstall",
+    let definition = ToolDefinitioname: "toolchain.uninstall",
         summary: "Delete build toolchain to free space. Use when: (1) done compiling, (2) need disk space. Removes workspace/toolchain/.",
         parameters: [
-            "confirm": "Must be true to delete (~1 GB)"
+            "confirm": "Must be true to delete (~1 GB) (REQUIRED)"
+        ]"
         ],
         verified: false)
     
