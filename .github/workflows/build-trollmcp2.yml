@@ -63,6 +63,9 @@ jobs:
           ln -sfn "$THEOS/sdks/iPhoneOS17.5.sdk" "$THEOS/sdks/iPhoneOS16.5.sdk" 2>/dev/null || true
           rm -rf /tmp/opainject && git clone --depth 1 -q https://github.com/opa334/opainject.git /tmp/opainject
           cd /tmp/opainject
+          # arm64.h 缺 stdint.h（新 clang 模块化检查严格，报 uint32_t must be imported）
+          sed -i '' '1s/^/#include <stdint.h>\n/' arm64.h 2>/dev/null || sed -i '1s/^/#include <stdint.h>\n/' arm64.h
+          head -3 arm64.h
           make ARCHS="arm64" || { echo "OPAINJECT BUILD FAILED, keeping old binary"; exit 0; }
           OUT=$(find .theos -name opainject -type f | head -1)
           if [ -n "$OUT" ] && file "$OUT" | grep -q "arm64"; then
