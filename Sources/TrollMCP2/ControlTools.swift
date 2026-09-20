@@ -254,11 +254,11 @@ final class ControlInjectTool: MCPTool {
         name: "control.inject",
         summary: "注入 ControlAgent.dylib 到目标 App，注入后 AI 可通过 localhost HTTP 控制目标 App 的 UI（点击/滑动/输入/截图/读取UI树）。参数 bundle_id 为目标 App 的 Bundle ID。注入后需重启目标 App。",
         parameters: [
-            "bundle_id": "目标 App 的 Bundle ID，用 injection.list 搜索获取（必填）",
-            "target": "可选：指定注入目标 Mach-O（framework 名子串，如 BiliCr）。默认自动选择主二进制启动必加载的 framework",
-            "skip_probe": "可选：true 时注入后跳过启动自检（不探测不回滚，保留现场供人工验证注入是否真闪退）。默认 false"
+            "bundle_id": "Target App bundle_id (required, search via injection.list)",
+            "target": "Optional: specific Mach-O to inject (framework name substring, e.g. BiliCr). Default auto-select main binary's mandatory framework",
+            "skip_probe": "Optional: skip startup selfcheck after injection (no probe/rollback, preserve for manual verification). Default false"
         ],
-        verified: true)
+        verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String else {
             throw MCPError.invalidParams("bundle_id required")
@@ -275,7 +275,7 @@ final class ControlStatusTool: MCPTool {
         name: "control.status",
         summary: "检查目标 App 的 ControlAgent 是否在线（localhost:4789 是否可连接）。返回 App 信息、PID、可用 API 列表。",
         parameters: [:],
-        verified: true)
+        verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         return ControlAgentTools.shared.status()
     }
@@ -286,7 +286,7 @@ final class ControlUITreeTool: MCPTool {
         name: "control.ui_tree",
         summary: "获取目标 App 当前的完整 UI 树（所有窗口、视图、frame、text、可访问性信息）。AI 根据 UI 树决定点击哪个元素。限制 500 节点。",
         parameters: [:],
-        verified: true)
+        verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         AuditLog.shared.log("control.ui_tree", detail: "dump")
         return ControlAgentTools.shared.uiTree()
@@ -298,10 +298,10 @@ final class ControlScreenshotTool: MCPTool {
         name: "control.screenshot",
         summary: "截取目标 App 当前屏幕，保存为 PNG 到工作区 screenshots/ 目录。返回文件路径，用 artifact.find 定位。",
         parameters: [:],
-        verified: true)
+        verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         AuditLog.shared.log("control.screenshot", detail: "capture")
-        return ControlAgentTools.shared.screenshot()
+        return ControlAgentTools.shared.screenshot(, category: "ui_control")
     }
 }
 
@@ -310,8 +310,8 @@ final class ControlTapTool: MCPTool {
         name: "control.tap",
         summary: "在目标 App 屏幕上模拟点击。参数 x,y 为屏幕坐标（从 ui_tree 的 frame 获取）。",
         parameters: [
-            "x": "点击 X 坐标（必填，数字）",
-            "y": "点击 Y 坐标（必填，数字）"
+            "x": "Tap X coordinate (required, number)",
+            "y": "Tap Y coordinate (required, number)"
         ],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -319,7 +319,7 @@ final class ControlTapTool: MCPTool {
             throw MCPError.invalidParams("x and y required (numbers)")
         }
         AuditLog.shared.log("control.tap", detail: "(\(x),\(y))")
-        return ControlAgentTools.shared.tap(x: x, y: y)
+        return ControlAgentTools.shared.tap(x: x, y: y, category: "ui_control")
     }
 }
 
@@ -328,9 +328,9 @@ final class ControlSwipeTool: MCPTool {
         name: "control.swipe",
         summary: "在目标 App 屏幕上模拟滑动。参数 x1,y1 起点，x2,y2 终点，duration 滑动时长（秒，默认0.3）。",
         parameters: [
-            "x1": "起点 X（必填）", "y1": "起点 Y（必填）",
-            "x2": "终点 X（必填）", "y2": "终点 Y（必填）",
-            "duration": "滑动时长秒，默认0.3"
+            "x1": "Start X (required)", "y1": "Start Y (required)",
+            "x2": "End X (required)", "y2": "End Y (required)",
+            "duration": "Swipe duration seconds (default 0.3)"
         ],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -340,7 +340,7 @@ final class ControlSwipeTool: MCPTool {
         }
         let duration = params["duration"] as? Double ?? 0.3
         AuditLog.shared.log("control.swipe", detail: "(\(x1),\(y1))→(\(x2),\(y2))")
-        return ControlAgentTools.shared.swipe(x1: x1, y1: y1, x2: x2, y2: y2, duration: duration)
+        return ControlAgentTools.shared.swipe(x1: x1, y1: y1, x2: x2, y2: y2, duration: duration, category: "ui_control")
     }
 }
 
@@ -348,13 +348,13 @@ final class ControlTypeTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.type",
         summary: "在目标 App 当前输入框（第一响应者）输入文字。如果没有输入框被选中，文字会复制到剪贴板。",
-        parameters: ["text": "要输入的文字（必填）"],
+        parameters: ["text": "Text to input (required)"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let text = params["text"] as? String else {
             throw MCPError.invalidParams("text required")
         }
-        AuditLog.shared.log("control.type", detail: text)
+        AuditLog.shared.log("control.type", detail: text, category: "ui_control")
         return ControlAgentTools.shared.type(text: text)
     }
 }
@@ -363,7 +363,7 @@ final class ControlKeyTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.key",
         summary: "模拟按键。支持 home（返回桌面）、back（返回）、enter（回车）。",
-        parameters: ["key": "home/back/enter（必填）"],
+        parameters: ["key": "home/back/enter (required)"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let key = params["key"] as? String else {

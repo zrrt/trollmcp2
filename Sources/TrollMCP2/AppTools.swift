@@ -12,8 +12,8 @@ final class AppDepsTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.deps",
         summary: "Show App dependencies (linked dylibs). Use for: check binary linkage.",
-        parameters: ["bundle_id": "目标 App Bundle ID"],
-        verified: true)
+        parameters: ["bundle_id": "Target App bundle_id"],
+        verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String else {
@@ -90,8 +90,8 @@ final class AppCacheInspectTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.cache_inspect",
         summary: "Inspect App cache size. Use for: check cache usage.",
-        parameters: ["limit": "返回条数上限，默认 50", "bundle_id": "可选：只查某个 Bundle ID"],
-        verified: true)
+        parameters: ["limit": "Max results (default 50)", "bundle_id": "Optional: filter by specific bundle_id"],
+        verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let limit = params["limit"] as? Int ?? 50
@@ -136,7 +136,7 @@ final class AppCacheClearTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.cache_clear",
         summary: "Clear App cache. Use for: free space.",
-        parameters: ["bundle_id": "目标 App Bundle ID", "dry_run": "可选：true 只计算不删除"], verified: true)
+        parameters: ["bundle_id": "Target App bundle_id", "dry_run": "Optional: true = calculate only, no delete"], verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else {
@@ -213,8 +213,8 @@ final class AppOpenTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.open",
         summary: "Open App by bundle_id. Use for: launch App.",
-        parameters: ["bundle_id": "目标 App Bundle ID"],
-    verified: true)
+        parameters: ["bundle_id": "Target App bundle_id"],
+    verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else {
@@ -284,11 +284,11 @@ final class AppOpenAndInputTool: MCPTool {
         name: "apps.open_and_input",
         summary: "Open App and input text. Use for: automate App launch.",
         parameters: [
-            "bundle_id": "目标 App Bundle ID",
-            "text": "要输入的文本",
-            "submit": "是否提交（默认 false）",
-            "wait": "等待 agent 就绪秒数，默认 8"
-        ], verified: true)
+            "bundle_id": "Target App bundle_id",
+            "text": "Text to input",
+            "submit": "Submit after input (default false)",
+            "wait": "Wait seconds for agent ready (default 8)"
+        ], verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String,
@@ -338,19 +338,19 @@ final class AppsControlTool: MCPTool {
         name: "apps.control",
         summary: "Control App (launch/stop/restart). Use for: manage App lifecycle.",
         parameters: [
-            "bundle_id": "目标 App Bundle ID（提示用）",
+            "bundle_id": "Target App bundle_id (for reference)",
             "action": "status | ui_tree | tap | swipe | type | scroll",
-            "x": "tap 坐标 x",
-            "y": "tap 坐标 y",
-            "x1": "swipe 起点 x",
-            "y1": "swipe 起点 y",
-            "x2": "swipe 终点 x",
-            "y2": "swipe 终点 y",
-            "duration": "swipe 时长秒",
-            "text": "type 文本",
-            "direction": "scroll 方向 up/down/left/right"
+            "x": "Tap X coordinate",
+            "y": "Tap Y coordinate",
+            "x1": "Swipe start X",
+            "y1": "Swipe start Y",
+            "x2": "swipe end x",
+            "y2": "swipe end y",
+            "duration": "swipe duration seconds",
+            "text": "type text",
+            "direction": "scroll direction up/down/left/right"
         ]
-    )
+    , category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let action = params["action"] as? String else {
@@ -377,9 +377,9 @@ final class WeChatPrepareMessageTool: MCPTool {
         name: "wechat.prepare_message",
         summary: "准备微信消息（复制到剪贴板并尝试跳转微信）",
         parameters: [
-            "text": "消息文本",
-            "recipient": "可选：接收人"
-        ], verified: true)
+            "text": "Message text",
+            "recipient": "Optional: recipient"
+        ], verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let text = params["text"] as? String else {

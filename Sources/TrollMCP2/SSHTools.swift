@@ -8,10 +8,10 @@ final class SSHTool: MCPTool {
         name: "ssh.exec",
         summary: "通过 SSH 连接远程 Linux 服务器执行命令（需先在设置中配置 SSH 连接信息）。返回命令的 stdout/stderr 和 exit code。",
         parameters: [
-            "command": "要在远程服务器执行的 shell 命令（必填）",
-            "timeout": "超时秒数（可选，默认 30）"
+            "command": "Shell command to run on remote server (required)",
+            "timeout": "Timeout seconds (optional, default 30)"
         ],
-        verified: true)
+        verified: true, category: "shell")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let command = params["command"] as? String, !command.isEmpty else {
@@ -119,11 +119,11 @@ final class SCPTool: MCPTool {
         name: "ssh.scp",
         summary: "通过 SCP 在本地和远程 Linux 服务器之间传输文件（需先配置 SSH 连接）。direction=upload 或 download。",
         parameters: [
-            "direction": "传输方向：upload（本地→远程）或 download（远程→本地）",
-            "local_path": "本地文件路径",
-            "remote_path": "远程文件路径"
+            "direction": "upload (local→remote) or download (remote→local)",
+            "local_path": "Local file path",
+            "remote_path": "Remote file path"
         ],
-        verified: true)
+        verified: true, category: "shell")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let direction = (params["direction"] as? String)?.lowercased() ?? "upload"

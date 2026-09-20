@@ -7,7 +7,7 @@ final class ArtifactReadTextTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.read_text",
         summary: "Read artifact as text. Use for: inspect file content.",
-        parameters: ["path": "工作区内相对路径"], verified: true)
+        parameters: ["path": "Workspace-relative path"], verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["path"] as? String else {
@@ -23,7 +23,7 @@ final class ArtifactWriteTextTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.write_text",
         summary: "Write text artifact. Use for: create file.",
-        parameters: ["path": "工作区内相对路径", "content": "文本内容"], verified: true)
+        parameters: ["path": "Workspace-relative path", "content": "Text content"], verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["path"] as? String,
@@ -44,8 +44,8 @@ final class ArtifactListTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.list",
         summary: "List artifacts by type. Use for: browse files.",
-        parameters: ["subpath": "可选子目录或文件路径"],
-    verified: true)
+        parameters: ["subpath": "Optional subdir or file path"],
+    verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let sub = params["subpath"] as? String ?? ""
@@ -89,8 +89,8 @@ final class ArtifactFindTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.find",
         summary: "Find artifact by name/pattern. Use for: locate file.",
-        parameters: ["ext": "扩展名（不带点，如 dylib/deb/ipa）", "name": "文件名包含片段（可选）", "max_depth": "最大递归深度（默认 8）", "limit": "最多返回条数（默认 20）"],
-    verified: true)
+        parameters: ["ext": "Extension without dot (e.g. dylib/deb/ipa)", "name": "Filename substring (optional)", "max_depth": "Max recursion depth (default 8)", "limit": "Max results (default 20)"],
+    verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let ext = (params["ext"] as? String ?? "").lowercased()
@@ -141,10 +141,10 @@ final class ArtifactFindTool: MCPTool {
 // MARK: - 基础工具
 
 final class PingTool: MCPTool {
-    let definition = ToolDefinition(name: "ping", summary: "连通性测试：返回 pong 与耗时，验证设备/工具链是否在线。")
+    let definition = ToolDefinition(name: "ping", summary: "连通性测试：返回 pong 与耗时，验证设备/工具链是否在线。", category: "system")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        ["pong": true, "ts": Int(Date().timeIntervalSince1970)]
+        ["pong": true, "ts": Int(Date().timeIntervalSince1970, category: "device")]
     }
 }
 
@@ -166,7 +166,7 @@ final class DeviceProbeTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.probe",
         summary: "检测本机环境：TrollStore/TrollFools、task_for_pid、App 容器读写、注入二进制、amfid 绕过推断",
-        verified: true)
+        verified: true, category: "device")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let r = DeviceProbe.shared.run()
@@ -210,11 +210,11 @@ final class MemoryTweakTool: MCPTool {
         summary: "H5gg式内存修改：需先将 MemoryTweak.dylib 注入目标App。action=search全内存搜索/refine在上次结果过滤/write写入/freeze冻结/unfreeze取消冻结/status服务器状态/frozen已冻结列表/results上次搜索结果。type支持int/int64/float/double/byte/short。address用0x十六进制。",
         parameters: [
             "action": "search|refine|write|freeze|unfreeze|status|frozen|results",
-            "value": "搜索/写入/冻结的数值（search/refine/write/freeze 必填）",
-            "type": "数据类型：int(默认)|int64|float|double|byte|short",
-            "address": "内存地址（write/freeze/unfreeze 必填，0x十六进制）"
+            "value": "Value to search/write/freeze (required for search/refine/write/freeze)",
+            "type": "Data type: int(default)|int64|float|double|byte|short",
+            "address": "Memory address (required for write/freeze/unfreeze, 0x hex)"
         ]
-    )
+    , category: "system")
 
     private let port = 8765
 
@@ -308,7 +308,7 @@ final class ClipboardReadTool: MCPTool {
         name: "clipboard.read",
         summary: "读取系统剪贴板文本（用户复制的验证码、链接、token 等最近一次复制内容）",
         parameters: [:],
-        verified: true)
+        verified: true, category: "system")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let text = UIThreadBridge.readClipboard()
         if text.isEmpty {
@@ -322,8 +322,8 @@ final class ClipboardWriteTool: MCPTool {
     let definition = ToolDefinition(
         name: "clipboard.write",
         summary: "写入系统剪贴板：把一段文本复制到剪贴板，供用户粘贴到其他 App",
-        parameters: ["text": "要复制到剪贴板的文本（必填）"],
-    verified: true)
+        parameters: ["text": "Text to copy to clipboard (required)"],
+    verified: true, category: "system")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let text = params["text"] as? String, !text.isEmpty else {
             throw MCPError.invalidParams("text required")

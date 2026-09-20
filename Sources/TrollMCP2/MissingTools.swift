@@ -8,7 +8,7 @@ import UserNotifications
 final class CalendarCreateEventTool: MCPTool {
     let definition = ToolDefinition(name: "calendar.create_event",
         summary: "Create calendar event: title/date/duration. Use for: schedule meeting.",
-        parameters: ["title": "标题", "start": "开始时间 ISO8601", "end": "结束时间 ISO8601（可选，默认+1h）", "notes": "备注（可选）"], verified: true)
+        parameters: ["title": "Title", "start": "Start time ISO8601", "end": "End time ISO8601 (optional, default +1h)", "notes": "Notes (optional)"], verified: true, category: "system")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let title = params["title"] as? String else { throw MCPError.invalidParams("title required") }
         guard let startStr = params["start"] as? String,
@@ -53,8 +53,8 @@ final class CalendarCreateEventTool: MCPTool {
 final class ReminderScheduleTool: MCPTool {
     let definition = ToolDefinition(name: "reminder.schedule",
         summary: "Schedule one-time reminder. Use for: one-time alert.",
-        parameters: ["title": "标题", "body": "内容", "delay_seconds": "多少秒后提醒"],
-        verified: true)
+        parameters: ["title": "Title", "body": "Content", "delay_seconds": "Delay in seconds"],
+        verified: true, category: "system")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let title = params["title"] as? String else { throw MCPError.invalidParams("title required") }
         let delay = max(params["delay_seconds"] as? Int ?? 60, 1)
@@ -74,7 +74,7 @@ final class ReminderScheduleTool: MCPTool {
 final class ReminderScheduleRecurringTool: MCPTool {
     let definition = ToolDefinition(name: "reminder.schedule_recurring",
         summary: "Schedule recurring reminder. Use for: periodic alert.",
-        parameters: ["title": "标题", "body": "内容", "interval_seconds": "重复间隔秒数"], verified: true)
+        parameters: ["title": "Title", "body": "Content", "interval_seconds": "Repeat interval in seconds"], verified: true, category: "system")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let title = params["title"] as? String else { throw MCPError.invalidParams("title required") }
         let interval = max(params["interval_seconds"] as? Int ?? 3600, 1)
@@ -94,7 +94,7 @@ final class ReminderScheduleRecurringTool: MCPTool {
 // MARK: - 设备快照（电池/存储/系统）
 
 final class DeviceSnapshotTool: MCPTool {
-    let definition = ToolDefinition(name: "device.snapshot", summary: "Capture device status: battery/memory/storage/disk/iOS version. Use for: system snapshot.")
+    let definition = ToolDefinition(name: "device.snapshot", summary: "Capture device status: battery/memory/storage/disk/iOS version. Use for: system snapshot.", category: "device")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         UIDevice.current.isBatteryMonitoringEnabled = true
         let battery = UIDevice.current.batteryLevel
@@ -121,7 +121,7 @@ final class DeviceSnapshotTool: MCPTool {
 final class WebSearchTool: MCPTool {
     let definition = ToolDefinition(name: "web.search",
         summary: "Search web (Google/Bing). Use for: find information.",
-        parameters: ["query": "搜索关键词", "limit": "返回条数（默认 8）"], verified: true)
+        parameters: ["query": "Search keyword", "limit": "Max results (default 8)"], verified: true, category: "browser")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let query = params["query"] as? String, !query.isEmpty else {
             throw MCPError.invalidParams("query required")
@@ -256,7 +256,7 @@ final class WebSearchTool: MCPTool {
 final class WebFetchTool: MCPTool {
     let definition = ToolDefinition(name: "web.fetch",
         summary: "Fetch web page content. Use for: read web page.",
-        parameters: ["url": "目标链接", "maxChars": "最多返回字符数（默认 4000）"], verified: true)
+        parameters: ["url": "Target URL", "maxChars": "Max chars to return (default 4000)"], verified: true, category: "browser")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let urlString = params["url"] as? String, let url = URL(string: urlString) else {
             throw MCPError.invalidParams("url required")
@@ -452,7 +452,7 @@ enum BM25Tokenizer {
 final class KnowledgeImportTextTool: MCPTool {
     let definition = ToolDefinition(name: "knowledge.import_text",
         summary: "Import text to knowledge base. Use for: save reference material.",
-        parameters: ["name": "条目名", "content": "文本内容"], verified: true)
+        parameters: ["name": "Entry name", "content": "Text content"], verified: true, category: "knowledge")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, let content = params["content"] as? String else {
             throw MCPError.invalidParams("name, content required")
@@ -468,7 +468,7 @@ final class KnowledgeImportTextTool: MCPTool {
 final class KnowledgeImportFileTool: MCPTool {
     let definition = ToolDefinition(name: "knowledge.import_file",
         summary: "Import file to knowledge base. Use for: document ingestion.",
-        parameters: ["path": "工作区内相对路径", "name": "条目名（可选）"], verified: true)
+        parameters: ["path": "Workspace-relative path", "name": "Entry name (optional)"], verified: true, category: "knowledge")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["path"] as? String else { throw MCPError.invalidParams("path required") }
         let src = try Workspace.resolve(path)
@@ -478,7 +478,7 @@ final class KnowledgeImportFileTool: MCPTool {
         let dst = KnowledgeStore.shared.dir.appendingPathComponent(name)
         try? FileManager.default.removeItem(at: dst)
         try FileManager.default.copyItem(at: src, to: dst)
-        AuditLog.shared.log("knowledge.import_file", detail: name)
+        AuditLog.shared.log("knowledge.import_file", detail: name, category: "knowledge")
         return ["imported": true, "name": name]
     }
 }
@@ -486,7 +486,7 @@ final class KnowledgeImportFileTool: MCPTool {
 final class KnowledgeSearchTool: MCPTool {
     let definition = ToolDefinition(name: "knowledge.search",
         summary: "Search knowledge base. Use for: retrieve saved info.",
-        parameters: ["query": "查询内容", "limit": "最多返回条数（默认 15，最大 50）"], verified: true)
+        parameters: ["query": "Query", "limit": "Max results (default 15, max 50)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let query = params["query"] as? String, !query.isEmpty else { throw MCPError.invalidParams("query required") }
         KnowledgeStore.shared.ensure()
@@ -509,19 +509,19 @@ final class KnowledgeSearchTool: MCPTool {
                 if hits.count >= limit { break }
             }
         }
-        AuditLog.shared.log("knowledge.search", detail: "\(query) → contains \(hits.count) 条")
+        AuditLog.shared.log("knowledge.search", detail: "\(query) → contains \(hits.count, category: "knowledge") 条")
         return ["query": query, "engine": "contains", "count": hits.count, "hits": hits]
     }
 }
 
 final class KnowledgeDeleteTool: MCPTool {
     let definition = ToolDefinition(name: "knowledge.delete", summary: "Delete knowledge entry by id (irreversible). Use for: remove outdated info.",
-        parameters: ["name": "条目名"], verified: true)
+        parameters: ["name": "Entry name"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
         let file = KnowledgeStore.shared.dir.appendingPathComponent(name)
         guard FileManager.default.fileExists(atPath: file.path) else { throw MCPError.failed("not found: \(name)") }
-        try FileManager.default.removeItem(at: file)
+        try FileManager.default.removeItem(at: file, category: "system")
         AuditLog.shared.log("knowledge.delete", detail: name)
         return ["deleted": true, "name": name]
     }
@@ -531,7 +531,7 @@ final class KnowledgeDeleteTool: MCPTool {
 
 final class PhoneCallTool: MCPTool {
     let definition = ToolDefinition(name: "phone.call", summary: "Open system dialer. Use for: phone call (may not work on iOS16).",
-        parameters: ["number": "电话号码"])
+        parameters: ["number": "Phone number"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let number = params["number"] as? String, !number.isEmpty else { throw MCPError.invalidParams("number required") }
         // v3.0.42：修复号码被清空 bug——之前 components(separatedBy: 数字字符集) 把数字全当分隔符删了，
@@ -563,7 +563,7 @@ final class PhoneCallTool: MCPTool {
                 }
             }
         }
-        _ = sem.wait(timeout: .now() + 5)
+        _ = sem.wait(timeout: .now() + 5, category: "system")
         AuditLog.shared.log("phone.call", detail: number)
         return result
     }
@@ -572,7 +572,7 @@ final class PhoneCallTool: MCPTool {
 final class PhoneScheduleCallTool: MCPTool {
     let definition = ToolDefinition(name: "phone.schedule_call",
         summary: "Schedule phone call. Use for: timed call.",
-        parameters: ["number": "电话号码", "display_name": "显示名（可选）", "delay_seconds": "延迟秒数"], verified: true)
+        parameters: ["number": "Phone number", "display_name": "Display name (optional)", "delay_seconds": "Delay in seconds"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let number = params["number"] as? String, !number.isEmpty else { throw MCPError.invalidParams("number required") }
         let delay = max(params["delay_seconds"] as? Int ?? 60, 1)
@@ -585,7 +585,7 @@ final class PhoneScheduleCallTool: MCPTool {
         let req = UNNotificationRequest(identifier: id,
             content: content, trigger: UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(delay), repeats: false))
         UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
-        AuditLog.shared.log("phone.schedule_call", detail: "\(name) +\(delay)s")
+        AuditLog.shared.log("phone.schedule_call", detail: "\(name) +\(delay)s", category: "skills")
         return ["scheduled": true, "id": id, "number": number, "requiresUserTap": true]
     }
 }
@@ -595,7 +595,7 @@ final class PhoneScheduleCallTool: MCPTool {
 final class SkillsSetEnabledTool: MCPTool {
     let definition = ToolDefinition(name: "skills.set_enabled",
         summary: "Enable/disable skill. Use for: toggle skill availability.",
-        parameters: ["name": "技能名", "enabled": "true/false"], verified: true)
+        parameters: ["name": "Skill name", "enabled": "true/false"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
         let enabled = params["enabled"] as? Bool ?? true

@@ -39,12 +39,12 @@ final class ShellExecTool: MCPTool {
         name: "shell.exec",
         summary: "执行 shell 命令（终端/命令行/terminal/sh）：完整 Alpine Linux 环境（iSH 引擎），内置 ls/cat/grep/find/tar/curl/python/busybox 全套 + apk 装包 + shell 脚本，cd 记住工作目录。危险命令自动拦截。",
         parameters: [
-            "command": "要执行的 shell 命令（必填）",
-            "timeout": "超时时间（秒，默认 30，最大 120）",
-            "reset_cwd": "可选 Bool：重置工作目录到默认（默认 false）"
+            "command": "Shell command to execute (required)",
+            "timeout": "Timeout seconds (default 30, max 120)",
+            "reset_cwd": "Optional Bool: reset working dir to default (default false)"
         ],
         verified: true
-    )
+    , category: "shell")
     
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let command = params["command"] as? String, !command.isEmpty else {

@@ -11,13 +11,24 @@ public struct ToolDefinition {
     /// v2.9.184：真机实测标记——true 表示该工具已在真机远程终端验证过（成功或明确报错分类），
     /// 未验证的工具保持 false，避免"看起来能用"的假象。
     public let verified: Bool
+    /// 工具分类（用于 UI 分组显示）：injection / app_control / ui_control / device / filesystem / shell / browser / build / backup / cleanup / macro / knowledge / system / diagnose / analysis / automation / skills / debug / misc
+    public let category: String
+    /// 给 UI 看的中文描述（为空则 fallback 到 summary）
+    public let uiSummary: String
 
-    public init(name: String, summary: String, parameters: [String: String] = [:], returns: [String: String] = [:], verified: Bool = false) {
+    public init(name: String, summary: String, parameters: [String: String] = [:], returns: [String: String] = [:], verified: Bool = false, category: String = "misc", uiSummary: String = "") {
         self.name = name
         self.summary = summary
         self.parameters = parameters
         self.returns = returns
         self.verified = verified
+        self.category = category
+        self.uiSummary = uiSummary
+    }
+
+    /// UI 显示用：优先 uiSummary（中文），否则 fallback 到 summary
+    public var displaySummary: String {
+        uiSummary.isEmpty ? summary : uiSummary
     }
 
     /// 展示用标记：已验证的工具前缀 ✅已检验
@@ -884,7 +895,7 @@ final class ToolSearchTool: MCPTool {
     let definition = ToolDefinition(
         name: "tool_search",
         summary: "搜索可用工具目录：按关键词返回匹配的工具名与用途摘要。当需要某项能力但当前可用工具中没有时，先用它搜索，再调用搜到的工具。",
-        parameters: ["query": "搜索关键词，例如 github、注入、文件、定时", "limit": "最多返回数量（默认 8）"], verified: true)
+        parameters: ["query": "Search keyword, e.g. github, injection, file, cron", "limit": "Max results (default 8)"], verified: true, category: "system")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let query = (params["query"] as? String) ?? ""

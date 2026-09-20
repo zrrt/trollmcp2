@@ -10,10 +10,10 @@ final class InjectionVerifyTool: MCPTool {
         name: "injection.verify",
         summary: "注入后健康检查：确认 dylib 是否真的加载生效，而不是只看注入标记。检查①Mach-O 加载命令 ②目标进程是否存活 ③最近是否有崩溃记录。返回 healthy / crashed / not_injected / injected_but_dead 结论。",
         parameters: [
-            "bundle_id": "目标 App Bundle ID（必填）",
-            "dylib": "要核对的 dylib 文件名（可选，不填自动检测所有注入资产）"
+            "bundle_id": "Target App bundle_id (required)",
+            "dylib": "dylib filename to verify (optional, default auto-detect all injected assets)"
         ],
-        verified: true)
+        verified: true, category: "injection")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -107,8 +107,8 @@ final class AppDiagnoseTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.diagnose",
         summary: "启动失败自动判因：检查①是否存在 ②注入残留 ③加密状态 ④签名状态 ⑤最近崩溃现场 ⑥尝试启动。输出明确原因 + 下一步，不再报误导性错误（如把加密解析失败当成 Bundle ID 错）。",
-        parameters: ["bundle_id": "目标 App Bundle ID（必填）"],
-    verified: true)
+        parameters: ["bundle_id": "Target App bundle_id (required)"],
+    verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {

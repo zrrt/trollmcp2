@@ -9,10 +9,10 @@ final class AppReplaceDecryptedTool: MCPTool {
         name: "app.replace_decrypted",
         summary: "Replace decrypted main binary in-place (no reinstall, keeps data container). After replace, cryptID=0, control.inject can inject main binary. Auto-backup .troll-fools.bak, restore via injection.disable.",
         parameters: [
-            "bundle_id": "目标 App Bundle ID（必填）",
-            "ipa_path": "砸壳 ipa 绝对路径（可选；缺省自动找工作区 decrypted/ 下匹配的 ipa）"
+            "bundle_id": "Target App bundle_id (required)",
+            "ipa_path": "Decrypted IPA absolute path (optional; default auto-find matching IPA in workspace decrypted/)"
         ],
-        verified: true)
+        verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -133,10 +133,10 @@ final class AppDecryptTool: MCPTool {
         name: "app.decrypt",
         summary: "Decrypt (dump decrypted) target App to IPA in decrypted/ workspace. Requires target App running. Use for: decrypted IPA for main-binary injection.",
         parameters: [
-            "bundle_id": "目标 App 的 Bundle ID（必填，可用 injection.list 搜索）",
-            "output_name": "输出文件名前缀（可选，默认用 App 名称）"
+            "bundle_id": "Target App bundle_id (required, search via injection.list)",
+            "output_name": "Output filename prefix (optional, default App name)"
         ],
-        verified: true)
+        verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -186,9 +186,9 @@ final class AppEncryptInfoTool: MCPTool {
         name: "app.encrypt_info",
         summary: "Check target App encryption status (cryptid/cryptoff/cryptsize, signature). Reads process memory for accurate parse if running, else otool.",
         parameters: [
-            "bundle_id": "目标 App 的 Bundle ID（必填）"
+            "bundle_id": "Target App bundle_id (required)"
         ],
-        verified: true)
+        verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {

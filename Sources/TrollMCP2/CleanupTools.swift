@@ -106,8 +106,8 @@ final class CleanupScanTool: MCPTool {
     let definition = ToolDefinition(
         name: "cleanup.scan",
         summary: "扫描指定 App 的可清理项（缓存/钥匙串/广告符/数据容器/标识符），返回分项列表与风险分级（safe/warn/danger），供 cleanup.execute 或 cleanup.ai 使用",
-        parameters: ["bundle_id": "目标 App Bundle ID（必填）"],
-        verified: true)
+        parameters: ["bundle_id": "Target App bundle_id (required)"],
+        verified: true, category: "cleanup")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -142,10 +142,10 @@ final class CleanupExecuteTool: MCPTool {
         name: "cleanup.execute",
         summary: "执行清理：按 items 指定项清理指定 App（cache/keychain/adid/container/idfv）。risk=danger 的 container 会重置全部数据（自动备份可恢复）。dry_run=true 只预览不执行",
         parameters: [
-            "bundle_id": "目标 App Bundle ID（必填）",
-            "items": "要执行的清理项数组，如 [\"cache\",\"keychain\"]（必填）",
-            "dry_run": "可选：true 只预览不执行（默认 false）"
-        ], verified: true)
+            "bundle_id": "Target App bundle_id (required)",
+            "items": "Items to clean, e.g. [\"cache\",\"keychain\"] (required)",
+            "dry_run": "Optional: true preview only (default false)"
+        ], verified: true, category: "cleanup")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -171,11 +171,11 @@ final class CleanupAiTool: MCPTool {
         name: "cleanup.ai",
         summary: "AI 全自动清理指定 App：扫描可清理项 → 按风险执行（默认只清 safe；auto=true 连 warn 也清；danger 项除非 confirm=true 否则跳过）→ 重新扫描验证 → 输出报告。适合「一键清理」",
         parameters: [
-            "bundle_id": "目标 App Bundle ID（必填）",
-            "auto": "可选：true 连警告级（钥匙串/广告符）一起清（默认 false 只清安全项）",
-            "confirm": "可选：true 才允许执行危险级（数据容器重置，自动备份）（默认 false）"
+            "bundle_id": "Target App bundle_id (required)",
+            "auto": "Optional: true to also clear warning-level (keychain/advertising id). Default false (safe items only)",
+            "confirm": "Optional: true to allow dangerous-level (container reset, auto-backup). Default false"
         ],
-        verified: true)
+        verified: true, category: "cleanup")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")

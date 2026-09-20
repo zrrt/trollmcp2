@@ -1567,7 +1567,7 @@ final class InjectionManager {
             "weak_reference": weakReference,
             "selfcheck": ["app_alive": selfcheckAlive, "note": selfcheckNote],
             "risk_warning": sensitive ? "⚠️ 目标 App 为敏感应用（支付/银行/系统类）。已自动选择 Frameworks 内未加密 Mach-O 注入，未修改主二进制；如有异常立即调用 injection.restore 或 rescue.recover_all 恢复。" : nil,
-            "hint": "注入目标为 Frameworks 内未加密 Mach-O（对齐 TrollFools 策略），不直接修改主二进制。备份位于 \(backup)，可用 injection.restore 随时恢复。",
+            "hint": "Injection target: unencrypted Mach-O in Frameworks/ (TrollFools-style, no main binary mod). Backup at \(backup)，Restore via injection.disabletion.restore 随时恢复。",
             "status": injected ? "injected" : "injection_failed"
         ]
     }
@@ -1767,7 +1767,7 @@ final class InjectionManager {
             "exit_code": Int(code),
             "id_output": output.isEmpty ? "(空输出)" : output,
             "is_root": output.contains("uid=0(root)"),
-            "note": "persona spawn 后子进程真实身份；若 uid!=0 说明 persona 未生效"
+            "note": "Child process real identity after persona spawn. uid!=0 = persona not effective."
         ]
     }
 
@@ -1793,7 +1793,7 @@ final class InjectionManager {
             "injected_count": injectedApps.count,
             "injected_apps": injectedApps,
             "root_diagnosis": rootDiag,
-            "hint": "要获取具体 App 的 bundle_id + 名称，请调用 injection.list"
+            "hint": "Use injection.list to find bundle_id + name for specific App."
         ]
     }
 }

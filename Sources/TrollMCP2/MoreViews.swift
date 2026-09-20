@@ -495,6 +495,55 @@ struct ToolPermissionPoliciesView: View {
         return defs.filter { $0.name.localizedCaseInsensitiveContains(searchText) || $0.summary.localizedCaseInsensitiveContains(searchText) }
     }
 
+    /// category 显示中文名
+    private let categoryNames: [String: String] = [
+        "injection": "🔌 注入",
+        "app_control": "📱 App 控制",
+        "ui_control": "👆 UI 操作",
+        "device": "🎭 设备/伪装",
+        "filesystem": "📁 文件系统",
+        "shell": "💻 Shell",
+        "browser": "🌐 浏览器",
+        "build": "🔨 编译/构建",
+        "backup": "💾 备份",
+        "cleanup": "🧹 清理",
+        "macro": "🎬 宏",
+        "knowledge": "🧠 知识/记忆",
+        "system": "⚙️ 系统能力",
+        "diagnose": "🔍 诊断/日志",
+        "analysis": "📊 静态分析",
+        "automation": "⏰ 自动化/定时",
+        "skills": "📚 技能",
+        "debug": "🐛 调试",
+        "misc": "📦 其他",
+    ]
+
+    /// 固定 category 排序
+    private let categoryOrder: [String] = [
+        "injection", "app_control", "ui_control", "device",
+        "filesystem", "shell", "browser",
+        "build", "backup", "cleanup",
+        "diagnose", "analysis", "automation",
+        "macro", "knowledge", "system",
+        "skills", "debug", "misc",
+    ]
+
+    /// 按 category 分组，保持固定顺序
+    private var groupedByCategory: [(category: String, label: String, tools: [ToolDefinition])] {
+        let groups = Dictionary(grouping: filtered, by: { $0.category })
+        var result: [(String, String, [ToolDefinition])] = []
+        for cat in categoryOrder {
+            if let tools = groups[cat], !tools.isEmpty {
+                result.append((cat, categoryNames[cat] ?? cat, tools))
+            }
+        }
+        // 未知 category 兜底
+        for (cat, tools) in groups where !categoryOrder.contains(cat) {
+            result.append((cat, categoryNames[cat] ?? cat, tools))
+        }
+        return result
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // v2.9.77：美化头部
@@ -545,66 +594,74 @@ struct ToolPermissionPoliciesView: View {
                         .foregroundColor(.secondary)
                 }
 
-                Section(header: SettingSectionHeader(title: "工具列表（\(filtered.count)）")) {
-                    ForEach(filtered, id: \.name) { def in
-                        let isCore = registry.isCore(def.name)
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack(spacing: 6) {
-                                    Text(isCore ? "★ " : "")
-                                        .font(.system(.body, design: .monospaced))
-                                        .foregroundColor(.blue)
-                                    + Text(def.name)
-                                        .font(.system(.body, design: .monospaced))
-                                    Text(realTools.contains(def.name) ? "真实" : "占位")
-                                        .font(.caption2)
-                                        .fontWeight(.medium)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background((realTools.contains(def.name) ? Color.green : Color.orange).opacity(0.15))
-                                        .foregroundColor(realTools.contains(def.name) ? .green : .orange)
-                                        .cornerRadius(4)
-                                    // v2.9.252: 真机 HTTP 实测通过的工具加 ✅已检验 徽标
-                                    if def.verified {
-                                        Text("✅已检验")
+                Section(header: SettingSectionHeader(title: "工具总数（\(filtered.count)）")) {
+                    Text("按类别分组，共 \(groupedByCategory.count) 类")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                ForEach(groupedByCategory, id: \.category) { group in
+                    Section(header: SettingSectionHeader(title: "\(group.label)（\(group.tools.count)）")) {
+                        ForEach(group.tools, id: \.name) { def in
+                            let isCore = registry.isCore(def.name)
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack(spacing: 6) {
+                                        Text(isCore ? "★ " : "")
+                                            .font(.system(.body, design: .monospaced))
+                                            .foregroundColor(.blue)
+                                        + Text(def.name)
+                                            .font(.system(.body, design: .monospaced))
+                                        Text(realTools.contains(def.name) ? "真实" : "占位")
                                             .font(.caption2)
                                             .fontWeight(.medium)
                                             .padding(.horizontal, 6)
                                             .padding(.vertical, 2)
-                                            .background(Color(red: 0.25, green: 0.65, blue: 0.35).opacity(0.15))
-                                            .foregroundColor(Color(red: 0.25, green: 0.65, blue: 0.35))
+                                            .background((realTools.contains(def.name) ? Color.green : Color.orange).opacity(0.15))
+                                            .foregroundColor(realTools.contains(def.name) ? .green : .orange)
                                             .cornerRadius(4)
+                                        // v2.9.252: 真机 HTTP 实测通过的工具加 ✅已检验 徽标
+                                        if def.verified {
+                                            Text("✅已检验")
+                                                .font(.caption2)
+                                                .fontWeight(.medium)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(Color(red: 0.25, green: 0.65, blue: 0.35).opacity(0.15))
+                                                .foregroundColor(Color(red: 0.25, green: 0.65, blue: 0.35))
+                                                .cornerRadius(4)
+                                        }
                                     }
+                                    Text(def.displaySummary)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(2)
                                 }
-                                Text(def.summary)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .lineLimit(2)
+                                Spacer()
+                                // v2.9.36：去掉开关——按需加载下勾选已无实际作用（AI 搜索到即可调用）。
+                                // 常驻核心标 ★，其余由 AI 按需搜索加载。
+                                if isCore {
+                                    Text(L10n.t("ui_56"))
+                                        .font(.caption2)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.blue)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 3)
+                                        .background(Color.blue.opacity(0.12))
+                                        .cornerRadius(6)
+                                } else {
+                                    Text(L10n.t("ui_70"))
+                                        .font(.caption2)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.secondary)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 3)
+                                        .background(Color(.systemGray5))
+                                        .cornerRadius(6)
+                                }
                             }
-                            Spacer()
-                            // v2.9.36：去掉开关——按需加载下勾选已无实际作用（AI 搜索到即可调用）。
-                            // 常驻核心标 ★，其余由 AI 按需搜索加载。
-                            if isCore {
-                                Text(L10n.t("ui_56"))
-                                    .font(.caption2)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.blue)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(Color.blue.opacity(0.12))
-                                    .cornerRadius(6)
-                            } else {
-                                Text(L10n.t("ui_70"))
-                                    .font(.caption2)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.secondary)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(Color(.systemGray5))
-                                    .cornerRadius(6)
-                            }
+                            .padding(.vertical, 2)
                         }
-                        .padding(.vertical, 2)
                     }
                 }
             }

@@ -122,7 +122,7 @@ struct CorunaShieldView: View {
                             InfoRow(label: "你的设备", value: "iOS 16.3 ✅ 受影响")
                         }
                         .padding()
-                        .background(Color.white)
+                        .background(Color(.systemBackground))
                         .cornerRadius(12)
                         .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
                         .padding(.horizontal)
@@ -176,7 +176,7 @@ struct StatCard: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
-        .background(Color.white)
+        .background(Color(.systemBackground))
         .cornerRadius(12)
         .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
     }
@@ -211,7 +211,7 @@ struct DefenseRow: View {
                 .foregroundColor(enabled ? .green : .gray)
         }
         .padding()
-        .background(Color.white)
+        .background(Color(.systemBackground))
         .cornerRadius(12)
         .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
     }

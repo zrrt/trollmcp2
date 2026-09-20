@@ -10,7 +10,7 @@ import Foundation
 final class InjectionRestoreTool: MCPTool {
     let definition = ToolDefinition(name: "injection.restore",
         summary: "紧急恢复：移除指定 App 的所有注入并还原原始二进制（对齐 TrollFools 卸载策略；注入后 App 打不开时第一选择）",
-        parameters: ["bundle_id": "目标 App Bundle ID"])
+        parameters: ["bundle_id": "Target App bundle_id (required)"], category: "injection")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
         guard AppCatalog.find(bid) != nil else { throw MCPError.failed("app not found: \(bid)") }
@@ -27,7 +27,7 @@ final class InjectionRestoreTool: MCPTool {
 final class RescueScanTool: MCPTool {
     let definition = ToolDefinition(name: "rescue.scan",
         summary: "紧急扫描：全机检查注入痕迹、损坏二进制与备份状态，返回需恢复的 App 清单",
-        parameters: ["query": "按名称/bundle_id 过滤（可选）"], verified: true)
+        parameters: ["query": "Filter by name/bundle_id (optional)"], verified: true, category: "diagnose")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let q = (params["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let apps = AppCatalog.list()
@@ -83,7 +83,7 @@ final class RescueScanTool: MCPTool {
 /// rescue.recover_all：一键全恢复——对所有有备份/损坏的 App 执行恢复
 final class RescueRecoverAllTool: MCPTool {
     let definition = ToolDefinition(name: "rescue.recover_all",
-        summary: "紧急一键恢复：扫描并自动恢复所有存在注入痕迹或损坏二进制的 App（高风险操作，恢复后可正常启动）")
+        summary: "紧急一键恢复：扫描并自动恢复所有存在注入痕迹或损坏二进制的 App（高风险操作，恢复后可正常启动）", category: "diagnose")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let apps = AppCatalog.list()
         var results: [[String: Any]] = []
@@ -132,7 +132,7 @@ final class RescueRecoverAllTool: MCPTool {
 final class RescueCleanupTool: MCPTool {
     let definition = ToolDefinition(name: "rescue.cleanup",
         summary: "清理注入残留：删除 .troll-fools 标记、孤儿备份与 Frameworks 内非系统 dylib（指定 bundle_id 清理单个 App；不指定仅清理全机孤儿备份）",
-        parameters: ["bundle_id": "目标 App Bundle ID（可选）"], verified: true)
+        parameters: ["bundle_id": "Target App bundle_id (optional)"], verified: true, category: "diagnose")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let mgr = InjectionManager.shared
         let bid = params["bundle_id"] as? String

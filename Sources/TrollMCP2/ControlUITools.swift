@@ -200,7 +200,7 @@ final class ProgressNotifier {
 final class UITapTool: MCPTool {
     let definition = ToolDefinition(name: "ui.tap",
         summary: "在屏幕指定坐标点击（AI 控制任意前台 App：美团/小红书等）。坐标用 points（iPhone 全屏约 390x844 逻辑点），原点左上角。调用时务必带 reason 说明判断依据（为什么点这里）。",
-        parameters: ["x": "横坐标 points", "y": "纵坐标 points", "reason": "判断依据（必填，如：截图显示搜索框在 (100,55)）"], verified: true)
+        parameters: ["x": "X coordinate in points", "y": "Y coordinate in points", "reason": "Why tap here (required, e.g. screenshot shows search box at (100,55))"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x = params["x"] as? Double, let y = params["y"] as? Double else {
             throw MCPError.invalidParams("x, y required（浮点 points）")
@@ -222,7 +222,7 @@ final class UITapTool: MCPTool {
 final class UISwipeTool: MCPTool {
     let definition = ToolDefinition(name: "ui.swipe",
         summary: "在屏幕滑动（从 A 到 B），用于翻页/滚动/返回手势。调用时务必带 reason 说明判断依据。",
-        parameters: ["x1": "起点横坐标", "y1": "起点纵坐标", "x2": "终点横坐标", "y2": "终点纵坐标", "duration_ms": "时长毫秒（默认 300）", "reason": "判断依据（必填）"], verified: true)
+        parameters: ["x1": "Start X", "y1": "Start Y", "x2": "End X", "y2": "End Y", "duration_ms": "Duration ms (default 300)", "reason": "Why swipe (required)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x1 = params["x1"] as? Double, let y1 = params["y1"] as? Double,
               let x2 = params["x2"] as? Double, let y2 = params["y2"] as? Double else {
@@ -246,7 +246,7 @@ final class UISwipeTool: MCPTool {
 final class UILongPressTool: MCPTool {
     let definition = ToolDefinition(name: "ui.long_press",
         summary: "长按屏幕坐标（弹出菜单/选择文本/粘贴菜单用）。调用时务必带 reason。",
-        parameters: ["x": "横坐标", "y": "纵坐标", "duration_ms": "长按时长毫秒（默认 800）", "reason": "判断依据（必填）"], verified: true)
+        parameters: ["x": "X", "y": "Y", "duration_ms": "Long press duration ms (default 800)", "reason": "Why long press (required)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x = params["x"] as? Double, let y = params["y"] as? Double else {
             throw MCPError.invalidParams("x, y required")
@@ -269,7 +269,7 @@ final class UILongPressTool: MCPTool {
 final class UIClipboardTool: MCPTool {
     let definition = ToolDefinition(name: "ui.clipboard",
         summary: "把文本写入系统剪贴板（配合 ui.long_press 长按输入框 + 点「粘贴」实现跨 App 文本输入；iOS 无直接注入文本的公开 API）。调用时务必带 reason。",
-        parameters: ["text": "要写入剪贴板的文本", "reason": "判断依据（必填）"], verified: true)
+        parameters: ["text": "Text to write to clipboard", "reason": "Why (required)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let text = params["text"] as? String else { throw MCPError.invalidParams("text required") }
         let reason = params["reason"] as? String ?? ""
@@ -285,7 +285,7 @@ final class UIClipboardTool: MCPTool {
 final class UIScreenshotTool: MCPTool {
     let definition = ToolDefinition(name: "ui.screenshot",
         summary: "截取当前屏幕（安全版，v2.9.182 弃用 ReplayKit：iOS16.3 侧载环境 ReplayKit 系统级崩溃）。优先走 ControlAgent 注入截图（目标 App 在线时），兜底截 TrollAgent 自身窗口。调用时务必带 reason 说明要验证什么。",
-        parameters: ["reason": "验证目的（必填，如：确认搜索框是否弹出）"], verified: true)
+        parameters: ["reason": "Why screenshot (required, e.g. verify search box is visible)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let reason = params["reason"] as? String ?? ""
         ControlSession.shared.addThink(reason.isEmpty ? "截屏验证当前界面" : reason)
@@ -313,7 +313,7 @@ final class UIScreenshotTool: MCPTool {
 final class ProgressNotifyTool: MCPTool {
     let definition = ToolDefinition(name: "progress.notify",
         summary: "AI 控制 App 执行中，向用户弹系统通知横幅（任何界面顶部可见）汇报节点进度。",
-        parameters: ["title": "标题（如 ✅ 已选择店铺）", "body": "正文（如 汉堡王·第2家店）"], verified: true)
+        parameters: ["title": "Title (e.g. ✅ Store selected)", "body": "Body (e.g. Burger King - 2nd store)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let title = params["title"] as? String, !title.isEmpty else {
             throw MCPError.invalidParams("title required")
@@ -330,8 +330,8 @@ final class ProgressNotifyTool: MCPTool {
 final class ControlBeginTool: MCPTool {
     let definition = ToolDefinition(name: "control.begin",
         summary: "开始一次「AI 控制任意 App」会话：登记目标 App 与执行计划（AI 每步完成后用 control.update 汇报，UI 实时展示；目标 App 需先用启动工具唤醒到前台）。",
-        parameters: ["target": "目标 App 名称（如 美团）", "bundle_id": "目标 Bundle ID（可选）", "plan": "计划步骤数组（字符串列表）"],
-        verified: true)
+        parameters: ["target": "Target App name (e.g. Meituan)", "bundle_id": "Target bundle_id (optional)", "plan": "Plan steps array (string list)"],
+        verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let target = params["target"] as? String, !target.isEmpty else {
             throw MCPError.invalidParams("target required")
@@ -340,14 +340,14 @@ final class ControlBeginTool: MCPTool {
         let bundleId = params["bundle_id"] as? String ?? ""
         ControlSession.shared.begin(target: target, bundleId: bundleId, plan: plan)
         return ["message": "控制会话已开始：\(target)，共 \(plan.count) 步。用户正在控制中心查看进度。",
-                "steps": plan.enumerated().map { ["index": $0.offset, "title": $0.element] }]
+                "steps": plan.enumerated(, category: "ui_control").map { ["index": $0.offset, "title": $0.element] }]
     }
 }
 
 final class ControlUpdateTool: MCPTool {
     let definition = ToolDefinition(name: "control.update",
         summary: "更新控制会话某一步的状态（running/done/failed）+ 详情，UI 实时刷新。",
-        parameters: ["step": "步骤序号（从 0 开始）", "status": "pending/running/done/failed", "detail": "详情（可选）", "reason": "判断依据（可选）"],
+        parameters: ["step": "Step index (0-based)", "status": "pending/running/done/failed", "detail": "Details (optional)", "reason": "Why (optional)"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let idx = params["step"] as? Int else { throw MCPError.invalidParams("step required") }
@@ -363,14 +363,14 @@ final class ControlUpdateTool: MCPTool {
         }
         let detail = params["detail"] as? String ?? ""
         ControlSession.shared.updateStep(index: idx, status: st, detail: detail)
-        return ["message": "步骤\(idx + 1) 已更新为 \(raw)", "step": idx, "status": raw]
+        return ["message": "步骤\(idx + 1, category: "ui_control") 已更新为 \(raw)", "step": idx, "status": raw]
     }
 }
 
 final class ControlFinishTool: MCPTool {
     let definition = ToolDefinition(name: "control.finish",
         summary: "结束控制会话，登记最终结果（UI 展示完整报告）。",
-        parameters: ["result": "结果总结（做了什么/卡在哪/下一步）"],
+        parameters: ["result": "Result summary (what done / where stuck / next steps)"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let result = params["result"] as? String ?? "完成"

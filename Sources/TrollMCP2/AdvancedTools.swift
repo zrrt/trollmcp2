@@ -24,17 +24,17 @@ final class BinarySymbolsTool: MCPTool {
 
         parameters: [
 
-            "path": "二进制文件路径（必填，可用 ipa.inspect 获取主二进制路径）",
+            "path": "Binary file path (required, get main binary path via ipa.inspect)",
 
-            "type": "符号类型：objc（OC类/方法）、strings（字符串）、imports（导入函数）、all（全部，默认）",
+            "type": "Symbol type: objc (OC class/method) / strings / imports / all (default)",
 
-            "search": "搜索关键词过滤（可选）",
+            "search": "Search keyword filter (optional)",
 
-            "limit": "返回数量上限（默认 100）"
+            "limit": "Max results (default 100)"
 
         ],
 
-    verified: true)
+    verified: true, category: "analysis")
 
 
 
@@ -304,13 +304,13 @@ final class PluginTool: MCPTool {
 
         parameters: [
 
-            "action": "list（默认）或 enable/disable",
+            "action": "list (default) or enable/disable",
 
-            "name": "插件名称（enable/disable 时必填）"
+            "name": "Plugin name (required for enable/disable)"
 
         ],
 
-    verified: true)
+    verified: true, category: "analysis")
 
 
 
@@ -477,18 +477,18 @@ final class CompatibilityTool: MCPTool {
 
         parameters: [
 
-            "action": "check（查询兼容性）、record（记录结果）、list（列出所有记录）",
+            "action": "check / record / list",
 
-            "bundle_id": "目标 App Bundle ID",
+            "bundle_id": "Target App bundle_id",
 
-            "dylib": "dylib 名称",
+            "dylib": "dylib name",
 
-            "success": "record 时是否成功",
+            "success": "Whether success when recording",
 
-            "detail": "record 时的详细信息"
+            "detail": "Details when recording"
 
         ],
-        verified: true)
+        verified: true, category: "analysis")
 
 
 
@@ -570,13 +570,13 @@ final class CrashReproTool: MCPTool {
 
         parameters: [
 
-            "crash_log": "崩溃日志文本（必填，可用 diagnose.crash 获取）",
+            "crash_log": "Crash log text (required, get via diagnose.crash)",
 
-            "bundle_id": "目标 App Bundle ID（用于生成 filter）"
+            "bundle_id": "Target App bundle_id (for generating filter)"
 
         ],
 
-    verified: true)
+    verified: true, category: "diagnose")
 
 
 
@@ -956,7 +956,7 @@ final class InjectionMemTool: MCPTool {
             "note": "Human-readable result explanation"
         ],
         verified: true
-    )
+    , category: "injection")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -1020,8 +1020,8 @@ final class InjectionMemTool: MCPTool {
             "exit": exit,
             "output": output,
             "note": success
-                ? (alive ? (httpReady ? "内存注入成功：进程存活+HTTP 就绪，可立即 probe.inspect 查询" : "内存注入成功：进程存活但 HTTP 未就绪（dylib 加载了但服务没起，检查 dylib 依赖/端口占用）") : "内存注入成功但 App 已闪退（dylib 导致崩溃，需换 dylib 或回滚）")
-                : "opainject 失败，见 output 定位原因（权限/架构/进程状态）"
+                ? (alive ? (httpReady ? "Memory injection OK: process alive + HTTP ready. Ready for probe.inspect." : "Memory injection OK: process alive but HTTP not ready (dylib loaded, service not up. Check dylib deps/port conflict).") : "Memory injection OK but App crashed (dylib caused crash. Try different dylib or rollback).")
+                : "opainject failed. See output for reason (permission/arch/process state)."
         ]
     }
 }
@@ -1033,14 +1033,14 @@ final class ProbeInspectTool: MCPTool {
         name: "probe.inspect",
         summary: "Runtime probe target App: enumerate ObjC classes / class details (methods, properties, ivars) / UserDefaults / process info. Uses ProbeAgent memory injection + localhost:4791 query. Use for: inspecting target App internals.",
         parameters: [
-            "bundle_id": "目标 App Bundle ID（必填）",
-            "query": "查询类型：classes（类列表）/ class（类详情）/ userdefaults / info，默认 classes",
-            "class_name": "query=class 时要查的类名（如 UIApplicationDelegate 实现类）",
-            "prefix": "类名前缀过滤（可选，如 QQ 前缀避免全量）",
-            "limit": "类列表条数上限（默认 30，最大 100）",
-            "cleanup": "探测完是否移除注入（true/false，默认 false——进程活着期间可反复查询）"
+            "bundle_id": "Target App bundle_id (required)",
+            "query": "Query type: classes / class / userdefaults / info (default classes)",
+            "class_name": "Class name to inspect (for query=class, e.g. UIApplicationDelegate impl)",
+            "prefix": "Class name prefix filter (optional, e.g. QQ to avoid full enumeration)",
+            "limit": "Max classes (default 30, max 100)",
+            "cleanup": "Remove injection after query (default false—repeat queries while process alive)"
         ]
-    )
+    , category: "analysis")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -1146,10 +1146,10 @@ final class HookApplyTool: MCPTool {
         name: "hook.apply",
         summary: "Config hook: inject ConfigHook into target App and write hook_config.json (navbar color / global tint / startup alert / method log). Restart App to apply config changes. Use for: UI customization.",
         parameters: [
-            "bundle_id": "目标 App Bundle ID（必填）",
-            "config": "配置 JSON 字符串：{\"navBarColor\":\"#1A73E8\",\"navBarTitleColor\":\"#FFFFFF\",\"windowTint\":\"#FF0000\",\"alert\":{\"title\":\"..\",\"message\":\"..\"},\"methodLog\":[{\"class\":\"X\",\"selector\":\"y\"}]}",
-            "restart": "注入后是否重启 App（true/false，默认 true）"
-        ], verified: true)
+            "bundle_id": "Target App bundle_id (required)",
+            "config": "Config JSON string: {\"navBarColor\":\"#1A73E8\",\"navBarTitleColor\":\"#FFFFFF\",\"windowTint\":\"#FF0000\",\"alert\":{\"title\":\"..\",\"message\":\"..\"},\"methodLog\":[{\"class\":\"X\",\"selector\":\"y\"}]}",
+            "restart": "Restart App after injection (true/false, default true)"
+        ], verified: true, category: "injection")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -1213,14 +1213,14 @@ final class DeviceFakeTool: MCPTool {
         name: "device.fake",
         summary: "Device spoofing (memory injection): write fake_device.json then inject FakeDevice.dylib into target App process (no file change, zero residual, restored on restart). Use for: fake device model (e.g. fake iPhone 16 Pro Max).",
         parameters: [
-            "bundle_id": "目标 App Bundle ID（必填）",
-            "name": "伪装机型名称（如 iPhone 16 Pro Max）",
-            "model": "伪装机型（如 iPhone）",
-            "model_identifier": "伪装机型标识（如 iPhone17,2；部分 App 通过 sysctl 读取，仅作信息字段）",
-            "system_version": "伪装系统版本（如 18.0）",
-            "mode": "memory（默认，opainject 内存注入）/ file（旧式文件注入，风险高，仅特殊场景用）"
+            "bundle_id": "Target App bundle_id (required)",
+            "name": "Fake device name (e.g. iPhone 16 Pro Max)",
+            "model": "Fake model (e.g. iPhone)",
+            "model_identifier": "Fake model identifier (e.g. iPhone17,2; some Apps read via sysctl, info only)",
+            "system_version": "Fake iOS version (e.g. 18.0)",
+            "mode": "memory (default, opainject memory injection) / file (legacy file injection, high risk, special use only)"
         ],
-        verified: true)
+        verified: true, category: "device")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -1307,7 +1307,7 @@ final class DeviceRestoreTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.restore",
         summary: "Restore device spoofing: remove fake_device.json and restore real device info. Use for: undo device.fake.",
-        parameters: ["bundle_id": "目标 App Bundle ID（必填）"], verified: true)
+        parameters: ["bundle_id": "Target App bundle_id (required)"], verified: true, category: "device")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -1363,8 +1363,8 @@ final class AppEntitlementsTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.entitlements",
         summary: "Get App entitlements (code signing). Use for: check cs_debug/task_for_pid permissions.",
-        parameters: ["bundle_id": "目标 App Bundle ID（必填）"]
-    )
+        parameters: ["bundle_id": "Target App bundle_id (required)"]
+    , category: "app_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -1413,8 +1413,8 @@ final class KeychainWipeTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.keychain_wipe",
         summary: "Wipe target App keychain items by keychain-access-groups. Use for: reset login state.",
-        parameters: ["bundle_id": "目标 App Bundle ID（必填）"]
-    )
+        parameters: ["bundle_id": "Target App bundle_id (required)"]
+    , category: "device")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -1497,8 +1497,8 @@ final class AdvertisingTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.advertising",
         summary: "Read IDFA and tracking limit status. action=reset to refresh (private API, iOS14+ limited). Use for: ad identifier management.",
-        parameters: ["action": "read（默认）/ reset"],
-        verified: true)
+        parameters: ["action": "read (default) / reset"],
+        verified: true, category: "device")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = (params["action"] as? String)?.lowercased() ?? "read"
         var result: [String: Any] = [:]
@@ -1527,14 +1527,14 @@ final class IdfvTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.idfv",
         summary: "Read IDFV and target App identifierForVendor. Use for: device fingerprint check.",
-        parameters: ["bundle_id": "可选：目标 App Bundle ID"],
-        verified: true)
+        parameters: ["bundle_id": "Optional: Target App bundle_id"],
+        verified: true, category: "device")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let sys = UIDevice.current.identifierForVendor?.uuidString ?? "N/A"
         var extra: [String: Any] = ["system_idfv": sys]
         if let bid = params["bundle_id"] as? String, !bid.isEmpty {
             extra["requested_bundle_id"] = bid
-            extra["app_idfv"] = "(需在目标 App 进程内读取；设备级 IDFV 见上)"
+            extra["app_idfv"] = "(需在目标 App 进程内读取；设备级 IDFV 见上, category: "device")"
         }
         extra["hint"] = "IDFV 无公开刷新 API：删除 App 后由系统决定是否变更，备份恢复场景一般不变"
         return extra
@@ -1547,8 +1547,8 @@ final class RefreshContainerTool: MCPTool {
         name: "device.refresh_container",
         summary: "Refresh target App data container: rename backup, kill process, system rebuilds empty container (reset but restorable). Use for: App data reset.",
         parameters: [
-            "bundle_id": "目标 App Bundle ID（必填）",
-            "restore": "true 时把上次备份目录恢复回原容器"
+            "bundle_id": "Target App bundle_id (required)",
+            "restore": "If true, restore previous backup back to original container"
         ], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -1605,7 +1605,7 @@ private func httpGet(port: Int, path: String, timeout: TimeInterval = 4) -> (Int
         }
         sem.signal()
     }.resume()
-    _ = sem.wait(timeout: .now() + timeout + 1)
+    _ = sem.wait(timeout: .now() + timeout + 1, category: "device")
     return result
 }
 
@@ -1618,12 +1618,12 @@ final class NewDeviceTool: MCPTool {
         name: "automation.new_device",
         summary: "One-click new device: ad refresh + device spoofing. Use for: fresh device identity.",
         parameters: [
-            "bundle_id": "目标 App Bundle ID（可选；传入则写伪装配置后立即内存注入 FakeDevice.dylib）",
-            "name": "伪装机型名称（默认 iPhone 16 Pro Max）",
-            "model": "伪装机型（默认 iPhone）",
-            "model_identifier": "机型标识（默认 iPhone17,2）",
-            "system_version": "伪装系统版本（默认 18.0）",
-            "refresh_idfa": "是否尝试刷新广告符（默认 true）"
+            "bundle_id": "Target App bundle_id (optional; if set, write fake config and immediately memory-inject FakeDevice.dylib)",
+            "name": "Fake device name (default iPhone 16 Pro Max)",
+            "model": "Fake model (default iPhone)",
+            "model_identifier": "Fake model identifier (default iPhone17,2)",
+            "system_version": "Fake iOS version (default 18.0)",
+            "refresh_idfa": "Whether to refresh IDFA (default true)"
         ],
     verified: true)
 
@@ -1690,13 +1690,13 @@ final class AiAnalyzeTool: MCPTool {
         name: "ai.analyze_app",
         summary: "AI analyze engine: inject ProbeAgent → collect App class structure → LLM analysis. Use for: understand App internals.",
         parameters: [
-            "bundle_id": "目标 App Bundle ID（必填）",
-            "direction": "分析方向：vip / 去广告 / 绕过检测 / 全面 / 自定义（默认 全面）",
-            "custom_hint": "direction=自定义 时的具体描述（如：找出会员判断逻辑）",
-            "max_classes": "采集类上限（默认 80，最大 150；防 token 爆炸）",
-            "prefix": "类名前缀过滤（可选，如 QQ，可大幅减少采集量）"
+            "bundle_id": "Target App bundle_id (required)",
+            "direction": "Analysis direction: vip / remove_ads / bypass_detection / full / custom (default full)",
+            "custom_hint": "Specific description when direction=custom (e.g. find VIP check logic)",
+            "max_classes": "Max classes to collect (default 80, max 150; avoid token explosion)",
+            "prefix": "Class name prefix filter (optional, e.g. QQ, greatly reduces collection)"
         ],
-    verified: true)
+    verified: true, category: "automation")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {

@@ -138,7 +138,7 @@ final class BuildRunner {
 final class BuildEnvironmentTool: MCPTool {
     let definition = ToolDefinition(name: "build.environment", 
         summary: "检查本机编译环境：toolchain 目录、clang/make/perl/ldid、Theos、iOS SDK",
-        parameters: ["toolchain": "工具链路径：相对（toolchain = Workspace/toolchain）或绝对（/usr/local/theos 等系统路径）"], verified: true)
+        parameters: ["toolchain": "Toolchain path: relative (toolchain = Workspace/toolchain) or absolute (/usr/local/theos etc.)"], verified: true, category: "build")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let tcRel = params["toolchain"] as? String ?? "toolchain"
@@ -391,17 +391,17 @@ final class BuildRunTool: MCPTool {
     let definition = ToolDefinition(name: "build.run",
         summary: "编译工程（theos make 或裸 clang），返回退出码/输出/产物",
         parameters: [
-            "project": "工程名（Workspace/projects/<project>）",
-            "mode": "theos 或 clang（默认 theos）",
-            "package": "theos 模式是否执行 make package 产出 .deb（true/false）",
-            "clean": "编译前先 make clean（true/false）",
-            "toolchain": "工具链路径：相对（toolchain = Workspace/toolchain）或绝对（/usr/local/theos 等系统路径）",
-            "sdk": "SDK 名（可选，自动探测 toolchain/sdk/iPhoneOS*.sdk）",
-            "output": "clang 模式产物文件名（默认 <project>.dylib）",
-            "cflags": "clang 模式额外编译参数数组",
-            "frameworks": "clang 模式链接框架数组（默认 Foundation）",
-            "timeout": "超时秒数（默认 300）"
-        ])
+            "project": "Project name (Workspace/projects/<project>)",
+            "mode": "theos or clang (default theos)",
+            "package": "Whether to run make package to produce .deb (true/false)",
+            "clean": "Run make clean before build (true/false)",
+            "toolchain": "Toolchain path: relative (toolchain = Workspace/toolchain) or absolute (/usr/local/theos etc.)",
+            "sdk": "SDK name (optional, auto-detect toolchain/sdk/iPhoneOS*.sdk)",
+            "output": "clang output filename (default <project>.dylib)",
+            "cflags": "Extra clang compile flags array",
+            "frameworks": "clang linked frameworks array (default Foundation)",
+            "timeout": "Timeout seconds (default 300)"
+        ], category: "build")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let project = params["project"] as? String ?? ""

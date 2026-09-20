@@ -16,10 +16,10 @@ final class AppStartTool: MCPTool {
         name: "app.start",
         summary: "启动指定 App。多级策略：open -b → 注册表路径直接执行主二进制 → URL scheme，每级记录真实错误与 stderr，不再误导归因于 Bundle ID。",
         parameters: [
-            "bundle_id": "目标 App Bundle ID（必填）",
-            "wait_seconds": "启动后等待秒数（默认 3，用于确认进程存活）"
+            "bundle_id": "Target App bundle_id (required)",
+            "wait_seconds": "Wait seconds after launch (default 3, to confirm alive)"
         ],
-        verified: true)
+        verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -100,9 +100,9 @@ final class AppStopTool: MCPTool {
         name: "app.stop",
         summary: "停止（杀掉）指定 App 进程。返回是否成功、原 PID。",
         parameters: [
-            "bundle_id": "目标 App Bundle ID（必填）"
+            "bundle_id": "Target App bundle_id (required)"
         ],
-        verified: true)
+        verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -132,10 +132,10 @@ final class AppRestartTool: MCPTool {
         name: "app.restart",
         summary: "重启指定 App（先杀后启）。返回新 PID、重启耗时。",
         parameters: [
-            "bundle_id": "目标 App Bundle ID（必填）",
-            "wait_seconds": "启动后等待秒数（默认 3）"
+            "bundle_id": "Target App bundle_id (required)",
+            "wait_seconds": "Wait seconds after launch (default 3)"
         ],
-        verified: true)
+        verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -207,9 +207,9 @@ final class AppStatusTool: MCPTool {
         name: "app.status",
         summary: "查看指定 App 的运行状态：是否运行、PID、前台/后台、CPU 占用、内存占用、线程数、运行时长。",
         parameters: [
-            "bundle_id": "目标 App Bundle ID（必填）"
+            "bundle_id": "Target App bundle_id (required)"
         ],
-        verified: true)
+        verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -255,11 +255,11 @@ final class AppStatsTool: MCPTool {
         name: "app.stats",
         summary: "对指定 App 进行 CPU/内存采样（持续 N 秒），输出平均值、峰值、趋势。用于性能分析和泄漏检测。",
         parameters: [
-            "bundle_id": "目标 App Bundle ID（必填）",
-            "duration": "采样时长秒数（默认 10）",
-            "interval": "采样间隔秒数（默认 1）"
+            "bundle_id": "Target App bundle_id (required)",
+            "duration": "Sampling duration in seconds (default 10)",
+            "interval": "Sampling interval in seconds (default 1)"
         ],
-    verified: true)
+    verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -309,7 +309,7 @@ final class AppStatsTool: MCPTool {
             "cpu": ["avg": String(format: "%.1f", avgCpu), "max": String(format: "%.1f", maxCpu), "unit": "%"],
             "memory": ["avg_kb": avgMem, "max_kb": maxMem, "min_kb": minMem, "growth_kb": memGrowth],
             "trend": samples,
-            "leak_suspect": memGrowth > 1024 ? "⚠️ 内存增长 \(memGrowth)KB，疑似泄漏" : "内存稳定"
+            "leak_suspect": memGrowth > 1024 ? "⚠️ 内存增长 \(memGrowth, category: "app_control")KB，疑似泄漏" : "内存稳定"
         ]
     }
 }
@@ -321,12 +321,12 @@ final class TestRunTool: MCPTool {
         name: "test.run",
         summary: "一键测试编排：注入 dylib → 启动 App → 等待稳定 → 采集日志/性能 → 停止 → 生成报告。把整个测试闭环自动化，返回每一步的结果和最终报告。",
         parameters: [
-            "bundle_id": "目标 App Bundle ID（必填）",
-            "dylib_path": "要注入的 dylib 路径（可选，不填则跳过注入）",
-            "steps": "要执行的步骤，逗号分隔：inject,start,wait,stats,logs,stop,report（默认全部）",
-            "wait_seconds": "启动后等待稳定秒数（默认 5）",
-            "stats_duration": "性能采样时长（默认 10）",
-            "report_name": "报告名称（默认 test_report_时间戳）"
+            "bundle_id": "Target App bundle_id (required)",
+            "dylib_path": "dylib path to inject (optional, skip if empty)",
+            "steps": "Steps comma-separated: inject,start,wait,stats,logs,stop,report (default all)",
+            "wait_seconds": "Wait seconds after launch (default 5)",
+            "stats_duration": "Stats sampling duration (default 10)",
+            "report_name": "Report name (default test_report_<timestamp>)"
         ],
     verified: true)
 

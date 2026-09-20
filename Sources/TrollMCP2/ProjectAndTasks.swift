@@ -153,13 +153,13 @@ final class ProjectTool: MCPTool {
         name: "project",
         summary: "项目上下文管理。创建/切换/查看当前项目，AI 自动读取目标 App、dylib、历史运行结果，无需用户重复说明。",
         parameters: [
-            "action": "操作：current（查看当前项目）、list（列出所有）、create（新建）、select（切换）、delete（删除）、history（运行历史）",
-            "name": "create 时的项目名称",
-            "bundle_id": "create 时的目标 App Bundle ID",
-            "app_name": "create 时的目标 App 名称",
-            "dylib_path": "create/更新时的 dylib 路径",
-            "project_id": "select/delete/history 时的项目 ID"
-        ], verified: true)
+            "action": "current | list | create | select | delete | history",
+            "name": "Project name (for create)",
+            "bundle_id": "Target App bundle_id (for create)",
+            "app_name": "Target App name (for create)",
+            "dylib_path": "dylib path (for create/update)",
+            "project_id": "Project id (for select/delete/history)"
+        ], verified: true, category: "build")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = (params["action"] as? String) ?? "current"
@@ -617,12 +617,12 @@ final class TaskTool: MCPTool {
         name: "task.run",
         summary: "执行任务模板。把常见流程固化成一键执行：诊断注入失败、采集崩溃现场、注入验证闭环（含自动回滚）、IPA健康检查、性能回归、紧急恢复、抓包分析、一键新机、AI分析、闪退诊断。AI 无需逐步调用工具。",
         parameters: [
-            "template": "模板ID：diagnose_injection、capture_crash、inject_verify、ipa_health、perf_regression、emergency_recover、network_probe、new_device、ai_analyze、crash_triage",
-            "bundle_id": "目标 App Bundle ID（不填则用当前项目）",
-            "dylib_path": "dylib 路径（inject_verify 时必填）",
-            "options": "模板参数（JSON）：network_probe 的 duration/limit、new_device 的 reset_keychain/refresh_idfa/name/model_identifier、ai_analyze 的 direction/custom_hint/max_classes/prefix"
+            "template": "Template id: diagnose_injection | capture_crash | inject_verify | ipa_health | perf_regression | emergency_recover | network_probe | new_device | ai_analyze | crash_triage",
+            "bundle_id": "Target App bundle_id (default current project)",
+            "dylib_path": "dylib path (required for inject_verify)",
+            "options": "Template params (JSON): network_probe duration/limit, new_device reset_keychain/refresh_idfa/name/model_identifier, ai_analyze direction/custom_hint/max_classes/prefix"
         ],
-    verified: true)
+    verified: true, category: "build")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let templateStr = params["template"] as? String,

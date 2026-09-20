@@ -11,10 +11,10 @@ final class DiagnoseStartupTool: MCPTool {
         name: "diagnose.startup",
         summary: "自动诊断 App 启动失败原因。检查：签名、架构、依赖、entitlements、注入状态、进程缓存、崩溃日志。给出明确原因和修复步骤。",
         parameters: [
-            "bundle_id": "目标 App Bundle ID（必填）",
-            "auto_fix": "是否自动尝试修复（默认 false，仅诊断）"
+            "bundle_id": "Target App bundle_id (required)",
+            "auto_fix": "Auto-attempt fix (default false, diagnose only)"
         ],
-        verified: true)
+        verified: true, category: "diagnose")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -135,10 +135,10 @@ final class DiagnoseCrashTool: MCPTool {
         name: "diagnose.crash",
         summary: "分析指定 App 的最近崩溃日志，自动提取：异常类型、终止原因、崩溃线程、调用栈、dyld 错误、签名问题。给出根因判断和修复建议。",
         parameters: [
-            "bundle_id": "目标 App Bundle ID（必填）",
-            "count": "分析最近几次崩溃（默认 1）"
+            "bundle_id": "Target App bundle_id (required)",
+            "count": "Analyze recent crashes (default 1)"
         ],
-    verified: true)
+    verified: true, category: "diagnose")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -392,8 +392,8 @@ final class ServerStartTool: MCPTool {
         name: "server.start",
         summary: "启动本地 HTTP 服务（localhost），其他脚本/工具可通过 REST API 调用 TrollAgent 的所有工具。默认端口 8765。",
         parameters: [
-            "port": "端口号（默认 8765）"
-        ], verified: true)
+            "port": "Port (default 8765)"
+        ], verified: true, category: "diagnose")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let port = (params["port"] as? Int) ?? 8765
@@ -417,7 +417,7 @@ final class ServerStopTool: MCPTool {
         name: "server.stop",
         summary: "停止本地 HTTP 服务。",
         parameters: [:],
-        verified: true)
+        verified: true, category: "system")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         LocalServerManager.shared.stop()
@@ -430,7 +430,7 @@ final class ServerStatusTool: MCPTool {
         name: "server.status",
         summary: "查看本地 HTTP 服务状态：是否运行、端口、可用工具数量。",
         parameters: [:],
-    verified: true)
+    verified: true, category: "system")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         return [

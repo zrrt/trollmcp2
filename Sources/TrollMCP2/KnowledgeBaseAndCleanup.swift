@@ -150,13 +150,13 @@ final class KnowledgeBaseTool: MCPTool {
         name: "kb.query",
         summary: "查询崩溃/错误知识库。输入错误信息，自动匹配已知模式并返回原因和修复方案。也可添加新模式。",
         parameters: [
-            "error": "错误信息文本（必填，用于匹配）",
-            "action": "query（默认查询）或 add（添加新模式）",
-            "keyword": "add 时的关键词",
-            "cause": "add 时的原因",
-            "fix": "add 时的修复方案"
+            "error": "Error text (required, to match)",
+            "action": "query (default) or add",
+            "keyword": "Keyword when adding",
+            "cause": "Cause when adding",
+            "fix": "Fix when adding"
         ],
-    verified: true)
+    verified: true, category: "knowledge")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = (params["action"] as? String) ?? "query"
@@ -193,12 +193,12 @@ final class WorkspaceCleanupTool: MCPTool {
         name: "workspace.cleanup",
         summary: "清理工作区临时文件：旧编译产物、下载缓存、日志、报告。按天数或大小过滤，支持 dry-run 预览。",
         parameters: [
-            "dry_run": "仅预览不删除（默认 true）",
-            "max_age_days": "删除超过 N 天的文件（默认 7）",
-            "max_size_mb": "单个目录超过 N MB 时清理旧文件（默认 500）",
-            "targets": "清理目标：downloads,logs,reports,all（默认 all）"
+            "dry_run": "Preview only, no delete (default true)",
+            "max_age_days": "Delete files older than N days (default 7)",
+            "max_size_mb": "Clean old files when a dir exceeds N MB (default 500)",
+            "targets": "Clean targets: downloads,logs,reports,all (default all)"
         ],
-    verified: true)
+    verified: true, category: "cleanup")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let dryRun = (params["dry_run"] as? Bool) ?? true

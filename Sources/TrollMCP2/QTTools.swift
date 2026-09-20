@@ -13,10 +13,10 @@ final class IPAInspectTool: MCPTool {
         name: "ipa.inspect",
         summary: "解析 IPA 文件或已安装 App 的详细信息：架构、签名、entitlements、依赖库、Info.plist、URL schemes、后台模式。用于注入前检查和逆向分析。",
         parameters: [
-            "path": "IPA 文件路径或 App Bundle 路径（必填，可用 artifact.find 定位）",
-            "detail": "详细程度：basic（默认，架构+签名+版本）或 full（含依赖列表+entitlements全文）"
+            "path": "IPA file path or App Bundle path (required, locate via artifact.find)",
+            "detail": "Verbosity: basic (default, arch+signature+version) or full (deps list + entitlements full text)"
         ],
-    verified: true)
+    verified: true, category: "analysis")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["path"] as? String, !path.isEmpty else {
@@ -145,8 +145,8 @@ final class DylibInspectTool: MCPTool {
         name: "dylib.inspect",
         summary: "解析 dylib 文件的详细信息：架构、签名、依赖、导出符号、兼容的 iOS 版本。用于注入前验证 dylib 是否可用。",
         parameters: [
-            "path": "dylib 文件路径（必填，可用 artifact.find 定位）"
-        ], verified: true)
+            "path": "dylib file path (required, locate via artifact.find)"
+        ], verified: true, category: "analysis")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["path"] as? String, !path.isEmpty else {
@@ -242,10 +242,10 @@ final class InjectionDiagnoseTool: MCPTool {
         name: "injection.diagnose",
         summary: "诊断 dylib 注入失败的具体原因。检查：目标进程状态、dylib 架构/签名、依赖缺失、加载路径、权限、备份文件、Mach-O 完整性。给出明确的修复建议。",
         parameters: [
-            "bundle_id": "目标 App 的 Bundle ID（必填）",
-            "dylib_path": "要注入的 dylib 路径（可选，不填则检查已注入的 dylib）"
+            "bundle_id": "Target App bundle_id (required)",
+            "dylib_path": "dylib path to inject (optional, check injected if empty)"
         ]
-    )
+    , category: "injection")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -423,11 +423,11 @@ final class LogCollectTool: MCPTool {
         name: "log.collect",
         summary: "收集指定 App 的日志和崩溃信息：系统日志、App 标准输出、崩溃报告、注入日志。输出到工作区文件，方便 AI 分析。",
         parameters: [
-            "bundle_id": "目标 App 的 Bundle ID（可选，不填则收集 TrollAgent 自身日志）",
-            "type": "日志类型：system（系统日志）、crash（崩溃报告）、injection（注入日志）、all（全部，默认）",
-            "lines": "收集行数（默认 200）"
+            "bundle_id": "Target App bundle_id (optional, default TrollAgent own logs)",
+            "type": "Log type: system / crash / injection / all (default)",
+            "lines": "Max lines (default 200)"
         ],
-    verified: true)
+    verified: true, category: "diagnose")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let bundleId = params["bundle_id"] as? String ?? Bundle.main.bundleIdentifier ?? ""
@@ -498,11 +498,11 @@ final class NetworkCaptureTool: MCPTool {
         name: "network.capture",
         summary: "HTTP 抓包与分析。需要先注入 NetworkTweak.dylib 到目标 App（内置），注入后 App 的所有 HTTP/HTTPS 请求会记录到本地文件。支持查看请求列表、URL、方法、状态码、Header、JSON 字段分析。",
         parameters: [
-            "action": "操作类型：status（查看抓包状态）、start（开始抓包）、stop（停止抓包）、requests（查看请求列表）、analyze（分析请求统计）",
-            "bundle_id": "目标 App Bundle ID（start 时必填）",
-            "limit": "返回请求数量（默认 50）"
+            "action": "Action: status / start / stop / requests / analyze",
+            "bundle_id": "Target App bundle_id (required for start)",
+            "limit": "Max requests (default 50)"
         ],
-        verified: true)
+        verified: true, category: "diagnose")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = (params["action"] as? String) ?? "status"
