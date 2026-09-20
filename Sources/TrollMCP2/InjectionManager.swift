@@ -316,16 +316,60 @@ final class InjectionManager {
         return (r.code, r.rawStdout)
     }
 
-    /// v3.0.46：设备端注入——先 ldid -S 重签 dylib（iOS 原生 adhoc，无 Team ID），再 opainject dlopen。
-    /// 打包/TrollStore 安装后的 dylib 签名可能带 Team ID，opainject dlopen 报 "different Team IDs"（真机实测）。
-    /// 设备端 ldid 重签生成 adhoc 签名，dyld 放行（TrollFools 同款做法）。
+    /// v3.0.50：设备端注入——多策略签名链依次尝试，哪个能让 opainject dlopen 成功用哪个。
+    /// 背景（真机实测链）：TrollStore 安装签名带 Team ID → dyld 报 "different Team IDs"；
+    /// 设备端 ldid -S 空签 → iOS16 dyld 报 "code signature invalid (errno=1)"。
+    /// 依次试：①ldid -S（空 entitlements adhoc）②ldid -S+platform/no-sandbox entitlements
+    /// ③系统 /usr/bin/codesign adhoc ④不重签直接注入（对照）。返回最优结果 + 全链路诊断。
     @discardableResult
     func injectDylib(pid: Int, dylib: String, timeout: Double = 60) -> (Int32, String) {
-        let (sc, so) = runAsRoot("ldid", args: ["-S", dylib], timeout: 20)
-        if sc != 0 {
-            return (sc, "ldid -S 失败(\(sc)) \(so.prefix(300))")
+        let workDir = "/var/mobile/Documents/Workspace"
+        let entPath = workDir + "/inject-ent.plist"
+        let entXML = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>platform-application</key><true/>
+            <key>com.apple.private.security.no-sandbox</key><true/>
+            <key>get-task-allow</key><true/>
+        </dict>
+        </plist>
+        """
+        _ = try? entXML.data(using: .utf8)?.write(to: URL(fileURLWithPath: entPath))
+
+        // (签名工具, 参数, 描述)。ldid 参数 -S 后跟文件名即带该 entitlements。
+        let signSteps: [(String, [String], String)] = [
+            ("ldid", ["-S", dylib], "ldid -S 空签"),
+            ("ldid", ["-S" + entPath, dylib], "ldid -S platform+no-sandbox"),
+            ("codesign", ["-f", "-s", "-", dylib], "/usr/bin/codesign adhoc"),
+        ]
+        var diag = ""
+        // 先试各种签名方案
+        for (tool, args, desc) in signSteps {
+            var rc: Int32 = -1
+            var ro = ""
+            if tool == "codesign" {
+                let r = spawnRootDetailed("/usr/bin/codesign", args: args, timeout: 20)
+                rc = r.code; ro = r.output
+            } else {
+                (rc, ro) = runAsRoot(tool, args: args, timeout: 20)
+            }
+            if rc != 0 {
+                diag += "【\(desc)】签名失败(\(rc)) \(ro.prefix(150))\n"
+                continue
+            }
+            let (ic, io) = runAsRoot("opainject", args: ["\(pid)", dylib], timeout: timeout)
+            let ok = io.contains("dlopen succeeded") || io.contains("Injected") || io.contains("injected successfully")
+            diag += "【\(desc)】opainject \(ok ? "成功" : "失败"): " + io.replacingOccurrences(of: "\n", with: " ").suffix(180) + "\n"
+            if ok { return (ic, io) }
         }
-        return runAsRoot("opainject", args: ["\(pid)", dylib], timeout: timeout)
+        // 最后：不重签直接注入（对照 TrollStore 安装签名）
+        let (ic2, io2) = runAsRoot("opainject", args: ["\(pid)", dylib], timeout: timeout)
+        let ok2 = io2.contains("dlopen succeeded") || io2.contains("Injected") || io2.contains("injected successfully")
+        diag += "【不重签直注】opainject \(ok2 ? "成功" : "失败"): " + io2.replacingOccurrences(of: "\n", with: " ").suffix(180) + "\n"
+        if ok2 { return (ic2, io2) }
+        return (1, diag)
     }
 
     /// 非 root 版 posix_spawn（部分场景需要 mobile 身份执行）。
