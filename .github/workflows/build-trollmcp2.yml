@@ -65,8 +65,10 @@ jobs:
           cd /tmp/opainject
           # arm64.h 缺 stdint.h（新 clang 模块化检查严格，报 uint32_t must be imported）
           sed -i '' '1s/^/#include <stdint.h>\n/' arm64.h 2>/dev/null || sed -i '1s/^/#include <stdint.h>\n/' arm64.h
+          # CoreSymbolication 私有框架 Xcode SDK 没有，且源码只 import 未调用 → 删 import + 去掉 -framework 链接
+          sed -i '' '/CoreSymbolication/d' rop_inject.m 2>/dev/null || sed -i '/CoreSymbolication/d' rop_inject.m
           head -3 arm64.h
-          make ARCHS="arm64" || { echo "OPAINJECT BUILD FAILED, keeping old binary"; exit 0; }
+          make ARCHS="arm64" opainject_PRIVATE_FRAMEWORKS= || { echo "OPAINJECT BUILD FAILED, keeping old binary"; exit 0; }
           OUT=$(find .theos -name opainject -type f | head -1)
           if [ -n "$OUT" ] && file "$OUT" | grep -q "arm64"; then
             cp "$OUT" "$GITHUB_WORKSPACE/trollmcp2/Resources/bin/opainject"
