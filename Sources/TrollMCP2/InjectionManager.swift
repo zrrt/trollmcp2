@@ -366,6 +366,7 @@ final class InjectionManager {
                     }
                 }
                 diag += "【\(desc)】teamid(\(tc)) team=\(teamID.isEmpty ? "(空)" : teamID)\n"
+                diag += to.prefix(900) + "\n"
                 (rc, ro) = runAsRoot("ldid", args: ["-S", dylib], timeout: 20)
                 if rc != 0 {
                     diag += "【\(desc)】ldid 伪签失败(\(rc)) \(ro.prefix(150))\n"
