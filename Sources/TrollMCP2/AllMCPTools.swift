@@ -9,7 +9,7 @@ import Vision
 // MARK: - M3 注入工具
 
 final class InjectionEnableTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.enable", summary: "Inject plugin (dylib/framework/zip/deb) into target App (TrollFools-style: auto CydiaSubstrate + multi-asset + strategy). v3.0.59 smart: fallback to memory injection if no static target. Use for: persistent injection (survives restart).",
+    let definition = ToolDefinition(name: "injection.enable", summary: "Inject plugin (dylib/framework/zip/deb) into target App (TrollFools-style: auto CydiaSubstrate + multi-asset + strategy). v3.0.59 smart: fallback to memory injection if no static target. Use for: persistent injection (survives restart). Decision guide: (1) Temporary/probing → injection.mem (memory, no file change); (2) Need persistent → injection.enable (static, modifies file); (3) Main binary encrypted → app.decrypt first; (4) UI customization → hook.apply; (5) Device spoofing → device.fake.",
         parameters: ["bundle_id": "目标 App Bundle ID", "dylib_path": "插件本地路径（.dylib/.framework/.zip/.deb，如 Workspace/downloads/.../xxx.deb），缺省注入内置 ControlAgent.dylib", "weak_reference": "可选 Bool：是否弱引用注入（默认 false 强引用，对齐 TrollFools）", "inject_strategy": "可选 String：注入目标选择策略 lexicographic（默认）/fast（文件小优先）/preorder/postorder，对齐 TrollFools Strategy", "smart_fallback": "可选 Bool：无可静态注入目标时自动降级内存注入（默认 true）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
@@ -83,14 +83,14 @@ final class InjectionEnablePersistedTool: MCPTool {
 }
 
 final class InjectionStatusTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.status", summary: "Show injection stats (total apps / injected count / toolchain). Use injection.list for specific App bundle_id.", verified: true)
+    let definition = ToolDefinition(name: "injection.status", summary: "Show injection stats. Use for: check injection status.", verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         InjectionManager.shared.status()
     }
 }
 
 final class InjectionInspectTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.inspect", summary: "Check dylib loading status of target App.",
+    let definition = ToolDefinition(name: "injection.inspect", summary: "Check dylib loading status of target App. Use for: verify injection.",
         parameters: ["bundle_id": "目标 App Bundle ID"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
@@ -101,7 +101,7 @@ final class InjectionInspectTool: MCPTool {
 final class InjectionListTool: MCPTool {
     // v2.9.41：检索式——query 按名称/bundle_id 模糊匹配，只返回命中项，不再全量 266 条塞给 AI
     let definition = ToolDefinition(name: "injection.list", 
-        summary: "Search installed apps by keyword (returns bundle_id + name for injection.enable). Use query to narrow results.",
+        summary: "Search installed apps by keyword. Use for: find bundle_id for injection.",
         parameters: ["query": "搜索关键字（App 名称或 bundle_id 片段，可选）；不带则只返回前 20 条"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let apps = AppCatalog.list()
@@ -195,7 +195,7 @@ final class AutomationRunNowTool: MCPTool {
 }
 
 final class AutomationListTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.list", summary: "列出自动化任务（含调度信息）")
+    let definition = ToolDefinition(name: "automation.list", summary: "List automation tasks. Use for: check scheduled tasks.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let tasks = AutomationStore.shared.tasks.map { t in
             [
@@ -228,7 +228,7 @@ final class AutomationJobsTool: MCPTool {
 }
 
 final class AutomationStopTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.stop", summary: "停止/取消自动化任务",
+    let definition = ToolDefinition(name: "automation.stop", summary: "Stop automation task. Use for: cancel scheduled task.",
         parameters: ["name": "任务名或 id"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
@@ -355,7 +355,7 @@ final class LocationGetTool: MCPTool {
 }
 
 final class NotificationSendTool: MCPTool {
-    let definition = ToolDefinition(name: "notification.send", summary: "发送一条本地通知：标题/正文/延迟秒数。用于任务完成提醒。",
+    let definition = ToolDefinition(name: "notification.send", summary: "Send local notification. Use for: reminder/alert.",
         parameters: ["title": "标题", "body": "内容"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let title = params["title"] as? String ?? "TrollMCP"
@@ -391,7 +391,7 @@ final class ScanQRTool: MCPTool {
 }
 
 final class ProcessListTool: MCPTool {
-    let definition = ToolDefinition(name: "process.list", summary: "枚举正在运行的进程")
+    let definition = ToolDefinition(name: "process.list", summary: "List running processes (all). Use for: find target App pid for injection.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         var procs: [[String: Any]] = []
         for app in AppCatalog.list() {
@@ -527,7 +527,7 @@ final class ModelUpdateTool: MCPTool {
 final class ToolHealthTool: MCPTool {
     let definition = ToolDefinition(
         name: "tools.health",
-        summary: "查看工具健康度：失败排行、错误码分布（env/target/param/tool）、最近失败明细。用于自查哪些工具有问题及失败原因，避免反复执行失败工具。",
+        summary: "Check tool health (failure count). Use for: debug tool issues.",
         parameters: [
             "limit": "最多返回多少个工具的健康数据（默认 20）"
         ],

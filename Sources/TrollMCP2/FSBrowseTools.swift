@@ -173,7 +173,7 @@ final class FSTreeTool: MCPTool {
 final class FSReadTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.read",
-        summary: "读取任意文件内容并智能识别格式：文本（UTF-8/UTF-16）、plist（XML/二进制→JSON）、SQLite（表清单）、二进制（提示改用 fs.hexdump）。Filza 式文件查看。",
+        summary: "Read file (text/binary). Use for: inspect file content.",
         parameters: [
             "bundle_id": "目标 App Bundle ID（与 path 二选一；填了则相对容器路径）",
             "relative": "容器内相对路径（bundle_id 模式下用，如 Library/Preferences/xx.plist）",
@@ -338,7 +338,7 @@ final class FSReadTool: MCPTool {
 final class FSHexdumpTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.hexdump",
-        summary: "二进制十六进制 + ASCII 查看：指定 offset/length 分段读取，适合分析 Mach-O 头、plist 二进制、配置缓存等。",
+        summary: "Hexdump file. Use for: inspect binary file headers.",
         parameters: [
             "bundle_id": "目标 App Bundle ID（与 path 二选一）",
             "relative": "容器内相对路径（bundle_id 模式下用）",
@@ -672,7 +672,7 @@ final class FSGrepTool: MCPTool {
 final class FSWriteTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.write",
-        summary: "写文本/JSON 到文件（工作区或 App 数据容器）。已有文件自动备份 .bak。禁止写 App Bundle 与系统区。Filza 的文本编辑器写能力。",
+        summary: "Write file (DANGEROUS). Use for: modify file content.",
         parameters: [
             "path": "绝对路径（或工作区相对路径）",
             "bundle_id": "目标 App Bundle ID（填了则写该 App 数据容器）",
@@ -1075,7 +1075,7 @@ final class FSDownloadTool: MCPTool {
 final class FSPropertyListTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.plist",
-        summary: "plist 键值读写（支持二进制 plist）：get 读值、set 改值、delete 删键。key 用点路径如 Root.NSAppTransportSecurity.NSAllowsArbitraryLoads。自动备份 .bak。Filza 属性表编辑器写能力。",
+        summary: "Read plist file. Use for: parse Info.plist/entitlements.",
         parameters: [
             "bundle_id": "目标 App Bundle ID（与 path 二选一）",
             "relative": "容器内相对路径（bundle_id 模式下用）",
