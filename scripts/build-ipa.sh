@@ -109,7 +109,7 @@ fi
 # 2) ldid 重签（老 xerub ldid 生成的签名 iOS16 也 invalid；CI brew 版为 Procursus 维护版）。
 for d in "$APP"/tweaks/*.dylib; do
     [ -f "$d" ] || continue
-    if lipo -info "$d" 2>/dev/null | grep -q "architectures"; then
+    if lipo -info "$d" 2>/dev/null | grep -qi "architectures"; then
         lipo -thin arm64 "$d" -output "$d.tmp" 2>/dev/null && mv "$d.tmp" "$d" && echo ">>> thinned to arm64: $d"
     fi
     if command -v ldid >/dev/null 2>&1 && ldid -S "$d" >/dev/null 2>&1; then
