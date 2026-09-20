@@ -59,7 +59,11 @@ jobs:
           brew install meson ninja libarchive llvm >/dev/null 2>&1 || true
           # lld 供 iSH VDSO 构建（-fuse-ld=lld）使用——必须在本 step 内 export（$GITHUB_PATH 对当前 step 无效）
           export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
-          which lld || true
+          echo "--- lld check ---"
+          ls -la /opt/homebrew/opt/llvm/bin/ 2>/dev/null | grep -iE "lld|clang" || echo "llvm bin 无 lld/clang"
+          which lld && echo "lld OK" || echo "NO lld in PATH"
+          # clang -fuse-ld=lld 按 ld.lld 名字找：brew 只装多合一 lld 时补软链
+          ln -sf /opt/homebrew/opt/llvm/bin/lld /opt/homebrew/opt/llvm/bin/ld.lld 2>/dev/null || true
           mkdir -p ish-stage
           cd ish-stage
           cp ../scripts/ish-build/build_ish.sh .
