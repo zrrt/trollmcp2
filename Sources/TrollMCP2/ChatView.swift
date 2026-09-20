@@ -1011,11 +1011,12 @@ struct MessageBubble: View {
     @State private var expanded = false
     @State private var expandedToolIds: Set<String> = []
     private var thinkingExpanded: Bool {
-        get { expandedToolIds.contains(message.id) }
-        set {
-            if newValue { expandedToolIds.insert(message.id) }
-            else { expandedToolIds.remove(message.id) }
-        }
+        expandedToolIds.contains(message.id.uuidString)
+    }
+    private func toggleThinking() {
+        let id = message.id.uuidString
+        if expandedToolIds.contains(id) { expandedToolIds.remove(id) }
+        else { expandedToolIds.insert(id) }
     }
 
     private var isUser: Bool { message.role == "user" }
@@ -1107,7 +1108,7 @@ struct MessageBubble: View {
     /// v2.9.20：思考记录（reasoning）折叠视图
     private func thinkingView(_ text: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Button(action: { withAnimation { thinkingExpanded.toggle() } }) {
+            Button(action: { withAnimation { toggleThinking() } }) {
                 HStack(spacing: 6) {
                     Image(systemName: thinkingExpanded ? "chevron.down.circle" : "chevron.right.circle")
                         .font(.system(size: 13))
@@ -1187,7 +1188,7 @@ struct MessageBubble: View {
 
             // 🔧 调用工具（蓝色扳手）——工具名 + AI 思考说明，可折叠
             VStack(alignment: .leading, spacing: 2) {
-                Button(action: { withAnimation { thinkingExpanded.toggle() } }) {
+                Button(action: { withAnimation { toggleThinking() } }) {
                     HStack(spacing: 6) {
                         Image(systemName: "wrench.and.screwdriver")
                             .font(.system(size: 12))
