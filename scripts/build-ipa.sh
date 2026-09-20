@@ -102,6 +102,18 @@ if [ -d "Resources" ]; then
     echo ">>> bundled resources: $(find Resources -maxdepth 1 -type f | wc -l | tr -d ' ') files + $(find Resources -maxdepth 1 -type d | tail -n +2 | wc -l | tr -d ' ') dirs"
 fi
 
+# v3.0.43: tweaks/*.dylib 注入用——必须 adhoc 重签名（Theos 编译签名带 Team ID，
+# opainject dlopen 时报 "mapping process and mapped file (non-platform) have different Team IDs"）。
+# adhoc 签名去除 Team ID，任意进程可 dlopen（TrollFools 同款做法）。
+for d in "$APP"/tweaks/*.dylib; do
+    [ -f "$d" ] || continue
+    if codesign -s - -f "$d" >/dev/null 2>&1; then
+        echo ">>> adhoc re-signed $d"
+    else
+        ldid -S "$d" >/dev/null 2>&1 && echo ">>> ldid re-signed $d" || echo "!!! sign failed: $d"
+    fi
+done
+
 # v3.0.37: iSH 引擎资源——alpine-rootfs.zip（首次启动解压）+ VDSO + RootfsPatch
 if [ -f "ish-stage/resources/alpine-rootfs.zip" ]; then
     cp "ish-stage/resources/alpine-rootfs.zip" "$APP/alpine-rootfs.zip"
