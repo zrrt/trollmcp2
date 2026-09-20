@@ -1186,7 +1186,7 @@ struct MessageBubble: View {
                 .cornerRadius(12)
             }
 
-            // 🔧 调用工具——直接显示，不要背景框
+            // 🔧 调用工具——蓝色气泡，不要折叠符
             HStack(alignment: .top, spacing: 6) {
                 Image(systemName: "wrench.and.screwdriver")
                     .font(.system(size: 12))
@@ -1202,8 +1202,10 @@ struct MessageBubble: View {
                 }
                 Spacer()
             }
-            .padding(.horizontal, 4)
-            .padding(.vertical, 4)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.blue.opacity(0.08))
+            .cornerRadius(12)
 
             // ✅ 工具结果（绿色对勾）
             HStack(spacing: 8) {
