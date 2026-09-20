@@ -102,11 +102,16 @@ if [ -d "Resources" ]; then
     echo ">>> bundled resources: $(find Resources -maxdepth 1 -type f | wc -l | tr -d ' ') files + $(find Resources -maxdepth 1 -type d | tail -n +2 | wc -l | tr -d ' ') dirs"
 fi
 
-# v3.0.44: tweaks/*.dylib 注入用——必须 adhoc 重签名。
-# 注意：macOS codesign 签 iOS dylib 会带 Team ID（dyld 报 "different Team IDs"），
-# 必须用 xerub ldid（brew）生成无 Team ID 的 iOS adhoc 签名（TrollFools 同款）。
+# v3.0.48: tweaks/*.dylib 注入用——必须纯 arm64 + adhoc 签名。
+# 1) arm64e 进程（A12+ 的 App Store App 如豆包）dlopen fat dylib 会选 arm64e slice，
+#    arm64e slice 的 adhoc 签名在 iOS16 dyld 上必报 "code signature invalid"（真机实测）。
+#    lipo -thin arm64 只留 arm64 slice（arm64e 进程可正常 dlopen 纯 arm64 dylib，TrollFools 同款）。
+# 2) ldid 重签（老 xerub ldid 生成的签名 iOS16 也 invalid；CI brew 版为 Procursus 维护版）。
 for d in "$APP"/tweaks/*.dylib; do
     [ -f "$d" ] || continue
+    if lipo -info "$d" 2>/dev/null | grep -q "architectures"; then
+        lipo -thin arm64 "$d" -output "$d.tmp" 2>/dev/null && mv "$d.tmp" "$d" && echo ">>> thinned to arm64: $d"
+    fi
     if command -v ldid >/dev/null 2>&1 && ldid -S "$d" >/dev/null 2>&1; then
         echo ">>> ldid re-signed $d"
     elif codesign -s - -f "$d" >/dev/null 2>&1; then
