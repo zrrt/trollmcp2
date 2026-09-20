@@ -19,7 +19,9 @@ let package = Package(
             path: "CISH",
             cSettings: [
                 // 头文件由 CI 复制到 CISH/include/（build_ish.sh 产物 ish-stage/include/ish）
+                // 双根：wrapper.c 用 "ish/..."，iSH 源码内部用 "fs/.../kernel/.../misc.h" 等
                 .headerSearchPath("include"),
+                .headerSearchPath("include/ish"),
                 .define("GUEST_ARM64", to: "1"),
                 .define("ISH_INTERNAL", to: "1")
             ],
