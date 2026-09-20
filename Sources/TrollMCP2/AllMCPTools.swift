@@ -61,7 +61,7 @@ final class InjectionEnableTool: MCPTool {
 
 final class InjectionDisableTool: MCPTool {
     let definition = ToolDefinition(name: "injection.disable", summary: "移除指定 App 的 dylib 注入（desist=false 时仅关闭、保留持久化副本，可再启用）",
-        parameters: ["bundle_id": "目标 App Bundle ID", "desist": "可选 Bool：是否彻底移除（默认 true；false=关闭插件保留持久化，之后可 injection.restore 重新启用）"])
+        parameters: ["bundle_id": "目标 App Bundle ID", "desist": "可选 Bool：是否彻底移除（默认 true；false=关闭插件保留持久化，之后可 injection.restore 重新启用）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
         let desist = (params["desist"] as? Bool) ?? true
@@ -73,7 +73,7 @@ final class InjectionDisableTool: MCPTool {
 
 final class InjectionEnablePersistedTool: MCPTool {
     let definition = ToolDefinition(name: "injection.enable_persisted", summary: "从持久化区重新启用已关闭的插件（对齐 TrollFools 启用开关：先 injection.disable desist=false 关闭，再本工具启用）",
-        parameters: ["bundle_id": "目标 App Bundle ID"])
+        parameters: ["bundle_id": "目标 App Bundle ID"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
         let result = try InjectionManager.shared.restore(bundleId: bid)
@@ -83,7 +83,7 @@ final class InjectionEnablePersistedTool: MCPTool {
 }
 
 final class InjectionStatusTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.status", summary: "查看注入统计（应用总数/已注入数/工具链）；要拿具体 App 的 bundle_id 请调用 injection.list")
+    let definition = ToolDefinition(name: "injection.status", summary: "查看注入统计（应用总数/已注入数/工具链）；要拿具体 App 的 bundle_id 请调用 injection.list", verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         InjectionManager.shared.status()
     }

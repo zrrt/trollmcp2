@@ -271,3 +271,23 @@
 
 ## 仍开放
 - [ ] 崩溃自动恢复：注入闪退自动检测 → 自动回滚 → 提示用户
+
+## 2026-09-20 v3.0.61 更新
+- [x] 改名 TrollAgent（显示名/包名 com.trollagent.app/URL scheme trollagent/keychain 组同步）
+- [x] 注入类工具全量真机检测（二维码 App com.sawadaru.qr 为标准目标）：
+  - ✅ device.fake（faked + dlopen succeeded）
+  - ✅ injection.enable（静态注入 injected）→ ✅ injection.disable（reverted）→ ✅ injection.enable_persisted（restore ConfigHook）
+  - ✅ injection.status（141 App 扫描） / injection.mem / injection.inspect / injection.list / control.inject（已打）
+  - ✅ probe.inspect（正确响应 ProbeAgent 未就绪）/ hook.apply（applied）
+  - 全部打 verified: true 标签
+- [x] opainject 仓库二进制换 arm64（git 里原 arm64e 是 CI 失败 fallback 隐患 → EBADARCH 85 根因，v3.0.60 修复）
+- [结论] 内存注入对无防护 App 通用（二维码成功）；大厂 App 有防护：
+  - 豆包更新为 Grace.app 后注入失败（__LINKEDIT not found / 读内存失败）
+  - 微信/闲鱼卡死（腾讯/阿里安全 SDK 反注入）
+  - 系统 App（备忘录）无 Team ID 无法 ct_bypass
+- [x] h5gg/MemoryTweak 可删：功能已被内存注入+ControlAgent dylib 覆盖（用户确认）
+- [结论] 持久性：内存注入重启消失；静态注入（injection.enable）持久，非仅 h5gg
+- [x] 设备端定时任务 test_cron（每日提醒/每天测试通知）已删除（automation.stop）
+- [x] 发烫根因：闲鱼测试残留 opainject 卡死进程，重启清除
+- [待办] DeepSeek 在 v3.0.60 后未重测（EBADARCH 已修，应用 arm64 opainject 重测）
+- [待办] 设备端 AI 调用需用新包名 com.trollagent.app 重新授权/配对
