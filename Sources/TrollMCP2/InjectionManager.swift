@@ -1263,7 +1263,7 @@ final class InjectionManager {
                     guard pid > 0 else {
                         throw MCPError.failed("静态注入无可选目标且 App 未启动，无法内存降级（先手动打开 App）")
                     }
-                    let (mc, mo) = injectDylib(pid: pid, dylib: memDylib)
+                    let (mc, mo) = injectDylib(pid: Int(pid), dylib: memDylib)
                     let ok = mo.contains("dlopen succeeded")
                     let alive = findPidByExecutable(bundlePath: app.path) > 0
                     AuditLog.shared.log("injection.mem_fallback", detail: "\(bundleId) ok=\(ok) alive=\(alive)")
