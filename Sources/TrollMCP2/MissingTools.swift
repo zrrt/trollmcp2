@@ -7,7 +7,7 @@ import UserNotifications
 
 final class CalendarCreateEventTool: MCPTool {
     let definition = ToolDefinition(name: "calendar.create_event",
-        summary: "在系统日历创建事件",
+        summary: "Create calendar event: title/date/duration. Use for: schedule meeting.",
         parameters: ["title": "标题", "start": "开始时间 ISO8601", "end": "结束时间 ISO8601（可选，默认+1h）", "notes": "备注（可选）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let title = params["title"] as? String else { throw MCPError.invalidParams("title required") }
@@ -52,7 +52,7 @@ final class CalendarCreateEventTool: MCPTool {
 
 final class ReminderScheduleTool: MCPTool {
     let definition = ToolDefinition(name: "reminder.schedule",
-        summary: "在指定延迟后弹出本地提醒通知",
+        summary: "Schedule one-time reminder. Use for: one-time alert.",
         parameters: ["title": "标题", "body": "内容", "delay_seconds": "多少秒后提醒"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -73,7 +73,7 @@ final class ReminderScheduleTool: MCPTool {
 
 final class ReminderScheduleRecurringTool: MCPTool {
     let definition = ToolDefinition(name: "reminder.schedule_recurring",
-        summary: "周期性弹出本地提醒通知",
+        summary: "Schedule recurring reminder. Use for: periodic alert.",
         parameters: ["title": "标题", "body": "内容", "interval_seconds": "重复间隔秒数"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let title = params["title"] as? String else { throw MCPError.invalidParams("title required") }
@@ -94,7 +94,7 @@ final class ReminderScheduleRecurringTool: MCPTool {
 // MARK: - 设备快照（电池/存储/系统）
 
 final class DeviceSnapshotTool: MCPTool {
-    let definition = ToolDefinition(name: "device.snapshot", summary: "采集设备当前状态：电量/内存/存储/磁盘/系统版本")
+    let definition = ToolDefinition(name: "device.snapshot", summary: "Capture device status: battery/memory/storage/disk/iOS version. Use for: system snapshot.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         UIDevice.current.isBatteryMonitoringEnabled = true
         let battery = UIDevice.current.batteryLevel
@@ -120,7 +120,7 @@ final class DeviceSnapshotTool: MCPTool {
 
 final class WebSearchTool: MCPTool {
     let definition = ToolDefinition(name: "web.search",
-        summary: "联网检索：Bing 优先，失败自动回退 DuckDuckGo，返回标题/链接/摘要",
+        summary: "Search web (Google/Bing). Use for: find information.",
         parameters: ["query": "搜索关键词", "limit": "返回条数（默认 8）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let query = params["query"] as? String, !query.isEmpty else {
@@ -255,7 +255,7 @@ final class WebSearchTool: MCPTool {
 
 final class WebFetchTool: MCPTool {
     let definition = ToolDefinition(name: "web.fetch",
-        summary: "抓取网页原文（HTML→纯文本），用于读取搜索结果链接的完整内容",
+        summary: "Fetch web page content. Use for: read web page.",
         parameters: ["url": "目标链接", "maxChars": "最多返回字符数（默认 4000）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let urlString = params["url"] as? String, let url = URL(string: urlString) else {
@@ -451,7 +451,7 @@ enum BM25Tokenizer {
 
 final class KnowledgeImportTextTool: MCPTool {
     let definition = ToolDefinition(name: "knowledge.import_text",
-        summary: "把文本导入本机知识库",
+        summary: "Import text to knowledge base. Use for: save reference material.",
         parameters: ["name": "条目名", "content": "文本内容"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, let content = params["content"] as? String else {
@@ -467,7 +467,7 @@ final class KnowledgeImportTextTool: MCPTool {
 
 final class KnowledgeImportFileTool: MCPTool {
     let definition = ToolDefinition(name: "knowledge.import_file",
-        summary: "把工作区内文件导入知识库",
+        summary: "Import file to knowledge base. Use for: document ingestion.",
         parameters: ["path": "工作区内相对路径", "name": "条目名（可选）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["path"] as? String else { throw MCPError.invalidParams("path required") }
@@ -485,7 +485,7 @@ final class KnowledgeImportFileTool: MCPTool {
 
 final class KnowledgeSearchTool: MCPTool {
     let definition = ToolDefinition(name: "knowledge.search",
-        summary: "在本机知识库检索（BM25 加权相关度排序，语义优于关键词 contains；无命中自动回退关键词匹配）",
+        summary: "Search knowledge base. Use for: retrieve saved info.",
         parameters: ["query": "查询内容", "limit": "最多返回条数（默认 15，最大 50）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let query = params["query"] as? String, !query.isEmpty else { throw MCPError.invalidParams("query required") }
@@ -515,7 +515,7 @@ final class KnowledgeSearchTool: MCPTool {
 }
 
 final class KnowledgeDeleteTool: MCPTool {
-    let definition = ToolDefinition(name: "knowledge.delete", summary: "删除知识库中的一条条目：按 id 删除，不可恢复。",
+    let definition = ToolDefinition(name: "knowledge.delete", summary: "Delete knowledge entry by id (irreversible). Use for: remove outdated info.",
         parameters: ["name": "条目名"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
@@ -530,7 +530,7 @@ final class KnowledgeDeleteTool: MCPTool {
 // MARK: - 电话
 
 final class PhoneCallTool: MCPTool {
-    let definition = ToolDefinition(name: "phone.call", summary: "打开系统拨号器拨号",
+    let definition = ToolDefinition(name: "phone.call", summary: "Open system dialer. Use for: phone call (may not work on iOS16).",
         parameters: ["number": "电话号码"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let number = params["number"] as? String, !number.isEmpty else { throw MCPError.invalidParams("number required") }
@@ -571,7 +571,7 @@ final class PhoneCallTool: MCPTool {
 
 final class PhoneScheduleCallTool: MCPTool {
     let definition = ToolDefinition(name: "phone.schedule_call",
-        summary: "在延迟后弹出拨号提醒通知（需用户点击）",
+        summary: "Schedule phone call. Use for: timed call.",
         parameters: ["number": "电话号码", "display_name": "显示名（可选）", "delay_seconds": "延迟秒数"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let number = params["number"] as? String, !number.isEmpty else { throw MCPError.invalidParams("number required") }
@@ -594,7 +594,7 @@ final class PhoneScheduleCallTool: MCPTool {
 
 final class SkillsSetEnabledTool: MCPTool {
     let definition = ToolDefinition(name: "skills.set_enabled",
-        summary: "启用/停用某个技能",
+        summary: "Enable/disable skill. Use for: toggle skill availability.",
         parameters: ["name": "技能名", "enabled": "true/false"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }

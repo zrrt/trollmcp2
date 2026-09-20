@@ -11,7 +11,7 @@ import BackgroundTasks
 final class AppDepsTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.deps",
-        summary: "读取目标 App 主二进制与所有 framework 的 Mach-O 依赖树（load commands），输出哪些 framework 是主二进制直接依赖（启动必加载、可注入）vs 仅被二级引用（懒加载、注入无效）",
+        summary: "Show App dependencies (linked dylibs). Use for: check binary linkage.",
         parameters: ["bundle_id": "目标 App Bundle ID"],
         verified: true)
 
@@ -89,7 +89,7 @@ private func openURLSync(_ url: URL) -> Bool {
 final class AppCacheInspectTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.cache_inspect",
-        summary: "扫描已安装应用的缓存大小",
+        summary: "Inspect App cache size. Use for: check cache usage.",
         parameters: ["limit": "返回条数上限，默认 50", "bundle_id": "可选：只查某个 Bundle ID"],
         verified: true)
 
@@ -135,7 +135,7 @@ final class AppCacheInspectTool: MCPTool {
 final class AppCacheClearTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.cache_clear",
-        summary: "清理指定 App 的 Library/Caches 与 tmp 目录",
+        summary: "Clear App cache. Use for: free space.",
         parameters: ["bundle_id": "目标 App Bundle ID", "dry_run": "可选：true 只计算不删除"], verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -212,7 +212,7 @@ enum AppCacheScanner {
 final class AppOpenTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.open",
-        summary: "打开指定 App",
+        summary: "Open App by bundle_id. Use for: launch App.",
         parameters: ["bundle_id": "目标 App Bundle ID"],
     verified: true)
 
@@ -282,7 +282,7 @@ private func waitAgentReady(timeout: TimeInterval = 8) -> Bool {
 final class AppOpenAndInputTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.open_and_input",
-        summary: "打开指定 App，等待 ControlAgent 就绪后输入文本（v4.1 HTTP 链路）",
+        summary: "Open App and input text. Use for: automate App launch.",
         parameters: [
             "bundle_id": "目标 App Bundle ID",
             "text": "要输入的文本",
@@ -336,7 +336,7 @@ final class AppOpenAndInputTool: MCPTool {
 final class AppsControlTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.control",
-        summary: "控制已注入 ControlAgent 的 App（HTTP 直连）：status/ui_tree/tap/swipe/type/scroll",
+        summary: "Control App (launch/stop/restart). Use for: manage App lifecycle.",
         parameters: [
             "bundle_id": "目标 App Bundle ID（提示用）",
             "action": "status | ui_tree | tap | swipe | type | scroll",

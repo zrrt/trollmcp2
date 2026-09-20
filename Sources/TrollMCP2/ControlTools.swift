@@ -191,11 +191,14 @@ final class ControlAgentTools {
                     }
                 }
             }
+            // v3.0.65：同时返回 base64（AI 直接看图，不用读文件）
+            let base64 = data.base64EncodedString()
             return [
                 "screenshot": true,
                 "path": path.path,
                 "size": data.count,
-                "hint": "用 artifact.read_text 或 artifact.find 查看截图"
+                "base64": base64,
+                "hint": "base64 字段直接看图；path 是文件路径备用"
             ]
         }
         return ["error": error ?? "HTTP \(code)"]

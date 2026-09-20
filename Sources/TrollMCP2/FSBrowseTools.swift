@@ -89,7 +89,7 @@ private enum FSPolicy {
 final class FSTreeTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.tree",
-        summary: "浏览文件目录树：App 数据容器（Documents/Library/Caches/Preferences）、App Bundle、工作区。返回条目名称/类型/大小/修改时间，支持深度递归。Filza 式文件浏览。",
+        summary: "Show directory tree. Use for: browse filesystem structure.",
         parameters: [
             "bundle_id": "目标 App Bundle ID（与 path 二选一；填了则浏览该 App 数据容器）",
             "path": "绝对路径（与 bundle_id 二选一；默认工作区根）",
@@ -173,7 +173,7 @@ final class FSTreeTool: MCPTool {
 final class FSReadTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.read",
-        summary: "Read file (text/binary). Use for: inspect file content.",
+        summary: "Read file content (text). Use for: inspect file.",
         parameters: [
             "bundle_id": "目标 App Bundle ID（与 path 二选一；填了则相对容器路径）",
             "relative": "容器内相对路径（bundle_id 模式下用，如 Library/Preferences/xx.plist）",
@@ -338,7 +338,7 @@ final class FSReadTool: MCPTool {
 final class FSHexdumpTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.hexdump",
-        summary: "Hexdump file. Use for: inspect binary file headers.",
+        summary: "Hexdump file. Use for: inspect binary file.",
         parameters: [
             "bundle_id": "目标 App Bundle ID（与 path 二选一）",
             "relative": "容器内相对路径（bundle_id 模式下用）",
@@ -400,7 +400,7 @@ final class FSHexdumpTool: MCPTool {
 final class FSZipTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.zip",
-        summary: "ZIP/IPA 归档浏览：列出全部条目（名称/大小/压缩方式），或读取 zip 内单个文件内容（文本/plist/SQLite/hex 识别）。IPA 本质是 zip，直接用它分析 IPA 内部。",
+        summary: "Create/extract zip archive. Use for: compress/decompress.",
         parameters: [
             "path": "ZIP/IPA 文件绝对路径（必填）",
             "action": "list（默认，列条目）/ read（读条目）",
@@ -497,7 +497,7 @@ final class FSZipTool: MCPTool {
 final class FSSQLTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.sql",
-        summary: "SQLite 数据库只读查询：默认列出数据表，支持 SELECT/PRAGMA 查询（自动加 LIMIT 防止返回过大）。Filza 的 SQLite3 编辑器能力。",
+        summary: "Query SQLite database. Use for: read .sqlite/.db files.",
         parameters: [
             "bundle_id": "目标 App Bundle ID（与 path 二选一）",
             "relative": "容器内相对路径（bundle_id 模式下用，如 Documents/xx.db）",
@@ -591,7 +591,7 @@ final class FSSQLTool: MCPTool {
 final class FSGrepTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.grep",
-        summary: "在目录内搜索文本文件内容（关键词匹配），返回 文件:行号:匹配行。适合找配置、日志、源码里的关键词。",
+        summary: "Search file content by regex. Use for: find text in files.",
         parameters: [
             "dir": "搜索目录（默认工作区；bundle_id 模式看下方）",
             "bundle_id": "目标 App Bundle ID（填了则在该 App 数据容器内搜索）",
@@ -725,7 +725,7 @@ final class FSWriteTool: MCPTool {
 final class FSEditTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.edit",
-        summary: "编辑文本文件：按行号替换（line + new_text）或按原文替换（old + new）。自动备份 .bak。Filza 属性表/文本编辑器写能力。",
+        summary: "Edit file (find/replace). Use for: modify text file.",
         parameters: [
             "path": "绝对路径（或工作区相对路径）",
             "bundle_id": "目标 App Bundle ID（填了则编辑该 App 数据容器）",
@@ -792,7 +792,7 @@ final class FSEditTool: MCPTool {
 final class FSDiffTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.diff",
-        summary: "对比两个文件：文本逐行 diff（+新增/-删除），二进制比大小与 SHA256 与首个差异偏移。用于对比不同版本、备份 vs 当前、配置差异。",
+        summary: "Compare two files. Use for: check file differences.",
         parameters: [
             "path_a": "文件 A（绝对路径或工作区相对路径）",
             "path_b": "文件 B",
@@ -902,7 +902,7 @@ final class FSDiffTool: MCPTool {
 final class FSHashTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.hash",
-        summary: "计算文件哈希（MD5/SHA1/SHA256/SHA512）并返回大小/修改时间/权限。用于下载产物完整性校验、文件去重、对比。",
+        summary: "Get file hash (md5/sha256). Use for: verify file integrity.",
         parameters: [
             "path": "绝对路径（或工作区相对路径）",
             "bundle_id": "目标 App Bundle ID（填了则读该 App 数据容器）",
@@ -964,7 +964,7 @@ final class FSHashTool: MCPTool {
 final class FSFindTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.find",
-        summary: "按文件名关键词在目录内搜索（fs.grep 是搜内容，这个搜文件名），支持扩展名过滤。适合在 App 容器/工作区里找文件。",
+        summary: "Find files by name/pattern. Use for: locate files.",
         parameters: [
             "dir": "搜索目录（默认工作区）",
             "bundle_id": "目标 App Bundle ID（填了则在该 App 数据容器内搜索）",
@@ -1017,7 +1017,7 @@ final class FSFindTool: MCPTool {
 final class FSDownloadTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.download",
-        summary: "从 URL 下载文件到工作区 downloads 目录（http/https），返回本地路径与哈希，供后续 fs.read / fs.zip / ipa.inspect 分析。",
+        summary: "Download file to workspace. Use for: fetch file from URL.",
         parameters: [
             "url": "http/https 下载地址（必填）",
             "filename": "保存的文件名（默认取 URL 最后一段）",
@@ -1075,7 +1075,7 @@ final class FSDownloadTool: MCPTool {
 final class FSPropertyListTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.plist",
-        summary: "Read plist file. Use for: parse Info.plist/entitlements.",
+        summary: "Read plist file. Use for: parse property list.",
         parameters: [
             "bundle_id": "目标 App Bundle ID（与 path 二选一）",
             "relative": "容器内相对路径（bundle_id 模式下用）",
@@ -1250,7 +1250,7 @@ final class FSPropertyListTool: MCPTool {
 final class FSContainerTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.container",
-        summary: "按 bundle_id 返回 App 的完整路径四件套：数据容器、Bundle 目录、Documents、Library、Caches、tmp。AI 定位文件先调它，替代盲目 fs.find。",
+        summary: "Access App container files. Use for: browse App data.",
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）"
         ],
@@ -1286,7 +1286,7 @@ final class FSContainerTool: MCPTool {
 final class FSCrashTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.crash",
-        summary: "读取设备崩溃日志（/var/mobile/Library/Logs/CrashReporter）并解析摘要：异常类型/终止原因/触发线程/栈顶帧。可按 bundle_id 过滤最近崩溃，用于诊断启动闪退。",
+        summary: "Analyze crash report. Use for: debug crashes.",
         parameters: [
             "bundle_id": "按进程名或 Bundle ID 过滤（可选）",
             "limit": "返回最近崩溃条数（默认 3，最大 10）",

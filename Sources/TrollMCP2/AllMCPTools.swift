@@ -102,7 +102,9 @@ final class InjectionListTool: MCPTool {
     // v2.9.41：检索式——query 按名称/bundle_id 模糊匹配，只返回命中项，不再全量 266 条塞给 AI
     let definition = ToolDefinition(name: "injection.list", 
         summary: "Search installed apps by keyword. Use for: find bundle_id for injection.",
-        parameters: ["query": "搜索关键字（App 名称或 bundle_id 片段，可选）；不带则只返回前 20 条"], verified: true)
+        parameters: ["query": "搜索关键字（App 名称或 bundle_id 片段，可选）；不带则只返回前 20 条"],,
+        returns: ["apps": "List of matching apps (bundle_id + name)", "count": "Number of results"]
+        verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let apps = AppCatalog.list()
         let q = (params["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -125,7 +127,7 @@ final class InjectionListTool: MCPTool {
 }
 
 final class ContainerWriteTextTool: MCPTool {
-    let definition = ToolDefinition(name: "container.write_text", summary: "向指定 App 容器写入文本文件",
+    let definition = ToolDefinition(name: "container.write_text", summary: "Write text file to App container (DANGEROUS). Use for: modify App data.",
         parameters: ["bundle_id": "目标 App", "path": "容器内路径", "content": "文本内容"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String,
@@ -147,7 +149,7 @@ final class ContainerWriteTextTool: MCPTool {
 // MARK: - M4 Gateway 工具
 
 final class GatewayStatusTool: MCPTool {
-    let definition = ToolDefinition(name: "gateway.status", summary: "查看 Gateway 连接状态")
+    let definition = ToolDefinition(name: "gateway.status", summary: "[DEPRECATED] Gateway status removed.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         [
             "connected": GatewayClient.shared.isConnected,
@@ -158,7 +160,7 @@ final class GatewayStatusTool: MCPTool {
 }
 
 final class GatewayConnectTool: MCPTool {
-    let definition = ToolDefinition(name: "gateway.connect", summary: "连接到 Gateway 服务端",
+    let definition = ToolDefinition(name: "gateway.connect", summary: "[DEPRECATED] Gateway connect removed.",
         parameters: ["url": "WebSocket URL ws://...", "token": "配对令牌（可选）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let url = params["url"] as? String else { throw MCPError.invalidParams("url required") }
@@ -170,7 +172,7 @@ final class GatewayConnectTool: MCPTool {
 }
 
 final class CronFireTool: MCPTool {
-    let definition = ToolDefinition(name: "cron.fire", summary: "触发一次定时任务（cron.fire 由调度器在到点调用；也可手动触发验证任务逻辑）。返回任务执行结果。",
+    let definition = ToolDefinition(name: "cron.fire", summary: "Trigger scheduled task manually. Use for: test cron task logic.",
         parameters: ["task": "任务名"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let task = params["task"] as? String ?? "unnamed"
@@ -182,7 +184,7 @@ final class CronFireTool: MCPTool {
 // MARK: - M4 自动化工具（真实 UNUserNotificationCenter 调度）
 
 final class AutomationRunNowTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.run_now", summary: "立即执行一个自动化任务（真实投递通知）",
+    let definition = ToolDefinition(name: "automation.run_now", summary: "Run automation task immediately. Use for: execute scheduled task now.",
         parameters: ["name": "任务名或 id"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
@@ -214,7 +216,7 @@ final class AutomationListTool: MCPTool {
 }
 
 final class AutomationJobsTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.jobs", summary: "查看待触发的自动化任务与通知授权状态")
+    let definition = ToolDefinition(name: "automation.jobs", summary: "Show pending automation tasks and notification auth status. Use for: check task queue.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let store = AutomationStore.shared
         let status = AutomationSchedulerStatus()
@@ -243,7 +245,7 @@ final class AutomationStopTool: MCPTool {
 }
 
 final class AutomationStatusTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.status", summary: "查看自动化引擎运行状态：是否运行、当前任务、队列长度、最近执行记录。")
+    let definition = ToolDefinition(name: "automation.status", summary: "Show automation engine status: running/current task/queue/recent records. Use for: monitor automation.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         [
             "engine": "UNUserNotificationCenter",
@@ -277,7 +279,7 @@ func AutomationSchedulerStatus() -> String {
 // MARK: - M5 系统能力工具
 
 final class ContactsSearchTool: MCPTool {
-    let definition = ToolDefinition(name: "contacts.search", summary: "搜索通讯录联系人",
+    let definition = ToolDefinition(name: "contacts.search", summary: "Search contacts. Use for: find contact.",
         parameters: ["query": "搜索关键词"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let query = params["query"] as? String ?? ""
@@ -306,7 +308,7 @@ final class ContactsSearchTool: MCPTool {
 }
 
 final class CalendarListTool: MCPTool {
-    let definition = ToolDefinition(name: "calendar.list", summary: "列出近期日历事件",
+    let definition = ToolDefinition(name: "calendar.list", summary: "List upcoming calendar events. Use for: check schedule.",
         parameters: ["days": "往后多少天，默认 7"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let days = params["days"] as? Int ?? 7
@@ -328,7 +330,7 @@ final class CalendarListTool: MCPTool {
 }
 
 final class ReminderCreateTool: MCPTool {
-    let definition = ToolDefinition(name: "reminder.create", summary: "创建一条提醒事项：标题/时间/是否重复。返回创建结果与标识。",
+    let definition = ToolDefinition(name: "reminder.create", summary: "Create reminder: title/time/repeat. Use for: schedule reminder.",
         parameters: ["title": "标题", "notes": "备注（可选）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let title = params["title"] as? String else { throw MCPError.invalidParams("title required") }
@@ -343,7 +345,7 @@ final class ReminderCreateTool: MCPTool {
 }
 
 final class LocationGetTool: MCPTool {
-    let definition = ToolDefinition(name: "location.get", summary: "获取当前设备位置")
+    let definition = ToolDefinition(name: "location.get", summary: "Get current device location. Use for: GPS coordinates.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let mgr = LocationProvider.shared
         return [
@@ -372,7 +374,7 @@ final class NotificationSendTool: MCPTool {
 }
 
 final class ScanQRTool: MCPTool {
-    let definition = ToolDefinition(name: "scan.qr", summary: "从图片识别二维码/条码",
+    let definition = ToolDefinition(name: "scan.qr", summary: "Scan QR/barcode from image. Use for: decode QR code.",
         parameters: ["image_path": "工作区内图片路径"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["image_path"] as? String else { throw MCPError.invalidParams("image_path required") }
@@ -405,7 +407,7 @@ final class ProcessListTool: MCPTool {
 // MARK: - M6 编译模式工具
 
 final class BuildRunnerTokenTool: MCPTool {
-    let definition = ToolDefinition(name: "build.runner.token", summary: "编译模式：生成/验证编译令牌",
+    let definition = ToolDefinition(name: "build.runner.token", summary: "Build mode: generate/verify build token. Use for: CI build auth.",
         parameters: ["action": "generate 或 verify"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = params["action"] as? String ?? "generate"
@@ -419,7 +421,7 @@ final class BuildRunnerTokenTool: MCPTool {
 }
 
 final class ProjectGenerateTweakTool: MCPTool {
-    let definition = ToolDefinition(name: "project.generate_tweak", summary: "生成 Tweak 项目模板（Makefile + Tweak.x + plist）",
+    let definition = ToolDefinition(name: "project.generate_tweak", summary: "Generate Tweak project template (Makefile + Tweak.x + plist). Use for: start tweak project.",
         parameters: ["name": "项目名", "bundle_id": "目标 App（可选）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let name = params["name"] as? String ?? "MyTweak"
@@ -465,7 +467,7 @@ final class ProjectGenerateTweakTool: MCPTool {
 }
 
 final class ModelConfigTool: MCPTool {
-    let definition = ToolDefinition(name: "model.config", summary: "查看/管理模型配置",
+    let definition = ToolDefinition(name: "model.config", summary: "View/manage model configuration. Use for: check LLM settings.",
         parameters: ["action": "list 或 default"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = params["action"] as? String ?? "list"
@@ -482,7 +484,7 @@ final class ModelConfigTool: MCPTool {
 /// v2.9.299：远程修改模型配置（AI 诊断时可帮用户切换模型名/协议，无需手动设置）
 final class ModelUpdateTool: MCPTool {
     let definition = ToolDefinition(name: "model.update",
-        summary: "修改模型配置（按 name 定位，支持改 model/baseURL/apiProtocol/contextTokens/isDefault）。改完即时保存生效，下次请求使用新配置。",
+        summary: "Update model config (by name). Use for: modify LLM settings.",
         parameters: ["name": "要修改的配置名（如 deepseek）", "model": "新模型名（可选）", "baseURL": "新 Base URL（可选）", "apiProtocol": "协议（可选：OpenAI Chat Completions / OpenAI Responses / Anthropic Messages / Custom Endpoint）", "contextTokens": "上下文预算（可选）", "isDefault": "是否设为默认（可选 bool）", "resetCompat": "重置兼容级别为0（可选 bool）"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -575,7 +577,7 @@ final class ToolHealthTool: MCPTool {
 }
 
 final class WorkspaceInfoTool: MCPTool {
-    let definition = ToolDefinition(name: "workspace.info", summary: "查看工作区信息：路径、可用空间、目录结构。用于定位产物与下载目录。")
+    let definition = ToolDefinition(name: "workspace.info", summary: "Show workspace info: path, free space, directory structure. Use for: locate files.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let fm = FileManager.default
         let items = (try? fm.contentsOfDirectory(atPath: Workspace.root.path)) ?? []

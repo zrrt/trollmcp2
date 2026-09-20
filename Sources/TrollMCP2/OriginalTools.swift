@@ -284,7 +284,7 @@ final class GatewayNodeInvokeTool: MCPTool {
 // MARK: - 原版缺失工具：automation.*
 
 final class AutomationCancelTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.cancel", summary: "取消正在运行的自动化任务（真实移除通知）",
+    let definition = ToolDefinition(name: "automation.cancel", summary: "Cancel scheduled automation. Use for: stop task.",
         parameters: ["name": "任务名或 id"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
@@ -299,7 +299,7 @@ final class AutomationCancelTool: MCPTool {
 }
 
 final class AutomationHistoryTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.history", summary: "查询自动化任务执行历史")
+    let definition = ToolDefinition(name: "automation.history", summary: "Show automation execution history. Use for: review past runs.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let entries = AutomationStore.shared.history.prefix(50)
         return [
@@ -310,7 +310,7 @@ final class AutomationHistoryTool: MCPTool {
 }
 
 final class AutomationSetEnabledTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.set_enabled", summary: "启用/停用自动化任务",
+    let definition = ToolDefinition(name: "automation.set_enabled", summary: "Enable/disable automation. Use for: toggle task.",
         parameters: ["name": "任务名", "enabled": "true/false"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String,

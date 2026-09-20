@@ -20,7 +20,7 @@ final class BinarySymbolsTool: MCPTool {
 
         name: "binary.symbols",
 
-        summary: "提取二进制文件的符号：Objective-C class/selector/protocol、Swift 符号、字符串、导入导出函数。支持搜索过滤。用于逆向分析和 hook 开发。",
+        summary: "Extract binary symbols (ObjC class/selector/protocol, Swift, strings). Use for: analyze binary structure.",
 
         parameters: [
 
@@ -300,7 +300,7 @@ final class PluginTool: MCPTool {
 
         name: "plugin.list",
 
-        summary: "列出已安装的插件（内置 dylib + 用户插件目录）。支持启用/禁用插件。",
+        summary: "List installed plugins (built-in dylib + user plugins). Enable/disable. Use for: check plugin status.",
 
         parameters: [
 
@@ -473,7 +473,7 @@ final class CompatibilityTool: MCPTool {
         name: "compat.check",
 
 
-        summary: "查询/记录 App 版本 + iOS 版本 + dylib 的注入兼容矩阵。自动标记已知可用/不兼容/未测试。",
+        summary: "Query/record App version + iOS version + dylib injection compatibility matrix. Use for: track injection success/failure.",
 
         parameters: [
 
@@ -566,7 +566,7 @@ final class CrashReproTool: MCPTool {
 
         name: "crash.repro_template",
 
-        summary: "根据崩溃日志自动生成 Logos hook 模板，用于在下一次运行时捕获触发崩溃的参数和调用顺序。输出可直接编译的 Tweak.x 代码。",
+        summary: "Auto-generate Logos hook template from crash log. Use for: reproduce crash conditions.",
 
         parameters: [
 
@@ -944,9 +944,16 @@ final class InjectionMemTool: MCPTool {
         name: "injection.mem",
         summary: "Memory injection: inject dylib into running target App via opainject (task_for_pid + ROP dlopen). No file change, zero residual, auto-removed on restart. Use for: temporary testing/probing.",
         parameters: [
-            "bundle_id": "目标 App Bundle ID（必填）",
-            "dylib_path": "要注入的 dylib 绝对路径（可选，不填则用内置 tweaks/ProbeAgent.dylib）",
-            "auto_launch": "App 未运行时是否尝试自动启动（true/false，默认 true）"
+            "bundle_id": "Target App bundle_id (required)",
+            "dylib_path": "dylib absolute path (optional, default built-in tweaks/ProbeAgent.dylib)",
+            "auto_launch": "Auto-launch if not running (default true)"
+        ],
+        returns: [
+            "status": "injected_alive_http / injected_alive_nohttp / injected_crashed / failed",
+            "pid": "Target App process id",
+            "app_alive": "true if App still running after injection",
+            "http_ready": "true if localhost:4791 HTTP server is up",
+            "note": "Human-readable result explanation"
         ],
         verified: true
     )
@@ -1299,7 +1306,7 @@ final class DeviceFakeTool: MCPTool {
 final class DeviceRestoreTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.restore",
-        summary: "还原设备伪装：删除 fake_device.json 并还原目标 App 真实设备信息。内存注入版：杀掉 App 进程即完全还原（零残留）；若之前是文件注入则完整卸载注入。",
+        summary: "Restore device spoofing: remove fake_device.json and restore real device info. Use for: undo device.fake.",
         parameters: ["bundle_id": "目标 App Bundle ID（必填）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -1405,7 +1412,7 @@ final class AppEntitlementsTool: MCPTool {
 final class KeychainWipeTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.keychain_wipe",
-        summary: "清理指定 App 的钥匙串条目：按目标 App 的 keychain-access-groups 用 SecItemDelete 精确删除（密码/令牌/密钥）。跨组删除受系统权限限制时给出提示",
+        summary: "Wipe target App keychain items by keychain-access-groups. Use for: reset login state.",
         parameters: ["bundle_id": "目标 App Bundle ID（必填）"]
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -1489,7 +1496,7 @@ final class KeychainWipeTool: MCPTool {
 final class AdvertisingTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.advertising",
-        summary: "读取广告标识符 IDFA 与追踪限制状态；action=reset 尝试刷新广告符（私有 API，iOS14+ 受系统限制时如实返回）",
+        summary: "Read IDFA and tracking limit status. action=reset to refresh (private API, iOS14+ limited). Use for: ad identifier management.",
         parameters: ["action": "read（默认）/ reset"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -1519,7 +1526,7 @@ final class AdvertisingTool: MCPTool {
 final class IdfvTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.idfv",
-        summary: "读取设备级 IDFV 与目标 App 的 identifierForVendor，可用于设备指纹核对/复制",
+        summary: "Read IDFV and target App identifierForVendor. Use for: device fingerprint check.",
         parameters: ["bundle_id": "可选：目标 App Bundle ID"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -1538,7 +1545,7 @@ final class IdfvTool: MCPTool {
 final class RefreshContainerTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.refresh_container",
-        summary: "刷新指定 App 的数据容器：把现有容器改名备份（数据保留），杀进程后系统重建空容器（等于重置 App 数据但可恢复）。传 restore=true 把备份恢复回去",
+        summary: "Refresh target App data container: rename backup, kill process, system rebuilds empty container (reset but restorable). Use for: App data reset.",
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "restore": "true 时把上次备份目录恢复回原容器"
@@ -1609,7 +1616,7 @@ private func httpGet(port: Int, path: String, timeout: TimeInterval = 4) -> (Int
 final class NewDeviceTool: MCPTool {
     let definition = ToolDefinition(
         name: "automation.new_device",
-        summary: "一键新机：广告符刷新 + 设备伪装写入。v2.9.312 起已移除整机 keychain 清空功能（太危险）。传 bundle_id 则同时向目标 App 内存注入 FakeDevice.dylib",
+        summary: "One-click new device: ad refresh + device spoofing. Use for: fresh device identity.",
         parameters: [
             "bundle_id": "目标 App Bundle ID（可选；传入则写伪装配置后立即内存注入 FakeDevice.dylib）",
             "name": "伪装机型名称（默认 iPhone 16 Pro Max）",
@@ -1681,7 +1688,7 @@ final class NewDeviceTool: MCPTool {
 final class AiAnalyzeTool: MCPTool {
     let definition = ToolDefinition(
         name: "ai.analyze_app",
-        summary: "AI 分析引擎（v2.9.100）：注入 ProbeAgent 采集目标 App 类结构 → 当前模型 LLM 分析生成 hook 方案（methodLog 方法日志 + UI 配色）→ 自动写 hook_config.json 并注入 ConfigHook 生效。适合 VIP / 去广告 / 绕过检测 / UI 定制方向",
+        summary: "AI analyze engine: inject ProbeAgent → collect App class structure → LLM analysis. Use for: understand App internals.",
         parameters: [
             "bundle_id": "目标 App Bundle ID（必填）",
             "direction": "分析方向：vip / 去广告 / 绕过检测 / 全面 / 自定义（默认 全面）",

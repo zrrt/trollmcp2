@@ -6,7 +6,7 @@ import UIKit
 final class ArtifactReadTextTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.read_text",
-        summary: "读取工作区内文件的文本内容",
+        summary: "Read artifact as text. Use for: inspect file content.",
         parameters: ["path": "工作区内相对路径"], verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -22,7 +22,7 @@ final class ArtifactReadTextTool: MCPTool {
 final class ArtifactWriteTextTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.write_text",
-        summary: "向工作区写入文本文件（覆盖）",
+        summary: "Write text artifact. Use for: create file.",
         parameters: ["path": "工作区内相对路径", "content": "文本内容"], verified: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -43,7 +43,7 @@ final class ArtifactWriteTextTool: MCPTool {
 final class ArtifactListTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.list",
-        summary: "列出工作区目录内容（若路径是文件则返回该文件信息，不报错）",
+        summary: "List artifacts by type. Use for: browse files.",
         parameters: ["subpath": "可选子目录或文件路径"],
     verified: true)
 
@@ -88,7 +88,7 @@ final class ArtifactListTool: MCPTool {
 final class ArtifactFindTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.find",
-        summary: "递归查找工作区文件：按扩展名（如 dylib、deb）或文件名片段搜索，返回路径与大小。下载的编译产物用它定位注入源。",
+        summary: "Find artifact by name/pattern. Use for: locate file.",
         parameters: ["ext": "扩展名（不带点，如 dylib/deb/ipa）", "name": "文件名包含片段（可选）", "max_depth": "最大递归深度（默认 8）", "limit": "最多返回条数（默认 20）"],
     verified: true)
 

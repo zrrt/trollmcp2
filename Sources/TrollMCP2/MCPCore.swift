@@ -6,14 +6,17 @@ public struct ToolDefinition {
     public let name: String
     public let summary: String
     public let parameters: [String: String]
+    /// v3.0.65：返回值说明——AI 知道工具返回什么字段
+    public let returns: [String: String]
     /// v2.9.184：真机实测标记——true 表示该工具已在真机远程终端验证过（成功或明确报错分类），
     /// 未验证的工具保持 false，避免"看起来能用"的假象。
     public let verified: Bool
 
-    public init(name: String, summary: String, parameters: [String: String] = [:], verified: Bool = false) {
+    public init(name: String, summary: String, parameters: [String: String] = [:], returns: [String: String] = [:], verified: Bool = false) {
         self.name = name
         self.summary = summary
         self.parameters = parameters
+        self.returns = returns
         self.verified = verified
     }
 
