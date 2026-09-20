@@ -983,7 +983,7 @@ final class InjectionMemTool: MCPTool {
         }
 
         AuditLog.shared.log("injection.mem", detail: "\(bundleId) pid=\(targetPid)")
-        let (exit, output) = InjectionManager.shared.runAsRoot("opainject", args: ["\(targetPid)", dylibPath])
+        let (exit, output) = InjectionManager.shared.injectDylib(pid: targetPid, dylib: dylibPath)
         let success = output.contains("dlopen succeeded") || (exit == 0 && output.contains("handle"))
         return [
             "status": success ? "injected" : "failed",
@@ -1032,7 +1032,7 @@ final class ProbeInspectTool: MCPTool {
             } else {
                 let dylib = ProcessHelper.tweakPath("ProbeAgent.dylib") ?? ""
                 if !dylib.isEmpty {
-                    let (_, out) = InjectionManager.shared.runAsRoot("opainject", args: ["\(pid)", dylib])
+                    let (_, out) = InjectionManager.shared.injectDylib(pid: pid, dylib: dylib)
                     probeInjected = out.contains("dlopen succeeded")
                 }
             }
@@ -1048,7 +1048,7 @@ final class ProbeInspectTool: MCPTool {
             if let pid = pid {
                 let dylib = ProcessHelper.tweakPath("ProbeAgent.dylib") ?? ""
                 if !dylib.isEmpty {
-                    let (_, out) = InjectionManager.shared.runAsRoot("opainject", args: ["\(pid)", dylib])
+                    let (_, out) = InjectionManager.shared.injectDylib(pid: pid, dylib: dylib)
                     probeInjected = out.contains("dlopen succeeded")
                 }
             }
@@ -1256,7 +1256,7 @@ final class DeviceFakeTool: MCPTool {
         guard let targetPid = pid else {
             return ["error": "目标 App 未能启动，无法内存注入", "hint": "手动打开目标 App 后重试"]
         }
-        let (exit, output) = InjectionManager.shared.runAsRoot("opainject", args: ["\(targetPid)", dylib])
+        let (exit, output) = InjectionManager.shared.injectDylib(pid: targetPid, dylib: dylib)
         let ok = output.contains("dlopen succeeded") || (exit == 0 && output.contains("handle"))
         AuditLog.shared.log("device.fake.mem", detail: "\(bundleId) pid=\(targetPid) ok=\(ok)")
         return [
@@ -1703,7 +1703,7 @@ final class AiAnalyzeTool: MCPTool {
             } else {
                 let dylib = ProcessHelper.tweakPath("ProbeAgent.dylib") ?? ""
                 if !dylib.isEmpty {
-                    let (_, out) = InjectionManager.shared.runAsRoot("opainject", args: ["\(pid)", dylib])
+                    let (_, out) = InjectionManager.shared.injectDylib(pid: pid, dylib: dylib)
                     probeInjected = out.contains("dlopen succeeded")
                 }
             }
@@ -1719,7 +1719,7 @@ final class AiAnalyzeTool: MCPTool {
             if let pid = pid {
                 let dylib = ProcessHelper.tweakPath("ProbeAgent.dylib") ?? ""
                 if !dylib.isEmpty {
-                    let (_, out) = InjectionManager.shared.runAsRoot("opainject", args: ["\(pid)", dylib])
+                    let (_, out) = InjectionManager.shared.injectDylib(pid: pid, dylib: dylib)
                     probeInjected = out.contains("dlopen succeeded")
                 }
             }

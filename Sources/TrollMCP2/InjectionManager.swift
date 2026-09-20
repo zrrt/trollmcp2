@@ -316,6 +316,18 @@ final class InjectionManager {
         return (r.code, r.rawStdout)
     }
 
+    /// v3.0.46：设备端注入——先 ldid -S 重签 dylib（iOS 原生 adhoc，无 Team ID），再 opainject dlopen。
+    /// 打包/TrollStore 安装后的 dylib 签名可能带 Team ID，opainject dlopen 报 "different Team IDs"（真机实测）。
+    /// 设备端 ldid 重签生成 adhoc 签名，dyld 放行（TrollFools 同款做法）。
+    @discardableResult
+    func injectDylib(pid: Int, dylib: String, timeout: Double = 60) -> (Int32, String) {
+        let (sc, so) = runAsRoot("ldid", args: ["-S", dylib], timeout: 20)
+        if sc != 0 {
+            return (sc, "ldid -S 失败(\(sc)) \(so.prefix(300))")
+        }
+        return runAsRoot("opainject", args: ["\(pid)", dylib], timeout: timeout)
+    }
+
     /// 非 root 版 posix_spawn（部分场景需要 mobile 身份执行）。
     /// v2.9.126：加 timeout（默认 60s，超时 SIGKILL 返回 code=-2），防命令挂起卡死。
     /// v2.9.281：argv[0] 必须放可执行路径——posix_spawn 的 argv[0] 是程序名惯例，
