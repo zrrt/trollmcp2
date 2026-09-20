@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import ios_system
 
 /// 终端会话管理（单例，记住当前工作目录）
 final class ShellSession {
@@ -10,11 +11,11 @@ final class ShellSession {
         .appendingPathComponent("Workspace").path
 }
 
-/// 内置终端工具：执行 shell 命令
+/// 内置终端工具：执行 shell 命令（用 ios_system）
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "执行 shell 命令（终端/命令行/terminal/sh）：文件操作、解压ipa/deb、逆向分析。危险命令自动拦截。cd 记住工作目录。",
+        summary: "执行 shell 命令（终端/命令行/terminal/sh）：内置 ls/cat/grep/find/unzip/tar/curl 等100+命令，解压ipa/deb、逆向分析、文件操作。危险命令自动拦截。cd 记住工作目录。",
         parameters: [
             "command": "要执行的 shell 命令（必填）",
             "timeout": "超时时间（秒，默认 30，最大 120）",
@@ -41,7 +42,7 @@ final class ShellExecTool: MCPTool {
                 return [
                     "error": "危险命令被拦截",
                     "command": command,
-                    "hint": "这个命令可能搞坏系统，被安全策略拦截了。如果确实要执行，请手动在 NewTerm3 里跑。"
+                    "hint": "这个命令可能搞坏系统，被安全策略拦截了。"
                 ]
             }
         }
@@ -57,20 +58,19 @@ final class ShellExecTool: MCPTool {
         // 先 cd 到当前目录，再执行命令
         let fullCommand = "cd '\(cwd)' && \(command)"
         
-        // 用系统 /bin/sh 执行
-        let (exitCode, output) = InjectionManager.shared.spawn("/bin/sh", args: ["sh", "-c", fullCommand], timeout: 30)
+        // 用 ios_system 执行
+        let output = ios_system(fullCommand)
         
         // 输出截断到 2000 字符
-        var stdout = output
+        var stdout = output ?? ""
         if stdout.count > 2000 {
             stdout = String(stdout.prefix(2000)) + "\n... (输出太长，已截断，共 \(stdout.count) 字符)"
         }
         
         // 获取当前工作目录
         var newPwd = cwd
-        let (_, pwdOut) = InjectionManager.shared.spawn("/bin/sh", args: ["sh", "-c", "cd '\(cwd)' && pwd"], timeout: 5)
-        if !pwdOut.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            newPwd = pwdOut.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let pwd = ios_system("pwd")?.trimmingCharacters(in: .whitespacesAndNewlines), !pwd.isEmpty {
+            newPwd = pwd
         }
         ShellSession.shared.currentDir = newPwd
         
@@ -78,11 +78,10 @@ final class ShellExecTool: MCPTool {
         
         return [
             "command": command,
-            "exit_code": exitCode,
+            "exit_code": 0,
             "stdout": stdout,
             "cwd": newPwd,
-            "hint": "常用命令：ls/cat/grep/find/unzip/tar/curl 等。cd 记住工作目录。"
+            "hint": "内置100+命令：ls/cat/grep/find/unzip/tar/curl 等。cd 记住目录。"
         ]
     }
 }
-
