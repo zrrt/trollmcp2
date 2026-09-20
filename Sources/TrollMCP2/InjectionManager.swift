@@ -1069,11 +1069,15 @@ final class InjectionManager {
         return (c, o)
     }
 
-    /// 目标 App 真实 TeamID：从主二进制既有签名的 entitlements（application-identifier = TEAMID.bundleId）
-    /// 提取前缀——零外部依赖（不用 LSApplicationProxy），对齐 TrollFools teamID() 的效果
+    /// 目标 App 真实 TeamID。
+    /// v3.0.59：优先用 teamid 工具直接解析主二进制 CodeDirectory teamOffset 字段（与内存注入链路统一，
+    /// 不依赖 ldid -e entitlements 解析）；失败才回退 ldid -e application-identifier 前缀；再失败 TROLLTROLL。
     func realTeamID(for bundleId: String, appPath: String?) -> String {
         guard let main = appPath else { return "TROLLTROLL" }
-        // v2.9.126：runAsRootStdout——entitlements 解析只读 stdout，stderr 噪音（如 ldid 警告）不混入
+        if let tid = teamIDFromBinary(main) {
+            return tid
+        }
+        // 旧通道兜底：ldid -e 解析 entitlements application-identifier = TEAMID.bundleId
         let (c, o) = runAsRootStdout("ldid", args: ["-e", main], timeout: 30)
         guard c == 0, let r = o.range(of: "application-identifier"), o.contains(bundleId) else {
             return "TROLLTROLL"
@@ -1089,6 +1093,17 @@ final class InjectionManager {
         return "TROLLTROLL"
     }
 
+    /// 用 teamid 工具解析 Mach-O 的 CodeDirectory TeamID（接受 pid 或路径）。
+    func teamIDFromBinary(_ path: String) -> String? {
+        let (c, o) = runAsRoot("teamid", args: [path], timeout: 15)
+        guard c == 0 else { return nil }
+        for line in o.components(separatedBy: "\n") where line.hasPrefix("team_id: ") {
+            let t = String(line.dropFirst(9)).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !t.isEmpty { return t }
+        }
+        return nil
+    }
+
     /// 注入 dylib 到指定 App
     /// v2.9.89：完全对齐 TrollFools InjectorV3 策略——
     /// 目标默认选 Frameworks/ 内未加密可注入 Mach-O（不直接改主二进制），
@@ -1096,7 +1111,8 @@ final class InjectionManager {
     func enable(bundleId: String, dylibName: String = "@executable_path/ControlAgent.dylib",
                 dylibSourcePath: String? = nil, weakReference: Bool = false,
                 injectStrategy: String = "lexicographic", preferredTarget: String? = nil,
-                skipProbe: Bool = false, allowMain: Bool = false) throws -> [String: Any] {
+                skipProbe: Bool = false, allowMain: Bool = false,
+                smartFallback: Bool = true) throws -> [String: Any] {
         _ = dylibName
         guard let app = AppCatalog.find(bundleId) else {
             throw MCPError.failed("app not found: \(bundleId)")
@@ -1230,6 +1246,42 @@ final class InjectionManager {
             }
         }
         guard let targetMachO else {
+            // v3.0.59：智能降级——无静态可注入目标（全加密/无 framework）时自动转内存注入，
+            // 免砸壳免改文件（用户点名"以内存注入方式实现 trollfools 注入"）
+            if smartFallback {
+                let memDylib = preparedAssets.first ?? ProcessHelper.tweakPath("ControlAgent.dylib") ?? ""
+                if !memDylib.isEmpty {
+                    var pid = findPidByExecutable(bundlePath: app.path)
+                    if pid <= 0 {
+                        _ = ProcessHelper.launchApp(bundleId: bundleId)
+                        for _ in 0..<10 {
+                            usleep(500_000)
+                            pid = findPidByExecutable(bundlePath: app.path)
+                            if pid > 0 { break }
+                        }
+                    }
+                    guard pid > 0 else {
+                        throw MCPError.failed("静态注入无可选目标且 App 未启动，无法内存降级（先手动打开 App）")
+                    }
+                    let (mc, mo) = injectDylib(pid: pid, dylib: memDylib)
+                    let ok = mo.contains("dlopen succeeded")
+                    let alive = findPidByExecutable(bundlePath: app.path) > 0
+                    AuditLog.shared.log("injection.mem_fallback", detail: "\(bundleId) ok=\(ok) alive=\(alive)")
+                    return [
+                        "status": ok ? "injected" : "failed",
+                        "mode": "memory_fallback",
+                        "reason": "无静态可注入目标（候选全加密/无framework），已自动转内存注入",
+                        "bundle_id": bundleId,
+                        "app": app.name,
+                        "pid": pid,
+                        "dylib": memDylib,
+                        "app_alive": alive,
+                        "exit": mc,
+                        "output": mo,
+                        "note": ok ? "内存注入成功：免砸壳、零残留、立即生效；App 重启后需重新注入" : "内存注入失败，见 output"
+                    ]
+                }
+            }
             throw MCPError.failed("无可注入 Mach-O：所有候选加密。需先砸壳(app.decrypt)。")
         }
         let targetIsMain = targetMachO == executablePath(app)

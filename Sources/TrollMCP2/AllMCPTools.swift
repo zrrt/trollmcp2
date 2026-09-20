@@ -9,8 +9,8 @@ import Vision
 // MARK: - M3 注入工具
 
 final class InjectionEnableTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.enable", summary: "向指定 App 注入插件（dylib/framework/zip/deb，对齐 TrollFools：自动内置 CydiaSubstrate + 多资产 + 注入策略）",
-        parameters: ["bundle_id": "目标 App Bundle ID", "dylib_path": "插件本地路径（.dylib/.framework/.zip/.deb，如 Workspace/downloads/.../xxx.deb），缺省注入内置 ControlAgent.dylib", "weak_reference": "可选 Bool：是否弱引用注入（默认 false 强引用，对齐 TrollFools）", "inject_strategy": "可选 String：注入目标选择策略 lexicographic（默认）/fast（文件小优先）/preorder/postorder，对齐 TrollFools Strategy"])
+    let definition = ToolDefinition(name: "injection.enable", summary: "向指定 App 注入插件（dylib/framework/zip/deb，对齐 TrollFools：自动内置 CydiaSubstrate + 多资产 + 注入策略）。v3.0.59 智能注入：无静态可注入目标（全加密/无framework）时自动降级内存注入（免砸壳免改文件），Team ID 用 teamid 工具解析。",
+        parameters: ["bundle_id": "目标 App Bundle ID", "dylib_path": "插件本地路径（.dylib/.framework/.zip/.deb，如 Workspace/downloads/.../xxx.deb），缺省注入内置 ControlAgent.dylib", "weak_reference": "可选 Bool：是否弱引用注入（默认 false 强引用，对齐 TrollFools）", "inject_strategy": "可选 String：注入目标选择策略 lexicographic（默认）/fast（文件小优先）/preorder/postorder，对齐 TrollFools Strategy", "smart_fallback": "可选 Bool：无可静态注入目标时自动降级内存注入（默认 true）"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
         let dylibPath = params["dylib_path"] as? String
@@ -28,7 +28,7 @@ final class InjectionEnableTool: MCPTool {
                 loadName = "@executable_path/\((p as NSString).lastPathComponent)"
             }
         }
-        let result = try InjectionManager.shared.enable(bundleId: bid, dylibName: loadName, dylibSourcePath: source, weakReference: weakRef, injectStrategy: strategy)
+        let result = try InjectionManager.shared.enable(bundleId: bid, dylibName: loadName, dylibSourcePath: source, weakReference: weakRef, injectStrategy: strategy, smartFallback: (params["smart_fallback"] as? Bool) ?? true)
         AuditLog.shared.log("injection.enable", detail: "\(bid) → \(dylibPath ?? "内置agent")")
         // v2.9.68：截断冗长日志，只保留 exit code + 关键错误行，避免上下文爆炸
         var slim = result

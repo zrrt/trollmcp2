@@ -986,16 +986,21 @@ final class InjectionMemTool: MCPTool {
         AuditLog.shared.log("injection.mem", detail: "\(bundleId) pid=\(targetPid)")
         let (exit, output) = InjectionManager.shared.injectDylib(pid: targetPid, dylib: dylibPath)
         let success = output.contains("dlopen succeeded") || (exit == 0 && output.contains("handle"))
+        // v3.0.59：注入后确认进程存活（一键闭环：启动→注入→存活确认）
+        let alive = ProcessHelper.pidOf(executableName: exeName) != nil
         return [
             "status": success ? "injected" : "failed",
             "mode": "memory",
             "bundle_id": bundleId,
             "app": app.name,
             "pid": targetPid,
+            "app_alive": alive,
             "dylib": dylibPath,
             "exit": exit,
             "output": output,
-            "note": success ? "内存注入成功：进程内已 dlopen，不改文件；App 重启后注入自动消失" : "opainject 失败，见 output 定位原因（权限/架构/进程状态）"
+            "note": success
+                ? (alive ? "内存注入成功：进程存活，已 dlopen；App 重启后注入自动消失" : "内存注入成功但进程已退出（arm64e 非 trust-cache dylib 可能崩溃，需换 Trust Cache 方案）")
+                : "opainject 失败，见 output 定位原因（权限/架构/进程状态）"
         ]
     }
 }
