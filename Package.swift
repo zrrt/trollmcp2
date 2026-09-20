@@ -18,7 +18,8 @@ let package = Package(
             name: "CISH",
             path: "CISH",
             cSettings: [
-                .headerSearchPath("ish-stage/include"),
+                // 头文件由 CI 复制到 CISH/include/（build_ish.sh 产物 ish-stage/include/ish）
+                .headerSearchPath("include"),
                 .define("GUEST_ARM64", to: "1"),
                 .define("ISH_INTERNAL", to: "1")
             ],

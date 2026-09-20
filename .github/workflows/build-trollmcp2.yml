@@ -72,6 +72,10 @@ jobs:
           echo "=== iSH 产物 ==="
           ls -la libs/ include/ resources/ | head -40
           du -sh libs include resources
+          # 头文件供 SwiftPM CISH target 使用（headerSearchPath 相对 target 目录解析）
+          rm -rf ../CISH/include
+          mkdir -p ../CISH/include
+          cp -R include/ish ../CISH/include/
           cd ..
 
       - name: Build unsigned IPA
