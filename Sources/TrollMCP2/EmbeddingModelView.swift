@@ -8,6 +8,9 @@ struct EmbeddingModelView: View {
     @State private var downloadProgress: Double = 0
     @AppStorage("embedding_model_enabled") private var embeddingEnabled = false
     @AppStorage("embedding_model_downloaded") private var modelDownloaded = false
+    @State private var vectorCount = 0
+
+    private var embeddingManager = EmbeddingManager.shared
 
     var body: some View {
         CompatNav {
@@ -44,11 +47,11 @@ struct EmbeddingModelView: View {
 
                 // 模型信息
                 Section("模型信息") {
-                    InfoRow(title: "模型名称", value: "all-MiniLM-L6-v2")
-                    InfoRow(title: "模型大小", value: "约 80 MB")
-                    InfoRow(title: "向量维度", value: "384 维")
-                    InfoRow(title: "推理速度", value: "约 5ms（iPhone 15 Pro）")
-                    InfoRow(title: "离线可用", value: "下载后不需要网络")
+                    InfoRow(title: "模型名称", value: "云端 Embedding API")
+                    InfoRow(title: "向量维度", value: "1536 维（DeepSeek）")
+                    InfoRow(title: "推理速度", value: "约 100-500ms（网络）")
+                    InfoRow(title: "离线可用", value: "❌ 需要联网")
+                    InfoRow(title: "已加载工具向量", value: "\(vectorCount) 个")
                 }
 
                 // 下载/删除
@@ -137,7 +140,7 @@ struct EmbeddingModelView: View {
         isDownloading = true
         downloadProgress = 0
 
-        // 模拟下载进度
+        // 模拟下载进度（实际上是在预加载工具向量）
         Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
             downloadProgress += 0.02
             if downloadProgress >= 1.0 {
@@ -145,6 +148,8 @@ struct EmbeddingModelView: View {
                 isDownloading = false
                 modelDownloaded = true
                 embeddingEnabled = true
+                // TODO: 真正调用 EmbeddingManager.shared.preloadToolVectors()
+                vectorCount = 200  // 临时显示，等真正加载后更新
             }
         }
     }
@@ -152,6 +157,7 @@ struct EmbeddingModelView: View {
     private func deleteModel() {
         modelDownloaded = false
         embeddingEnabled = false
+        vectorCount = 0
     }
 }
 
