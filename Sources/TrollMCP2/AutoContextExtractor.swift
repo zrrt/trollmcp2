@@ -13,6 +13,7 @@ final class AutoContextExtractor: ObservableObject {
     @Published var lastAppName: String?
     @Published var lastFilePath: String?
     @Published var lastProject: String?
+    @Published var lastAction: String?
 
     private init() {}
 
@@ -35,6 +36,12 @@ final class AutoContextExtractor: ObservableObject {
             lastAppName = appName
             print("📝 AutoContext: extracted app_name = \(appName)")
         }
+
+        // 4. 提取操作类型（用户想做什么）
+        if let action = extractAction(from: message) {
+            lastAction = action
+            print("📝 AutoContext: extracted action = \(action)")
+        }
     }
 
     /// 生成上下文提示，加到系统提示词里
@@ -50,6 +57,9 @@ final class AutoContextExtractor: ObservableObject {
         if let filePath = lastFilePath {
             hints.append("Last mentioned file: \(filePath)")
         }
+        if let action = lastAction {
+            hints.append("Last action: \(action)")
+        }
 
         guard !hints.isEmpty else { return nil }
 
@@ -57,7 +67,7 @@ final class AutoContextExtractor: ObservableObject {
         
         === AUTO CONTEXT (extracted from recent conversation) ===
         \(hints.joined(separator: "\n"))
-        If user says "it" / "this app" / "it's file", use the above context.
+        If user says "it" / "this app" / "it's file" / "do it", use the above context.
         """
     }
 
@@ -100,11 +110,51 @@ final class AutoContextExtractor: ObservableObject {
             "微博": "com.sina.weibo",
             "网易云音乐": "com.netease.163music",
             "QQ音乐": "com.tencent.QQMusic",
+            "快手": "com.smile.gifmaker",
+            "美团": "com.sankuai.meituan",
+            "饿了么": "me.ele.iphone",
+            "携程": "ctrip.iphone",
+            "京东": "com.jd.iphone",
+            "拼多多": "com.xunmeng.pinduoduo",
+            "闲鱼": "com.taobao.fleamarket",
+            "钉钉": "com.laiwang.DingTalk",
+            "飞书": "com.larksuite.lark",
         ]
 
         for (name, _) in knownApps {
             if text.contains(name) {
                 return name
+            }
+        }
+
+        return nil
+    }
+
+    /// 提取操作类型（用户想做什么）
+    func extractAction(from text: String) -> String? {
+        let actions = [
+            "分析": "分析 App 结构",
+            "抓包": "网络抓包分析",
+            "注入": "注入 dylib",
+            "截图": "截图",
+            "录屏": "录屏",
+            "清理": "清理缓存",
+            "备份": "备份",
+            "恢复": "恢复",
+            "安装": "安装 App",
+            "卸载": "卸载 App",
+            "启动": "启动 App",
+            "重启": "重启 App",
+            "停止": "停止 App",
+            "修改": "修改内容",
+            "读取": "读取内容",
+            "写入": "写入内容",
+            "删除": "删除内容",
+        ]
+
+        for (action, _) in actions {
+            if text.contains(action) {
+                return action
             }
         }
 

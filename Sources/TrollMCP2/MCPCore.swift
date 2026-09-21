@@ -227,12 +227,30 @@ public final class ToolRegistry: ObservableObject {
 
     // v3.0.90：工具结果缓存——5 分钟内同样的调用直接返回缓存，省时间
     private var resultCache: [String: (result: [String: Any], time: Date)] = [:]
-    private let cacheWindow: TimeInterval = 300.0  // 5 分钟缓存窗口
+    private let defaultCacheWindow: TimeInterval = 300.0  // 默认 5 分钟缓存窗口
+    private let longCacheWindow: TimeInterval = 1800.0  // 30 分钟缓存窗口（静态数据）
+
+    /// 哪些工具应该用长缓存（静态数据，不常变）
+    private let longCacheTools: Set<String> = [
+        "fs_tree", "fs.list", "fs.ls",  // 文件列表
+        "device.info", "device.probe",  // 设备信息
+        "injection.list", "process.list",  // 进程列表
+        "artifact.list", "macro.list",  // 列表类
+        "skill.list", "skill.read",  // 技能列表
+    ]
 
     private func callKey(name: String, params: [String: Any]) -> String {
         let sortedParams = params.sorted { $0.key < $1.key }
         let paramStr = sortedParams.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
         return "\(name):\(paramStr)"
+    }
+
+    /// 根据工具名决定缓存窗口
+    private func cacheWindow(for toolName: String) -> TimeInterval {
+        if longCacheTools.contains(toolName) {
+            return longCacheWindow
+        }
+        return defaultCacheWindow
     }
 
     private func recordCall(name: String, params: [String: Any]) -> Int {
@@ -250,7 +268,8 @@ public final class ToolRegistry: ObservableObject {
         let key = callKey(name: name, params: params)
         guard let cached = resultCache[key] else { return nil }
         // 过期了
-        if Date().timeIntervalSince(cached.time) > cacheWindow {
+        let window = cacheWindow(for: name)
+        if Date().timeIntervalSince(cached.time) > window {
             resultCache.removeValue(forKey: key)
             return nil
         }
@@ -262,8 +281,12 @@ public final class ToolRegistry: ObservableObject {
         let key = callKey(name: name, params: params)
         resultCache[key] = (result, Date())
         // 清理过期缓存
-        for (k, v) in resultCache where Date().timeIntervalSince(v.time) > cacheWindow {
-            resultCache.removeValue(forKey: k)
+        let now = Date()
+        for (k, v) in resultCache {
+            let window = cacheWindow(for: k.components(separatedBy: ":").first ?? "")
+            if now.timeIntervalSince(v.time) > window {
+                resultCache.removeValue(forKey: k)
+            }
         }
     }
 
