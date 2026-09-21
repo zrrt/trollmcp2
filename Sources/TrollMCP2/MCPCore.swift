@@ -490,6 +490,12 @@ public final class ToolRegistry: ObservableObject {
             "滚动": ["swipe", "scroll"],
             "设备": ["device", "info"],
             "系统": ["device", "system"],
+            "编译": ["build", "compile", "build.runner"],
+            "构建": ["build", "compile"],
+            "自写工具": ["tool.load_dylib", "self-evolution", "load_dylib"],
+            "自我进化": ["tool.load_dylib", "self-evolution"],
+            "加载新工具": ["tool.load_dylib", "load_dylib"],
+            "写个工具": ["tool.load_dylib", "write_tool", "build"],
         ]
 
         let q = query.lowercased()

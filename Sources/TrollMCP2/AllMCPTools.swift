@@ -89,6 +89,11 @@ final class SystemOverviewTool: MCPTool {
                     "category": "Diagnostics (diagnostics.*)",
                     "typical_tools": ["probe.inspect", "device.probe"],
                     "use_for": "Inspect app internals, probe classes/methods"
+                ],
+                [
+                    "category": "Build & Self-Evolution (build.*, tool.load_dylib)",
+                    "typical_tools": ["tool.load_dylib", "project.generate_tweak", "build.runner.token"],
+                    "use_for": "Write custom tools in Swift, compile to dylib, load into TrollAgent on-the-fly (self-evolution). Also generate Tweak project templates for reverse engineering."
                 ]
             ],
             "recommended_workflows": [

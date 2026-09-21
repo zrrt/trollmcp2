@@ -144,9 +144,9 @@ final class ToolchainUninstallTool: MCPTool {
 final class ToolLoadDylibTool: MCPTool {
     let definition = ToolDefinition(
         name: "tool.load_dylib",
-        summary: "Load an external dylib into TrollAgent process, registers its tools. Use when: (1) AI compiled a new dylib and wants to install it, (2) hot-reload a custom tool, (3) self-evolution. The dylib must call TARegisterTool() in its constructor.",
+        summary: "Load an external dylib into TrollAgent process, registers new tools (self-evolution). Use for: (1) AI wrote a new tool in Swift, compiled it to dylib, now wants to load it into TrollAgent; (2) hot-reload a custom tool without restarting; (3) extend TrollAgent's capabilities on-the-fly. Full workflow: 1) write Swift tool code → 2) compile to dylib → 3) call this tool to load → 4) new tool is immediately available. The dylib must call TARegisterTool() in its constructor. Safe: only loads into TrollAgent itself, does NOT inject into other apps. Works on all iOS versions (14+), no jailbreak needed.",
         parameters: [
-            "path": "Absolute path to .dylib file (REQUIRED)"
+            "path": "Absolute path to .dylib file (REQUIRED). Example: /var/mobile/Containers/Data/Application/.../Documents/Workspace/artifacts/mytool.dylib"
         ],
         verified: false,
         category: "build")
