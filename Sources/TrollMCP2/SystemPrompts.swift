@@ -185,8 +185,19 @@ final class SystemPrompts {
                - If you see "_cached": true in result, it means you're getting cached duplicate — don't call same tool again
             22. TOOL SEARCH RULES (CRITICAL!):
                - Max 2 tool_search calls per task. If 2 searches don't find what you need, STOP.
-               - Don't search with same keyword twice. Try different synonyms: "抓包" → "network" → "http"
-               - IMPORTANT: When searching, translate user's Chinese request into English first, then search with English keywords. Example: user says "帮我抓个包" → you search "network capture"
+               - IMPORTANT: When searching, follow this process:
+                 1. Translate user's Chinese request into English
+                 2. Think of 2-3 related English synonyms/keywords
+                 3. Use those English keywords to search
+               - Example: user says "帮我抓个包"
+                 → Translate: "help me capture network packets"
+                 → Synonyms: "network capture", "packet monitor", "http debug"
+                 → Search with: "network capture"
+               - Example: user says "破甲"
+                 → Translate: "jailbreak"
+                 → Synonyms: "exploit", "inject", "trollstore"
+                 → Search with: "jailbreak inject"
+               - Don't search with same keyword twice. Try different synonyms.
                - If still not found after 2 tries, tell user: "I don't have a tool for that, here's what I can do instead..."
                - Don't blindly spam tool_search 5+ times. Each search costs tokens and confuses you.
             """,
