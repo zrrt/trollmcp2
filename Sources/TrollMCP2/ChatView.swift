@@ -225,6 +225,19 @@ struct ChatView: View {
                 }
             }
         }
+        // v3.0.76：快捷标签 sheet
+        .sheet(isPresented: Binding(get: { AppUIState.shared.quickTerminalPresented }, set: { AppUIState.shared.quickTerminalPresented = $0 })) {
+            RemoteTerminalView()
+        }
+        .sheet(isPresented: Binding(get: { AppUIState.shared.quickToolsPresented }, set: { AppUIState.shared.quickToolsPresented = $0 })) {
+            ToolsView()
+        }
+        .sheet(isPresented: Binding(get: { AppUIState.shared.quickSkillsPresented }, set: { AppUIState.shared.quickSkillsPresented = $0 })) {
+            AgentsAndSkillsView()
+        }
+        .sheet(isPresented: Binding(get: { AppUIState.shared.quickFilesPresented }, set: { AppUIState.shared.quickFilesPresented = $0 })) {
+            WorkspaceBrowserView()
+        }
         // v2.9.10：网络恢复 / 回前台提示（配合后台自动重连）
         .onReceive(NotificationCenter.default.publisher(for: AppLifecycleMonitor.networkRestored)) { _ in
             showToast("网络已恢复")
@@ -580,6 +593,24 @@ struct ChatView: View {
             .padding(.horizontal, 12)
             .padding(.top, 4)
 
+            // v3.0.76：输入框上方快捷标签
+            HStack(spacing: 6) {
+                QuickTabButton(icon: "terminal", label: "终端") {
+                    AppUIState.shared.quickTerminalPresented = true
+                }
+                QuickTabButton(icon: "wrench.and.screwdriver", label: "工具") {
+                    AppUIState.shared.quickToolsPresented = true
+                }
+                QuickTabButton(icon: "bolt", label: "技能") {
+                    AppUIState.shared.quickSkillsPresented = true
+                }
+                QuickTabButton(icon: "folder", label: "文件") {
+                    AppUIState.shared.quickFilesPresented = true
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+
             // v3.0.75：输入框圆角 16，按钮 32x32
             HStack(spacing: 8) {
                 HStack(spacing: 0) {
@@ -870,6 +901,30 @@ struct ChatChip: View {
                     .stroke(accent ? Color.blue.opacity(0.35) : Color.clear, lineWidth: 1)
             )
             .cornerRadius(12)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// v3.0.76：输入框上方快捷标签按钮
+struct QuickTabButton: View {
+    let icon: String
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 3) {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .semibold))
+                Text(label)
+                    .font(.caption)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(Color(.secondarySystemBackground))
+            .foregroundColor(.secondary)
+            .cornerRadius(10)
         }
         .buttonStyle(PlainButtonStyle())
     }
