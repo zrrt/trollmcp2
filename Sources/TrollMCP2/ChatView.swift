@@ -383,9 +383,6 @@ struct ChatView: View {
                     miniCard("bolt.fill", L10n.t("home_quick_automation"), L10n.t("home_quick_automation_sub"), [.blue, .purple], promptId: "default") {
                         runQuickPrompt("帮我创建一个自动化任务：每 5 分钟执行一次 ping，失败时提醒我")
                     }
-                    miniCard("wrench.and.screwdriver.fill", "一键开发环境", "安装 python3/git/vim/编译工具链", [.green, .blue], promptId: "developer") {
-                        runQuickPrompt("帮我一键安装基础开发环境：python3、git、vim、curl、编译工具链")
-                    }
                 }
                 .padding(.horizontal, 20)
 
