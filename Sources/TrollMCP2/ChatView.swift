@@ -715,6 +715,8 @@ struct ChatView: View {
     private func send() {
         guard let cfg = modelStore.defaultConfig,
               (!inputText.isEmpty || !pendingAttachments.isEmpty || !pendingImages.isEmpty) else { return }
+        // v3.1.5: 自动提取关键信息（App 名、bundle id、文件路径等）
+        AutoContextExtractor.shared.extract(from: inputText)
         // v3.1.1: 模型不支持视觉时，自动 OCR 识别图片文字，拼到消息里
         var imagesToSend = pendingImages
         if !pendingImages.isEmpty && !cfg.supportsVision {

@@ -1193,6 +1193,10 @@ final class ConversationStore: ObservableObject {
            idx < ConversationStore.shared.conversations.count {
             parts.append("当前会话: \(ConversationStore.shared.conversations[idx].title)")
         }
+        // v3.1.5: 自动提取的关键信息（App 名、bundle id、文件路径等）
+        if let hint = AutoContextExtractor.shared.contextHint() {
+            parts.append(hint)
+        }
         return parts.joined(separator: " | ")
     }
 
