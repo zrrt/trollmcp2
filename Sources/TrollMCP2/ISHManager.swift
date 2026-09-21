@@ -109,7 +109,8 @@ enum ISHEngine {
         let isPureCd = trimmed.range(of: "^cd\\s+\\S+(\\s+.*)?$", options: .regularExpression) != nil
             && !trimmed.contains("&&") && !trimmed.contains(";")
 
-        var fullCommand = "cd '\(shellQuote(cwd))' && \(command)"
+        // v3.0.91：cd 失败不阻断命令执行（/workspace symlink 可能没创建成功）
+        var fullCommand = "cd '\(shellQuote(cwd))' 2>/dev/null; \(command)"
         if isPureCd {
             fullCommand += " && pwd"
         }
