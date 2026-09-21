@@ -840,6 +840,8 @@ public final class ToolRegistry: ObservableObject {
         register(InjectionStatusTool())
         register(InjectionInspectTool())
         register(InjectionListTool())
+        register(JailbreakStatusTool())  // v3.1.1：Jailbreak 状态检测
+        register(JailbreakInjectTool())   // v3.1.1：ElleKit 运行时注入
         register(InjectionRemoveTool())
         register(InjectionRestoreTool())
         register(InjectionEnablePersistedTool())

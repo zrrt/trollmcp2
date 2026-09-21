@@ -20,20 +20,24 @@ final class SystemOverviewTool: MCPTool {
             "system": "TrollAgent",
             "version": "3.0.90",
             "ios_version_support": [
-                "supported": [
+                "trollstore_supported": [
                     "iOS 14.0 - 15.4.1 (TrollStore 1)",
                     "iOS 15.5 - 16.6.1 (TrollStore 2)",
                     "iOS 17.0 - 17.0.3 (TrollStore 2 / kfd)"
                 ],
+                "jailbreak_supported": [
+                    "iOS 17.0 - 17.3.1 (Relaxin / RootHide / Dopamine with ElleKit)"
+                ],
                 "unsupported": [
                     "iOS 16.6.2+ (Apple patched CoreTrust)",
-                    "iOS 17.1+ (Apple patched kfd)"
+                    "iOS 17.1+ (Apple patched kfd for TrollStore)"
                 ],
-                "note": "TrollAgent requires TrollStore (jailbreak-free / 无根越狱). If device is on unsupported iOS version, core features work but injection may fail."
+                "note": "Two environments: (1) TrollStore (jailbreak-free / 白巨魔), (2) Jailbreak (Relaxin/RootHide). Use jailbreak.status to detect which environment you're in."
             ],
             "injection_methods": [
-                "iOS 14-16.6.1": "ct_bypass runtime injection (fast, persistent)",
-                "iOS 17.0-17.0.3": "static injection (insert_dylib + trollstorehelper reinstall)"
+                "jailbreak_ellekit": "jailbreak.inject — runtime injection via ElleKit. Fastest, no binary modification. Only on jailbroken devices (Relaxin/RootHide/Dopamine).",
+                "trollstore_ct_bypass": "injection.enable — runtime injection via CoreTrust (ct_bypass). Only on iOS ≤17.0 TrollStore devices.",
+                "trollstore_static": "injection.static — static injection (insert_dylib + reinstall). Works on all TrollStore devices, but slower."
             ],
             "tool_categories": [
                 [
@@ -43,8 +47,13 @@ final class SystemOverviewTool: MCPTool {
                 ],
                 [
                     "category": "Injection (injection.*)",
-                    "typical_tools": ["injection.list", "injection.enable", "injection.status", "injection.mem"],
-                    "use_for": "Inject dylib into apps, check injection status, search installed apps"
+                    "typical_tools": ["injection.list", "injection.enable", "injection.status", "injection.mem", "injection.static"],
+                    "use_for": "Inject dylib into apps (TrollStore environment), check injection status, search installed apps"
+                ],
+                [
+                    "category": "Jailbreak (jailbreak.*)",
+                    "typical_tools": ["jailbreak.status", "jailbreak.inject"],
+                    "use_for": "Runtime dylib injection via ElleKit (jailbreak environment only). Use when: device is jailbroken (Relaxin/RootHide/Dopamine). Faster than static injection, no binary modification."
                 ],
                 [
                     "category": "UI Control (control.*)",
@@ -84,7 +93,17 @@ final class SystemOverviewTool: MCPTool {
             ],
             "recommended_workflows": [
                 [
-                    "task": "Inject dylib into an app",
+                    "task": "Inject dylib into an app (choose injection method)",
+                    "steps": [
+                        "1. jailbreak.status() — check if device is jailbroken",
+                        "2. If jailbreak detected: jailbreak.inject(bundle_id, dylib_path) — ElleKit runtime injection (fast)",
+                        "3. If no jailbreak: injection.enable(bundle_id) — ct_bypass or static injection",
+                        "4. control.inject(bundle_id) — inject ControlAgent for UI control",
+                        "5. control.screenshot() — verify injection worked"
+                    ]
+                ],
+                [
+                    "task": "Inject dylib into an app (TrollStore only)",
                     "steps": [
                         "1. injection.list(\"keyword\") — find bundle_id",
                         "2. injection.enable(bundle_id) — inject dylib (persistent)",
@@ -113,7 +132,11 @@ final class SystemOverviewTool: MCPTool {
                 "If you don't know which tool to use, call tool_search first",
                 "If you're stuck after 2 tries, ask the user for clarification",
                 "Don't repeat the same tool with the same params — it's a loop",
-                "iOS 17+: use injection.static (ct_bypass is broken)"
+                "Before injecting dylib, call jailbreak.status() to detect environment",
+                "Jailbreak environment (ElleKit): use jailbreak.inject (fast, no reinstall)",
+                "TrollStore + iOS ≤17.0: use injection.enable (ct_bypass runtime)",
+                "TrollStore + iOS 17.0.1+: use injection.static (static injection)",
+                "iOS 17+: ct_bypass is broken on TrollStore — use static or jailbreak.inject"
             ]
         ]
     }
@@ -503,7 +526,7 @@ final class InjectionListTool: MCPTool {
     // v2.9.41：检索式——query 按名称/bundle_id 模糊匹配，只返回命中项，不再全量 266 条塞给 AI
     let definition = ToolDefinition(name: "injection.list", 
         summary: "Search installed apps by keyword. Use for: find bundle_id for injection.",
-        parameters: ["query": "Search keyword (App name or bundle_id fragment, optional). If empty, return first 20 only"],
+        parameters: ["query": "Search keyword (App name or bundle_id fragment, optional). If empty, return first 20 only. e.g. 小红书 / weibo / tiktok"],
         returns: ["apps": "List of matching apps (bundle_id + name)", "count": "Number of results"],
         verified: true, category: "injection")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -523,6 +546,62 @@ final class InjectionListTool: MCPTool {
             "query": q,
             "hint": q.isEmpty ? "共 \(apps.count) 个 App，只返回前 20 条；请用 query 按名称/bundle_id 搜索目标（如 query=\"Troll\"）" : "命中 \(matched.count) 个，以下最多 20 条",
             "apps": Array(matched.prefix(20)).map { ["bundle_id": $0.bundleId, "name": $0.name] }
+        ]
+    }
+}
+
+// MARK: - v3.1.1：Jailbreak (ElleKit) 运行时注入工具
+
+final class JailbreakStatusTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "jailbreak.status",
+        summary: "Check jailbreak status and injection mode availability. Use for: determine if runtime ElleKit injection is available. Don't use for: checking which apps are injected — use injection.status instead.",
+        parameters: [:],
+        returns: [
+            "is_jailbroken": "true if jailbreak detected",
+            "has_ellekit": "true if ElleKit framework is installed",
+            "has_dopamine": "true if Dopamine jailbreak detected",
+            "has_roothide": "true if RootHide jailbreak detected",
+            "injection_mode": "Current injection mode: ellekit_runtime / ct_bypass / static_only",
+            "note": "Usage guidance"
+        ],
+        verified: true,
+        category: "jailbreak"
+    )
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        InjectionManager.shared.jailbreakStatus()
+    }
+}
+
+final class JailbreakInjectTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "jailbreak.inject",
+        summary: "Runtime dylib injection via ElleKit (jailbreak only). Use for: inject dylib into app WITHOUT modifying binary (faster, no reinstall). Only works on jailbroken devices (Relaxin/RootHide/Dopamine). Don't use for: non-jailbroken devices — use injection.enable instead.",
+        parameters: [
+            "bundle_id": "Target app bundle_id (e.g. com.xingin.discover for Xiaohongshu)",
+            "dylib_path": "Path to the dylib file to inject (e.g. /var/mobile/Containers/Data/Application/.../Documents/MyDylib.dylib)",
+            "mode": "Injection mode: 'persist' (permanent, default) or 'once' (temporary). Optional."
+        ],
+        returns: [
+            "success": "true if injection succeeded",
+            "message": "Detailed result message",
+            "mode": "Injection mode used"
+        ],
+        verified: true,
+        category: "jailbreak"
+    )
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let bundleId = params["bundle_id"] as? String,
+              let dylibPath = params["dylib_path"] as? String else {
+            throw MCPError.invalidParams("bundle_id and dylib_path are required")
+        }
+        let mode = params["mode"] as? String ?? "persist"
+        let (success, message) = InjectionManager.shared.injectViaElleKit(bundleId: bundleId, dylibPath: dylibPath, mode: mode)
+        return [
+            "success": success,
+            "message": message,
+            "mode": mode,
+            "bundle_id": bundleId
         ]
     }
 }

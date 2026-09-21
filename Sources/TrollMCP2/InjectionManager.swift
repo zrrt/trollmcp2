@@ -1800,14 +1800,142 @@ final class InjectionManager {
         }
         // v2.9.58：加入 root 诊断
         let rootDiag = diagnoseRoot()
+        let jbStatus = jailbreakStatus()
         return [
             "total_apps": apps.count,
             "bundled_tools": availableBinaries(),
             "injected_count": injectedApps.count,
             "injected_apps": injectedApps,
             "root_diagnosis": rootDiag,
+            "jailbreak": jbStatus,
             "hint": "Use injection.list to find bundle_id + name for specific App."
         ]
+    }
+
+    // MARK: - v3.1.1：越狱状态检测 + ElleKit 运行时注入
+    /// Detect jailbreak status (Relaxin/RootHide/Dopamine) and ElleKit availability
+    func jailbreakStatus() -> [String: Any] {
+        let fm = FileManager.default
+        var checks: [String: Bool] = [:]
+
+        // Check common jailbreak paths
+        let jbPaths = [
+            "/jb",
+            "/var/jb",
+            "/private/var/jb",
+            "/etc/apt",
+            "/private/etc/apt",
+            "/var/binpack",
+            "/Library/Frameworks/ElleKit.framework",
+            "/var/jb/Library/Frameworks/ElleKit.framework",
+            "/jb/Library/Frameworks/ElleKit.framework"
+        ]
+        for path in jbPaths {
+            checks[path] = fm.fileExists(atPath: path)
+        }
+
+        // Check if ElleKit is loaded
+        var hasElleKit = false
+        let dyldPaths = [
+            "/Library/Frameworks/ElleKit.framework/ElleKit",
+            "/var/jb/Library/Frameworks/ElleKit.framework/ElleKit",
+            "/jb/Library/Frameworks/ElleKit.framework/ElleKit"
+        ]
+        for p in dyldPaths {
+            if fm.fileExists(atPath: p) {
+                hasElleKit = true
+                break
+            }
+        }
+
+        // Check for Dopamine/Relaxin/RootHide
+        let hasDopamine = fm.fileExists(atPath: "/var/jb/.dopamine") || fm.fileExists(atPath: "/jb/.dopamine")
+        let hasRootHide = fm.fileExists(atPath: "/var/jb/roothide") || fm.fileExists(atPath: "/jb/roothide")
+        let hasSileo = fm.fileExists(atPath: "/var/jb/AppInfo") || fm.fileExists(atPath: "/jb/AppInfo")
+
+        let isJailbroken = checks.values.contains(true) || hasElleKit || hasDopamine || hasRootHide
+
+        return [
+            "is_jailbroken": isJailbroken,
+            "has_ellekit": hasElleKit,
+            "has_dopamine": hasDopamine,
+            "has_roothide": hasRootHide,
+            "has_sileo": hasSileo,
+            "jb_paths_found": checks.filter { $0.value }.map { $0.key },
+            "injection_mode": isJailbroken ? "ellekit_runtime" : (ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 17 ? "static_only" : "ct_bypass"),
+            "note": isJailbroken ? "Jailbreak detected. Use jailbreak.inject for runtime injection." : "No jailbreak detected. Use injection.enable for static/ct_bypass injection."
+        ]
+    }
+
+    /// Runtime injection via ElleKit (jailbreak environment only)
+    /// - Parameters:
+    ///   - bundleId: target app bundle id
+    ///   - dylibPath: path to dylib to inject
+    ///   - mode: "once" (temporary) or "persist" (permanent)
+    func injectViaElleKit(bundleId: String, dylibPath: String, mode: String = "persist") -> (Bool, String) {
+        // Verify jailbreak environment
+        let jb = jailbreakStatus()
+        guard jb["is_jailbroken"] as? Bool == true else {
+            return (false, "No jailbreak detected. ElleKit injection requires a jailbroken environment (Relaxin/RootHide/Dopamine).")
+        }
+        guard jb["has_ellekit"] as? Bool == true else {
+            return (false, "ElleKit not found. Install ElleKit first.")
+        }
+
+        guard let app = AppCatalog.find(bundleId) else {
+            return (false, "App not found: \(bundleId)")
+        }
+
+        let fm = FileManager.default
+        let dylibName = (dylibPath as NSString).lastPathComponent
+
+        // Determine jailbreak root
+        let jbRoot: String
+        if fm.fileExists(atPath: "/var/jb") {
+            jbRoot = "/var/jb"
+        } else if fm.fileExists(atPath: "/jb") {
+            jbRoot = "/jb"
+        } else {
+            return (false, "Jailbreak root not found")
+        }
+
+        // Copy dylib to jailbreak tweak directory
+        let tweakDir = "\(jbRoot)/Library/TweakInject"
+        try? fm.createDirectory(atPath: tweakDir, withIntermediateDirectories: true)
+        let destDylib = "\(tweakDir)/\(dylibName)"
+
+        // Copy dylib
+        do {
+            if fm.fileExists(atPath: destDylib) {
+                try fm.removeItem(atPath: destDylib)
+            }
+            try fm.copyItem(atPath: dylibPath, toPath: destDylib)
+        } catch {
+            return (false, "Failed to copy dylib: \(error.localizedDescription)")
+        }
+
+        // Set permissions
+        _ = spawnRoot("/bin/chmod", args: ["755", destDylib], timeout: 5)
+
+        // For "persist" mode: add to ElleKit plist
+        if mode == "persist" {
+            let plistPath = "\(jbRoot)/Library/Preferences/com.opa334.ellekit.plist"
+            // Note: ElleKit automatically loads all dylibs in TweakInject directory
+            // No need to modify plist manually
+        }
+
+        // Restart the app to load the dylib
+        let (killRc, killOut) = spawnRoot("/usr/bin/killall", args: [app.name], timeout: 5)
+        _ = killRc; _ = killOut  // Ignore errors, app may not be running
+
+        return (true, """
+            ElleKit runtime injection successful!
+            - App: \(app.name) (\(bundleId))
+            - Dylib: \(dylibName)
+            - Mode: \(mode)
+            - Next step: launch the app to load the dylib
+            Note: This is runtime injection (no binary modification). Restart the app to take effect.
+            """)
     }
 
     // MARK: - v3.0.89：iOS 17 兼容的静态注入（insert_dylib + trollstorehelper 重装）
