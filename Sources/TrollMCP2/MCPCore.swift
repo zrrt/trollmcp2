@@ -449,8 +449,7 @@ public final class ToolRegistry: ObservableObject {
     /// v2.9.16：tool_search 渐进式披露——按关键词搜索工具名/摘要，返回紧凑清单（不带完整 schema）
     /// v3.0.90：去重——已会话授权的工具不再重复返回，避免 AI 反复搜以为能找到新工具
     public func searchTools(query: String, limit: Int = 8) -> [[String: String]] {
-        lock.lock()
-        defer { lock.unlock() }
+        // v3.0.90：去掉锁——只读操作，不需要锁，避免死锁
         let q = query.lowercased()
         var hits: [(name: String, summary: String, score: Int)] = []
         for (_, tool) in tools {
