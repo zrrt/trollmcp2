@@ -258,25 +258,26 @@ public final class ToolRegistry: ObservableObject {
     /// **初始请求只带这些工具**，其余全部工具靠 tool_search 按需搜索加载。
     /// 即使权限策略页全量勾选，初始请求载荷也恒定极小 → 彻底解决"全勾选后变慢"。
     private static let _coreToolNames: Set<String> = [
-        "tool_search",          // 元工具：按需发现其余工具（AI 需要时搜索）
-        "ping",                 // 连通性
-        "device.info", "device.probe",  // 设备/环境信息
-        "workspace.info",       // 工作区信息
-        "artifact.list", "artifact.read_text", "artifact.write_text", "artifact.find",  // 文件浏览/读写/查找
-        "model.config",         // 当前模型配置
-        "injection.status",     // 注入状态（用户主线常用）
-        "browser.status", "browser.navigate",   // v2.9.82：navigate 常驻核心，支持 url/back/forward
-        // v2.9.139：AI 控制任意 App 闭环工具（每轮常驻，AI 连续控制不用反复 tool_search）
-        "app.launch",           // 启动目标 App（带 env/args）
-        "ui.tap", "ui.swipe", "ui.long_press", "ui.clipboard", "ui.screenshot",  // HID 触摸注入 + 验证
-        "progress.notify",      // 执行中节点横幅（用户实时看进度）
-        "control.begin", "control.update", "control.finish",  // 控制会话（计划→执行→报告）
-        // v3.0.73：高频工具常驻——终端 + UI 操作 + 文件 + OCR
-        "shell.exec",           // 终端命令（高频）
-        "fs.tree", "fs.read", "fs.write", "fs.find",  // 文件浏览/读写/查找
-        "control.ui_tree", "control.tap", "control.tap_text", "control.type", "control.type_text", "control.swipe", "control.screenshot",  // UI 操作闭环
-        "ocr.image",            // OCR 识别截图文字
-        "app.start", "app.restart"  // App 控制
+        // 元工具
+        "tool_search",
+        // 文件操作
+        "fs.read", "fs.write", "fs.find", "fs.tree",
+        // 设备/环境
+        "device.info",
+        // 注入
+        "injection.status",
+        // 浏览器
+        "browser.navigate",
+        // 工件/文件
+        "artifact.write_text",
+        // 终端
+        "shell.exec",
+        // UI 操作闭环
+        "control.ui_tree", "control.tap", "control.tap_text", "control.type", "control.type_text", "control.swipe", "control.screenshot",
+        // OCR
+        "ocr.image",
+        // 进度通知
+        "progress.notify"
     ]
 
     public func isEnabled(name: String) -> Bool {
