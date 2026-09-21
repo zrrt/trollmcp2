@@ -258,6 +258,15 @@ class EmbeddingManager {
         return dotProduct / (normA.squareRoot() * normB.squareRoot())
     }
 
+    // MARK: - 相似度计算
+
+    /// 计算查询文本和工具向量的相似度
+    func similarity(for query: String, toolName: String) -> Double? {
+        guard let toolVec = toolVectors[toolName] else { return nil }
+        guard let queryVec = embedSync(query) else { return nil }
+        return cosineSimilarity(queryVec, toolVec)
+    }
+
     // MARK: - 状态查询
 
     var isReady: Bool {

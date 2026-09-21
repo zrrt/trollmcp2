@@ -631,10 +631,9 @@ public final class ToolRegistry: ObservableObject {
                 }
 
                 // v3.1.4: 真正的 embedding 相似度（下载了模型后用）
-                // TODO: 等真正的 embedding 模型实现后，加上这里的相似度计算
-                // if useRealEmbedding, let realSim = EmbeddingManager.shared.similarity(for: query, toolName: def.name) {
-                //     score += realSim * 10  // 真正的 embedding 权重更高
-                // }
+                if useRealEmbedding, let realSim = EmbeddingManager.shared.similarity(for: query, toolName: def.name) {
+                    score += realSim * 10  // 真正的 embedding 权重更高
+                }
             } else {
                 score = 1
             }
