@@ -2,13 +2,10 @@ import Foundation
 import UIKit
 import Darwin
 
-/// 终端会话管理（单例，记住当前工作目录）
+/// 终端会话管理（单例，v3.0.93: 已废弃 - iSH 引擎自己管理 cwd，这个类是死代码）
 final class ShellSession {
     static let shared = ShellSession()
     private init() {}
-    
-    var currentDir: String = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("Workspace").path
 }
 
 
@@ -71,22 +68,10 @@ final class ShellExecTool: MCPTool {
         
         // 重置工作目录
         if params["reset_cwd"] as? Bool == true {
-            ShellSession.shared.currentDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent("Workspace").path
-        }
-        
-        // v3.0.36: cwd 必须归一化为绝对路径——之前用 pwd 探测的 ~ 前缀显示值覆盖会话目录，
-        // 导致 helper chdir("~/...") 失败、所有命令 exit 3
-        if !ShellSession.shared.currentDir.hasPrefix("/") {
-            if ShellSession.shared.currentDir.hasPrefix("~/") {
-                ShellSession.shared.currentDir = NSHomeDirectory() + String(ShellSession.shared.currentDir.dropFirst(1))
-            } else {
-                ShellSession.shared.currentDir = NSHomeDirectory() + "/Documents/Workspace"
-            }
+            ISHEngine.resetCwd()
         }
         
         let timeout = min(max((params["timeout"] as? Double) ?? 30, 1), 120)
-        let cwd = ShellSession.shared.currentDir
         
         // v3.0.41：iSH 为唯一引擎（ios_system 已删除）。初始化失败直接报错，不再回退。
         let (output, exitCode, timedOut) = ISHEngine.exec(command, timeout: timeout)
@@ -98,7 +83,7 @@ final class ShellExecTool: MCPTool {
         }
         
         // 会话目录：iSH guest 路径
-        var newPwd = ISHEngine.isBooted ? ISHEngine.cwd : ShellSession.shared.currentDir
+        var newPwd = ISHEngine.cwd
         
         AuditLog.shared.log("shell.exec", detail: String(command.prefix(100)))
         

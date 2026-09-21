@@ -32,6 +32,13 @@ enum ISHEngine {
     /// 当前 guest 会话目录（返回给 shell.exec 的 cwd 字段）
     static var cwd: String { guestCwd }
 
+    /// v3.0.93: 重置会话目录到默认的 /workspace
+    static func resetCwd() {
+        lock.lock()
+        defer { lock.unlock() }
+        guestCwd = "/workspace"
+    }
+
     /// 确保内核已 boot（首次解压 rootfs + 挂载）。线程安全，重复调用幂等。
     static func ensureBooted() -> String? {
         lock.lock()
