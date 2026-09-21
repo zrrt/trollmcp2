@@ -244,9 +244,34 @@ public final class ToolRegistry: ObservableObject {
 
     /// v3.0.71：外部 dylib 注册工具（AI 自我进化——AI 写 dylib 注入自己，注册新工具）
     public func registerExternalTool(_ def: ToolDefinition, handler: @escaping ([String: Any]) throws -> [String: Any]) {
+        // v3.0.90：安全检查——AI 自写工具的规则
+        let name = def.name.lowercased()
+
+        // 1. 不能覆盖内置工具
+        if !name.hasPrefix("custom.") && !name.hasPrefix("user.") {
+            print("[TA] ❌ external tool rejected: name must start with 'custom.' or 'user.' (got \(def.name))")
+            return
+        }
+
+        // 2. 不能包含危险关键词
+        let dangerousKeywords = ["shell", "exec", "root", "inject", "download", "upload", "delete", "rm", "sudo", "privileged"]
+        for kw in dangerousKeywords {
+            if name.contains(kw) {
+                print("[TA] ❌ external tool rejected: name contains dangerous keyword '\(kw)'")
+                return
+            }
+        }
+
+        // 3. 不能和现有工具冲突
+        if tools[def.name] != nil {
+            print("[TA] ❌ external tool rejected: name already exists \(def.name)")
+            return
+        }
+
+        // 通过检查，注册
         let wrapper = ExternalMCPTool(definition: def, handler: handler)
         register(wrapper)
-        print("[TA] external tool registered: \(def.name)")
+        print("[TA] ✅ external tool registered: \(def.name)")
     }
 
     public var definitions: [ToolDefinition] {
