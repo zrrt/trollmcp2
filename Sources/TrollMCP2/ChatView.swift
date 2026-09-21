@@ -595,24 +595,29 @@ struct ChatView: View {
             .padding(.horizontal, 36)
             .padding(.top, 4)
 
-            // v3.0.83：第二行 chips + 快捷标签，均匀分布
-            HStack(spacing: 8) {
+            // v3.0.87：第二行 chips + 快捷标签，等宽填满整行
+            HStack(spacing: 6) {
                 ChatChip(label: "推理·\(reasoningLabel())", action: {
                     reasoning = (reasoning + 1) % 3
                 }, accent: true, icon: "gauge.with.dots.needle.67percent")
+                .frame(maxWidth: .infinity)
                 ChatChip(label: "搜索·\(smartSearch ? "开" : "关")", action: {
                     smartSearch.toggle()
                 }, accent: smartSearch, icon: "magnifyingglass")
+                .frame(maxWidth: .infinity)
                 QuickTabButton(icon: "bolt", label: "技能") {
                     AppUIState.shared.quickSkillsPresented = true
                 }
+                .frame(maxWidth: .infinity)
                 QuickTabButton(icon: "doc.text", label: "指令") {
                     AppUIState.shared.settingsJumpToModels = false
                     AppUIState.shared.settingsPresented = true
                 }
+                .frame(maxWidth: .infinity)
                 QuickTabButton(icon: "folder", label: "文件") {
                     AppUIState.shared.quickFilesPresented = true
                 }
+                .frame(maxWidth: .infinity)
             }
             .padding(.horizontal, 12)
 
@@ -908,7 +913,7 @@ struct ChatChip: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
             }
-            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity)
             .padding(.vertical, 5)
             .background(accent ? Color.blue.opacity(0.14) : Color(.systemGray5))
             .foregroundColor(accent ? Color.blue : Color.secondary)
@@ -936,7 +941,7 @@ struct QuickTabButton: View {
                 Text(label)
                     .font(.caption)
             }
-            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
             .background(Color(.secondarySystemBackground))
             .foregroundColor(.secondary)
