@@ -18,6 +18,9 @@ class EmbeddingManager {
     @AppStorage("embedding_model_enabled") private var embeddingEnabled = false
     @AppStorage("embedding_model_downloaded") private var modelDownloaded = false
 
+    // Tokenizer
+    private var tokenizer: MiniLMTokenizer?
+
     private init() {}
 
     // MARK: - 加载模型
@@ -34,8 +37,12 @@ class EmbeddingManager {
 
         do {
             let config = MLModelConfiguration()
-            config.computeUnits = .cpuAndNeuralEngine  // 用 Neural Engine 加速
+            config.computeUnits = .cpuAndGPU  // 用 GPU 加速（Neural Engine 不支持 Transformer）
             embeddingModel = try MLModel(contentsOf: modelURL, configuration: config)
+
+            // 加载 tokenizer
+            tokenizer = try MiniLMTokenizer(vocabFileName: "vocab.txt", maxSequenceLength: 512)
+
             print("✅ Embedding: MiniLM model loaded")
             return true
         } catch {
@@ -80,12 +87,104 @@ class EmbeddingManager {
 
     /// 同步获取文本向量（内部调用）
     private func embedSync(_ text: String) -> [Double]? {
-        guard let model = embeddingModel else { return nil }
+        guard let model = embeddingModel,
+              let tokenizer = tokenizer else { return nil }
 
-        // TODO: 实现 tokenizer（把文本分成 token）
-        // TODO: 实现模型推理
-        // 现在先返回 nil，等以后加上真正的实现
-        return nil
+        // 1. Tokenize
+        let tokenized = tokenizer.encode(text)
+
+        // 2. 准备输入
+        do {
+            let inputIds = try makeMLMultiArray(tokenized.inputIds)
+            let attentionMask = try makeMLMultiArray(tokenized.attentionMask)
+            let tokenTypeIds = try makeMLMultiArray(tokenized.tokenTypeIds)
+
+            let features = try MLDictionaryFeatureProvider(dictionary: [
+                "input_ids": inputIds,
+                "attention_mask": attentionMask,
+                "token_type_ids": tokenTypeIds
+            ])
+
+            // 3. 模型推理
+            let output = try model.prediction(from: features)
+
+            // 4. 获取 hidden states
+            guard let hiddenStates = output.featureValue(for: "last_hidden_state")?.multiArrayValue else {
+                // Fallback: 找第一个 3D 数组
+                for name in output.featureNames {
+                    if let arr = output.featureValue(for: name)?.multiArrayValue, arr.shape.count == 3 {
+                        return maskedMeanPool(hs: arr, mask: attentionMask)
+                    }
+                }
+                return nil
+            }
+
+            // 5. 掩码平均池化
+            return maskedMeanPool(hs: hiddenStates, mask: attentionMask)
+
+        } catch {
+            print("❌ Embedding: inference error: \(error)")
+            return nil
+        }
+    }
+
+    // MARK: - 辅助函数
+
+    /// 创建 MLMultiArray
+    private func makeMLMultiArray(_ ints: [Int]) throws -> MLMultiArray {
+        let arr = try MLMultiArray(
+            shape: [1, NSNumber(value: ints.count)],
+            dataType: .int32
+        )
+        let ptr = arr.dataPointer.bindMemory(to: Int32.self, capacity: ints.count)
+        for (i, v) in ints.enumerated() {
+            ptr[i] = Int32(v)
+        }
+        return arr
+    }
+
+    /// 掩码平均池化：把 [1, seqLen, hidden] 变成 [1, hidden]
+    private func maskedMeanPool(hs: MLMultiArray, mask: MLMultiArray) -> [Double] {
+        let seqLen = hs.shape[1].intValue
+        let hiddenSize = hs.shape[2].intValue
+
+        var sumVec = [Double](repeating: 0, count: hiddenSize)
+        var count: Double = 0
+
+        let hsPtr = hs.dataPointer.bindMemory(to: Float32.self, capacity: seqLen * hiddenSize)
+        let maskPtr = mask.dataPointer.bindMemory(to: Int32.self, capacity: seqLen)
+
+        for i in 0..<seqLen {
+            let m = maskPtr[i]
+            if m > 0 {
+                count += 1
+                for j in 0..<hiddenSize {
+                    let idx = i * hiddenSize + j
+                    sumVec[j] += Double(hsPtr[idx])
+                }
+            }
+        }
+
+        guard count > 0 else { return [Double](repeating: 0, count: hiddenSize) }
+
+        // 平均
+        for j in 0..<hiddenSize {
+            sumVec[j] /= count
+        }
+
+        // L2 归一化
+        var norm: Double = 0
+        for j in 0..<hiddenSize {
+            norm += sumVec[j] * sumVec[j]
+        }
+        norm = norm.squareRoot()
+        guard norm > 0 else { return sumVec }
+
+        for j in 0..<hiddenSize {
+            sumVec[j] /= norm
+        }
+
+        return sumVec
     }
 
     /// 异步获取文本向量
