@@ -194,6 +194,10 @@ public final class ToolRegistry: ObservableObject {
     private let loopWindow: TimeInterval = 60.0  // 1 分钟窗口
     private let loopThreshold = 3  // 调 3 次以上就提示
 
+    // v3.0.90：工具结果缓存——5 分钟内同样的调用直接返回缓存，省时间
+    private var resultCache: [String: (result: [String: Any], time: Date)] = [:]
+    private let cacheWindow: TimeInterval = 300.0  // 5 分钟缓存窗口
+
     private func callKey(name: String, params: [String: Any]) -> String {
         let sortedParams = params.sorted { $0.key < $1.key }
         let paramStr = sortedParams.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
@@ -208,6 +212,28 @@ public final class ToolRegistry: ObservableObject {
         recentCalls[key]?.append(now)
         if recentCalls[key] == nil { recentCalls[key] = [now] }
         return recentCalls[key]?.count ?? 1
+    }
+
+    /// v3.0.90：查缓存——5 分钟内同样的调用直接返回缓存结果
+    private func getCachedResult(name: String, params: [String: Any]) -> [String: Any]? {
+        let key = callKey(name: name, params: params)
+        guard let cached = resultCache[key] else { return nil }
+        // 过期了
+        if Date().timeIntervalSince(cached.time) > cacheWindow {
+            resultCache.removeValue(forKey: key)
+            return nil
+        }
+        return cached.result
+    }
+
+    /// v3.0.90：存缓存
+    private func cacheResult(name: String, params: [String: Any], result: [String: Any]) {
+        let key = callKey(name: name, params: params)
+        resultCache[key] = (result, Date())
+        // 清理过期缓存
+        for (k, v) in resultCache where Date().timeIntervalSince(v.time) > cacheWindow {
+            resultCache.removeValue(forKey: k)
+        }
     }
 
     public func register(_ tool: MCPTool) {
@@ -284,6 +310,7 @@ public final class ToolRegistry: ObservableObject {
         "tool_search",
         "system.overview",  // v3.0.90：AI 全局视角目录
         "system.lessons",   // v3.0.90：AI 经验教训库
+        "task.progress",    // v3.0.90：任务进度跟踪
         // 文件操作
         "fs.read", "fs.write", "fs.tree",
         "workspace.info",   // v3.0.90：工作区结构说明
@@ -483,6 +510,17 @@ public final class ToolRegistry: ObservableObject {
                 let callCount = recordCall(name: originalName, params: params)
                 // v2.9.72：工作流可视化
                 WorkflowManager.shared.addStep(name: originalName, tool: originalName)
+
+                // v3.0.90：结果缓存——5 分钟内同样的调用直接返回缓存
+                if let cached = getCachedResult(name: originalName, params: params) {
+                    WorkflowManager.shared.updateStep(tool: originalName, detail: "cached", success: true)
+                    var cachedData = Self.compactResult(cached)
+                    cachedData.removeValue(forKey: "message")
+                    cachedData["_call_count"] = callCount
+                    cachedData["_cached"] = true
+                    return ["ok": true, "data": cachedData]
+                }
+
                 let result = try t.invoke(params)
                 let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
                 // v2.9.134：返回式错误统一识别——工具 return ["error":...] / ["ok": false] /
@@ -500,6 +538,10 @@ public final class ToolRegistry: ObservableObject {
                 AuditLog.shared.logTool(originalName, status: .success,
                                         elapsedMs: elapsedMs, dataBytes: bytes, permission: perm)
                 WorkflowManager.shared.updateStep(tool: originalName, detail: "\(elapsedMs)ms", success: true)
+
+                // v3.0.90：存结果缓存（成功才存，失败不缓存）
+                cacheResult(name: originalName, params: params, result: result)
+
                 // v2.9.125：CLI 式统一返回——顶层只留 ok/message，细节收进 data。
                 // AI 读 message 一眼判成败；需要排障才展开 data。
                 // v2.9.137：结果摘要化——data 内大数组（>20）/大字符串（>4000）
@@ -718,6 +760,7 @@ public final class ToolRegistry: ObservableObject {
         // v3.0.90：系统概览工具（AI 全局视角目录）
         register(SystemOverviewTool())
         register(SystemLessonsTool())  // v3.0.90：AI 经验教训库
+        register(TaskProgressTool())   // v3.0.90：任务进度跟踪
 
         // M3 注入管理 + 容器
         register(InjectionEnableTool())

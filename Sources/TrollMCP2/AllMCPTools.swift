@@ -201,6 +201,54 @@ final class SystemLessonsTool: MCPTool {
     }
 }
 
+// MARK: - v3.0.90：task.progress — 任务进度跟踪
+
+final class TaskProgressTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "task.progress",
+        summary: "Track task progress. Use for: set/check progress of a multi-step task. Call set to update progress, call get to check current status. Don't use for: single-step tasks (just do it directly).",
+        parameters: [
+            "action": "set or get (required)",
+            "step": "Current step number (for set, e.g. 1 of 5)",
+            "total_steps": "Total steps (for set, e.g. 5)",
+            "description": "What you're doing now (for set, e.g. 'Injecting dylib into target app')"
+        ],
+        verified: true, category: "system")
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        let action = params["action"] as? String ?? "get"
+
+        switch action {
+        case "set":
+            guard let step = params["step"] as? Int else {
+                throw MCPError.invalidParams("step required for set")
+            }
+            let total = params["total_steps"] as? Int ?? 0
+            let desc = params["description"] as? String ?? ""
+            UserDefaults.standard.set(step, forKey: "task_progress_step")
+            UserDefaults.standard.set(total, forKey: "task_progress_total")
+            UserDefaults.standard.set(desc, forKey: "task_progress_desc")
+            return [
+                "status": "updated",
+                "step": step,
+                "total_steps": total,
+                "description": desc,
+                "percent": total > 0 ? Int(Double(step) / Double(total) * 100) : 0
+            ]
+        default:
+            let step = UserDefaults.standard.integer(forKey: "task_progress_step")
+            let total = UserDefaults.standard.integer(forKey: "task_progress_total")
+            let desc = UserDefaults.standard.string(forKey: "task_progress_desc") ?? ""
+            return [
+                "step": step,
+                "total_steps": total,
+                "description": desc,
+                "percent": total > 0 ? Int(Double(step) / Double(total) * 100) : 0
+            ]
+        }
+    }
+}
+
 // MARK: - M3 注入工具
 
 final class InjectionEnableTool: MCPTool {
