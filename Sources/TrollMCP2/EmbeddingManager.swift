@@ -1,6 +1,7 @@
 import Foundation
+import CoreML
 
-// MARK: - 云端 Embedding 管理器（DeepSeek / OpenAI 兼容）
+// MARK: - 本地 Embedding 管理器（all-MiniLM-L6-v2 Core ML）
 
 class EmbeddingManager {
     static let shared = EmbeddingManager()
@@ -10,11 +11,38 @@ class EmbeddingManager {
     private var isLoaded = false
     private var isLoading = false
 
+    // Core ML 模型
+    private var embeddingModel: MLModel?
+
     // 配置
     @AppStorage("embedding_model_enabled") private var embeddingEnabled = false
     @AppStorage("embedding_model_downloaded") private var modelDownloaded = false
 
     private init() {}
+
+    // MARK: - 加载模型
+
+    /// 加载本地 Core ML 模型
+    private func loadModel() -> Bool {
+        guard embeddingModel == nil else { return true }
+
+        // 查找模型文件
+        guard let modelURL = Bundle.main.url(forResource: "MiniLM", withExtension: "mlmodelc") else {
+            print("⚠️ Embedding: MiniLM.mlmodelc not found in bundle")
+            return false
+        }
+
+        do {
+            let config = MLModelConfiguration()
+            config.computeUnits = .cpuAndNeuralEngine  // 用 Neural Engine 加速
+            embeddingModel = try MLModel(contentsOf: modelURL, configuration: config)
+            print("✅ Embedding: MiniLM model loaded")
+            return true
+        } catch {
+            print("❌ Embedding: failed to load model: \(error)")
+            return false
+        }
+    }
 
     // MARK: - 预加载所有工具向量
 
@@ -23,6 +51,12 @@ class EmbeddingManager {
         guard embeddingEnabled, modelDownloaded else { return }
         guard !isLoaded, !isLoading else { return }
         isLoading = true
+
+        // 加载模型
+        guard loadModel() else {
+            isLoading = false
+            return
+        }
 
         // 异步加载，不阻塞启动
         DispatchQueue.global(qos: .utility).async {
@@ -46,8 +80,11 @@ class EmbeddingManager {
 
     /// 同步获取文本向量（内部调用）
     private func embedSync(_ text: String) -> [Double]? {
-        // TODO: 调用 DeepSeek / OpenAI embedding API
-        // 现在先返回 nil，等以后加上真正的 API 调用
+        guard let model = embeddingModel else { return nil }
+
+        // TODO: 实现 tokenizer（把文本分成 token）
+        // TODO: 实现模型推理
+        // 现在先返回 nil，等以后加上真正的实现
         return nil
     }
 
