@@ -336,37 +336,19 @@ final class AppOpenAndInputTool: MCPTool {
 final class AppsControlTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.control",
-        summary: "Control App (launch/stop/restart). Use for: manage App lifecycle.",
+        summary: "[DEPRECATED] Use control.tap/control.swipe/control.type/control.tap_text instead. Old universal control tool.",
         parameters: [
-            "bundle_id": "Target App bundle_id (for reference)",
-            "action": "status | ui_tree | tap | swipe | type | scroll",
-            "x": "Tap X coordinate",
-            "y": "Tap Y coordinate",
-            "x1": "Swipe start X",
-            "y1": "Swipe start Y",
-            "x2": "swipe end x",
-            "y2": "swipe end y",
-            "duration": "swipe duration seconds",
-            "text": "type text",
-            "direction": "scroll direction up/down/left/right"
+            "action": "DEPRECATED - use control.tap/control.swipe/control.type instead"
         ]
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let action = params["action"] as? String else {
-            throw MCPError.invalidParams("action required (status/ui_tree/tap/swipe/type/scroll)")
-        }
-        var body: [String: Any] = [:]
-        for (k, v) in params where k != "bundle_id" && k != "action" {
-            body[k] = v
-        }
-        body["action"] = action
-        guard let r = agentHTTP("POST", "/command", body: body) else {
-            return ["success": false, "error": "agent HTTP 不可达：目标 App 未注入 ControlAgent v4.1 或未在前台运行"]
-        }
-        var out = r
-        if let bid = params["bundle_id"] as? String { out["bundle_id"] = bid }
-        return out
+        return [
+            "ok": false,
+            "deprecated": true,
+            "message": "apps.control is deprecated. Use control.tap(x,y), control.swipe(x1,y1,x2,y2), control.type(text), or control.tap_text(\"label\") instead.",
+            "hint": "These tools have fewer parameters and are easier to use."
+        ]
     }
 }
 
