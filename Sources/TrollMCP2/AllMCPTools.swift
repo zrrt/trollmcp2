@@ -16,9 +16,12 @@ final class SystemOverviewTool: MCPTool {
         verified: true, category: "system")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        let totalTools = ToolRegistry.shared.allToolNames().count
+
         return [
             "system": "TrollAgent",
             "version": "3.0.90",
+            "important_note": "You only know about 5 core tools right now. There are \(totalTools) total tools available! If you can't do something, DON'T give up — always try tool_search first to find the right tool. Many tools are hidden and need to be searched.",
             "ios_version_support": [
                 "trollstore_supported": [
                     "iOS 14.0 - 15.4.1 (TrollStore 1)",
