@@ -199,8 +199,8 @@ final class ProgressNotifier {
 
 final class UITapTool: MCPTool {
     let definition = ToolDefinition(name: "ui.tap",
-        summary: "Tap at screen coordinates (AI controls any foreground app: Meituan/Xiaohongshu etc). Coordinates in points (iPhone fullscreen ~390x844 logical points), origin top-left. Always include reason.",
-        parameters: ["x": "X coordinate in points", "y": "Y coordinate in points", "reason": "Why tap here (required, e.g. screenshot shows search box at (100,55))"], verified: true, category: "ui_control")
+        summary: "Tap at screen coordinates via HID injection. FALLBACK: use control.tap instead (more precise, has UI tree). Only use ui.tap when target app is NOT injected with ControlAgent. Coordinates in points.",
+        parameters: ["x": "X coordinate in points (REQUIRED)", "y": "Y coordinate in points (REQUIRED)", "reason": "Why tap here (optional)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x = params["x"] as? Double, let y = params["y"] as? Double else {
             throw MCPError.invalidParams("x, y required（浮点 points）")
@@ -221,8 +221,8 @@ final class UITapTool: MCPTool {
 
 final class UISwipeTool: MCPTool {
     let definition = ToolDefinition(name: "ui.swipe",
-        summary: "Swipe on screen (from A to B), for paging/scrolling/back gesture. Always include reason.",
-        parameters: ["x1": "Start X", "y1": "Start Y", "x2": "End X", "y2": "End Y", "duration_ms": "Duration ms (default 300)", "reason": "Why swipe (required)"], verified: true, category: "ui_control")
+        summary: "Swipe via HID injection. FALLBACK: use control.swipe instead. Only use ui.swipe when target app NOT injected.",
+        parameters: ["x1": "Start X (REQUIRED)", "y1": "Start Y (REQUIRED)", "x2": "End X (REQUIRED)", "y2": "End Y (REQUIRED)", "duration_ms": "Duration ms default 300 (optional)", "reason": "Why swipe (optional)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x1 = params["x1"] as? Double, let y1 = params["y1"] as? Double,
               let x2 = params["x2"] as? Double, let y2 = params["y2"] as? Double else {
@@ -245,8 +245,8 @@ final class UISwipeTool: MCPTool {
 
 final class UILongPressTool: MCPTool {
     let definition = ToolDefinition(name: "ui.long_press",
-        summary: "Long-press at screen coordinates (for popup menu/text selection/paste menu). Always include reason.",
-        parameters: ["x": "X", "y": "Y", "duration_ms": "Long press duration ms (default 800)", "reason": "Why long press (required)"], verified: true, category: "ui_control")
+        summary: "Long-press via HID injection. FALLBACK: use control.tap with long duration if possible.",
+        parameters: ["x": "X (REQUIRED)", "y": "Y (REQUIRED)", "duration_ms": "Long press ms default 800 (optional)", "reason": "Why (optional)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x = params["x"] as? Double, let y = params["y"] as? Double else {
             throw MCPError.invalidParams("x, y required")
@@ -268,8 +268,8 @@ final class UILongPressTool: MCPTool {
 
 final class UIClipboardTool: MCPTool {
     let definition = ToolDefinition(name: "ui.clipboard",
-        summary: "Write text to system clipboard (combine with ui.long_press + tap Paste for cross-app text input; iOS has no public text injection API). Always include reason.",
-        parameters: ["text": "Text to write to clipboard", "reason": "Why (required)"], verified: true, category: "ui_control")
+        summary: "Write text to system clipboard. Use when: paste text into an app via long-press + Paste.",
+        parameters: ["text": "Text to write (REQUIRED)", "reason": "Why (optional)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let text = params["text"] as? String else { throw MCPError.invalidParams("text required") }
         let reason = params["reason"] as? String ?? ""
@@ -284,8 +284,8 @@ final class UIClipboardTool: MCPTool {
 
 final class UIScreenshotTool: MCPTool {
     let definition = ToolDefinition(name: "ui.screenshot",
-        summary: "Screenshot current screen (safe version; ReplayKit deprecated due to iOS 16.3 sideload crash). Prefers ControlAgent screenshot (when target app online), falls back to TrollAgent own window. Always include reason.",
-        parameters: ["reason": "Why screenshot (required, e.g. verify search box is visible)"], verified: true, category: "ui_control")
+        summary: "Screenshot current screen. PREFER control.screenshot (more reliable when injected). Use ui.screenshot as fallback.",
+        parameters: ["reason": "Why screenshot (optional)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let reason = params["reason"] as? String ?? ""
         ControlSession.shared.addThink(reason.isEmpty ? "截屏验证当前界面" : reason)

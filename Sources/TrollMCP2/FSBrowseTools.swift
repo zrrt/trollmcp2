@@ -173,15 +173,15 @@ final class FSTreeTool: MCPTool {
 final class FSReadTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.read",
-        summary: "Read file content (text). Use for: inspect file.",
+        summary: "Read text file. Use: pass either path (absolute) OR bundle_id+relative (inside app container). Other params are optional.",
         parameters: [
-            "bundle_id": "Target App bundle_id (choose one with path; if set, use relative container path)",
-            "relative": "Relative path inside container (for bundle_id mode, e.g. Library/Preferences/xx.plist)",
-            "path": "Absolute path (choose one with bundle_id)",
-            "max_bytes": "Max bytes to read (default 524288, 0 = unlimited)",
-            "as": "Force format: auto (default) / text / json / hex",
-            "line_start": "Start line (1-based, default 1)",
-            "line_end": "Return text up to which line (default all)"
+            "path": "Absolute file path (REQUIRED, unless using bundle_id+relative)",
+            "bundle_id": "Target App bundle_id (optional, use with relative)",
+            "relative": "Relative path inside app container (optional, use with bundle_id)",
+            "max_bytes": "Max bytes (default 512KB, optional)",
+            "as": "Format: auto/text/json/hex (default auto, optional)",
+            "line_start": "Start line number (optional)",
+            "line_end": "End line number (optional)"
         ],
         verified: true, category: "filesystem")
 
