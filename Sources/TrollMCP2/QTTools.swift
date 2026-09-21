@@ -496,11 +496,11 @@ final class LogCollectTool: MCPTool {
 final class NetworkCaptureTool: MCPTool {
     let definition = ToolDefinition(
         name: "network.capture",
-        summary: "HTTP packet capture. Inject built-in NetworkTweak.dylib first; all HTTP/HTTPS requests logged locally. View list/URL/method/status/headers/JSON.",
+        summary: "HTTP/HTTPS packet capture (抓包). Use for: see what network requests an app makes, analyze API calls, inspect request/response headers, debug app networking. Don't use for: browse web pages (use browser.*), read local files (use fs.*). Workflow: 1) inject NetworkTweak into app, 2) use the app normally, 3) query captured requests. Example: user says '抓包小红书的请求' → start capture on com.xingin.discover.",
         parameters: [
             "action": "Action: status / start / stop / requests / analyze",
-            "bundle_id": "Target App bundle_id (required for start)",
-            "limit": "Max requests (default 50)"
+            "bundle_id": "Target App bundle_id (required for start). e.g. com.xingin.discover",
+            "limit": "Max requests to show (default 50)"
         ],
         verified: true, category: "diagnose")
 
