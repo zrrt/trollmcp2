@@ -86,8 +86,8 @@ final class AppInstallTool: MCPTool {
 final class AppUninstallTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.uninstall",
-        summary: "Uninstall an app by bundle_id (trollstorehelper uninstall). Deletes app data container, back up first.",
-        parameters: ["bundle_id": "App bundle_id to uninstall (required)"],
+        summary: "Completely uninstall/delete an app from the iPhone. Use for: remove app, free up space. Don't use for: just restart app (use app.restart), clear app cache (use cleanup.execute). Warning: this deletes ALL app data permanently! Backup first if needed. Example: user says '把小红书删了' → uninstall com.xingin.discover.",
+        parameters: ["bundle_id": "App bundle_id to uninstall (required). e.g. com.xingin.discover"],
         verified: true, category: "app_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {

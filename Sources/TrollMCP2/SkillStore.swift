@@ -130,8 +130,8 @@ final class SkillsListTool: MCPTool {
     // v2.9.42：检索式——query 按名称/摘要搜索，只返回命中项，不再全量塞技能
     let definition = ToolDefinition(
         name: "skills.list",
-        summary: "Search available skills by keyword (returns name+summary). Always provide query to narrow; use skills.read for full instructions.",
-        parameters: ["query": "Search keyword (skill name or summary snippet, optional); returns first 20 if empty"], verified: true, category: "skills")
+        summary: "Search/list available skills (pre-built prompt templates). Use for: find a skill that matches user's task, see what skills exist. Don't use for: execute a skill (use skills.read to load it), disable/enable skills (use skills.set_enabled). Example: user says '有没有抓包的技能' → search '抓包' in skills.",
+        parameters: ["query": "Search keyword (skill name or description, optional). e.g. '抓包' / '注入' / '编译'"], verified: true, category: "skills")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let all = SkillStore.shared.all.filter { SkillStore.shared.isEnabled($0.name) }
         let q = (params["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

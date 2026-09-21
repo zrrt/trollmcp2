@@ -887,7 +887,7 @@ final class ScanQRTool: MCPTool {
 }
 
 final class ProcessListTool: MCPTool {
-    let definition = ToolDefinition(name: "process.list", summary: "List running processes (all). Use for: find target App pid for injection.")
+    let definition = ToolDefinition(name: "process.list", summary: "List all running apps/processes on the device. Use for: find what's currently running, check if an app is alive, find app bundle_id. Don't use for: find a specific app (use injection.list with search), kill app (use app.restart). Example: user says '现在什么在后台跑着' → list all running processes.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         var procs: [[String: Any]] = []
         for app in AppCatalog.list() {
