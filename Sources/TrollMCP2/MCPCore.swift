@@ -188,10 +188,11 @@ public final class ToolRegistry: ObservableObject {
     /// 刷新不可靠、开关点了没反应/弹回的问题）。
     @Published private(set) var policyRevision = 0
 
-    // v3.0.88：循环检测——同一工具+同一参数 15 秒内重复调用，直接挡掉
-    private var recentCalls: [String: Date] = [:]
-    private let loopWindow: TimeInterval = 15.0
-    private let loopThreshold = 2  // 同一 key 出现 2 次就触发
+    // v3.0.90：循环检测——同一工具+同一参数 60 秒内调用 ≥3 次，直接挡掉
+    // 之前 15 秒窗口太短，AI 思考 1 分钟或网络慢会误杀正常操作
+    private var recentCalls: [String: [Date]] = [:]
+    private let loopWindow: TimeInterval = 60.0  // 1 分钟窗口
+    private let loopThreshold = 3  // 窗口内调用 ≥3 次才算循环
 
     private func callKey(name: String, params: [String: Any]) -> String {
         let sortedParams = params.sorted { $0.key < $1.key }
@@ -203,16 +204,15 @@ public final class ToolRegistry: ObservableObject {
         let key = callKey(name: name, params: params)
         let now = Date()
         // 清理过期记录
-        recentCalls = recentCalls.filter { now.timeIntervalSince($0.value) < loopWindow }
+        recentCalls[key] = (recentCalls[key] ?? []).filter { now.timeIntervalSince($0) < loopWindow }
         // 检查是否重复
-        if let lastTime = recentCalls[key] {
-            let elapsed = now.timeIntervalSince(lastTime)
-            if elapsed < loopWindow {
-                // 重复调用——返回提示
-                return "⚠️ LOOP DETECTED: You already called `\(name)` with the same params \(Int(elapsed))s ago. The result was the same. STOP calling this tool. Try a different approach, a different tool, or ask the user for clarification."
-            }
+        let callCount = recentCalls[key]?.count ?? 0
+        if callCount >= loopThreshold {
+            // 重复调用——返回提示
+            return "⚠️ LOOP DETECTED: You already called `\(name)` with the same params \(callCount) times in the last \(Int(loopWindow))s. The result was the same every time. STOP calling this tool. Try a different approach, a different tool, or ask the user for clarification."
         }
-        recentCalls[key] = now
+        recentCalls[key]?.append(now)
+        if recentCalls[key] == nil { recentCalls[key] = [now] }
         return nil
     }
 
