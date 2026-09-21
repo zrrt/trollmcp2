@@ -40,7 +40,6 @@ struct ChatView: View {
                 }
                 // v2.9.72：工作流可视化步骤条
                 WorkflowProgressView()
-                currentModelBar
             }
             // v2.9.244：输入框改用 safeAreaInset 挂底部——标准键盘避让，不再手动 padding 双重压缩内容区
             .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -545,29 +544,36 @@ struct ChatView: View {
         // v2.9.93：按上游模型供应商换图标
         let currentCfg = modelStore.defaultConfig
         return Button(action: { showModelPicker = true }) {
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(LinearGradient(colors: [.tmCyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 22, height: 22)
+                        .frame(width: 28, height: 28)
                     Image(systemName: modelIcon(for: currentCfg?.model ?? ""))
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.white)
                 }
-                if let cfg = currentCfg {
-                    Text(cfg.name)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("当前模型")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                    if let cfg = currentCfg {
+                        Text(cfg.name)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                    }
                 }
+                Spacer()
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.tmCyan)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity)
             .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color(.secondarySystemBackground))
             )
         }
@@ -580,39 +586,48 @@ struct ChatView: View {
             AttachmentPreviewStrip(attachments: pendingAttachments) { att in
                 withAnimation { pendingAttachments.removeAll { $0.id == att.id } }
             }
-            // v3.0.75：模型选择器 + chips 合并一行，紧凑布局
-            HStack(spacing: 6) {
+            // v3.0.83：模型选择器居中 80% 宽
+            HStack {
+                Spacer()
                 currentModelBar
+                Spacer()
+            }
+            .padding(.horizontal, 36)
+            .padding(.top, 4)
+
+            // v3.0.83：第二行 chips + 快捷标签，均匀分布
+            HStack(spacing: 8) {
                 ChatChip(label: "推理·\(reasoningLabel())", action: {
                     reasoning = (reasoning + 1) % 3
                 }, accent: true, icon: "gauge.with.dots.needle.67percent")
                 ChatChip(label: "搜索·\(smartSearch ? "开" : "关")", action: {
                     smartSearch.toggle()
                 }, accent: smartSearch, icon: "magnifyingglass")
-            }
-            .padding(.horizontal, 12)
-            .padding(.top, 4)
-
-            // v3.0.76：输入框上方快捷标签
-            HStack(spacing: 6) {
-                QuickTabButton(icon: "terminal", label: "终端") {
-                    AppUIState.shared.quickTerminalPresented = true
-                }
-                QuickTabButton(icon: "wrench.and.screwdriver", label: "工具") {
-                    AppUIState.shared.quickToolsPresented = true
-                }
                 QuickTabButton(icon: "bolt", label: "技能") {
                     AppUIState.shared.quickSkillsPresented = true
+                }
+                QuickTabButton(icon: "doc.text", label: "指令") {
+                    // TODO: 打开指令切换页
                 }
                 QuickTabButton(icon: "folder", label: "文件") {
                     AppUIState.shared.quickFilesPresented = true
                 }
-                Spacer()
             }
             .padding(.horizontal, 12)
 
-            // v3.0.75：输入框圆角 16，按钮 32x32
+            // v3.0.83：第三行 ish终端图标 + 输入框 + 按钮
             HStack(spacing: 8) {
+                Button(action: {
+                    AppUIState.shared.quickTerminalPresented = true
+                }) {
+                    Image(systemName: "terminal")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .frame(width: 32, height: 32)
+                        .background(Color(.secondarySystemBackground))
+                        .cornerRadius(16)
+                }
+
                 HStack(spacing: 0) {
                     ChatInputTextView(text: $inputText, onSend: { send() }, height: $inputHeight)
                         .frame(maxWidth: .infinity)
