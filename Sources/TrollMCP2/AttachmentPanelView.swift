@@ -216,8 +216,31 @@ struct DocumentPickerView: UIViewControllerRepresentable {
         init(_ parent: DocumentPickerView) { self.parent = parent }
 
         func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            // v3.1.1: 先把文件复制到工作区，不然 picker 关闭后临时 URL 就失效了
+            var copiedURLs: [URL] = []
+            for url in urls {
+                // 处理 security-scoped URL
+                let needsStart = url.startAccessingSecurityScopedResource()
+                defer { if needsStart { url.stopAccessingSecurityScopedResource() } }
+
+                // 复制到工作区 uploads 目录
+                let fm = FileManager.default
+                let workspace = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                    .appendingPathComponent("Workspace/uploads", isDirectory: true)
+                try? fm.createDirectory(at: workspace, withIntermediateDirectories: true)
+                let dest = workspace.appendingPathComponent(url.lastPathComponent)
+                do {
+                    if fm.fileExists(atPath: dest.path) {
+                        try fm.removeItem(at: dest)
+                    }
+                    try fm.copyItem(at: url, to: dest)
+                    copiedURLs.append(dest)
+                } catch {
+                    print("Copy file failed: \(error)")
+                }
+            }
             parent.presentationMode.wrappedValue.dismiss()
-            parent.onSelect(urls)
+            parent.onSelect(copiedURLs)
         }
 
         func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
