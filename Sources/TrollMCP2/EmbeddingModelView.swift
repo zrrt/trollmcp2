@@ -141,23 +141,70 @@ struct EmbeddingModelView: View {
         isDownloading = true
         downloadProgress = 0
 
-        // 真正的下载逻辑
+        // 多镜像 URL 列表
+        let githubBase = "https://raw.githubusercontent.com/Abhishek6353/AllMiniLML6V2-coreml/main/AllMiniLML6V2-coreml/Models"
+        let mirrors = [
+            githubBase,  // 主站（GitHub 直连）
+            "https://ghproxy.com/\(githubBase)",  // 镜像1（ghproxy）
+            "https://mirror.ghproxy.com/\(githubBase)",  // 镜像2
+        ]
+
+        // 先检测哪个镜像能连
+        var workingMirror: String? = nil
+
+        // 用小文件（vocab.txt）测试
+        let testURL = URL(string: "\(mirrors[0])/llm/vocab.txt")!
+
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 5  // 5 秒超时
+        let session = URLSession(configuration: config)
+
+        // 尝试第一个镜像
+        session.dataTask(with: testURL) { data, response, error in
+            if error == nil, let httpResp = response as? HTTPURLResponse, httpResp.statusCode == 200 {
+                workingMirror = mirrors[0]
+                print("✅ Mirror 0 works (GitHub direct)")
+                self.startDownload(mirror: workingMirror!, session: session)
+            } else {
+                // 试第二个镜像
+                let testURL1 = URL(string: "\(mirrors[1])/llm/vocab.txt")!
+                session.dataTask(with: testURL1) { data, response, error in
+                    if error == nil, let httpResp = response as? HTTPURLResponse, httpResp.statusCode == 200 {
+                        workingMirror = mirrors[1]
+                        print("✅ Mirror 1 works (ghproxy)")
+                        self.startDownload(mirror: workingMirror!, session: session)
+                    } else {
+                        // 试第三个镜像
+                        let testURL2 = URL(string: "\(mirrors[2])/llm/vocab.txt")!
+                        session.dataTask(with: testURL2) { data, response, error in
+                            if error == nil, let httpResp = response as? HTTPURLResponse, httpResp.statusCode == 200 {
+                                workingMirror = mirrors[2]
+                                print("✅ Mirror 2 works (mirror.ghproxy)")
+                                self.startDownload(mirror: workingMirror!, session: session)
+                            } else {
+                                DispatchQueue.main.async {
+                                    isDownloading = false
+                                    print("❌ All mirrors failed!")
+                                }
+                            }
+                        }.resume()
+                    }
+                }.resume()
+            }
+        }.resume()
+    }
+
+    private func startDownload(mirror: String, session: URLSession) {
         let fileManager = FileManager.default
         let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let modelDir = documentsURL.appendingPathComponent("EmbeddingModel")
-
-        // 创建目录
         try? fileManager.createDirectory(at: modelDir, withIntermediateDirectories: true)
 
         let modelURL = modelDir.appendingPathComponent("AllMiniLML6V2.mlmodel")
         let vocabURL = modelDir.appendingPathComponent("vocab.txt")
 
-        // 下载模型文件
-        let modelDownloadURL = URL(string: "https://raw.githubusercontent.com/Abhishek6353/AllMiniLML6V2-coreml/main/AllMiniLML6V2-coreml/Models/embeddings/AllMiniLML6V2.mlmodel")!
-        let vocabDownloadURL = URL(string: "https://raw.githubusercontent.com/Abhishek6353/AllMiniLML6V2-coreml/main/AllMiniLML6V2-coreml/Models/llm/vocab.txt")!
-
-        // 用 URLSession 下载
-        let session = URLSession.shared
+        let vocabDownloadURL = URL(string: "\(mirror)/llm/vocab.txt")!
+        let modelDownloadURL = URL(string: "\(mirror)/embeddings/AllMiniLML6V2.mlmodel")!
 
         // 先下载 vocab.txt（小文件，1MB）
         let vocabTask = session.downloadTask(with: vocabDownloadURL) { tempURL, response, error in
@@ -170,7 +217,6 @@ struct EmbeddingModelView: View {
             }
 
             do {
-                // 移动到目标位置
                 if fileManager.fileExists(atPath: vocabURL.path) {
                     try fileManager.removeItem(at: vocabURL)
                 }
@@ -191,7 +237,6 @@ struct EmbeddingModelView: View {
                     }
 
                     do {
-                        // 移动到目标位置
                         if fileManager.fileExists(atPath: modelURL.path) {
                             try fileManager.removeItem(at: modelURL)
                         }
@@ -202,7 +247,7 @@ struct EmbeddingModelView: View {
                             isDownloading = false
                             modelDownloaded = true
                             embeddingEnabled = true
-                            vectorCount = 200  // 临时显示
+                            vectorCount = 200
                             print("✅ Embedding model downloaded!")
                         }
                     } catch {
@@ -212,9 +257,6 @@ struct EmbeddingModelView: View {
                         }
                     }
                 }
-
-                // 跟踪下载进度
-                // TODO: 用 delegate 跟踪进度
                 modelTask.resume()
 
             } catch {
@@ -224,7 +266,6 @@ struct EmbeddingModelView: View {
                 }
             }
         }
-
         vocabTask.resume()
     }
 
