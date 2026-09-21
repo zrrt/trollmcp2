@@ -356,31 +356,31 @@ struct ChatView: View {
                 .padding(.horizontal, 22)
 
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                    miniCard("hammer.fill", L10n.t("home_quick_compile"), L10n.t("home_quick_compile_sub"), [.orange, .tmBrown]) {
+                    miniCard("hammer.fill", L10n.t("home_quick_compile"), L10n.t("home_quick_compile_sub"), [.orange, .tmBrown], promptId: "developer") {
                         runQuickPrompt("帮我在 GitHub 上编译一个测试 tweak（HelloWorld），完成后把 dylib 下载到工作区")
                     }
-                    miniCard("syringe.fill", L10n.t("home_quick_inject"), L10n.t("home_quick_inject_sub"), [.green, .tmTeal]) {
+                    miniCard("syringe.fill", L10n.t("home_quick_inject"), L10n.t("home_quick_inject_sub"), [.green, .tmTeal], promptId: "reverse") {
                         runQuickPrompt("列出本机已安装的应用，选一个测试 dylib 注入并验证加载状态")
                     }
-                    miniCard("memorychip.fill", L10n.t("home_quick_memory"), L10n.t("home_quick_memory_sub"), [.purple, .tmIndigo]) {
+                    miniCard("memorychip.fill", L10n.t("home_quick_memory"), L10n.t("home_quick_memory_sub"), [.purple, .tmIndigo], promptId: "gamehacker") {
                         runQuickPrompt("检查内存修改工具（MemoryTweak）是否就绪，并说明用法")
                     }
-                    miniCard("cursorarrow.click.2", L10n.t("home_quick_ui"), L10n.t("home_quick_ui_sub"), [.tmCyan, .blue]) {
+                    miniCard("cursorarrow.click.2", L10n.t("home_quick_ui"), L10n.t("home_quick_ui_sub"), [.tmCyan, .blue], promptId: "uicontrol") {
                         runQuickPrompt("给小红书注入控制代理（ControlAgent），然后读取它的界面树")
                     }
-                    miniCard("stethoscope", L10n.t("home_quick_env"), L10n.t("home_quick_env_sub"), [.tmCyan, .teal]) {
+                    miniCard("stethoscope", L10n.t("home_quick_env"), L10n.t("home_quick_env_sub"), [.tmCyan, .teal], promptId: "qa") {
                         runQuickPrompt("全面检查本机环境：TrollStore、注入工具链、Entitlements 与网络连通性，输出体检报告")
                     }
-                    miniCard("antenna.radiowaves.left.and.right", L10n.t("home_quick_capture"), L10n.t("home_quick_capture_sub"), [.orange, .red]) {
+                    miniCard("antenna.radiowaves.left.and.right", L10n.t("home_quick_capture"), L10n.t("home_quick_capture_sub"), [.orange, .red], promptId: "pentester") {
                         runQuickPrompt("对小红书做一次网络抓包分析，列出请求清单和可疑字段")
                     }
-                    miniCard("trash.circle.fill", L10n.t("home_quick_clean"), L10n.t("home_quick_clean_sub"), [.purple, .blue]) {
+                    miniCard("trash.circle.fill", L10n.t("home_quick_clean"), L10n.t("home_quick_clean_sub"), [.purple, .blue], promptId: "privacy") {
                         runQuickPrompt("扫描本机应用缓存，帮我清理缓存最大的几个 App（先备份再清理）")
                     }
-                    miniCard("globe", L10n.t("home_quick_browser"), L10n.t("home_quick_browser_sub"), [.red, .orange]) {
+                    miniCard("globe", L10n.t("home_quick_browser"), L10n.t("home_quick_browser_sub"), [.red, .orange], promptId: "default") {
                         runQuickPrompt("打开内置浏览器访问 bing.com，告诉我页面上有什么")
                     }
-                    miniCard("bolt.fill", L10n.t("home_quick_automation"), L10n.t("home_quick_automation_sub"), [.blue, .purple]) {
+                    miniCard("bolt.fill", L10n.t("home_quick_automation"), L10n.t("home_quick_automation_sub"), [.blue, .purple], promptId: "default") {
                         runQuickPrompt("帮我创建一个自动化任务：每 5 分钟执行一次 ping，失败时提醒我")
                     }
                 }
@@ -393,8 +393,15 @@ struct ChatView: View {
     }
 
     /// v2.9.78：首页能力小卡片（两列网格）
-    private func miniCard(_ icon: String, _ title: String, _ subtitle: String, _ colors: [Color], action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+    /// v3.1.1: 点卡片时自动切换到对应的系统指令模式
+    private func miniCard(_ icon: String, _ title: String, _ subtitle: String, _ colors: [Color], promptId: String? = nil, action: @escaping () -> Void) -> some View {
+        Button {
+            // 自动切换到对应的系统指令模式
+            if let pid = promptId {
+                SystemPrompts.shared.select(pid)
+            }
+            action()
+        } label: {
             VStack(alignment: .leading, spacing: 8) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
