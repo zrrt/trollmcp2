@@ -582,7 +582,7 @@ struct ChatView: View {
             }
             // v3.0.75：模型选择器 + chips 合并一行，紧凑布局
             HStack(spacing: 6) {
-                modelSelectorButton
+                currentModelBar
                 ChatChip(label: "推理·\(reasoningLabel())", action: {
                     reasoning = (reasoning + 1) % 3
                 }, accent: true, icon: "gauge.with.dots.needle.67percent")
