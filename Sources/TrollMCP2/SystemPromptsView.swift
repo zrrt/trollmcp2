@@ -15,6 +15,10 @@ struct SystemPromptsView: View {
         "concise": "bolt.fill",
         "reverse": "magnifyingglass.circle.fill",
         "qa": "checkmark.seal.fill",
+        "pentester": "shield.lefthalf.filled",
+        "gamehacker": "gamecontroller.fill",
+        "automation": "wand.and.stars",
+        "privacy": "lock.shield.fill",
     ]
 
     var body: some View {
