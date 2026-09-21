@@ -125,7 +125,7 @@ struct EmbeddingModelView: View {
                 }
             }
             .listStyle(InsetGroupedListStyle())
-            .navigationTitle("向量语义模型")
+            .navigationTitle("向量语义搜索模型")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {

@@ -204,7 +204,7 @@ struct SettingsView: View {
                              icon: "books.vertical.fill", color: .tmBrown,
                              destination: AnyView(KnowledgeBaseView())),
                 SettingsItem(title: "向量语义模型",
-                             subtitle: "本地 embedding · 下载/删除 · AI 搜工具更准",
+                             subtitle: "AI 搜工具更准 · 下载/删除",
                              icon: "brain.head.profile", color: .purple,
                              destination: AnyView(EmbeddingModelView()))
             ]
