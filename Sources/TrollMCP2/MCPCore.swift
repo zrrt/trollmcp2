@@ -1045,10 +1045,21 @@ final class ToolSearchTool: MCPTool {
         // v2.9.167：按用户示例最紧凑形态——无 hint/无 query、authorized 保留（明确可直调）、
         // summary 改 desc 短摘要（30 字足够 AI 判断用途）、_noMessage 省顶层 message。
         // 单次搜索比 v2.9.165 再省 ~40 token，且信息不减。
+        // v3.0.95：加 hint 明确告诉 AI "这些工具你现在就可以调用了"
+        var hint = "✅ These tools are now authorized and ready to call directly:"
+        for h in hits.prefix(5) {
+            if let n = h["name"], let s = h["summary"] {
+                hint += "\n  - \(n): \(String(s.prefix(40)))"
+            }
+        }
+        if hits.count > 5 {
+            hint += "\n  ... and \(hits.count - 5) more"
+        }
         return [
             "_noMessage": true,
             "total": hits.count,
             "authorized": hits.map { $0["name"] ?? "" },
+            "hint": hint,
             "tools": hits.map { h -> [String: String] in
                 var d = h
                 if let s = d["summary"] {
