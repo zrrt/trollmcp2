@@ -761,6 +761,9 @@ public final class ToolRegistry: ObservableObject {
         register(SystemOverviewTool())
         register(SystemLessonsTool())  // v3.0.90：AI 经验教训库
         register(TaskProgressTool())   // v3.0.90：任务进度跟踪
+        register(VerifyInjectTool())   // v3.0.90：结果验证
+        register(VerifyFileTool())
+        register(VerifyAppRunningTool())
 
         // M3 注入管理 + 容器
         register(InjectionEnableTool())

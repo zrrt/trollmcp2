@@ -249,6 +249,141 @@ final class TaskProgressTool: MCPTool {
     }
 }
 
+// MARK: - v3.0.90：verify.* — 结果自动验证
+
+final class VerifyInjectTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "verify.inject",
+        summary: "Verify if injection succeeded. Use for: after injection.enable/injection.mem, check if dylib actually loaded. Don't use for: launch app (use app.launch).",
+        parameters: [
+            "bundle_id": "Target App bundle_id (required)",
+            "check_http": "Check if ControlAgent HTTP server is up (default true)"
+        ],
+        verified: true, category: "verify")
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let bid = params["bundle_id"] as? String else {
+            throw MCPError.invalidParams("bundle_id required")
+        }
+        guard let app = AppCatalog.find(bid) else {
+            return ["verified": false, "reason": "App not found"]
+        }
+
+        // 1. 检查 App 是否在运行
+        let exeName = ProcessHelper.executableName(for: app)
+        let pid = ProcessHelper.pidOf(executableName: exeName)
+        guard let runningPid = pid else {
+            return [
+                "verified": false,
+                "reason": "App not running. Launch it first: app.launch(bundle_id)",
+                "app_running": false
+            ]
+        }
+
+        // 2. 检查 HTTP 端口（ControlAgent 4789 / ProbeAgent 4791）
+        var httpUp = false
+        if (params["check_http"] as? Bool) ?? true {
+            for port in [4789, 4791] {
+                if let url = URL(string: "http://127.0.0.1:\(port)/"),
+                   let resp = try? Data(contentsOf: url, options: .alwaysMapped),
+                   !resp.isEmpty {
+                    httpUp = true
+                    break
+                }
+            }
+        }
+
+        return [
+            "verified": httpUp,
+            "app_running": true,
+            "pid": runningPid,
+            "http_up": httpUp,
+            "reason": httpUp ? "Injection verified: app running + HTTP server up" : "App running but HTTP server not responding. Injection may have failed.",
+            "next_step": httpUp ? "You're good to go" : "Try re-injecting, or check if app crashed"
+        ]
+    }
+}
+
+final class VerifyFileTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "verify.file",
+        summary: "Verify if file exists and has expected content. Use for: after fs.write, check if file was written correctly. Don't use for: read file content (use fs.read).",
+        parameters: [
+            "path": "File path to verify (required)",
+            "expect_size": "Expected file size in bytes (optional)",
+            "expect_contains": "Expected string in file content (optional)"
+        ],
+        verified: true, category: "verify")
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let path = params["path"] as? String else {
+            throw MCPError.invalidParams("path required")
+        }
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: path) else {
+            return ["verified": false, "reason": "File not found", "path": path]
+        }
+        let attrs = try? fm.attributesOfItem(atPath: path)
+        let size = (attrs?[.size] as? NSNumber)?.intValue ?? 0
+
+        var checks: [String: Any] = [
+            "verified": true,
+            "path": path,
+            "size": size
+        ]
+
+        // 检查大小
+        if let expectedSize = params["expect_size"] as? Int {
+            checks["size_match"] = size == expectedSize
+            if size != expectedSize {
+                checks["verified"] = false
+                checks["reason"] = "Size mismatch: expected \(expectedSize), got \(size)"
+            }
+        }
+
+        // 检查内容
+        if let expectedStr = params["expect_contains"] as? String, !expectedStr.isEmpty {
+            if let content = try? String(contentsOfFile: path, encoding: .utf8) {
+                let contains = content.contains(expectedStr)
+                checks["content_contains"] = contains
+                if !contains {
+                    checks["verified"] = false
+                    checks["reason"] = "Content does not contain expected string"
+                }
+            }
+        }
+
+        return checks
+    }
+}
+
+final class VerifyAppRunningTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "verify.app_running",
+        summary: "Verify if an app is currently running. Use for: after app.launch, check if it actually started. Don't use for: launch app (use app.launch).",
+        parameters: [
+            "bundle_id": "App bundle_id to check (required)"
+        ],
+        verified: true, category: "verify")
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let bid = params["bundle_id"] as? String else {
+            throw MCPError.invalidParams("bundle_id required")
+        }
+        guard let app = AppCatalog.find(bid) else {
+            return ["running": false, "reason": "App not found"]
+        }
+        let exeName = ProcessHelper.executableName(for: app)
+        let pid = ProcessHelper.pidOf(executableName: exeName)
+        return [
+            "running": pid != nil,
+            "pid": pid ?? 0,
+            "bundle_id": bid,
+            "name": app.name
+        ]
+    }
+}
+
 // MARK: - M3 注入工具
 
 final class InjectionEnableTool: MCPTool {
