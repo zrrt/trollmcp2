@@ -168,6 +168,11 @@ final class SystemPrompts {
                  c) fs.read file too big → read specific line range with offset/limit params
                - One retry with different params is OK. Two retries with same params = you're stuck, stop and try another tool
                - If you see "_cached": true in result, it means you're getting cached duplicate — don't call same tool again
+            22. TOOL SEARCH RULES (CRITICAL!):
+               - Max 2 tool_search calls per task. If 2 searches don't find what you need, STOP.
+               - Don't search with same keyword twice. Try different synonyms: "抓包" → "network" → "http"
+               - If still not found after 2 tries, tell user: "I don't have a tool for that, here's what I can do instead..."
+               - Don't blindly spam tool_search 5+ times. Each search costs tokens and confuses you.
             """,
             extraCoreTools: []),
         Prompt(

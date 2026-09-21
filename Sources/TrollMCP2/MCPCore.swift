@@ -461,6 +461,11 @@ public final class ToolRegistry: ObservableObject {
         // v3.0.99: 同义词映射——用户说中文，工具描述是英文，做个映射
         let synonyms: [String: [String]] = [
             "截图": ["screenshot", "screen"],
+            "抓包": ["network.capture", "network", "packet", "proxy", "http"],
+            "网络抓包": ["network.capture", "network", "packet", "proxy"],
+            "网络分析": ["network.capture", "network", "http", "request"],
+            "请求": ["network.capture", "http", "request", "api"],
+            "请求清单": ["network.capture", "network", "http"],
             "截屏": ["screenshot", "screen"],
             "屏幕": ["screenshot", "screen", "ui"],
             "网页": ["browser", "web", "url"],
