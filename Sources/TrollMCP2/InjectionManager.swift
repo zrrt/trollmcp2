@@ -1149,6 +1149,19 @@ final class InjectionManager {
         guard let app = AppCatalog.find(bundleId) else {
             throw MCPError.failed("app not found: \(bundleId)")
         }
+
+        // v3.0.89：iOS 17+ 自动切换到静态注入（ct_bypass 已失效）
+        let majorVer = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
+        if majorVer >= 17 {
+            // iOS 17+：用静态注入（insert_dylib + trollstorehelper 重装）
+            let dylibPath = dylibSourcePath ?? Bundle.main.path(forResource: "ControlAgent", ofType: "dylib") ?? ""
+            if dylibPath.isEmpty {
+                throw MCPError.failed("iOS 17+ requires dylib_path parameter (no built-in dylib found)")
+            }
+            let (ok, msg) = injectStatic(bundleId: bundleId, dylibPath: dylibPath)
+            return ["injected": ok, "method": "static", "message": msg, "ios_version": majorVer]
+        }
+
         guard binaryPath("insert_dylib") != nil,
               binaryPath("ldid") != nil,
               binaryPath("install_name_tool") != nil,
