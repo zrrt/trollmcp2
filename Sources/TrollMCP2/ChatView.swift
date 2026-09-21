@@ -1274,17 +1274,6 @@ struct MessageBubble: View {
     }
 }
 
-/// v2.9.2：系统分享面板（分享到微信/备忘录/邮件等其它 App）
-struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}
-
 struct TypingIndicator: View {
     @State private var offset: CGFloat = 0
 

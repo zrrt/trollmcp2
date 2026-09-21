@@ -97,12 +97,15 @@ enum SharePresenter {
             popover.sourceRect = CGRect(x: top.view.bounds.midX, y: top.view.bounds.midY, width: 0, height: 0)
             popover.permittedArrowDirections = []
         }
-        // 二次防御：若期间又弹出了别的控制器则放弃，避免 "already presenting" 崩溃
-        guard top.presentedViewController == nil else {
-            AuditLog.shared.log("share.present_conflict", detail: "\(top)")
-            return
+        // v3.0.82: 先 dismiss 现有的 presentedViewController，再 present——避免 already presenting 崩溃
+        if let existing = top.presentedViewController {
+            existing.dismiss(animated: false) {
+                top.present(vc, animated: true)
+                AuditLog.shared.log("share.present", detail: "ok (after dismiss)")
+            }
+        } else {
+            top.present(vc, animated: true)
+            AuditLog.shared.log("share.present", detail: "ok")
         }
-        top.present(vc, animated: true)
-        AuditLog.shared.log("share.present", detail: "ok")
     }
 }

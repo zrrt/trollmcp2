@@ -159,7 +159,9 @@ struct WorkspaceBrowserView: View {
                         .contextMenu {
                             Button { copyPath(item.path) } label: { Label("复制路径", systemImage: "doc.on.doc") }
                             if !item.isDir {
-                                Button { shareURL = URL(fileURLWithPath: item.path); showShare = true } label: { Label("分享", systemImage: "square.and.arrow.up") }
+                                Button {
+                                SharePresenter.present([URL(fileURLWithPath: item.path)])
+                            } label: { Label("分享", systemImage: "square.and.arrow.up") }
                             }
                             Button(role: .destructive) { confirmDelete = item } label: { Label("删除", systemImage: "trash") }
                         }
@@ -182,11 +184,7 @@ struct WorkspaceBrowserView: View {
         .sheet(item: $previewItem) { item in
              FilePreviewView(item: item) 
         }
-        .sheet(isPresented: $showShare) {
-            if let url = shareURL {
-                ShareSheet(items: [url])
-            }
-        }
+        // v3.0.82: 用 SharePresenter 替代 ShareSheet——修复从 sheet 里再弹 sheet 闪退
         .alert("删除确认", isPresented: Binding(get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } })) {
             Button("取消", role: .cancel) { confirmDelete = nil }
             Button("删除", role: .destructive) {
