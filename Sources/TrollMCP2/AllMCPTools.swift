@@ -410,8 +410,12 @@ final class VerifyAppRunningTool: MCPTool {
 // MARK: - M3 注入工具
 
 final class InjectionEnableTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.enable", summary: "Inject plugin (dylib/framework/zip/deb) into target App (TrollFools-style: auto CydiaSubstrate + multi-asset + strategy). v3.0.59 smart: fallback to memory injection if no static target. Use for: persistent injection (survives restart). Decision guide: (1) Temporary/probing → injection.mem (memory, no file change); (2) Need persistent → injection.enable (static, modifies file); (3) Main binary encrypted → app.decrypt first; (4) UI customization → hook.apply; (5) Device spoofing → device.fake.",
-        parameters: ["bundle_id": "Target App bundle_id (required)", "dylib_path": "Local plugin path (.dylib/.framework/.zip/.deb, e.g. Workspace/downloads/.../xxx.deb). Default: built-in ControlAgent.dylib", "weak_reference": "Optional Bool: weak reference injection (default false, matches TrollFools)", "inject_strategy": "Optional String: injection target strategy lexicographic (default)/fast (smallest file first)/preorder/postorder, matches TrollFools Strategy", "smart_fallback": "Optional Bool: auto-fallback to memory injection if no static target (default true)"], verified: true, category: "injection")
+    let definition = ToolDefinition(name: "injection.enable", summary: "Inject plugin (dylib/framework/zip/deb) into target App (TrollFools-style: auto CydiaSubstrate + multi-asset + strategy). v3.0.59 smart: fallback to memory injection if no static target. Use for: persistent injection (survives restart). Decision guide: (1) Temporary/probing → injection.mem (memory, no file change); (2) Need persistent → injection.enable (static, modifies file); (3) Main binary encrypted → app.decrypt first; (4) UI customization → hook.apply; (5) Device spoofing → device.fake. Note: ct_bypass runtime injection only works on iOS ≤17.0; iOS 17.0.1+ auto-switches to static.",
+        parameters: ["bundle_id": "Target App bundle_id (required)", "dylib_path": "Local plugin path (.dylib/.framework/.zip/.deb, e.g. Workspace/downloads/.../xxx.deb). Default: built-in ControlAgent.dylib", "weak_reference": "Optional Bool: weak reference injection (default false, matches TrollFools)", "inject_strategy": "Optional String: injection target strategy lexicographic (default)/fast (smallest file first)/preorder/postorder, matches TrollFools Strategy", "smart_fallback": "Optional Bool: auto-fallback to memory injection if no static target (default true)"],
+        verified: true,
+        category: "injection",
+        maxIOSMajor: 17  // ct_bypass 只支持到 iOS 17.0
+    )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
         let dylibPath = params["dylib_path"] as? String
@@ -566,7 +570,8 @@ final class JailbreakStatusTool: MCPTool {
             "note": "Usage guidance"
         ],
         verified: true,
-        category: "jailbreak"
+        category: "jailbreak",
+        requiresJailbreak: false  // 所有环境都可见，用来检测
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         InjectionManager.shared.jailbreakStatus()
@@ -576,9 +581,9 @@ final class JailbreakStatusTool: MCPTool {
 final class JailbreakInjectTool: MCPTool {
     let definition = ToolDefinition(
         name: "jailbreak.inject",
-        summary: "Runtime dylib injection via ElleKit (jailbreak only). Use for: inject dylib into app WITHOUT modifying binary (faster, no reinstall). Only works on jailbroken devices (Relaxin/RootHide/Dopamine). Don't use for: non-jailbroken devices — use injection.enable instead.",
+        summary: "Runtime dylib injection via ElleKit (jailbreak only). Use for: inject dylib into app WITHOUT modifying binary (faster, no reinstall). Only works on jailbroken devices (Relaxin/RootHide/Dopamine). Don't use for: non-jailbroken devices — use injection.enable instead. Safety: cannot inject system apps.",
         parameters: [
-            "bundle_id": "Target app bundle_id (e.g. com.xingin.discover for Xiaohongshu)",
+            "bundle_id": "Target app bundle_id (e.g. com.xingin.discover for Xiaohongshu). System apps are blocked for safety.",
             "dylib_path": "Path to the dylib file to inject (e.g. /var/mobile/Containers/Data/Application/.../Documents/MyDylib.dylib)",
             "mode": "Injection mode: 'persist' (permanent, default) or 'once' (temporary). Optional."
         ],
@@ -588,7 +593,8 @@ final class JailbreakInjectTool: MCPTool {
             "mode": "Injection mode used"
         ],
         verified: true,
-        category: "jailbreak"
+        category: "jailbreak",
+        requiresJailbreak: true  // 仅越狱环境可见
     )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String,

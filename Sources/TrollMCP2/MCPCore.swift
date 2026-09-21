@@ -15,8 +15,16 @@ public struct ToolDefinition {
     public let category: String
     /// 给 UI 看的中文描述（为空则 fallback 到 summary）
     public let uiSummary: String
+    /// v3.1.1：最低支持的 iOS 主版本（如 16 表示 iOS 16+）。nil 表示所有版本都支持。
+    public let minIOSMajor: Int?
+    /// v3.1.1：最高支持的 iOS 主版本（如 17 表示只支持到 iOS 17）。nil 表示无上限。
+    public let maxIOSMajor: Int?
+    /// v3.1.1：是否仅在越狱环境下可用（true = 需要越狱）
+    public let requiresJailbreak: Bool
+    /// v3.1.1：是否仅在 TrollStore 环境下可用（true = 需要 TrollStore）
+    public let requiresTrollStore: Bool
 
-    public init(name: String, summary: String, parameters: [String: String] = [:], returns: [String: String] = [:], verified: Bool = false, category: String = "misc", uiSummary: String = "") {
+    public init(name: String, summary: String, parameters: [String: String] = [:], returns: [String: String] = [:], verified: Bool = false, category: String = "misc", uiSummary: String = "", minIOSMajor: Int? = nil, maxIOSMajor: Int? = nil, requiresJailbreak: Bool = false, requiresTrollStore: Bool = false) {
         self.name = name
         self.summary = summary
         self.parameters = parameters
@@ -24,6 +32,10 @@ public struct ToolDefinition {
         self.verified = verified
         self.category = category
         self.uiSummary = uiSummary
+        self.minIOSMajor = minIOSMajor
+        self.maxIOSMajor = maxIOSMajor
+        self.requiresJailbreak = requiresJailbreak
+        self.requiresTrollStore = requiresTrollStore
     }
 
     /// UI 显示用：优先 uiSummary（中文），否则 fallback 到 summary
@@ -441,6 +453,11 @@ public final class ToolRegistry: ObservableObject {
     /// v3.0.90：去重——已会话授权的工具不再重复返回，避免 AI 反复搜以为能找到新工具
     public func searchTools(query: String, limit: Int = 8) -> [[String: String]] {
         // v3.0.90：去掉锁——只读操作，不需要锁，避免死锁
+        // v3.1.1：iOS 版本过滤——不支持当前 iOS 版本的工具不返回
+        let iosMajor = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
+        let jbStatus = InjectionManager.shared.jailbreakStatus()
+        let isJailbroken = jbStatus["is_jailbroken"] as? Bool ?? false
+
         // v3.0.99: 同义词映射——用户说中文，工具描述是英文，做个映射
         let synonyms: [String: [String]] = [
             "截图": ["screenshot", "screen"],
@@ -472,13 +489,21 @@ public final class ToolRegistry: ObservableObject {
             "设备": ["device", "info"],
             "系统": ["device", "system"],
         ]
-        
+
         let q = query.lowercased()
         var hits: [(name: String, summary: String, score: Int)] = []
         for (_, tool) in tools {
             let def = tool.definition
             // v3.0.90：跳过已授权的工具（AI 已经知道了，不用再搜）
             if isSessionApproved(def.name) || isCore(def.name) { continue }
+
+            // v3.1.1：iOS 版本过滤
+            if let minV = def.minIOSMajor, iosMajor < minV { continue }
+            if let maxV = def.maxIOSMajor, iosMajor > maxV { continue }
+
+            // v3.1.1：越狱环境过滤
+            if def.requiresJailbreak && !isJailbroken { continue }
+
             let nameL = def.name.lowercased()
             let sumL = def.summary.lowercased()
             var score = 0

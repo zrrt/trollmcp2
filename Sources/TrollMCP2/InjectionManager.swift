@@ -1886,6 +1886,36 @@ final class InjectionManager {
             return (false, "App not found: \(bundleId)")
         }
 
+        // v3.1.1：安全限制——不能注入系统应用，防止白苹果
+        let systemBundlePrefixes = [
+            "com.apple.springboard",
+            "com.apple.backboardd",
+            "com.apple.imagent",
+            "com.apple.ntd",
+            "com.apple.coreservices",
+            "com.apple.mobile",
+            "com.apple.Preferences",
+            "com.apple.springboard",
+            "com.apple.SecurityAgent",
+            "com.apple.Keyboard",
+            "com.apple.Notes",
+            "com.apple.mobilesafari",
+            "com.apple.calculator",
+            "com.apple.weather",
+            "com.apple.stocks",
+            "com.apple.MobileSMS",
+            "com.apple.mobilephone",
+            "com.apple.FaceTime",
+            "com.apple.Music",
+            "com.apple.videos",
+            "com.apple.appstored"
+        ]
+        for prefix in systemBundlePrefixes {
+            if bundleId.lowercased().hasPrefix(prefix.lowercased()) {
+                return (false, "Safety block: Cannot inject into system app (\(bundleId)). This could cause a white screen / boot loop. Only third-party apps are allowed.")
+            }
+        }
+
         let fm = FileManager.default
         let dylibName = (dylibPath as NSString).lastPathComponent
 
