@@ -188,11 +188,11 @@ public final class ToolRegistry: ObservableObject {
     /// 刷新不可靠、开关点了没反应/弹回的问题）。
     @Published private(set) var policyRevision = 0
 
-    // v3.0.90：循环检测——同一工具+同一参数 60 秒内调用 ≥3 次，直接挡掉
-    // 之前 15 秒窗口太短，AI 思考 1 分钟或网络慢会误杀正常操作
+    // v3.0.90：循环提示——记录调用次数，告诉 AI 它调了几次，让 AI 自己判断
+    // 不硬拦截，AI 有全局视角，自己决定要不要继续
     private var recentCalls: [String: [Date]] = [:]
     private let loopWindow: TimeInterval = 60.0  // 1 分钟窗口
-    private let loopThreshold = 3  // 窗口内调用 ≥3 次才算循环
+    private let loopThreshold = 3  // 调 3 次以上就提示
 
     private func callKey(name: String, params: [String: Any]) -> String {
         let sortedParams = params.sorted { $0.key < $1.key }
@@ -200,20 +200,14 @@ public final class ToolRegistry: ObservableObject {
         return "\(name):\(paramStr)"
     }
 
-    private func checkAndRecordLoop(name: String, params: [String: Any]) -> String? {
+    private func recordCall(name: String, params: [String: Any]) -> Int {
         let key = callKey(name: name, params: params)
         let now = Date()
         // 清理过期记录
         recentCalls[key] = (recentCalls[key] ?? []).filter { now.timeIntervalSince($0) < loopWindow }
-        // 检查是否重复
-        let callCount = recentCalls[key]?.count ?? 0
-        if callCount >= loopThreshold {
-            // 重复调用——返回提示
-            return "⚠️ LOOP DETECTED: You already called `\(name)` with the same params \(callCount) times in the last \(Int(loopWindow))s. The result was the same every time. STOP calling this tool. Try a different approach, a different tool, or ask the user for clarification."
-        }
         recentCalls[key]?.append(now)
         if recentCalls[key] == nil { recentCalls[key] = [now] }
-        return nil
+        return recentCalls[key]?.count ?? 1
     }
 
     public func register(_ tool: MCPTool) {
@@ -483,12 +477,8 @@ public final class ToolRegistry: ObservableObject {
             let start = CFAbsoluteTimeGetCurrent()
             let perm = Self.permissionLabel(originalName)
             do {
-                // v3.0.88：循环检测——同一工具+同一参数 15 秒内重复调用，直接返回提示
-                if let loopMsg = checkAndRecordLoop(name: originalName, params: params) {
-                    WorkflowManager.shared.addStep(name: originalName, tool: originalName)
-                    WorkflowManager.shared.updateStep(tool: originalName, detail: "loop blocked", success: false)
-                    return ["ok": false, "error": loopMsg, "loop_detected": true]
-                }
+                // v3.0.90：记录调用次数，告诉 AI 它调了几次，让 AI 自己判断
+                let callCount = recordCall(name: originalName, params: params)
                 // v2.9.72：工作流可视化
                 WorkflowManager.shared.addStep(name: originalName, tool: originalName)
                 let result = try t.invoke(params)
@@ -514,6 +504,11 @@ public final class ToolRegistry: ObservableObject {
                 // 递归压缩，复合工具诊断结论前置、细节按需取，防大结果占满上下文。
                 var data = Self.compactResult(result)
                 data.removeValue(forKey: "message")
+                // v3.0.90：告诉 AI 它调了几次，让 AI 自己判断是不是在循环
+                data["_call_count"] = callCount
+                if callCount >= loopThreshold {
+                    data["_loop_hint"] = "⚠️ You've called this tool \(callCount) times with the same params in the last \(Int(loopWindow))s. If the result is the same, you're probably looping. Try a different approach or ask the user."
+                }
                 // v2.9.167：_noMessage 标记——高频元工具（如 tool_search）返回里
                 // 明确不需要顶层 message（total/tools 已自解释），省 ~10 token/次
                 if result["_noMessage"] as? Bool == true {
