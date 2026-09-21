@@ -965,6 +965,17 @@ final class InjectionMemTool: MCPTool {
         guard let app = AppCatalog.find(bundleId) else {
             return ["error": "未找到 App: \(bundleId)", "hint": "用 injection.list 搜索"]
         }
+
+        // v3.0.89：iOS 17+ 不支持内存注入（opainject 依赖 ct_bypass，已失效）
+        let majorVer = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
+        if majorVer >= 17 {
+            return [
+                "error": "iOS 17+ 不支持内存注入（opainject/ct_bypass 已失效）",
+                "hint": "请用 injection.static（静态注入：insert_dylib + trollstorehelper 重装）",
+                "ios_version": majorVer
+            ]
+        }
+
         let exeName = ProcessHelper.executableName(for: app)
         var dylibPath = params["dylib_path"] as? String ?? ""
         if dylibPath.isEmpty {
@@ -1049,6 +1060,17 @@ final class ProbeInspectTool: MCPTool {
         guard let app = AppCatalog.find(bundleId) else {
             return ["error": "未找到 App: \(bundleId)", "hint": "用 injection.list 搜索"]
         }
+
+        // v3.0.89：iOS 17+ 不支持探针注入（opainject 依赖 ct_bypass，已失效）
+        let majorVer = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
+        if majorVer >= 17 {
+            return [
+                "error": "iOS 17+ 不支持 probe.inspect（依赖 opainject/ct_bypass，已失效）",
+                "hint": "请用 injection.static（静态注入）后再试",
+                "ios_version": majorVer
+            ]
+        }
+
         let query = (params["query"] as? String) ?? "classes"
         let exeName = ProcessHelper.executableName(for: app)
 
