@@ -275,21 +275,18 @@ public final class ToolRegistry: ObservableObject {
     }
 
     public var definitions: [ToolDefinition] {
-        lock.lock()
-        defer { lock.unlock() }
+        // v3.0.90：去掉锁——只读操作
         return tools.values.map { $0.definition }.sorted { $0.name < $1.name }
     }
 
     // v2.9.71：本地 HTTP 服务需要的工具查询接口
     public func allToolNames() -> [String] {
-        lock.lock()
-        defer { lock.unlock() }
+        // v3.0.90：去掉锁——只读操作
         return tools.keys.sorted()
     }
 
     public func tool(named name: String) -> MCPTool? {
-        lock.lock()
-        defer { lock.unlock() }
+        // v3.0.90：去掉锁——只读操作
         return tools[name]
     }
 
@@ -369,8 +366,7 @@ public final class ToolRegistry: ObservableObject {
     /// 供跨消息持久披露——AI 每轮新消息都能看到搜过/授权过的工具 schema，
     /// 根治"tool_search 搜到 app.decrypt 但下一轮够不到"。
     public func approvedToolNames() -> [String] {
-        lock.lock()
-        defer { lock.unlock() }
+        // v3.0.90：去掉锁——只读操作
         return Array(sessionApproved).filter { tools[$0] != nil }
     }
 
@@ -382,8 +378,7 @@ public final class ToolRegistry: ObservableObject {
     }
 
     public func isSessionApproved(_ name: String) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
+        // v3.0.90：去掉锁——只读操作
         return sessionApproved.contains(name)
     }
 
@@ -478,8 +473,7 @@ public final class ToolRegistry: ObservableObject {
 
     /// v2.9.16：返回单个工具的完整 OpenAI function schema（供 tool_search 命中后动态注入下一轮）
     public func openAISchema(for name: String) -> [String: Any]? {
-        lock.lock()
-        defer { lock.unlock() }
+        // v3.0.90：去掉锁——只读操作
         guard let tool = tools[name] else { return nil }
         let def = tool.definition
         var props: [String: [String: String]] = [:]
@@ -502,7 +496,7 @@ public final class ToolRegistry: ObservableObject {
 
     @discardableResult
     public func dispatch(name: String, params: [String: Any]) throws -> [String: Any] {
-        lock.lock()
+        // v3.0.90：去掉锁——只读操作（查工具）
         var tool = tools[name]
         if tool == nil, let original = apiNameToOriginal[name] {
             tool = tools[original]
@@ -514,7 +508,7 @@ public final class ToolRegistry: ObservableObject {
         if tool == nil {
             tool = tools.values.first { $0.definition.apiName == name }
         }
-        lock.unlock()
+        // v3.0.90：去掉 lock.unlock()，因为已经去掉了 lock.lock()
         guard let t = tool else { throw MCPError.unknownTool(name) }
         // v2.9.31：去掉授权弹窗。放行 = 策略启用（isEnabled）或会话已授权
         // （tool_search 搜索命中即 approveForSession 自动授权）。
