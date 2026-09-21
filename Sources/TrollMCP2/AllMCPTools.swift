@@ -165,18 +165,6 @@ final class SystemLessonsTool: MCPTool {
                 "category": "injection"
             ],
             [
-                "issue": "Share / export crashes the app",
-                "cause": "Presenting ShareSheet from inside a sheet causes nested sheet crash on iOS.",
-                "solution": "Use SharePresenter.present() which dismisses existing sheet first, then presents.",
-                "category": "ui"
-            ],
-            [
-                "issue": "Dark mode: text invisible / white on white",
-                "cause": "Hardcoded colors (.black / .white) don't adapt to dark mode.",
-                "solution": "Use system dynamic colors: .label (text), .secondarySystemBackground (background).",
-                "category": "ui"
-            ],
-            [
                 "issue": "You keep calling the same tool with same params",
                 "cause": "You're stuck in a loop. The tool returns the same result every time.",
                 "solution": "Check _call_count in tool result. If >= 3, you're looping. Try a different approach or ask user.",
