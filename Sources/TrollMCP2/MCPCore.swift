@@ -127,6 +127,25 @@ enum FailureKind {
         return ("UNKNOWN", "未知", "查看完整日志后重试")
     }
 
+    /// 判断这个错误能不能自动重试
+    static func retryable(_ message: String) -> Bool {
+        let m = message.lowercased()
+        // 网络错误/超时：可以重试
+        if m.contains("timeout") || m.contains("超时")
+            || m.contains("network") || m.contains("网络")
+            || m.contains("connection") || m.contains("连接")
+            || m.contains("unreachable") || m.contains("不可达") {
+            return true
+        }
+        // 临时错误：可以重试
+        if m.contains("temporary") || m.contains("临时")
+            || m.contains("busy") || m.contains("忙") {
+            return true
+        }
+        // 参数错误/权限错误/目标不兼容：不能重试
+        return false
+    }
+
     /// 兜底成功一句话（工具未提供 message 时生成）。
     /// v2.9.125：智能提取器——按 布尔状态 → 数量 → status/summary → 首字段 顺序
     /// 从返回里提取最有信息量的一句，让全部 162 个工具都有可读结论（而非"xx执行成功"）。
@@ -719,7 +738,22 @@ public final class ToolRegistry: ObservableObject {
                 }
                 DispatchQueue.global().asyncAfter(deadline: .now() + 15, execute: timeoutWorkItem)
 
-                let result = try t.invoke(params)
+                // v3.1.5: 自动重试——网络错误/超时自动重试一次
+                var result: [String: Any]
+                do {
+                    result = try t.invoke(params)
+                } catch {
+                    // 异常抛出的错误：判断能不能重试
+                    let errStr = "\(error)"
+                    if FailureKind.retryable(errStr) && callCount == 1 {
+                        // 自动重试一次
+                        WorkflowManager.shared.updateStep(tool: originalName, detail: "🔄 自动重试...", success: false)
+                        Thread.sleep(forTimeInterval: 1.0)  // 等 1 秒再重试
+                        result = try t.invoke(params)
+                    } else {
+                        throw error
+                    }
+                }
                 timeoutWorkItem.cancel()
                 let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
                 // v2.9.134：返回式错误统一识别——工具 return ["error":...] / ["ok": false] /
@@ -727,15 +761,36 @@ public final class ToolRegistry: ObservableObject {
                 // 即"死结果"根因）。统一走 code/reason/nextStep 失败路径。
                 if let errMsg = Self.extractReturnedError(result) {
                     let info = FailureKind.classify(errMsg)
-                    AuditLog.shared.logTool(originalName, status: .failure,
-                                            elapsedMs: elapsedMs, dataBytes: 0, permission: perm,
-                                            detail: errMsg, code: info.code, reason: info.reason, nextStep: info.nextStep)
-                    WorkflowManager.shared.updateStep(tool: originalName, detail: errMsg, success: false)
-                    // v3.1.1: 连续失败 3 次就拦截，不让 AI 继续循环
-                    if callCount >= loopThreshold {
-                        throw MCPError.failed("🚫 LOOP BLOCKED: You've called this tool \(callCount) times with same params and it keeps failing with the same error. STOP. Do NOT call it again. Try a completely different approach, or ask the user what to do. Error: \(errMsg)")
+                    // v3.1.5: 返回式错误也自动重试一次
+                    if FailureKind.retryable(errMsg) && callCount == 1 {
+                        WorkflowManager.shared.updateStep(tool: originalName, detail: "🔄 自动重试...", success: false)
+                        Thread.sleep(forTimeInterval: 1.0)  // 等 1 秒再重试
+                        result = try t.invoke(params)
+                        // 重试成功了，继续走成功路径
+                        if Self.extractReturnedError(result) == nil {
+                            // 重试成功，继续
+                        } else {
+                            // 重试还是失败，继续走失败路径
+                            AuditLog.shared.logTool(originalName, status: .failure,
+                                                    elapsedMs: elapsedMs, dataBytes: 0, permission: perm,
+                                                    detail: errMsg, code: info.code, reason: info.reason, nextStep: info.nextStep)
+                            WorkflowManager.shared.updateStep(tool: originalName, detail: errMsg, success: false)
+                            if callCount >= loopThreshold {
+                                throw MCPError.failed("🚫 LOOP BLOCKED: You've called this tool \(callCount) times with same params and it keeps failing with the same error. STOP. Do NOT call it again. Try a completely different approach, or ask the user what to do. Error: \(errMsg)")
+                            }
+                            throw MCPError.classified(errMsg, code: info.code, reason: info.reason, nextStep: info.nextStep)
+                        }
+                    } else {
+                        AuditLog.shared.logTool(originalName, status: .failure,
+                                                elapsedMs: elapsedMs, dataBytes: 0, permission: perm,
+                                                detail: errMsg, code: info.code, reason: info.reason, nextStep: info.nextStep)
+                        WorkflowManager.shared.updateStep(tool: originalName, detail: errMsg, success: false)
+                        // v3.1.1: 连续失败 3 次就拦截，不让 AI 继续循环
+                        if callCount >= loopThreshold {
+                            throw MCPError.failed("🚫 LOOP BLOCKED: You've called this tool \(callCount) times with same params and it keeps failing with the same error. STOP. Do NOT call it again. Try a completely different approach, or ask the user what to do. Error: \(errMsg)")
+                        }
+                        throw MCPError.classified(errMsg, code: info.code, reason: info.reason, nextStep: info.nextStep)
                     }
-                    throw MCPError.classified(errMsg, code: info.code, reason: info.reason, nextStep: info.nextStep)
                 }
                 let bytes = Self.resultBytes(result)
                 AuditLog.shared.logTool(originalName, status: .success,
