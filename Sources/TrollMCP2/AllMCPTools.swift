@@ -19,6 +19,22 @@ final class SystemOverviewTool: MCPTool {
         return [
             "system": "TrollAgent",
             "version": "3.0.90",
+            "ios_version_support": [
+                "supported": [
+                    "iOS 14.0 - 15.4.1 (TrollStore 1)",
+                    "iOS 15.5 - 16.6.1 (TrollStore 2)",
+                    "iOS 17.0 - 17.0.3 (TrollStore 2 / kfd)"
+                ],
+                "unsupported": [
+                    "iOS 16.6.2+ (Apple patched CoreTrust)",
+                    "iOS 17.1+ (Apple patched kfd)"
+                ],
+                "note": "TrollAgent requires TrollStore (jailbreak-free / 无根越狱). If device is on unsupported iOS version, core features work but injection may fail."
+            ],
+            "injection_methods": [
+                "iOS 14-16.6.1": "ct_bypass runtime injection (fast, persistent)",
+                "iOS 17.0-17.0.3": "static injection (insert_dylib + trollstorehelper reinstall)"
+            ],
             "tool_categories": [
                 [
                     "category": "File System (fs.*)",
@@ -99,6 +115,100 @@ final class SystemOverviewTool: MCPTool {
                 "Don't repeat the same tool with the same params — it's a loop",
                 "iOS 17+: use injection.static (ct_bypass is broken)"
             ]
+        ]
+    }
+}
+
+// MARK: - v3.0.90：system.lessons — AI 经验教训库
+
+final class SystemLessonsTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "system.lessons",
+        summary: "Get lessons learned from past bugs and edge cases. Use when: you hit an error and don't know why, or you're unsure if a known issue applies. Don't use for: general system overview (use system.overview).",
+        parameters: [
+            "topic": "Optional: specific topic to look up (e.g. injection, crash, dark mode, share). Leave empty for all lessons."
+        ],
+        verified: true, category: "system")
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        let topic = (params["topic"] as? String ?? "").lowercased()
+
+        var lessons: [[String: Any]] = [
+            [
+                "issue": "ct_bypass fails / CoreTrust bypass broken",
+                "cause": "iOS 17.0+ patched CVE-2023-41991 (CoreTrust multi-signer bug)",
+                "solution": "Use injection.static (static injection + trollstorehelper reinstall). iOS 17+ auto-switches to this method.",
+                "category": "injection"
+            ],
+            [
+                "issue": "opainject EBADARCH 85",
+                "cause": "opainject binary architecture mismatch (arm64 vs arm64e)",
+                "solution": "Check if opainject is compiled for the correct architecture. arm64e devices (A12+) need arm64e opainject.",
+                "category": "injection"
+            ],
+            [
+                "issue": "Injection succeeds but app crashes / won't start",
+                "cause": "Main binary is encrypted (App Store DRM). insert_dylib modifies load commands but encrypted binary can't load.",
+                "solution": "Decrypt the app first: use app.decrypt to dump decrypted Mach-O, then inject.",
+                "category": "injection"
+            ],
+            [
+                "issue": "Injection hangs / phone gets hot",
+                "cause": "Target app has security SDK (ByteDance / Tencent / Alibaba). Anti-injection protection blocks opainject.",
+                "solution": "Try a different app. Known problematic: WeChat, Xianyu, Douyin, Alipay, banking apps.",
+                "category": "injection"
+            ],
+            [
+                "issue": "teamid empty / no Team ID",
+                "cause": "System apps have no Team ID field in signature. ct_bypass needs Team ID to spoof.",
+                "solution": "System apps are not supported for memory injection. Try third-party apps instead.",
+                "category": "injection"
+            ],
+            [
+                "issue": "Share / export crashes the app",
+                "cause": "Presenting ShareSheet from inside a sheet causes nested sheet crash on iOS.",
+                "solution": "Use SharePresenter.present() which dismisses existing sheet first, then presents.",
+                "category": "ui"
+            ],
+            [
+                "issue": "Dark mode: text invisible / white on white",
+                "cause": "Hardcoded colors (.black / .white) don't adapt to dark mode.",
+                "solution": "Use system dynamic colors: .label (text), .secondarySystemBackground (background).",
+                "category": "ui"
+            ],
+            [
+                "issue": "You keep calling the same tool with same params",
+                "cause": "You're stuck in a loop. The tool returns the same result every time.",
+                "solution": "Check _call_count in tool result. If >= 3, you're looping. Try a different approach or ask user.",
+                "category": "loop"
+            ],
+            [
+                "issue": "tool_search returns different tools every time",
+                "cause": "tool_search returns random subset of matching tools. You might miss some.",
+                "solution": "tool_search now dedupes: already-approved tools are excluded. Search once, you'll get new tools next time.",
+                "category": "tool_search"
+            ],
+            [
+                "issue": "control.* tools don't work",
+                "cause": "ControlAgent.dylib not injected yet.",
+                "solution": "Call control.inject(bundle_id) first to inject ControlAgent.dylib. Then control.* tools work.",
+                "category": "ui_control"
+            ]
+        ]
+
+        // Filter by topic if specified
+        if !topic.isEmpty {
+            lessons = lessons.filter { lesson in
+                (lesson["issue"] as? String ?? "").lowercased().contains(topic) ||
+                (lesson["cause"] as? String ?? "").lowercased().contains(topic) ||
+                (lesson["category"] as? String ?? "").lowercased().contains(topic)
+            }
+        }
+
+        return [
+            "lessons": lessons,
+            "count": lessons.count,
+            "note": "These are lessons learned from past bugs. If you hit an error, check if it matches a known issue."
         ]
     }
 }

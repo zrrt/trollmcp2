@@ -283,6 +283,7 @@ public final class ToolRegistry: ObservableObject {
         // 元工具
         "tool_search",
         "system.overview",  // v3.0.90：AI 全局视角目录
+        "system.lessons",   // v3.0.90：AI 经验教训库
         // 文件操作
         "fs.read", "fs.write", "fs.tree",
         // 注入
@@ -715,6 +716,7 @@ public final class ToolRegistry: ObservableObject {
 
         // v3.0.90：系统概览工具（AI 全局视角目录）
         register(SystemOverviewTool())
+        register(SystemLessonsTool())  // v3.0.90：AI 经验教训库
 
         // M3 注入管理 + 容器
         register(InjectionEnableTool())
