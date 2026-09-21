@@ -1119,7 +1119,34 @@ final class ConversationStore: ObservableObject {
                                   thinkText: thinkText)
         case .failure(let err):
             var next = toolMessages
-            var errMsg = ChatMessage(role: "tool", content: Self.jsonString(["ok": false, "message": err.localizedDescription]),
+            // v3.0.77：智能错误诊断——AI 看到错误就知道为什么失败、下一步该做什么
+            let errStr = err.localizedDescription.lowercased()
+            var reason = "Tool execution failed"
+            var nextStep = "Check the error message above. Try a different approach or tool."
+            if errStr.contains("not found") || errStr.contains("no such file") {
+                reason = "File or path does not exist"
+                nextStep = "Check path with fs.tree or fs.find. If app container, verify bundle_id."
+            } else if errStr.contains("refused") || errStr.contains("connection") || errStr.contains("unreachable") {
+                reason = "Target app or service not reachable"
+                nextStep = "Start the target app first, or check if injection is active (injection.status)."
+            } else if errStr.contains("permission") || errStr.contains("denied") {
+                reason = "Permission denied"
+                nextStep = "Check tool permissions in settings, or use a different approach."
+            } else if errStr.contains("required") || errStr.contains("invalid") {
+                reason = "Missing or wrong parameter"
+                nextStep = "Check tool parameters. Required params are marked (REQUIRED) in the tool description."
+            } else if errStr.contains("timeout") {
+                reason = "Operation timed out"
+                nextStep = "Try again with longer timeout, or check if the app is responsive."
+            }
+            let errBody: [String: Any] = [
+                "ok": false,
+                "tool": call.name,
+                "error": err.localizedDescription,
+                "reason": reason,
+                "next_step": nextStep
+            ]
+            var errMsg = ChatMessage(role: "tool", content: Self.jsonString(errBody),
                                     isError: true, toolCallId: call.id, toolName: call.name)
             if !thinkText.isEmpty { errMsg.thinking = thinkText }
             next.append(errMsg)
