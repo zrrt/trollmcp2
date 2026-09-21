@@ -691,7 +691,7 @@ final class AutomationRunNowTool: MCPTool {
 }
 
 final class AutomationListTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.list", summary: "List automation tasks. Use for: check scheduled tasks.")
+    let definition = ToolDefinition(name: "automation.list", summary: "List all saved automation/scheduled tasks. Use for: see what scheduled tasks exist, check task list. Don't use for: run a task now (use automation.run_now), stop a task (use automation.stop). Example: user says '我有哪些定时任务' → list all automation tasks.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let tasks = AutomationStore.shared.tasks.map { t in
             [
@@ -724,8 +724,8 @@ final class AutomationJobsTool: MCPTool {
 }
 
 final class AutomationStopTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.stop", summary: "Stop automation task. Use for: cancel scheduled task.",
-        parameters: ["name": "Task name or id"], verified: true, category: "device")
+    let definition = ToolDefinition(name: "automation.stop", summary: "Stop/disable a scheduled automation task. Use for: cancel a scheduled task, turn off automation. Don't use for: list all tasks (use automation.list), run task now (use automation.run_now). Example: user says '把那个定时任务停了' → stop the task.",
+        parameters: ["name": "Task name or ID to stop"], verified: true, category: "device")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
         let store = AutomationStore.shared
@@ -739,7 +739,7 @@ final class AutomationStopTool: MCPTool {
 }
 
 final class AutomationStatusTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.status", summary: "Show automation engine status: running/current task/queue/recent records. Use for: monitor automation.")
+    let definition = ToolDefinition(name: "automation.status", summary: "Check automation engine status: how many tasks, how many enabled, notification auth. Use for: monitor automation system, check if notifications are allowed. Don't use for: list specific task details (use automation.list).")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         [
             "engine": "UNUserNotificationCenter",
@@ -773,8 +773,8 @@ func AutomationSchedulerStatus() -> String {
 // MARK: - M5 系统能力工具
 
 final class ContactsSearchTool: MCPTool {
-    let definition = ToolDefinition(name: "contacts.search", summary: "Search contacts. Use for: find contact.",
-        parameters: ["query": "Search keyword"], verified: true)
+    let definition = ToolDefinition(name: "contacts.search", summary: "Search iPhone contacts by name. Use for: find someone's phone number, look up a contact. Don't use for: send message (use other tools), read calendar (use calendar.list). Example: user says '张三的电话多少' → search contacts.",
+        parameters: ["query": "Name keyword to search (e.g. '张三' / 'Bob')"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let query = params["query"] as? String ?? ""
         let store = CNContactStore()
@@ -802,8 +802,8 @@ final class ContactsSearchTool: MCPTool {
 }
 
 final class CalendarListTool: MCPTool {
-    let definition = ToolDefinition(name: "calendar.list", summary: "List upcoming calendar events. Use for: check schedule.",
-        parameters: ["days": "Days ahead (default 7)"], verified: true)
+    let definition = ToolDefinition(name: "calendar.list", summary: "List upcoming calendar events (iPhone Calendar). Use for: check what meetings/appointments are coming up. Don't use for: create reminder (use reminder.create), search contacts (use contacts.search). Example: user says '我这周有什么安排' → list calendar events for next 7 days.",
+        parameters: ["days": "How many days ahead to look (default 7)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let days = params["days"] as? Int ?? 7
         let store = EKEventStore()
@@ -824,8 +824,8 @@ final class CalendarListTool: MCPTool {
 }
 
 final class ReminderCreateTool: MCPTool {
-    let definition = ToolDefinition(name: "reminder.create", summary: "Create reminder: title/time/repeat. Use for: schedule reminder.",
-        parameters: ["title": "Title", "notes": "Notes (optional)"])
+    let definition = ToolDefinition(name: "reminder.create", summary: "Create a reminder in iPhone Reminders app. Use for: set a to-do, remember something. Don't use for: list upcoming events (use calendar.list), send notification (use notification.send). Example: user says '提醒我明天开会' → create a reminder.",
+        parameters: ["title": "Reminder title (e.g. 'Buy milk')", "notes": "Optional notes for the reminder"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let title = params["title"] as? String else { throw MCPError.invalidParams("title required") }
         let store = EKEventStore()
@@ -839,7 +839,7 @@ final class ReminderCreateTool: MCPTool {
 }
 
 final class LocationGetTool: MCPTool {
-    let definition = ToolDefinition(name: "location.get", summary: "Get current device location. Use for: GPS coordinates.")
+    let definition = ToolDefinition(name: "location.get", summary: "Get current GPS location (latitude/longitude). Use for: find where the phone is, location-based tasks. Don't use for: spoof fake location (use device.fake), get device info (use device.info). Example: user says '我现在在哪' → get current location.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let mgr = LocationProvider.shared
         return [
@@ -851,8 +851,8 @@ final class LocationGetTool: MCPTool {
 }
 
 final class NotificationSendTool: MCPTool {
-    let definition = ToolDefinition(name: "notification.send", summary: "Send local notification. Use for: reminder/alert.",
-        parameters: ["title": "Title", "body": "Body"], verified: true)
+    let definition = ToolDefinition(name: "notification.send", summary: "Send a local push notification to the iPhone. Use for: alert user when task done, remind user. Don't use for: create reminder (use reminder.create), send message. Example: user says '编译完了提醒我' → send notification when done.",
+        parameters: ["title": "Notification title", "body": "Notification message text"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let title = params["title"] as? String ?? "TrollMCP"
         let body = params["body"] as? String ?? ""
@@ -868,8 +868,8 @@ final class NotificationSendTool: MCPTool {
 }
 
 final class ScanQRTool: MCPTool {
-    let definition = ToolDefinition(name: "scan.qr", summary: "Scan QR/barcode from image. Use for: decode QR code.",
-        parameters: ["image_path": "Image path inside workspace"], verified: true)
+    let definition = ToolDefinition(name: "scan.qr", summary: "Decode QR code or barcode from an image file. Use for: read QR code content from a screenshot/image. Don't use for: OCR text recognition (use ocr.image), take screenshot (use control.screenshot). Example: user says '这个二维码是什么内容' → decode QR from image.",
+        parameters: ["image_path": "Image file path (in workspace) containing QR code"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["image_path"] as? String else { throw MCPError.invalidParams("image_path required") }
         let url = try Workspace.resolve(path)
@@ -961,8 +961,8 @@ final class ProjectGenerateTweakTool: MCPTool {
 }
 
 final class ModelConfigTool: MCPTool {
-    let definition = ToolDefinition(name: "model.config", summary: "View/manage model configuration. Use for: check LLM settings.",
-        parameters: ["action": "list or default"], verified: true)
+    let definition = ToolDefinition(name: "model.config", summary: "View LLM model configurations (which AI models are available). Use for: check what AI models are configured, see current default model. Don't use for: change model (use model.update), system overview (use system.overview). Example: user says '现在用的什么模型' → show model config.",
+        parameters: ["action": "list (all configs) or default (current default)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = params["action"] as? String ?? "list"
         if action == "default", let cfg = ModelStore.shared.defaultConfig {
@@ -1023,9 +1023,9 @@ final class ModelUpdateTool: MCPTool {
 final class ToolHealthTool: MCPTool {
     let definition = ToolDefinition(
         name: "tools.health",
-        summary: "Check tool health (failure count). Use for: debug tool issues.",
+        summary: "Check tool health statistics (how many times each tool failed). Use for: debug which tools are broken, see failure rates. Don't use for: actual tool execution, view audit log (use other tools). Example: user says '哪些工具老出问题' → check tool health.",
         parameters: [
-            "limit": "Max tools to return health data (default 20)"
+            "limit": "How many tools to show (default 20)"
         ],
     verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
