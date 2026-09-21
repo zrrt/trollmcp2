@@ -449,6 +449,46 @@ public final class ToolRegistry: ObservableObject {
         return result
     }
 
+    /// v3.1.3：向量语义搜索缓存——工具描述的词袋向量（简化版，不需要 embedding 模型）
+    private var toolVectors: [String: [String: Double]] = [:]
+    private var toolVectorsLoaded = false
+
+    /// v3.1.3：预计算所有工具的词袋向量（简化版语义搜索）
+    private func loadToolVectors() {
+        guard !toolVectorsLoaded else { return }
+        toolVectorsLoaded = true
+        for (_, tool) in tools {
+            let text = (tool.definition.name + " " + tool.definition.summary).lowercased()
+            var vector: [String: Double] = [:]
+            // 简单分词：按空格和标点分词
+            let words = text.components(separatedBy: .whitespacesAndNewlines)
+                .filter { !$0.isEmpty }
+                .map { $0.trimmingCharacters(in: .punctuationCharacters) }
+            for word in words {
+                vector[word, default: 0] += 1
+            }
+            toolVectors[tool.definition.name] = vector
+        }
+    }
+
+    /// v3.1.3：计算两个词袋向量的余弦相似度
+    private func cosineSimilarity(_ a: [String: Double], _ b: [String: Double]) -> Double {
+        var dotProduct: Double = 0
+        var normA: Double = 0
+        var normB: Double = 0
+        for (key, valA) in a {
+            normA += valA * valA
+            if let valB = b[key] {
+                dotProduct += valA * valB
+            }
+        }
+        for valB in b.values {
+            normB += valB * valB
+        }
+        guard normA > 0, normB > 0 else { return 0 }
+        return dotProduct / (normA.squareRoot() * normB.squareRoot())
+    }
+
     /// v2.9.16：tool_search 渐进式披露——按关键词搜索工具名/摘要，返回紧凑清单（不带完整 schema）
     /// v3.0.90：去重——已会话授权的工具不再重复返回，避免 AI 反复搜以为能找到新工具
     public func searchTools(query: String, limit: Int = 8) -> [[String: String]] {
@@ -504,7 +544,20 @@ public final class ToolRegistry: ObservableObject {
         ]
 
         let q = query.lowercased()
-        var hits: [(name: String, summary: String, score: Int)] = []
+        var hits: [(name: String, summary: String, score: Double)] = []
+        loadToolVectors()  // v3.1.3：预计算工具向量
+
+        // v3.1.3：计算查询的词袋向量
+        var queryVector: [String: Double] = [:]
+        if !q.isEmpty {
+            let queryWords = q.components(separatedBy: .whitespacesAndNewlines)
+                .filter { !$0.isEmpty }
+                .map { $0.trimmingCharacters(in: .punctuationCharacters) }
+            for word in queryWords {
+                queryVector[word, default: 0] += 1
+            }
+        }
+
         for (_, tool) in tools {
             let def = tool.definition
             // v3.0.90：跳过已授权的工具（AI 已经知道了，不用再搜）
@@ -519,7 +572,7 @@ public final class ToolRegistry: ObservableObject {
 
             let nameL = def.name.lowercased()
             let sumL = def.summary.lowercased()
-            var score = 0
+            var score: Double = 0
             if !q.isEmpty {
                 // v3.1.0: 类别前缀匹配——搜 "browser" 就返回所有 browser.* 工具
                 if nameL.hasPrefix(q + ".") || nameL.hasPrefix(q + "_") {
@@ -567,6 +620,11 @@ public final class ToolRegistry: ObservableObject {
                             }
                         }
                     }
+                }
+                // v3.1.3: 向量语义相似度（词袋余弦相似度）
+                if let toolVec = toolVectors[def.name], !queryVector.isEmpty {
+                    let sim = cosineSimilarity(queryVector, toolVec)
+                    score += sim * 5  // 向量相似度权重
                 }
             } else {
                 score = 1
