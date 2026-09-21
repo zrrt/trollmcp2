@@ -666,8 +666,8 @@ final class GatewayConnectTool: MCPTool {
 }
 
 final class CronFireTool: MCPTool {
-    let definition = ToolDefinition(name: "cron.fire", summary: "Trigger scheduled task manually. Use for: test cron task logic.",
-        parameters: ["task": "Task name"], verified: true)
+    let definition = ToolDefinition(name: "cron.fire", summary: "Manually trigger a scheduled/cron task. Use for: test automation task works, run scheduled task right now instead of waiting. Don't use for: create new automation task (use automation.create), list tasks (use automation.list). Example: user says '立刻跑一下定时任务' → fire the task.",
+        parameters: ["task": "Name of the scheduled task to trigger"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let task = params["task"] as? String ?? "unnamed"
         AuditLog.shared.log("cron.fire", detail: task)
@@ -678,8 +678,8 @@ final class CronFireTool: MCPTool {
 // MARK: - M4 自动化工具（真实 UNUserNotificationCenter 调度）
 
 final class AutomationRunNowTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.run_now", summary: "Run automation task immediately. Use for: execute scheduled task now.",
-        parameters: ["name": "Task name or id"], verified: true)
+    let definition = ToolDefinition(name: "automation.run_now", summary: "Run an automation task immediately (right now, don't wait for schedule). Use for: execute a saved automation task manually. Don't use for: create new task (use automation.create), list all tasks (use automation.list). Example: user says '跑一下那个定时任务' → run it now.",
+        parameters: ["name": "Task name or ID to run immediately"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
         let store = AutomationStore.shared

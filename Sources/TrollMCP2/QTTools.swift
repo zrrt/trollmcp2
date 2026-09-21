@@ -421,11 +421,11 @@ final class InjectionDiagnoseTool: MCPTool {
 final class LogCollectTool: MCPTool {
     let definition = ToolDefinition(
         name: "log.collect",
-        summary: "Collect logs and crash info for an app: system logs, stdout, crash reports, injection logs. Writes to workspace for AI analysis.",
+        summary: "Collect app logs and crash reports for debugging. Use for: find out why app crashed, debug injection issues, see error messages. Don't use for: just checking app status (use app.launch to test), packet capture (use network.capture). Example: user says '小红书为什么闪退' → collect crash logs and analyze.",
         parameters: [
-            "bundle_id": "Target App bundle_id (optional, default TrollAgent own logs)",
-            "type": "Log type: system / crash / injection / all (default)",
-            "lines": "Max lines (default 200)"
+            "bundle_id": "Target App bundle_id (optional, default TrollAgent's own logs)",
+            "type": "Log type: system / crash / injection / all (default all)",
+            "lines": "Max number of lines to return (default 200)"
         ],
     verified: true, category: "diagnose")
 
