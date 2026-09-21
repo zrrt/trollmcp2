@@ -7,49 +7,63 @@ import NaturalLanguage
 final class ChineseTranslator {
     static let shared = ChineseTranslator()
 
-    private var translator: NLTranslator?
+    private var translator: Any?
     private var isReady = false
 
     private init() {
         setupTranslator()
     }
 
-    private func setupTranslator() {
+    @available(iOS 17.0, *)
+    private func setupTranslator17() {
         // 中文（简体）→ 英文
-        guard let translator = NLTranslator(from: .simplifiedChinese, to: .english) else {
+        guard let t = NLTranslator(from: .simplifiedChinese, to: .english) else {
             print("⚠️ ChineseTranslator: failed to create translator")
             return
         }
 
         // 检查翻译模型是否可用
-        translator.requestAssets { [weak self] error in
+        t.requestAssets { [weak self] error in
             if let error = error {
                 print("⚠️ ChineseTranslator: failed to download assets: \(error)")
                 return
             }
             DispatchQueue.main.async {
                 self?.isReady = true
-                self?.translator = translator
+                self?.translator = t
                 print("✅ ChineseTranslator: ready")
             }
         }
     }
 
+    private func setupTranslator() {
+        if #available(iOS 17.0, *) {
+            setupTranslator17()
+        } else {
+            // iOS 16 及以下不支持 NLTranslator
+            print("⚠️ ChineseTranslator: iOS 16 and below not supported")
+        }
+    }
+
     /// 把中文翻译成英文（同步，简单版）
     func translate(_ text: String) -> String {
-        guard isReady, let translator = translator else {
+        guard isReady else {
             // 翻译模型还没准备好，直接返回原文
             return text
         }
 
-        do {
-            let result = try translator.translate(text)
-            print("📝 Translate: \(text.prefix(50)) → \(result.prefix(50))")
-            return result
-        } catch {
-            print("⚠️ Translate failed: \(error)")
-            return text
+        if #available(iOS 17.0, *), let t = translator as? NLTranslator {
+            do {
+                let result = try t.translate(text)
+                print("📝 Translate: \(text.prefix(50)) → \(result.prefix(50))")
+                return result
+            } catch {
+                print("⚠️ Translate failed: \(error)")
+                return text
+            }
         }
+
+        return text
     }
 
     /// 翻译模型是否就绪
