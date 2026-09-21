@@ -680,7 +680,7 @@ public final class ToolRegistry: ObservableObject {
         register(PingTool())
         register(DeviceInfoTool())
         register(DeviceProbeTool())
-        register(MemoryTweakTool())   // v2.9.60：H5gg式内存修改（需先注入MemoryTweak.dylib）
+        register(MemoryTweakTool())   // v2.9.60：H5GG式内存修改（需先注入MemoryTweak.dylib）
         // v2.9.75：ControlAgent 通用 UI 控制（注入后 AI 可控制任意 App UI）
         register(ControlInjectTool())
         register(ControlStatusTool())

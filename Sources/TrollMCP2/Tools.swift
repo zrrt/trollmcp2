@@ -202,12 +202,12 @@ final class DeviceProbeTool: MCPTool {
     }
 }
 
-// MARK: - MemoryTweak（H5gg 式内存修改，通过注入的 dylib HTTP API 通信）
+// MARK: - MemoryTweak（H5GG 式内存修改，通过注入的 dylib HTTP API 通信）
 
 final class MemoryTweakTool: MCPTool {
     let definition = ToolDefinition(
         name: "memory",
-        summary: "H5gg-style memory modification. Requires MemoryTweak.dylib injected into target app first. action: search (full memory scan) / refine (filter previous results) / write / freeze / unfreeze / status / frozen (list frozen) / results (last search results). type: int|int64|float|double|byte|short. address in 0x hex.",
+        summary: "H5GG-style memory modification. Requires MemoryTweak.dylib injected into target app first. action: search (full memory scan) / refine (filter previous results) / write / freeze / unfreeze / status / frozen (list frozen) / results (last search results). type: int|int64|float|double|byte|short. address in 0x hex.",
         parameters: [
             "action": "search|refine|write|freeze|unfreeze|status|frozen|results",
             "value": "Value to search/write/freeze (required for search/refine/write/freeze)",
