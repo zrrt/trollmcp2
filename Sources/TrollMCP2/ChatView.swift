@@ -532,92 +532,70 @@ struct ChatView: View {
         // v2.9.93：按上游模型供应商换图标
         let currentCfg = modelStore.defaultConfig
         return Button(action: { showModelPicker = true }) {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(LinearGradient(colors: [.tmCyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 26, height: 26)
+                        .frame(width: 22, height: 22)
                     Image(systemName: modelIcon(for: currentCfg?.model ?? ""))
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(.white)
                 }
-                Text(L10n.t("current_model"))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
                 if let cfg = currentCfg {
                     Text(cfg.name)
                         .font(.caption)
-                        .fontWeight(.semibold)
+                        .fontWeight(.medium)
                         .foregroundColor(.primary)
-                    Text(cfg.model)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                } else {
-                    Text(L10n.t("not_configured"))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
                 }
-                Spacer()
                 Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption2)
+                    .font(.system(size: 9, weight: .semibold))
                     .foregroundColor(.tmCyan)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(Color(.secondarySystemBackground))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color.tmCyan.opacity(0.25), lineWidth: 1)
-                    )
             )
         }
         .buttonStyle(PlainButtonStyle())
     }
 
     private var inputBar: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 4) {
             // v2.9.10：待发送附件预览（图片缩略图 / 应用图标 / 文件）
             AttachmentPreviewStrip(attachments: pendingAttachments) { att in
                 withAnimation { pendingAttachments.removeAll { $0.id == att.id } }
             }
-            HStack(spacing: 8) {
-                // v2.9.36：推理强度恒浅蓝；智能搜索开=浅蓝、关=灰（对齐老 MCP）
-                // v2.9.79：芯片前置小图标
-                ChatChip(label: "推理强度·\(reasoningLabel())", action: {
+            // v3.0.75：模型选择器 + chips 合并一行，紧凑布局
+            HStack(spacing: 6) {
+                modelSelectorButton
+                ChatChip(label: "推理·\(reasoningLabel())", action: {
                     reasoning = (reasoning + 1) % 3
                 }, accent: true, icon: "gauge.with.dots.needle.67percent")
-                ChatChip(label: "智能搜索·\(smartSearch ? "开" : "关")", action: {
+                ChatChip(label: "搜索·\(smartSearch ? "开" : "关")", action: {
                     smartSearch.toggle()
                 }, accent: smartSearch, icon: "magnifyingglass")
-                Spacer()
             }
             .padding(.horizontal, 12)
-            .padding(.top, 6)
+            .padding(.top, 4)
 
+            // v3.0.75：输入框圆角 16，按钮 32x32
             HStack(spacing: 8) {
                 HStack(spacing: 0) {
                     ChatInputTextView(text: $inputText, onSend: { send() }, height: $inputHeight)
                         .frame(maxWidth: .infinity)
                         .frame(height: inputHeight)
-                        .padding(.horizontal, 8)
-                        .overlay(
-                            ZStack(alignment: .topLeading) {
-                                // x 按钮已移除
-                            }
-                        )
+                        .padding(.horizontal, 10)
                 }
                 .background(Color(.secondarySystemBackground))
-                .cornerRadius(20)
-                .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 2)
+                .cornerRadius(16)
 
                 Button(action: { attachmentSheet = .panel }) {
                     Image(systemName: "plus")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
-                        .frame(width: 36, height: 36)
+                        .frame(width: 32, height: 32)
                         .background(Color.blue)
                         .clipShape(Circle())
                 }
