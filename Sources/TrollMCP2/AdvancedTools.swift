@@ -942,7 +942,7 @@ enum ProcessHelper {
 final class InjectionMemTool: MCPTool {
     let definition = ToolDefinition(
         name: "injection.mem",
-        summary: "Memory injection: inject dylib into running target App via opainject (task_for_pid + ROP dlopen). No file change, zero residual, auto-removed on restart. Use for: temporary testing/probing.",
+        summary: "PREREQUISITE: target app must be running in foreground. Memory injection: inject dylib into running target App via opainject (task_for_pid + ROP dlopen). No file change, zero residual, auto-removed on restart. Use for: temporary testing/probing.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
             "dylib_path": "dylib absolute path (optional, default built-in tweaks/ProbeAgent.dylib)",
@@ -1031,7 +1031,7 @@ final class InjectionMemTool: MCPTool {
 final class ProbeInspectTool: MCPTool {
     let definition = ToolDefinition(
         name: "probe.inspect",
-        summary: "Runtime probe target App: enumerate ObjC classes / class details (methods, properties, ivars) / UserDefaults / process info. Uses ProbeAgent memory injection + localhost:4791 query. Use for: inspecting target App internals.",
+        summary: "PREREQUISITE: inject ProbeAgent first (injection.mem with ProbeAgent.dylib). Runtime probe target App: enumerate ObjC classes / class details (methods, properties, ivars) / UserDefaults / process info. Uses ProbeAgent memory injection + localhost:4791 query. Use for: inspecting target App internals.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
             "query": "Query type: classes / class / userdefaults / info (default classes)",
@@ -1144,7 +1144,7 @@ final class ProbeInspectTool: MCPTool {
 final class HookApplyTool: MCPTool {
     let definition = ToolDefinition(
         name: "hook.apply",
-        summary: "Config hook: inject ConfigHook into target App and write hook_config.json (navbar color / global tint / startup alert / method log). Restart App to apply config changes. Use for: UI customization.",
+        summary: "PREREQUISITE: inject ConfigHook.dylib first, restart target app. Config hook: inject ConfigHook into target App and write hook_config.json (navbar color / global tint / startup alert / method log). Restart App to apply config changes. Use for: UI customization.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
             "config": "Config JSON string: {\"navBarColor\":\"#1A73E8\",\"navBarTitleColor\":\"#FFFFFF\",\"windowTint\":\"#FF0000\",\"alert\":{\"title\":\"..\",\"message\":\"..\"},\"methodLog\":[{\"class\":\"X\",\"selector\":\"y\"}]}",
@@ -1211,7 +1211,7 @@ final class HookApplyTool: MCPTool {
 final class DeviceFakeTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.fake",
-        summary: "Device spoofing (memory injection): write fake_device.json then inject FakeDevice.dylib into target App process (no file change, zero residual, restored on restart). Use for: fake device model (e.g. fake iPhone 16 Pro Max).",
+        summary: "PREREQUISITE: inject FakeDevice.dylib first. Device spoofing (memory injection): write fake_device.json then inject FakeDevice.dylib into target App process (no file change, zero residual, restored on restart). Use for: fake device model (e.g. fake iPhone 16 Pro Max).",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
             "name": "Fake device name (e.g. iPhone 16 Pro Max)",
@@ -1688,7 +1688,7 @@ final class NewDeviceTool: MCPTool {
 final class AiAnalyzeTool: MCPTool {
     let definition = ToolDefinition(
         name: "ai.analyze_app",
-        summary: "AI analyze engine: inject ProbeAgent → collect App class structure → LLM analysis. Use for: understand App internals.",
+        summary: "PREREQUISITE: inject ProbeAgent first. AI analyze engine: inject ProbeAgent → collect App class structure → LLM analysis. Use for: understand App internals.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
             "direction": "Analysis direction: vip / remove_ads / bypass_detection / full / custom (default full)",

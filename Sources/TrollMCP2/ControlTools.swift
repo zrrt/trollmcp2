@@ -284,7 +284,7 @@ final class ControlStatusTool: MCPTool {
 final class ControlUITreeTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.ui_tree",
-        summary: "Get target app full UI tree (all windows, views, frames, text, accessibility info). AI decides which element to tap. Limited to 500 nodes.",
+        summary: "PREREQUISITE: call control.inject first. Get target app full UI tree (all windows, views, frames, text, accessibility info). AI decides which element to tap. Limited to 500 nodes.",
         parameters: [:],
         verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -296,7 +296,7 @@ final class ControlUITreeTool: MCPTool {
 final class ControlScreenshotTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.screenshot",
-        summary: "Screenshot target app screen, save as PNG to workspace screenshots/. Returns file path, use artifact.find to locate.",
+        summary: "PREREQUISITE: call control.inject first. Screenshot target app screen, save as PNG to workspace screenshots/. Returns file path, use artifact.find to locate.",
         parameters: [:],
         verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -308,7 +308,7 @@ final class ControlScreenshotTool: MCPTool {
 final class ControlTapTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.tap",
-        summary: "Simulate a tap on target app screen. x,y are screen coordinates (from ui_tree frame).",
+        summary: "PREREQUISITE: call control.inject first. Simulate a tap on target app screen. x,y are screen coordinates (from ui_tree frame).",
         parameters: [
             "x": "Tap X coordinate (required, number)",
             "y": "Tap Y coordinate (required, number)"
@@ -326,7 +326,7 @@ final class ControlTapTool: MCPTool {
 final class ControlSwipeTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.swipe",
-        summary: "Simulate a swipe on target app screen. x1,y1 start, x2,y2 end, duration seconds (default 0.3).",
+        summary: "PREREQUISITE: call control.inject first. Simulate a swipe on target app screen. x1,y1 start, x2,y2 end, duration seconds (default 0.3).",
         parameters: [
             "x1": "Start X (required)", "y1": "Start Y (required)",
             "x2": "End X (required)", "y2": "End Y (required)",
@@ -347,7 +347,7 @@ final class ControlSwipeTool: MCPTool {
 final class ControlTypeTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.type",
-        summary: "Type text into target app current input field (first responder). If no field focused, text goes to clipboard.",
+        summary: "PREREQUISITE: call control.inject first. Type text into target app current input field (first responder). If no field focused, text goes to clipboard.",
         parameters: ["text": "Text to input (required)"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -362,7 +362,7 @@ final class ControlTypeTool: MCPTool {
 final class ControlKeyTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.key",
-        summary: "Simulate hardware key. Supports home (go to home), back (go back), enter (return).",
+        summary: "PREREQUISITE: call control.inject first. Simulate hardware key. Supports home (go to home), back (go back), enter (return).",
         parameters: ["key": "home/back/enter (required)"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -379,7 +379,7 @@ final class ControlKeyTool: MCPTool {
 final class ControlTapTextTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.tap_text",
-        summary: "Tap an element by its visible text label (e.g. \"搜索\", \"登录\", \"取消\"). Auto-searches UI tree, finds matching element, taps its center. Use when: you know what text to tap but not the coordinates.",
+        summary: "PREREQUISITE: call control.inject first. Tap an element by its visible text label (e.g. \"搜索\", \"登录\", \"取消\"). Auto-searches UI tree, finds matching element, taps its center. Use when: you know what text to tap but not the coordinates.",
         parameters: [
             "text": "Visible text label of the element to tap (REQUIRED)",
             "partial": "If true, match partial text (default true) (optional)"
@@ -468,7 +468,7 @@ final class ControlTapTextTool: MCPTool {
 final class ControlTypeTextTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.type_text",
-        summary: "Find an input field by its placeholder/label text, tap it, then type text. Use when: you know which field to fill but not which one is focused.",
+        summary: "PREREQUISITE: call control.inject first. Find an input field by its placeholder/label text, tap it, then type text. Use when: you know which field to fill but not which one is focused.",
         parameters: [
             "placeholder": "Placeholder or label of the input field (e.g. \"搜索\", \"请输入手机号\") (REQUIRED)",
             "text": "Text to type into the field (REQUIRED)",
