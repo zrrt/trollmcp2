@@ -124,8 +124,16 @@ class EmbeddingManager: ObservableObject {
         guard let model = embeddingModel,
               let tokenizer = tokenizer else { return nil }
 
+        // 0. 如果是中文，先翻译成英文（因为模型是英文的）
+        let translatedText: String
+        if ChineseTranslator.shared.ready {
+            translatedText = ChineseTranslator.shared.translate(text)
+        } else {
+            translatedText = text
+        }
+
         // 1. Tokenize
-        let tokenized = tokenizer.encode(text)
+        let tokenized = tokenizer.encode(translatedText)
 
         // 2. 准备输入
         do {
