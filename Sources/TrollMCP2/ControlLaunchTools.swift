@@ -80,9 +80,9 @@ enum FakeLocationStore {
 // MARK: - MCP 工具
 
 final class AppLaunchOptionsTool: MCPTool {
-    let definition = ToolDefinition(name: "app.launch", 
-        summary: "Launch an app with optional env/launch args (SBSLaunchApplicationWithOptions). env can pass DYLD_INSERT_LIBRARIES to preload hook libraries. Always include reason.",
-        parameters: ["bundle_id": "Target App bundle_id (required)", "env": "Environment vars dict (optional, e.g. {\"DYLD_INSERT_LIBRARIES\": \"/path/hook.dylib\"})", "args": "Launch args array (optional)", "reason": "Why launch this App (required, for audit)"], verified: true, category: "app_control")
+    let definition = ToolDefinition(name: "app.launch",
+        summary: "Start/open an app on the iPhone. Use for: launch app by bundle_id, open app to use it. Don't use for: restart app (use app.restart), uninstall app (use app.uninstall), inject dylib (use injection.enable). Prerequisite: you need the app's bundle_id. Find it with injection.list or process.list. Example: user says '打开小红书' → launch with com.xingin.discover.",
+        parameters: ["bundle_id": "Target App bundle_id (required). e.g. com.xingin.discover for 小红书", "env": "Environment vars dict (optional, e.g. {\"DYLD_INSERT_LIBRARIES\": \"/path/hook.dylib\"})", "args": "Launch args array (optional)", "reason": "Why launch this App (required, for audit)"], verified: true, category: "app_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")

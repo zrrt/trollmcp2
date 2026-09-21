@@ -184,9 +184,9 @@ final class AppDecryptTool: MCPTool {
 final class AppEncryptInfoTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.encrypt_info",
-        summary: "Check target App encryption status (cryptid/cryptoff/cryptsize, signature). Reads process memory for accurate parse if running, else otool.",
+        summary: "Check if app is encrypted / DRM protected. Use for: before injecting dylib into app, check if main binary is encrypted (FairPlay). If encrypted, need app.decrypt first. If not encrypted, can inject directly. Don't use for: decrypting app (use app.decrypt), listing apps (use injection.list).",
         parameters: [
-            "bundle_id": "Target App bundle_id (required)"
+            "bundle_id": "Target App bundle_id (required). e.g. com.xingin.discover"
         ],
         verified: true, category: "app_control")
 

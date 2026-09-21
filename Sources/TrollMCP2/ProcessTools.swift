@@ -130,9 +130,9 @@ final class AppStopTool: MCPTool {
 final class AppRestartTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.restart",
-        summary: "Restart an app (kill then launch). Returns new PID and restart time.",
+        summary: "Restart/kill then relaunch an app. Use for: restart app after injection, clear app state, force close and reopen. Don't use for: just opening app (use app.launch), uninstall app (use app.uninstall). Example: user says '重启小红书' → restart com.xingin.discover.",
         parameters: [
-            "bundle_id": "Target App bundle_id (required)",
+            "bundle_id": "Target App bundle_id (required). e.g. com.xingin.discover",
             "wait_seconds": "Wait seconds after launch (default 3)"
         ],
         verified: true, category: "app_control")
