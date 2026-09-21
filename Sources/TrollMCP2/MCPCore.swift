@@ -188,6 +188,34 @@ public final class ToolRegistry: ObservableObject {
     /// 刷新不可靠、开关点了没反应/弹回的问题）。
     @Published private(set) var policyRevision = 0
 
+    // v3.0.88：循环检测——同一工具+同一参数 15 秒内重复调用，直接挡掉
+    private var recentCalls: [String: Date] = [:]
+    private let loopWindow: TimeInterval = 15.0
+    private let loopThreshold = 2  // 同一 key 出现 2 次就触发
+
+    private func callKey(name: String, params: [String: Any]) -> String {
+        let sortedParams = params.sorted { $0.key < $1.key }
+        let paramStr = sortedParams.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
+        return "\(name):\(paramStr)"
+    }
+
+    private func checkAndRecordLoop(name: String, params: [String: Any]) -> String? {
+        let key = callKey(name: name, params: params)
+        let now = Date()
+        // 清理过期记录
+        recentCalls = recentCalls.filter { now.timeIntervalSince($0.value) < loopWindow }
+        // 检查是否重复
+        if let lastTime = recentCalls[key] {
+            let elapsed = now.timeIntervalSince(lastTime)
+            if elapsed < loopWindow {
+                // 重复调用——返回提示
+                return "⚠️ LOOP DETECTED: You already called `\(name)` with the same params \(Int(elapsed))s ago. The result was the same. STOP calling this tool. Try a different approach, a different tool, or ask the user for clarification."
+            }
+        }
+        recentCalls[key] = now
+        return nil
+    }
+
     public func register(_ tool: MCPTool) {
         lock.lock()
         tools[tool.definition.name] = tool
@@ -451,6 +479,12 @@ public final class ToolRegistry: ObservableObject {
             let start = CFAbsoluteTimeGetCurrent()
             let perm = Self.permissionLabel(originalName)
             do {
+                // v3.0.88：循环检测——同一工具+同一参数 15 秒内重复调用，直接返回提示
+                if let loopMsg = checkAndRecordLoop(name: originalName, params: params) {
+                    WorkflowManager.shared.addStep(name: originalName, tool: originalName)
+                    WorkflowManager.shared.updateStep(tool: originalName, detail: "loop blocked", success: false)
+                    return ["ok": false, "error": loopMsg, "loop_detected": true]
+                }
                 // v2.9.72：工作流可视化
                 WorkflowManager.shared.addStep(name: originalName, tool: originalName)
                 let result = try t.invoke(params)

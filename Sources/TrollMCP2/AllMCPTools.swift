@@ -83,7 +83,7 @@ final class InjectionEnablePersistedTool: MCPTool {
 }
 
 final class InjectionStatusTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.status", summary: "Show injection stats. Use for: check injection status.", verified: true, category: "injection")
+    let definition = ToolDefinition(name: "injection.status", summary: "Show current injection stats (which apps are already injected). Use for: check injection status. Don't use for: finding a specific App — use injection.list with query instead.", verified: true, category: "injection")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         InjectionManager.shared.status()
     }
