@@ -327,25 +327,19 @@ public final class ToolRegistry: ObservableObject {
     /// v2.9.31：常驻核心工具（借鉴 Anthropic `defer_loading: false` 设计）。
     /// **初始请求只带这些工具**，其余全部工具靠 tool_search 按需搜索加载。
     /// 即使权限策略页全量勾选，初始请求载荷也恒定极小 → 彻底解决"全勾选后变慢"。
+    // v3.0.99: 按大厂最佳实践（Claude Code / Cursor），只预加载 5 个最核心工具
+    // 其他 200+ 工具全部靠 tool_search 按需发现
     private static let _coreToolNames: Set<String> = [
-        // 元工具
+        // 元工具（必须）
         "tool_search",
-        "system.overview",  // v3.0.90：AI 全局视角目录
-        "system.lessons",   // v3.0.90：AI 经验教训库
-        "task.progress",    // v3.0.90：任务进度跟踪
-        // 文件操作
-        "fs.read", "fs.write", "fs.tree",
-        "workspace.info",   // v3.0.90：工作区结构说明
-        // 注入
-        "injection.status",
-        // 浏览器
-        "browser.navigate",
-        "browser.snapshot",  // v3.0.94：获取页面内容（HTML/DOM）
-        "browser.text",      // v3.0.94：获取页面文本
-        // 终端
+        // 全局视角（让 AI 知道有什么工具类别）
+        "system.overview",
+        // 最常用：读文件
+        "fs.read",
+        // 最常用：终端
         "shell.exec",
-        // UI 操作闭环
-        "control.tap", "control.tap_text", "control.type_text", "control.swipe", "control.screenshot"
+        // 最常用：截图
+        "control.screenshot"
     ]
 
     public func isEnabled(name: String) -> Bool {
@@ -447,6 +441,38 @@ public final class ToolRegistry: ObservableObject {
     /// v3.0.90：去重——已会话授权的工具不再重复返回，避免 AI 反复搜以为能找到新工具
     public func searchTools(query: String, limit: Int = 8) -> [[String: String]] {
         // v3.0.90：去掉锁——只读操作，不需要锁，避免死锁
+        // v3.0.99: 同义词映射——用户说中文，工具描述是英文，做个映射
+        let synonyms: [String: [String]] = [
+            "截图": ["screenshot", "screen"],
+            "截屏": ["screenshot", "screen"],
+            "屏幕": ["screenshot", "screen", "ui"],
+            "网页": ["browser", "web", "url"],
+            "浏览器": ["browser", "web"],
+            "网页内容": ["browser.text", "browser.snapshot"],
+            "文本": ["text", "content"],
+            "识别": ["ocr", "recognize", "extract"],
+            "文字": ["ocr", "text"],
+            "注入": ["inject", "injection"],
+            "安装": ["install", "ipa"],
+            "卸载": ["uninstall"],
+            "启动": ["launch", "app.launch"],
+            "重启": ["restart", "app.restart"],
+            "进程": ["process", "ps"],
+            "文件": ["fs", "file"],
+            "读": ["read", "fs.read"],
+            "写": ["write", "fs.write"],
+            "目录": ["tree", "ls", "fs.tree"],
+            "终端": ["shell", "exec"],
+            "命令": ["shell", "exec", "command"],
+            "点击": ["tap", "click"],
+            "点": ["tap", "click"],
+            "输入": ["type", "input"],
+            "滑动": ["swipe", "scroll"],
+            "滚动": ["swipe", "scroll"],
+            "设备": ["device", "info"],
+            "系统": ["device", "system"],
+        ]
+        
         let q = query.lowercased()
         var hits: [(name: String, summary: String, score: Int)] = []
         for (_, tool) in tools {
@@ -463,6 +489,15 @@ public final class ToolRegistry: ObservableObject {
                 for w in q.split(separator: " ").map({ String($0) }) where !w.isEmpty {
                     if nameL.contains(w) { score += 1 }
                     if sumL.contains(w) { score += 1 }
+                }
+                // v3.0.99: 同义词匹配
+                for (cn, enList) in synonyms {
+                    if query.contains(cn) {
+                        for en in enList {
+                            if nameL.contains(en.lowercased()) { score += 2 }
+                            if sumL.contains(en.lowercased()) { score += 1 }
+                        }
+                    }
                 }
             } else {
                 score = 1
