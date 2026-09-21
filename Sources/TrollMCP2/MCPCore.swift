@@ -1113,8 +1113,8 @@ public final class ToolRegistry: ObservableObject {
 final class ToolSearchTool: MCPTool {
     let definition = ToolDefinition(
         name: "tool_search",
-        summary: "Search available tool catalog: returns matching tool names and summaries by keyword. When you need a capability not in current tools, search first then call the found tool.",
-        parameters: ["query": "Search keyword, e.g. github, injection, file, cron", "limit": "Max results (default 8)"], verified: true, category: "system")
+        summary: "Search for a tool by keyword. Use for: you need a tool but don't know its exact name, discover new tools. Don't use for: you already know the tool name (call it directly), list all tools (use system.overview). Example: user says '帮我抓包' → search 'network capture' → find network.capture.",
+        parameters: ["query": "Search keyword (e.g. '抓包', 'injection', 'file')", "limit": "Max results (default 8)"], verified: true, category: "system")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let query = (params["query"] as? String) ?? ""

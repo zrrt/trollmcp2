@@ -7,10 +7,10 @@ import Foundation
 final class AppReplaceDecryptedTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.replace_decrypted",
-        summary: "Replace decrypted main binary in-place (no reinstall, keeps data container). After replace, cryptID=0, control.inject can inject main binary. Auto-backup .troll-fools.bak, restore via injection.disable.",
+        summary: "Replace app's main binary with decrypted version. Use for: after app.decrypt, replace the encrypted binary so injection works. Don't use for: decrypt IPA (use app.decrypt), inject dylib (use injection.enable). Auto-backup enabled. Example: user says '替换解密后的主二进制文件' → replace decrypted.",
         parameters: [
-            "bundle_id": "Target App bundle_id (required)",
-            "ipa_path": "Decrypted IPA absolute path (optional; default auto-find matching IPA in workspace decrypted/)"
+            "bundle_id": "Target app bundle ID",
+            "ipa_path": "Decrypted IPA path (optional, auto-finds if not specified)"
         ],
         verified: true, category: "app_control")
 
@@ -131,10 +131,10 @@ final class AppReplaceDecryptedTool: MCPTool {
 final class AppDecryptTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.decrypt",
-        summary: "Decrypt (dump decrypted) target App to IPA in decrypted/ workspace. Requires target App running. Use for: decrypted IPA for main-binary injection.",
+        summary: "Decrypt/dump an encrypted app to get decrypted IPA. Use for: get decrypted IPA for main binary injection. Don't use for: check if encrypted (use app.encrypt_info), inject dylib (use injection.enable). Prerequisite: app must be running. Example: user says '小红书是加密的，先解密' → dump decrypted IPA.",
         parameters: [
-            "bundle_id": "Target App bundle_id (required, search via injection.list)",
-            "output_name": "Output filename prefix (optional, default App name)"
+            "bundle_id": "Target App bundle ID (required)",
+            "output_name": "Output file name (optional, default: app name)"
         ],
         verified: true, category: "app_control")
 

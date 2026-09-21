@@ -9,8 +9,8 @@ import Foundation
 /// injection.restore：单 App 恢复——移除注入加载命令、删除注入资产、从备份还原原始 Mach-O
 final class InjectionRestoreTool: MCPTool {
     let definition = ToolDefinition(name: "injection.restore",
-        summary: "Emergency restore: remove all injection and restore original binary for an app (TrollFools uninstall strategy; first choice when app won't open after injection)",
-        parameters: ["bundle_id": "Target App bundle_id (required)"])
+        summary: "Emergency restore: remove all injection + restore original app binary. Use for: app won't open after injection, app keeps crashing, need to undo injection quickly. Don't use for: normal disable (use injection.disable), remove dylib files (use injection.remove). Example: user says '小红书注入后打不开了，恢复一下' → restore.",
+        parameters: ["bundle_id": "Target App bundle ID (required)"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
         guard AppCatalog.find(bid) != nil else { throw MCPError.failed("app not found: \(bid)") }
@@ -26,8 +26,8 @@ final class InjectionRestoreTool: MCPTool {
 /// rescue.scan：全机扫描——列出有注入痕迹/备份/损坏的 App，输出风险清单
 final class RescueScanTool: MCPTool {
     let definition = ToolDefinition(name: "rescue.scan",
-        summary: "Emergency scan: check all apps for injection traces, damaged binaries, backup status. Returns list of apps needing restore.",
-        parameters: ["query": "Filter by name/bundle_id (optional)"], verified: true, category: "diagnose")
+        summary: "Scan all apps for injection damage / broken state. Use for: check if any apps got damaged by injection, find apps that need restore. Don't use for: restore specific app (use rescue.restore_all), inject dylib (use injection.enable). Example: user says '扫描一下哪些 app 注入坏了' → scan all apps.",
+        parameters: ["query": "Filter by app name/bundle ID (optional)"], verified: true, category: "diagnose")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let q = (params["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let apps = AppCatalog.list()
@@ -83,7 +83,8 @@ final class RescueScanTool: MCPTool {
 /// rescue.recover_all：一键全恢复——对所有有备份/损坏的 App 执行恢复
 final class RescueRecoverAllTool: MCPTool {
     let definition = ToolDefinition(name: "rescue.recover_all",
-        summary: "One-click emergency recovery: scan and auto-restore all apps with injection traces or damaged binaries (high-risk, restores launchable state)")
+        summary: "Emergency recovery for all injected apps. Use for: after bad injection, restore all apps to working state. Don't use for: scan for problems (use rescue.scan), restore single app (use injection.restore). Warning: high-risk! Example: user says '好多 app 闪退了，一键修复' → recover all.",
+        parameters: [:])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let apps = AppCatalog.list()
         var results: [[String: Any]] = []
@@ -131,8 +132,8 @@ final class RescueRecoverAllTool: MCPTool {
 /// rescue.cleanup：清理残留——删除注入标记、孤儿备份、Frameworks 内残留的非系统 dylib
 final class RescueCleanupTool: MCPTool {
     let definition = ToolDefinition(name: "rescue.cleanup",
-        summary: "Clean injection leftovers: remove .troll-fools markers, orphan backups, non-system dylibs in Frameworks. Specify bundle_id for one app; omit to clean only orphan backups.",
-        parameters: ["bundle_id": "Target App bundle_id (optional)"], verified: true, category: "diagnose")
+        summary: "Clean up injection leftover files. Use for: remove leftover dylibs/backups after injection, free up space. Don't use for: restore app (use injection.restore), uninstall app (use app.uninstall). Example: user says '清理一下注入残留的文件' → cleanup.",
+        parameters: ["bundle_id": "Target App bundle ID (optional, clean all if omitted)"], verified: true, category: "diagnose")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let mgr = InjectionManager.shared
         let bid = params["bundle_id"] as? String

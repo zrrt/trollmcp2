@@ -8,8 +8,8 @@ import UIKit
 final class AppInstallTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.install",
-        summary: "Install IPA to device: prefers TrollStore trollstorehelper silent install, falls back to TrollStore confirm dialog. ipa_path is local ipa absolute path. After install, AI can inject/launch/control.",
-        parameters: ["ipa_path": "Local IPA absolute path (required)"], verified: true, category: "app_control")
+        summary: "Install an IPA file to the iPhone. Use for: install app from IPA file, sideload. Don't use for: launch installed app (use apps.open), uninstall app (use app.uninstall). Example: user says '安装这个 IPA' → install it.",
+        parameters: ["ipa_path": "Absolute path to IPA file on device (required)"], verified: true, category: "app_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["ipa_path"] as? String, !path.isEmpty else {
             throw MCPError.invalidParams("app.install 需要 ipa_path 参数")

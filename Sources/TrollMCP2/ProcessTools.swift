@@ -14,10 +14,10 @@ import Foundation
 final class AppStartTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.start",
-        summary: "Launch an app. Multi-strategy: open -b -> registry path direct exec -> URL scheme, each level logs real errors/stderr.",
+        summary: "Launch/open an app. Use for: start an app, open it from home screen. Don't use for: restart app (use app.restart), check if running (use app.status). Example: user says '打开小红书' → launch app.",
         parameters: [
-            "bundle_id": "Target App bundle_id (required)",
-            "wait_seconds": "Wait seconds after launch (default 3, to confirm alive)"
+            "bundle_id": "Target app bundle ID",
+            "wait_seconds": "Wait after launch to confirm it started (default: 3s)"
         ],
         verified: true, category: "app_control")
 
@@ -98,9 +98,9 @@ final class AppStartTool: MCPTool {
 final class AppStopTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.stop",
-        summary: "Kill (stop) an app process. Returns success and original PID.",
+        summary: "Kill/stop an app (force close it). Use for: close an app that's running, force quit. Don't use for: restart app (use app.restart), uninstall app (use app.uninstall). Example: user says '把小红书关掉' → stop app.",
         parameters: [
-            "bundle_id": "Target App bundle_id (required)"
+            "bundle_id": "Target App bundle ID (required)"
         ],
         verified: true, category: "app_control")
 
@@ -205,9 +205,9 @@ final class AppRestartTool: MCPTool {
 final class AppStatusTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.status",
-        summary: "Check app running status: running, PID, foreground/background, CPU%, memory, thread count, uptime.",
+        summary: "Check if an app is running + its resource usage (CPU, memory, PID). Use for: see if app is alive, check how much memory it uses. Don't use for: list all running apps (use process.list), stop app (use app.stop). Example: user says '小红书现在在跑吗，占多少内存' → check app status.",
         parameters: [
-            "bundle_id": "Target App bundle_id (required)"
+            "bundle_id": "Target App bundle ID (required)"
         ],
         verified: true, category: "app_control")
 
@@ -253,11 +253,11 @@ final class AppStatusTool: MCPTool {
 final class AppStatsTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.stats",
-        summary: "Sample CPU/memory of an app for N seconds, output avg/peak/trend. For perf analysis and leak detection.",
+        summary: "Profile CPU/memory usage of an app. Use for: performance analysis, detect memory leaks. Don't use for: check if app is running (use app.status), list running apps (use process.list). Example: user says '测一下小红书的内存占用' → profile stats.",
         parameters: [
-            "bundle_id": "Target App bundle_id (required)",
-            "duration": "Sampling duration in seconds (default 10)",
-            "interval": "Sampling interval in seconds (default 1)"
+            "bundle_id": "Target app bundle ID",
+            "duration": "How long to sample (default: 10s)",
+            "interval": "Sample interval (default: 1s)"
         ],
     verified: true, category: "app_control")
 
@@ -319,14 +319,14 @@ final class AppStatsTool: MCPTool {
 final class TestRunTool: MCPTool {
     let definition = ToolDefinition(
         name: "test.run",
-        summary: "One-click test pipeline: inject dylib -> launch app -> wait stable -> collect logs/perf -> stop -> report.",
+        summary: "One-click test pipeline for an app. Use for: test dylib injection automatically, collect perf/logs. Don't use for: run task template (use task.run), inject dylib manually (use injection.enable). Example: user says '测试一下这个 dylib 注入小红书行不行' → run test pipeline.",
         parameters: [
-            "bundle_id": "Target App bundle_id (required)",
-            "dylib_path": "dylib path to inject (optional, skip if empty)",
-            "steps": "Steps comma-separated: inject,start,wait,stats,logs,stop,report (default all)",
-            "wait_seconds": "Wait seconds after launch (default 5)",
-            "stats_duration": "Stats sampling duration (default 10)",
-            "report_name": "Report name (default test_report_<timestamp>)"
+            "bundle_id": "Target app bundle ID",
+            "dylib_path": "Dylib path to inject (optional)",
+            "steps": "Steps to run (default: all)",
+            "wait_seconds": "Wait after launch (default: 5s)",
+            "stats_duration": "Stats sampling time (default: 10s)",
+            "report_name": "Report file name (optional)"
         ],
     verified: true)
 

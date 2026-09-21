@@ -192,8 +192,8 @@ final class MacroRunner {
 
 final class MacroRecordTool: MCPTool {
     let definition = ToolDefinition(name: "macro.record",
-        summary: "Start recording an AI action macro: subsequent ui.tap/swipe/long_press/clipboard calls are recorded. Use macro.stop to save.",
-        parameters: ["name": "Macro name"], verified: true, category: "macro")
+        summary: "Start recording a UI action macro. Use for: record a sequence of taps/swipes to replay later. Don't use for: play back macro (use macro.run), list macros (use macro.list). Example: user says '录一个自动签到的宏' → start recording.",
+        parameters: ["name": "Macro name to save as"], verified: true, category: "macro")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
             throw MCPError.invalidParams("name required")
@@ -206,7 +206,7 @@ final class MacroRecordTool: MCPTool {
 
 final class MacroStopTool: MCPTool {
     let definition = ToolDefinition(name: "macro.stop",
-        summary: "Stop macro recording and save.",
+        summary: "Stop recording and save a macro. Use for: after recording UI actions, stop and save the macro. Don't use for: start recording (use macro.record), play macro (use macro.run). Example: user says '录完了，保存这个宏' → stop recording.",
         parameters: [:])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let (ok, msg) = MacroRecorder.shared.stop()
@@ -218,7 +218,7 @@ final class MacroStopTool: MCPTool {
 
 final class MacroListTool: MCPTool {
     let definition = ToolDefinition(name: "macro.list",
-        summary: "List saved macros (name/step count/creation time).",
+        summary: "List all saved macro recordings. Use for: see what macros you've recorded, find a macro to play. Don't use for: record new macro (use macro.record), play macro (use macro.run). Example: user says '我录过哪些宏' → list all macros.",
         parameters: [:], verified: true, category: "macro")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let list = MacroStore.list()
@@ -228,8 +228,8 @@ final class MacroListTool: MCPTool {
 
 final class MacroRunTool: MCPTool {
     let definition = ToolDefinition(name: "macro.run",
-        summary: "Replay a macro: pure execution (no AI thinking), shows progress in control center + screenshot evidence at end. Target app must be in foreground.",
-        parameters: ["name": "Macro name", "loop": "Loop count (default 1, max 100)", "step_delay_ms": "Delay between steps ms (default 300)"], verified: true, category: "macro")
+        summary: "Play back a recorded macro. Use for: replay a sequence of UI actions automatically. Don't use for: record new macro (use macro.record), list macros (use macro.list). Prerequisite: target app must be in foreground. Example: user says '跑一下签到宏' → run macro.",
+        parameters: ["name": "Macro name to play", "loop": "How many times to repeat (default: 1, max: 100)", "step_delay_ms": "Delay between steps (default: 300ms)"], verified: true, category: "macro")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
             throw MCPError.invalidParams("name required")
@@ -253,8 +253,8 @@ final class MacroRunTool: MCPTool {
 
 final class MacroDeleteTool: MCPTool {
     let definition = ToolDefinition(name: "macro.delete",
-        summary: "Delete a macro.",
-        parameters: ["name": "Macro name"], verified: true, category: "macro")
+        summary: "Delete a saved macro. Use for: remove a macro you don't need anymore. Don't use for: play macro (use macro.run), list macros (use macro.list). Example: user says '删掉那个签到宏' → delete macro.",
+        parameters: ["name": "Macro name to delete"], verified: true, category: "macro")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
             throw MCPError.invalidParams("name required")
@@ -267,8 +267,8 @@ final class MacroDeleteTool: MCPTool {
 
 final class MacroExportTool: MCPTool {
     let definition = ToolDefinition(name: "macro.export",
-        summary: "Export a macro as JSON to workspace (backup/share).",
-        parameters: ["name": "Macro name"], verified: true, category: "macro")
+        summary: "Export a macro to JSON file. Use for: backup macros, share macros with others. Don't use for: play macro (use macro.run), list macros (use macro.list). Example: user says '把签到宏导出备份' → export macro.",
+        parameters: ["name": "Macro name to export"], verified: true, category: "macro")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
             throw MCPError.invalidParams("name required")

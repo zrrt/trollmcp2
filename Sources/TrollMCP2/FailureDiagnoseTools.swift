@@ -8,10 +8,10 @@ import Foundation
 final class InjectionVerifyTool: MCPTool {
     let definition = ToolDefinition(
         name: "injection.verify",
-        summary: "Post-injection health check: confirm dylib actually loaded, not just marked. Checks Mach-O load commands, target process alive, recent crash records. Returns healthy/crashed/not_injected/injected_but_dead.",
+        summary: "Verify if injection actually worked (dylib loaded + app still running). Use for: after injection.enable, confirm it really loaded, check if app didn't crash. Don't use for: just check status (use injection.status, simpler), inject dylib (use injection.enable). Example: user says '注入成功了吗，app 有没有闪退' → verify injection.",
         parameters: [
-            "bundle_id": "Target App bundle_id (required)",
-            "dylib": "dylib filename to verify (optional, default auto-detect all injected assets)"
+            "bundle_id": "Target App bundle ID (required)",
+            "dylib": "Dylib name to verify (optional, auto-detect all)"
         ],
         verified: true, category: "injection")
 
@@ -106,8 +106,8 @@ final class InjectionVerifyTool: MCPTool {
 final class AppDiagnoseTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.diagnose",
-        summary: "Auto-diagnose launch failure: checks existence, injection remnants, encryption state, signature state, recent crash, attempts launch. Outputs clear cause + next step, no misleading errors (e.g. not confusing encrypted parse failure with wrong bundle ID).",
-        parameters: ["bundle_id": "Target App bundle_id (required)"],
+        summary: "Diagnose why an app won't open/crash. Use for: app won't launch, keeps crashing, find out why. Don't use for: read crash logs (use fs.crash), inject dylib (use injection.enable). Example: user says '小红书打不开了，为什么' → diagnose app failure.",
+        parameters: ["bundle_id": "Target App bundle ID (required)"],
     verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

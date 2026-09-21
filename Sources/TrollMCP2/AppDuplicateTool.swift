@@ -9,11 +9,11 @@ import Foundation
 final class AppDuplicateTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.duplicate",
-        summary: "Clone an app to create a coexisting copy (new bundle ID + optional display name). Packaged and silently installed via TrollStore. Clone has its own data container and login state. Does not work on encrypted App Store apps (must decrypt first).",
+        summary: "Clone an app to create a parallel copy (two versions side by side). Use for: run two accounts at once, test without affecting original. Don't use for: just install app (use app.install), duplicate data (use backup.restore). Note: doesn't work on encrypted apps (decrypt first). Example: user says '装两个微信，两个号同时登' → clone app.",
         parameters: [
-            "bundle_id": "Source App bundle_id to clone (required)",
-            "new_name": "Copy display name (optional, default <name> Clone)",
-            "new_bundle_id": "Copy bundle_id (optional, default <orig>.dup, auto-append index on conflict)"
+            "bundle_id": "Source App bundle ID to clone (required)",
+            "new_name": "New display name (optional)",
+            "new_bundle_id": "New bundle ID (optional, auto)"
         ], verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

@@ -11,7 +11,7 @@ import Vision
 final class SystemOverviewTool: MCPTool {
     let definition = ToolDefinition(
         name: "system.overview",
-        summary: "Get complete system overview: all tool categories, typical tools per category, and recommended workflows. Use when: you don't know what tools are available, or you're unsure which tool to use. Don't use for: specific tasks (use the actual tool directly).",
+        summary: "Get an overview of all available tools. Use for: when you don't know what tools exist, need to pick the right tool. Don't use for: specific tasks (use the actual tool directly). Example: user says '你都有哪些工具' → system overview.",
         parameters: [:],
         verified: true, category: "system")
 
@@ -155,9 +155,9 @@ final class SystemOverviewTool: MCPTool {
 final class SystemLessonsTool: MCPTool {
     let definition = ToolDefinition(
         name: "system.lessons",
-        summary: "Get lessons learned from past bugs and edge cases. Use when: you hit an error and don't know why, or you're unsure if a known issue applies. Don't use for: general system overview (use system.overview).",
+        summary: "Get known issues and best practices. Use for: when you hit an error, check if it's a known issue with a known fix. Don't use for: general system overview (use system.overview). Example: user says '分享功能闪退，之前有过吗' → check lessons.",
         parameters: [
-            "topic": "Optional: specific topic to look up (e.g. injection, crash, dark mode, share). Leave empty for all lessons."
+            "topic": "Topic to look up (optional, empty for all)"
         ],
         verified: true, category: "system")
 
@@ -418,7 +418,7 @@ final class VerifyAppRunningTool: MCPTool {
 // MARK: - M3 注入工具
 
 final class InjectionEnableTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.enable", summary: "Inject plugin (dylib/framework/zip/deb) into target App (TrollFools-style: auto CydiaSubstrate + multi-asset + strategy). v3.0.59 smart: fallback to memory injection if no static target. Use for: persistent injection (survives restart). Decision guide: (1) Temporary/probing → injection.mem (memory, no file change); (2) Need persistent → injection.enable (static, modifies file); (3) Main binary encrypted → app.decrypt first; (4) UI customization → hook.apply; (5) Device spoofing → device.fake. Note: ct_bypass runtime injection only works on iOS ≤17.0; iOS 17.0.1+ auto-switches to static.",
+    let definition = ToolDefinition(name: "injection.enable", summary: "Inject a dylib/plugin into an app permanently. Use for: persistent injection that survives app restart. Don't use for: temporary testing (use injection.mem), check injection status (use injection.status). Note: only works on iOS ≤17.0 with ct_bypass; iOS 17.0.1+ uses static injection. Example: user says '把 ControlAgent 注入小红书' → enable injection.",
         parameters: ["bundle_id": "Target App bundle_id (required)", "dylib_path": "Local plugin path (.dylib/.framework/.zip/.deb, e.g. Workspace/downloads/.../xxx.deb). Default: built-in ControlAgent.dylib", "weak_reference": "Optional Bool: weak reference injection (default false, matches TrollFools)", "inject_strategy": "Optional String: injection target strategy lexicographic (default)/fast (smallest file first)/preorder/postorder, matches TrollFools Strategy", "smart_fallback": "Optional Bool: auto-fallback to memory injection if no static target (default true)"],
         verified: true,
         category: "injection",
@@ -508,8 +508,8 @@ final class InjectionStaticTool: MCPTool {
 }
 
 final class InjectionEnablePersistedTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.enable_persisted", summary: "Re-enable disabled plugin from persistent backup (TrollFools-style enable toggle).",
-        parameters: ["bundle_id": "Target App bundle_id (required)"], verified: true, category: "injection")
+    let definition = ToolDefinition(name: "injection.enable_persisted", summary: "Re-enable a disabled plugin on an app (toggle injection back on). Use for: you disabled injection before, now want to turn it back on. Don't use for: inject new dylib (use injection.enable), check if injected (use injection.status). Example: user says '小红书的注入重新打开' → enable_persisted.",
+        parameters: ["bundle_id": "Target App bundle ID (required)"], verified: true, category: "injection")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
         let result = try InjectionManager.shared.restore(bundleId: bid)
@@ -526,7 +526,7 @@ final class InjectionStatusTool: MCPTool {
 }
 
 final class InjectionInspectTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.inspect", summary: "Check dylib loading status of target App. Use for: verify injection.",
+    let definition = ToolDefinition(name: "injection.inspect", summary: "Check which dylibs are loaded in an app (injection status details). Use for: verify if injection actually worked, see what dylibs are loaded. Don't use for: list all injected apps (use injection.status), inject dylib (use injection.enable). Example: user says '小红书注入成功了吗' → inspect injection details.",
         parameters: ["bundle_id": "Target App bundle_id (required)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
@@ -621,8 +621,8 @@ final class JailbreakInjectTool: MCPTool {
 }
 
 final class ContainerWriteTextTool: MCPTool {
-    let definition = ToolDefinition(name: "container.write_text", summary: "Write text file to App container (DANGEROUS). Use for: modify App data.",
-        parameters: ["bundle_id": "Target App bundle_id", "path": "Path inside container", "content": "Text content"])
+    let definition = ToolDefinition(name: "container.write_text", summary: "Write a text file into an app's data container (DANGEROUS!). Use for: modify app data files, write config into app sandbox. Don't use for: write workspace files (use fs.write), read app files (use fs.read). Warning: modifying app data can crash it! Example: user says '改一下小红书的配置文件' → write to container.",
+        parameters: ["bundle_id": "Target App bundle ID", "path": "File path inside app container", "content": "Text content to write"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String,
               let path = params["path"] as? String,
@@ -641,29 +641,6 @@ final class ContainerWriteTextTool: MCPTool {
 }
 
 // MARK: - M4 Gateway 工具
-
-final class GatewayStatusTool: MCPTool {
-    let definition = ToolDefinition(name: "gateway.status", summary: "[DEPRECATED] Gateway status removed.")
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        [
-            "connected": GatewayClient.shared.isConnected,
-            "url": GatewayClient.shared.serverURL,
-            "error": GatewayClient.shared.lastError ?? ""
-        ]
-    }
-}
-
-final class GatewayConnectTool: MCPTool {
-    let definition = ToolDefinition(name: "gateway.connect", summary: "[DEPRECATED] Gateway connect removed.",
-        parameters: ["url": "WebSocket URL ws://...", "token": "Pairing token (optional)"], verified: true, category: "automation")
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let url = params["url"] as? String else { throw MCPError.invalidParams("url required") }
-        GatewayClient.shared.pairedToken = params["token"] as? String
-        GatewayClient.shared.connect(url: url)
-        AuditLog.shared.log("gateway.connect", detail: url)
-        return ["connecting": true, "url": url]
-    }
-}
 
 final class CronFireTool: MCPTool {
     let definition = ToolDefinition(name: "cron.fire", summary: "Manually trigger a scheduled/cron task. Use for: test automation task works, run scheduled task right now instead of waiting. Don't use for: create new automation task (use automation.create), list tasks (use automation.list). Example: user says '立刻跑一下定时任务' → fire the task.",
@@ -710,7 +687,7 @@ final class AutomationListTool: MCPTool {
 }
 
 final class AutomationJobsTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.jobs", summary: "Show pending automation tasks and notification auth status. Use for: check task queue.")
+    let definition = ToolDefinition(name: "automation.jobs", summary: "Check pending automation tasks and notification permission status. Use for: see how many tasks are scheduled, check if notifications are allowed. Don't use for: list task details (use automation.list), run task now (use automation.run_now). Example: user says '有多少定时任务在排队' → check automation jobs.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let store = AutomationStore.shared
         let status = AutomationSchedulerStatus()
@@ -901,8 +878,8 @@ final class ProcessListTool: MCPTool {
 // MARK: - M6 编译模式工具
 
 final class BuildRunnerTokenTool: MCPTool {
-    let definition = ToolDefinition(name: "build.runner.token", summary: "Build mode: generate/verify build token. Use for: CI build auth.",
-        parameters: ["action": "generate or verify"], verified: true)
+    let definition = ToolDefinition(name: "build.runner.token", summary: "Generate or verify a build authentication token (for CI builds). Use for: authenticate with build system. Don't use for: trigger GitHub Actions build (use github.trigger_build), check GitHub login (use github.account_status). Example: user says '生成 build token' → generate token.",
+        parameters: ["action": "generate (create new token) or verify (check token validity)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = params["action"] as? String ?? "generate"
         if action == "generate" {
@@ -915,8 +892,8 @@ final class BuildRunnerTokenTool: MCPTool {
 }
 
 final class ProjectGenerateTweakTool: MCPTool {
-    let definition = ToolDefinition(name: "project.generate_tweak", summary: "Generate Tweak project template (Makefile + Tweak.x + plist). Use for: start tweak project.",
-        parameters: ["name": "Project name", "bundle_id": "Target App (optional)"], verified: true, category: "build")
+    let definition = ToolDefinition(name: "project.generate_tweak", summary: "Generate a Tweak project template (Theos Makefile + Tweak.x + plist). Use for: start a new jailbreak tweak development project. Don't use for: compile existing tweak (use github.trigger_build), load dylib (use tool.load_dylib). Example: user says '创建一个新的 tweak 项目' → generate template.",
+        parameters: ["name": "Project name (e.g. MyTweak)", "bundle_id": "Target app bundle ID (optional)"], verified: true, category: "build")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let name = params["name"] as? String ?? "MyTweak"
         let bid = params["bundle_id"] as? String ?? ""
@@ -978,8 +955,8 @@ final class ModelConfigTool: MCPTool {
 /// v2.9.299：远程修改模型配置（AI 诊断时可帮用户切换模型名/协议，无需手动设置）
 final class ModelUpdateTool: MCPTool {
     let definition = ToolDefinition(name: "model.update",
-        summary: "Update model config (by name). Use for: modify LLM settings.",
-        parameters: ["name": "Config name to modify (e.g. deepseek)", "model": "New model name (optional)", "baseURL": "New Base URL (optional)", "apiProtocol": "Protocol (optional: OpenAI Chat Completions / OpenAI Responses / Anthropic Messages / Custom Endpoint)", "contextTokens": "Context token budget (optional)", "isDefault": "Set as default (optional bool)", "resetCompat": "Reset compat level to 0 (optional bool)"],
+        summary: "Modify an existing LLM model configuration. Use for: change model settings, switch default model, update API endpoint. Don't use for: view current configs (use model.config), list all models (use model.config list). Example: user says '把默认模型换成 deepseek' → update model config.",
+        parameters: ["name": "Config name to modify (e.g. 'deepseek')", "model": "New model name (optional)", "baseURL": "New API base URL (optional)", "apiProtocol": "API protocol type (optional)", "contextTokens": "Context token limit (optional)", "isDefault": "Set as default model (optional bool)", "resetCompat": "Reset compatibility level (optional bool)"],
         verified: true, category: "system")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {

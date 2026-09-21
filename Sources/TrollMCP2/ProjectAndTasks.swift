@@ -151,13 +151,13 @@ final class ProjectContext: ObservableObject {
 final class ProjectTool: MCPTool {
     let definition = ToolDefinition(
         name: "project",
-        summary: "Project context management. Create/switch/view current project; AI auto-reads target app, dylib, history.",
+        summary: "Manage project context. Use for: switch between projects (different target apps/dylibs), save project state. Don't use for: run task template (use task.run), list tools (use tool_search). Example: user says '切换到小红书项目' → select project.",
         parameters: [
             "action": "current | list | create | select | delete | history",
-            "name": "Project name (for create)",
-            "bundle_id": "Target App bundle_id (for create)",
-            "app_name": "Target App name (for create)",
-            "dylib_path": "dylib path (for create/update)",
+            "name": "Project name (for create/select)",
+            "bundle_id": "Target app bundle ID (for create)",
+            "app_name": "Target app name (for create)",
+            "dylib_path": "Dylib path (for create/update)",
             "project_id": "Project id (for select/delete/history)"
         ], verified: true, category: "build")
 
@@ -615,12 +615,12 @@ final class TaskTemplateRunner {
 final class TaskTool: MCPTool {
     let definition = ToolDefinition(
         name: "task.run",
-        summary: "Run a task template. One-click common flows: diagnose injection, capture crash, verify injection (with rollback), IPA health, perf regression, emergency recovery, packet capture, new device, AI analyze, crash triage.",
+        summary: "Run a one-click task template. Use for: common workflows like diagnose injection, capture crash, verify injection. Don't use for: run custom commands (use shell.exec), inject dylib (use injection.enable). Example: user says '一键诊断注入问题' → run diagnose_injection template.",
         parameters: [
-            "template": "Template id: diagnose_injection | capture_crash | inject_verify | ipa_health | perf_regression | emergency_recover | network_probe | new_device | ai_analyze | crash_triage",
-            "bundle_id": "Target App bundle_id (default current project)",
-            "dylib_path": "dylib path (required for inject_verify)",
-            "options": "Template params (JSON): network_probe duration/limit, new_device reset_keychain/refresh_idfa/name/model_identifier, ai_analyze direction/custom_hint/max_classes/prefix"
+            "template": "Template ID: diagnose_injection / capture_crash / inject_verify / ipa_health / etc.",
+            "bundle_id": "Target app bundle ID (default: current project)",
+            "dylib_path": "Dylib path (required for inject_verify)",
+            "options": "Template parameters (JSON, optional)"
         ],
     verified: true, category: "build")
 

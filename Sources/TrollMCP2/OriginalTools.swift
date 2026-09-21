@@ -158,8 +158,8 @@ func cronSeconds(_ expr: String) -> Int? {
 // MARK: - 原版缺失工具：injection.remove
 
 final class InjectionRemoveTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.remove", summary: "Completely remove injection from an app (including dylib files)",
-        parameters: ["bundle_id": "Target App bundle_id"])
+    let definition = ToolDefinition(name: "injection.remove", summary: "Completely remove all injection from an app (delete dylib files + disable). Use for: totally clean up injection, restore app to original state. Don't use for: just disable injection temporarily (use injection.disable), uninstall app (use app.uninstall). Example: user says '把小红书的注入彻底删掉，包括文件' → remove injection.",
+        parameters: ["bundle_id": "Target App bundle ID"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
         let result = try InjectionManager.shared.disable(bundleId: bid)
@@ -182,8 +182,8 @@ final class InjectionRemoveTool: MCPTool {
 // MARK: - 原版缺失工具：container.delete
 
 final class ContainerDeleteTool: MCPTool {
-    let definition = ToolDefinition(name: "container.delete", summary: "Delete a file or directory inside an app container",
-        parameters: ["bundle_id": "Target App", "path": "Path inside container"], verified: true, category: "filesystem")
+    let definition = ToolDefinition(name: "container.delete", summary: "Delete a file/directory inside an app container. Use for: clean up app data files. Don't use for: delete workspace files (use fs.rm), list directory (use bridge.ls). Warning: irreversible! Example: user says '删掉小红书的缓存文件' → delete file.",
+        parameters: ["bundle_id": "Target app bundle ID", "path": "Path inside app container"], verified: true, category: "filesystem")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String,
               let path = params["path"] as? String else {
@@ -204,88 +204,11 @@ final class ContainerDeleteTool: MCPTool {
 
 // MARK: - 原版缺失工具：gateway.*
 
-final class GatewayChannelSendTool: MCPTool {
-    let definition = ToolDefinition(name: "gateway.channel_send", summary: "Broadcast a message to a Gateway channel",
-        parameters: ["channel": "Channel name", "message": "Message content"], verified: true, category: "automation")
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard GatewayClient.shared.isConnected else { throw MCPError.failed("gateway not connected") }
-        guard let channel = params["channel"] as? String else { throw MCPError.invalidParams("channel required") }
-        let message = params["message"] as? String ?? ""
-        let payload: [String: Any] = ["type": "channel", "channel": channel, "message": message]
-        let data = try JSONSerialization.data(withJSONObject: payload)
-        GatewayClient.shared.send(String(data: data, encoding: .utf8) ?? "{}")
-        AuditLog.shared.log("gateway.channel_send", detail: channel)
-        return ["sent": true, "channel": channel]
-    }
-}
-
-final class GatewayCronCreateTool: MCPTool {
-    let definition = ToolDefinition(name: "gateway.cron_create", summary: "Create a Gateway scheduled task (real local notification scheduling)",
-        parameters: ["name": "Task name", "schedule": "cron expression", "action": "Action description"], verified: true, category: "automation")
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
-        let schedule = params["schedule"] as? String ?? "*/5 * * * *"
-        let task = AutomationStore.Task(
-            name: name,
-            schedule: schedule,
-            action: params["action"] as? String ?? "ping",
-            kind: "cron",
-            interval: cronSeconds(schedule) ?? 300
-        )
-        AutomationStore.shared.add(task)
-        AuditLog.shared.log("gateway.cron_create", detail: "\(task.name) \(task.schedule)")
-        return ["created": true, "name": name, "interval": task.interval]
-    }
-}
-
-final class GatewayCronRunTool: MCPTool {
-    let definition = ToolDefinition(name: "gateway.cron_run", summary: "Immediately run a scheduled task",
-        parameters: ["name": "Task name"], verified: true, category: "automation")
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
-        guard AutomationStore.shared.run(name: name) else {
-            throw MCPError.failed("task not found or disabled: \(name)")
-        }
-        return ["ran": true, "name": name]
-    }
-}
-
-final class GatewayCronCancelTool: MCPTool {
-    let definition = ToolDefinition(name: "gateway.cron_cancel", summary: "Cancel or delete a scheduled task",
-        parameters: ["name": "Task name"], verified: true, category: "automation")
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
-        guard let task = AutomationStore.shared.tasks.first(where: { $0.name == name }) else {
-            throw MCPError.failed("task not found: \(name)")
-        }
-        AutomationStore.shared.remove(task)
-        AuditLog.shared.log("gateway.cron_cancel", detail: name)
-        return ["cancelled": true, "name": name]
-    }
-}
-
-final class GatewayNodeInvokeTool: MCPTool {
-    let definition = ToolDefinition(name: "gateway.node_invoke", summary: "Remote-invoke a Gateway node method (original naming)",
-        parameters: ["node": "Node name", "method": "Method", "params": "Params object"], verified: true, category: "automation")
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard GatewayClient.shared.isConnected else { throw MCPError.failed("gateway not connected") }
-        let payload: [String: Any] = [
-            "type": "node_invoke",
-            "node": params["node"] as? String ?? "",
-            "method": params["method"] as? String ?? "",
-            "params": params["params"] ?? [:]
-        ]
-        let data = try JSONSerialization.data(withJSONObject: payload)
-        GatewayClient.shared.send(String(data: data, encoding: .utf8) ?? "{}")
-        return ["sent": true]
-    }
-}
-
 // MARK: - 原版缺失工具：automation.*
 
 final class AutomationCancelTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.cancel", summary: "Cancel scheduled automation. Use for: stop task.",
-        parameters: ["name": "Task name or id"], verified: true, category: "device")
+    let definition = ToolDefinition(name: "automation.cancel", summary: "Cancel/delete a scheduled automation task permanently. Use for: stop and remove a task, don't want it to run anymore. Don't use for: temporarily disable (use automation.stop), list tasks (use automation.list). Example: user says '把那个定时任务删了' → cancel automation.",
+        parameters: ["name": "Task name or ID to cancel/delete"], verified: true, category: "device")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
         let store = AutomationStore.shared
@@ -299,7 +222,7 @@ final class AutomationCancelTool: MCPTool {
 }
 
 final class AutomationHistoryTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.history", summary: "Show automation execution history. Use for: review past runs.")
+    let definition = ToolDefinition(name: "automation.history", summary: "Show history of past automation task runs. Use for: see what tasks ran before, review execution logs. Don't use for: list current tasks (use automation.list), run task now (use automation.run_now). Example: user says '之前跑过哪些任务' → show automation history.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let entries = AutomationStore.shared.history.prefix(50)
         return [
@@ -310,8 +233,8 @@ final class AutomationHistoryTool: MCPTool {
 }
 
 final class AutomationSetEnabledTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.set_enabled", summary: "Enable/disable automation. Use for: toggle task.",
-        parameters: ["name": "Task name", "enabled": "true/false"], verified: true)
+    let definition = ToolDefinition(name: "automation.set_enabled", summary: "Enable or disable a scheduled task (keep it but turn it off). Use for: temporarily pause a task without deleting it. Don't use for: delete task permanently (use automation.cancel), run task now (use automation.run_now). Example: user says '先把那个定时任务停一下' → disable it.",
+        parameters: ["name": "Task name", "enabled": "true (enable) or false (disable)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String,
               let task = AutomationStore.shared.tasks.first(where: { $0.name == name }) else {
@@ -326,7 +249,7 @@ final class AutomationSetEnabledTool: MCPTool {
 // MARK: - 原版缺失工具：model.*
 
 final class ModelAuthenticationTool: MCPTool {
-    let definition = ToolDefinition(name: "model.authentication", summary: "Check current model auth method and key status")
+    let definition = ToolDefinition(name: "model.authentication", summary: "Check AI model authentication status. Use for: verify API key is configured correctly. Don't use for: switch model (use model.selectedProfileID), update model settings (use model.update). Example: user says '检查一下模型 API key 对不对' → check auth.",
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let config = ModelStore.shared.defaultConfig else {
             throw MCPError.failed("no model configured")
@@ -347,8 +270,8 @@ final class ModelAuthenticationTool: MCPTool {
 }
 
 final class ModelSelectedProfileIDTool: MCPTool {
-    let definition = ToolDefinition(name: "model.selectedProfileID", summary: "Get or set current selected model profile ID",
-        parameters: ["profile_id": "Optional: profile UUID to switch to"], verified: true, category: "system")
+    let definition = ToolDefinition(name: "model.selectedProfileID", summary: "Get or switch the current AI model. Use for: change which LLM model you're using. Don't use for: list all models (use model.config), edit model settings (use model.update). Example: user says '把模型换成 deepseek' → switch model.",
+        parameters: ["profile_id": "Model profile UUID (optional, to switch)"], verified: true, category: "system")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let store = ModelStore.shared
         if let newId = params["profile_id"] as? String,
@@ -369,8 +292,8 @@ final class ModelSelectedProfileIDTool: MCPTool {
 // MARK: - 原版缺失工具：workspace.output*
 
 final class WorkspaceOutputBookmarkTool: MCPTool {
-    let definition = ToolDefinition(name: "workspace.outputBookmark", summary: "Get or set workspace output directory bookmark",
-        parameters: ["bookmark": "Optional: bookmark name to save"], verified: true)
+    let definition = ToolDefinition(name: "workspace.outputBookmark", summary: "Get or set output directory bookmark. Use for: remember where you save output files. Don't use for: set output file name (use workspace.outputName), list files (use artifact.list). Example: user says '把输出目录书签设到 download' → set bookmark.",
+        parameters: ["bookmark": "Bookmark name to save (optional)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let key = "trollmcp2.output_bookmark"
         if let bookmark = params["bookmark"] as? String {
@@ -383,8 +306,8 @@ final class WorkspaceOutputBookmarkTool: MCPTool {
 }
 
 final class WorkspaceOutputNameTool: MCPTool {
-    let definition = ToolDefinition(name: "workspace.outputName", summary: "Get or set workspace output artifact naming",
-        parameters: ["name": "Optional: output name"], verified: true, category: "system")
+    let definition = ToolDefinition(name: "workspace.outputName", summary: "Get or set the default name for output files. Use for: set how saved files are named. Don't use for: save file (use artifact.write_text), list files (use artifact.list). Example: user says '以后保存的文件都叫 report' → set output name.",
+        parameters: ["name": "New output file name (optional)"], verified: true, category: "system")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let key = "trollmcp2.output_name"
         if let name = params["name"] as? String {

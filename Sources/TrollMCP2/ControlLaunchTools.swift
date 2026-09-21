@@ -104,7 +104,7 @@ final class AppLaunchOptionsTool: MCPTool {
 
 final class LocationFakeTool: MCPTool {
     let definition = ToolDefinition(name: "location.fake",
-        summary: "Write simulated location coordinates. Note: system-wide mock needs hooking locationd (not possible with TrollStore); affects target app only if the app has an injected hook reading this config.",
+        summary: "Set simulated GPS location. Use for: fake location for location-based apps. Don't use for: check current location (use location.get), clear fake location (use location.clear). Note: only works if app has location hook injected. Example: user says '定位到北京' → set fake location.",
         parameters: ["lat": "Latitude", "lon": "Longitude", "reason": "Why (optional)"], verified: true, category: "device")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let lat = params["lat"] as? Double, let lon = params["lon"] as? Double else {
@@ -125,7 +125,7 @@ final class LocationFakeTool: MCPTool {
 
 final class LocationFakeStatusTool: MCPTool {
     let definition = ToolDefinition(name: "location.fake_status",
-        summary: "View current mock location config (coordinates/enabled state).",
+        summary: "Check current fake location settings. Use for: see if location is being spoofed, what coordinates are set. Don't use for: set fake location (use location.fake), clear fake location (use location.clear). Example: user says '现在定位模拟到哪了' → check status.",
         parameters: [:], verified: true, category: "device")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let cfg = FakeLocationStore.read() else {
@@ -137,7 +137,7 @@ final class LocationFakeStatusTool: MCPTool {
 
 final class LocationFakeClearTool: MCPTool {
     let definition = ToolDefinition(name: "location.fake_clear",
-        summary: "Clear mock location config, restore real location.",
+        summary: "Restore real GPS location. Use for: undo location spoofing after testing. Don't use for: set fake location (use location.fake), check status (use location.fake_status). Example: user says '关闭模拟定位，恢复真实位置' → clear.",
         parameters: [:], verified: true, category: "device")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let (ok, msg) = FakeLocationStore.clear()

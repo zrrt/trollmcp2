@@ -9,10 +9,10 @@
 final class DiagnoseStartupTool: MCPTool {
     let definition = ToolDefinition(
         name: "diagnose.startup",
-        summary: "Auto-diagnose app launch failure. Checks: signature, architecture, dependencies, entitlements, injection state, process cache, crash logs. Gives clear cause and fix steps.",
+        summary: "Auto-diagnose why an app won't launch. Use for: app crashes on start, won't open, find out why. Don't use for: read crash logs (use fs.crash), inject dylib (use injection.enable). Example: user says '小红书一打开就闪退' → diagnose startup failure.",
         parameters: [
-            "bundle_id": "Target App bundle_id (required)",
-            "auto_fix": "Auto-attempt fix (default false, diagnose only)"
+            "bundle_id": "Target App bundle ID (required)",
+            "auto_fix": "Auto try to fix (default false, just diagnose)"
         ],
         verified: true, category: "diagnose")
 
@@ -133,10 +133,10 @@ final class DiagnoseStartupTool: MCPTool {
 final class DiagnoseCrashTool: MCPTool {
     let definition = ToolDefinition(
         name: "diagnose.crash",
-        summary: "Analyze recent crash logs for an app, auto-extract: exception type, termination reason, crashed thread, call stack, dyld errors, signature issues. Gives root cause and fix suggestions.",
+        summary: "Analyze app crash logs to find root cause. Use for: app keeps crashing, find out why. Don't use for: read raw crash log (use fs.crash), diagnose startup failure (use diagnose.startup). Example: user says '小红书老闪退，什么原因' → analyze crash.",
         parameters: [
-            "bundle_id": "Target App bundle_id (required)",
-            "count": "Analyze recent crashes (default 1)"
+            "bundle_id": "Target App bundle ID (required)",
+            "count": "How many recent crashes to analyze (default 1)"
         ],
     verified: true, category: "diagnose")
 
@@ -390,9 +390,9 @@ final class LocalServerManager {
 final class ServerStartTool: MCPTool {
     let definition = ToolDefinition(
         name: "server.start",
-        summary: "Start local HTTP server (localhost), other scripts/tools can call all TrollAgent tools via REST API. Default port 8765.",
+        summary: "Start the local HTTP server. Use for: enable external tools/scripts to call TrollAgent via REST API. Don't use for: stop server (use server.stop), check server status (use server.status). Example: user says '启动本地服务器' → start server.",
         parameters: [
-            "port": "Port (default 8765)"
+            "port": "Port number (default 8765)"
         ], verified: true, category: "diagnose")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -415,7 +415,7 @@ final class ServerStartTool: MCPTool {
 final class ServerStopTool: MCPTool {
     let definition = ToolDefinition(
         name: "server.stop",
-        summary: "Stop local HTTP server.",
+        summary: "Stop the local HTTP server. Use for: turn off the local web server, save battery. Don't use for: start server (use server.start), check server status (use server.status). Example: user says '把本地服务器关了' → stop server.",
         parameters: [:],
         verified: true, category: "system")
 
@@ -428,7 +428,7 @@ final class ServerStopTool: MCPTool {
 final class ServerStatusTool: MCPTool {
     let definition = ToolDefinition(
         name: "server.status",
-        summary: "Check local HTTP server status: running, port, available tool count.",
+        summary: "Check if the local HTTP server is running. Use for: see if server is up, check what port it's on. Don't use for: start server (use server.start), stop server (use server.stop). Example: user says '本地服务器开了吗' → check server status.",
         parameters: [:],
     verified: true, category: "system")
 

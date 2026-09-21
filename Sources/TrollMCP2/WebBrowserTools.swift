@@ -9,7 +9,7 @@ import Foundation
 struct BrowserStatusTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.status",
-        summary: "Check browser status (open/closed). Use for: browser availability.",
+        summary: "Check if the built-in browser is open. Use for: see if browser is available before using other browser tools. Don't use for: open browser (use browser.open/browser.navigate), close browser. Example: user says '浏览器开了吗' → check browser status.",
         parameters: [:],
         verified: true, category: "browser")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -21,8 +21,8 @@ struct BrowserStatusTool: MCPTool {
 struct BrowserOpenTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.open",
-        summary: "Open browser with URL. Use for: start web session.",
-        parameters: ["url": "string"],
+        summary: "Open the built-in browser and navigate to a URL. Use for: open a website, start browsing. Don't use for: control native iPhone apps (use control.*), read page content (use browser.text after open). Example: user says '打开百度' → open https://www.baidu.com.",
+        parameters: ["url": "Website URL to open (e.g. https://www.baidu.com)"],
     verified: true, category: "browser")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let url = params["url"] as? String else {
@@ -37,8 +37,7 @@ struct BrowserOpenTool: MCPTool {
 struct BrowserWaitTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.wait",
-        summary: "Wait for page load. Use for: sync with page.",
-        parameters: ["timeout": "Max wait seconds (default 15)"],
+        summary: "Wait for the web page to finish loading. Use for: after navigating, wait for page to load before doing actions. Don't use for: just open URL (use browser.navigate), scroll page (use browser.scroll). Example: user says '打开百度，等加载完' → navigate then wait.",
     verified: true, category: "browser")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let timeout = params["timeout"] as? Int ?? 15
@@ -66,8 +65,8 @@ struct BrowserTextTool: MCPTool {
 struct BrowserScrollTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.scroll",
-        summary: "Scroll page up/down. Use for: navigate page.",
-        parameters: ["direction": "down/up/top/bottom"],
+        summary: "Scroll the current web page up/down. Use for: read more content on a long webpage, navigate within page. Don't use for: open new URL (use browser.navigate), scroll native app (use control.swipe). Example: user says '往下翻' → scroll down.",
+        parameters: ["direction": "Scroll direction: down / up / top (go to top) / bottom (go to end)"],
     verified: true, category: "browser")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let direction = params["direction"] as? String else {
@@ -82,8 +81,7 @@ struct BrowserScrollTool: MCPTool {
 struct BrowserSubmitTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.submit",
-        summary: "Submit form. Use for: send form data.",
-        parameters: ["idx": "integer"], verified: true)
+        summary: "Submit a web form (click submit button). Use for: submit a filled-in form on a webpage. Don't use for: fill form fields (use browser.fill_form), click random button (use browser.eval). Prerequisite: first use browser.snapshot to get element idx. Example: user says '提交搜索' → submit form.",
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let idx = params["idx"] as? Int ?? (params["idx"] as? String).flatMap({ Int($0) }) else {
             throw MCPError.invalidParams("browser.submit 需要整数 idx 参数")
@@ -97,8 +95,7 @@ struct BrowserSubmitTool: MCPTool {
 struct BrowserFormFieldsTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.form_fields",
-        summary: "List form fields on page. Use for: inspect form structure.",
-        parameters: [:],
+        summary: "List all form fields on the current web page. Use for: see what input fields exist on a webpage before filling them. Don't use for: fill the form (use browser.fill_form), just read text (use browser.text). Example: user says '这个登录页有哪些输入框' → list form fields.",
     verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let r = BrowserManager.shared.formFields()
@@ -110,8 +107,8 @@ struct BrowserFormFieldsTool: MCPTool {
 struct BrowserFillFormTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.fill_form",
-        summary: "Fill form fields. Use for: auto-fill web form. Keys are field name/placeholder/label, values are what to fill. Auto-matches inputs/selects/checkboxes. Use {__xpath: ..., __value: ...} for precise targeting. Set submit=true to auto-submit.",
-        parameters: ["values": "{\"field\":\"value\"} map (required)", "submit": "Auto-submit form (default false)"], verified: true)
+        summary: "Auto-fill a web form (fill multiple fields at once). Use for: login form, search form, any form with multiple inputs. Don't use for: type into single field (use browser.type), click button (use browser.click). Example: user says '自动登录，用户名 admin 密码 123' → fill form with multiple fields.",
+        parameters: ["values": "Map of field name → value (e.g. {\"用户名\":\"admin\",\"密码\":\"123\"})", "submit": "Auto-submit after filling (default false)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let values = params["values"] as? [String: String] else {
             throw MCPError.invalidParams("browser.fill_form 需要 values 参数，如 {\"用户名\":\"me\",\"密码\":\"xx\"}")
@@ -126,8 +123,8 @@ struct BrowserFillFormTool: MCPTool {
 struct BrowserWaitForTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.wait_for",
-        summary: "Wait for element to appear. Use for: sync with specific element. Returns whether found.",
-        parameters: ["selector": "CSS selector (choose one with text)", "text": "Body text keyword (choose one with selector)", "timeout": "Max wait seconds (default 15)"], verified: true)
+        summary: "Wait for a specific element to appear on the page. Use for: after clicking a button, wait for result to load. Don't use for: wait for whole page to load (use browser.wait), scroll page (use browser.scroll). Example: user says '点搜索后等结果出来' → wait for results element.",
+        parameters: ["selector": "CSS selector of element to wait for", "text": "Wait for element containing this text", "timeout": "Max wait seconds (default 15)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let text = params["text"] as? String
         let selector = params["selector"] as? String
@@ -155,8 +152,7 @@ struct BrowserSnapshotTool: MCPTool {
 struct BrowserClickTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.click",
-        summary: "Click element by selector. Use for: interact with page.",
-        parameters: ["idx": "integer"], verified: true)
+        summary: "Click a web page element (button/link). Use for: click buttons, links on a webpage. Don't use for: submit form (use browser.submit), type text (use browser.type). Prerequisite: first use browser.snapshot to get element idx. Example: user says '点这个登录按钮' → click element.",
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let idx = params["idx"] as? Int ?? (params["idx"] as? String).flatMap({ Int($0) }) else {
             throw MCPError.invalidParams("browser.click 需要整数 idx 参数")
@@ -188,8 +184,7 @@ struct BrowserTypeTool: MCPTool {
 struct BrowserEvalTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.eval",
-        summary: "Evaluate JavaScript in page. Use for: run JS in browser.",
-        parameters: ["js": "string"],
+        summary: "Run custom JavaScript code in the web page. Use for: advanced page manipulation, extract data, automate complex actions. Don't use for: simple click/type (use browser.click/type), read text (use browser.text). Example: user says '用 JS 提取页面所有链接' → eval JS.",
     verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let js = params["js"] as? String else {

@@ -5,9 +5,9 @@ import Foundation
 final class BackupCreateTool: MCPTool {
     let definition = ToolDefinition(
         name: "backup.create",
-        summary: "Backup App data container to zip. Use when: (1) backup game save/chat history, (2) before reset/new device, (3) preserve App data. Saves to workspace/backups/.",
+        summary: "Backup an app's data to a zip file. Use for: backup game saves, chat history, before reset. Don't use for: list backups (use backup.list), restore backup (use backup.restore). Example: user says '备份一下微信聊天记录' → create backup.",
         parameters: [
-            "bundle_id": "Target App bundle_id (required)"
+            "bundle_id": "Target app bundle ID"
         ],
         verified: false)
     
@@ -69,9 +69,9 @@ final class BackupCreateTool: MCPTool {
 final class BackupListTool: MCPTool {
     let definition = ToolDefinition(
         name: "backup.list",
-        summary: "List all backups. Use when: (1) see available backups, (2) find backup to restore, (3) check backup history.",
+        summary: "List all available backups. Use for: see what backups you have, find a backup to restore. Don't use for: create backup (use backup.create), restore backup (use backup.restore). Example: user says '我有哪些备份' → list backups.",
         parameters: [
-            "bundle_id": "Filter by App bundle_id (optional)"
+            "bundle_id": "Filter by app bundle ID (optional)"
         ],
         verified: false)
     
@@ -123,10 +123,10 @@ final class BackupListTool: MCPTool {
 final class BackupRestoreTool: MCPTool {
     let definition = ToolDefinition(
         name: "backup.restore",
-        summary: "Restore App data from backup. Use when: (1) restore game save/chat, (2) recover App data, (3) undo reset. Will overwrite current container!",
+        summary: "Restore app data from a backup. Use for: recover game saves/chat history, undo reset. Don't use for: list backups (use backup.list), create backup (use backup.create). Warning: overwrites current app data! Example: user says '恢复一下微信备份' → restore backup.",
         parameters: [
-            "bundle_id": "Target App bundle_id (required)",
-            "backup_path": "Backup zip path (optional, use latest if not specified)",
+            "bundle_id": "Target app bundle ID",
+            "backup_path": "Backup file path (optional, uses latest if not specified)",
             "confirm": "Must be true to restore (overwrites current data)"
         ],
         verified: false)
@@ -212,9 +212,9 @@ final class BackupRestoreTool: MCPTool {
 final class BackupDeviceFakeTool: MCPTool {
     let definition = ToolDefinition(
         name: "backup.device_fake",
-        summary: "Backup device spoofing config (fake_device.json). Use when: (1) save fake device setup, (2) restore spoofing later, (3) clone setup to another App. Saves to workspace/backups/.",
+        summary: "Backup device spoofing configuration. Use for: save fake device setup, clone to another app. Don't use for: backup app data (use backup.create), restore spoofing (use backup.device_fake_restore). Example: user says '备份一下虚拟设备设置' → backup device fake config.",
         parameters: [
-            "name": "Backup name (optional, default: device_fake_<timestamp>)"
+            "name": "Backup name (optional)"
         ],
         verified: false)
     
@@ -252,9 +252,9 @@ final class BackupDeviceFakeTool: MCPTool {
 final class BackupRestoreDeviceFakeTool: MCPTool {
     let definition = ToolDefinition(
         name: "backup.restore_device_fake",
-        summary: "Restore device spoofing config from backup. Use when: (1) re-apply saved fake device setup, (2) restore spoofing after reset, (3) clone config. Will overwrite current fake_device.json!",
+        summary: "Restore device spoofing config from backup. Use for: re-apply saved fake device setup after reset. Don't use for: backup spoofing config (use backup.device_fake), restore app data (use backup.restore). Warning: overwrites current config! Example: user says '恢复一下虚拟设备备份' → restore.",
         parameters: [
-            "backup_name": "Backup name (optional, use latest if not specified)",
+            "backup_name": "Backup name (optional, uses latest if not specified)",
             "confirm": "Must be true to overwrite current config"
         ],
         verified: false)
@@ -312,10 +312,10 @@ final class BackupRestoreDeviceFakeTool: MCPTool {
 final class BackupFullNewDeviceTool: MCPTool {
     let definition = ToolDefinition(
         name: "backup.full_new_device",
-        summary: "Full backup before new device reset: App data + device spoofing config + keychain. Use when: (1) before one-click new device, (2) migrating to new device, (3) full system backup. Creates a single archive with everything.",
+        summary: "Full backup before resetting app as new. Use for: one-click new device setup, full system migration. Don't use for: simple backup (use backup.create), backup spoofing only (use backup.device_fake). Example: user says '一键新设备，先全量备份' → full backup.",
         parameters: [
-            "bundle_id": "Target App bundle_id (required)",
-            "include_keychain": "Include keychain backup (default true, may require special permissions)"
+            "bundle_id": "Target app bundle ID",
+            "include_keychain": "Include keychain in backup (default: true)"
         ],
         verified: false)
     

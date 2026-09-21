@@ -11,10 +11,10 @@
 final class IPAInspectTool: MCPTool {
     let definition = ToolDefinition(
         name: "ipa.inspect",
-        summary: "Parse IPA or installed app: arch, signature, entitlements, dylibs, Info.plist, URL schemes, background modes.",
+        summary: "Inspect an IPA or installed app: architecture, signature, entitlements, dylib dependencies, Info.plist. Use for: analyze an IPA file, check app details before injection. Don't use for: inject dylib (use injection.enable), list installed apps (use injection.list). Example: user says '这个 IPA 是什么架构' → inspect IPA.",
         parameters: [
-            "path": "IPA file path or App Bundle path (required, locate via artifact.find)",
-            "detail": "Verbosity: basic (default, arch+signature+version) or full (deps list + entitlements full text)"
+            "path": "IPA file path or App Bundle path (required)",
+            "detail": "basic (quick overview) or full (all dependencies + entitlements)"
         ],
     verified: true, category: "analysis")
 
@@ -143,9 +143,9 @@ final class IPAInspectTool: MCPTool {
 final class DylibInspectTool: MCPTool {
     let definition = ToolDefinition(
         name: "dylib.inspect",
-        summary: "Parse a dylib: arch, signature, dependencies, exports, min iOS version. Validate before injection.",
+        summary: "Inspect a dylib file (architecture, signature, dependencies). Use for: check if a dylib is compatible before injecting. Don't use for: inject dylib (use injection.enable), inspect IPA (use ipa.inspect). Example: user says '这个 dylib 能用吗' → inspect dylib.",
         parameters: [
-            "path": "dylib file path (required, locate via artifact.find)"
+            "path": "Dylib file path (required)"
         ], verified: true, category: "analysis")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -240,10 +240,10 @@ private func machOArch(_ path: String) -> String {
 final class InjectionDiagnoseTool: MCPTool {
     let definition = ToolDefinition(
         name: "injection.diagnose",
-        summary: "Diagnose why dylib injection failed. Checks: target process, arch/signature, missing deps, load paths, permissions, backups, Mach-O integrity. Gives fix hints.",
+        summary: "Diagnose why injection failed (troubleshoot). Use for: injection didn't work, find out why (app crashed, dylib not loaded, etc.). Don't use for: actually inject (use injection.enable), check status (use injection.status). Example: user says '小红书注入失败了，为什么' → diagnose injection failure.",
         parameters: [
-            "bundle_id": "Target App bundle_id (required)",
-            "dylib_path": "dylib path to inject (optional, check injected if empty)"
+            "bundle_id": "Target App bundle ID (required)",
+            "dylib_path": "Dylib path to check (optional, check existing injected)"
         ]
     )
 

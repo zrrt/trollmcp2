@@ -252,11 +252,11 @@ final class ControlAgentTools {
 final class ControlInjectTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.inject",
-        summary: "Inject ControlAgent.dylib into a target app. After injection, AI controls app UI via localhost HTTP (tap/swipe/type/screenshot/UI tree). bundle_id is target app. Restart after injection.",
+        summary: "Inject ControlAgent into an app to enable UI control (tap/swipe/type/screenshot). Use for: start controlling an app's UI, before using other control.* tools. Don't use for: inject other dylibs (use injection.enable), memory injection (use injection.mem). Example: user says '我要控制小红书' → inject ControlAgent first.",
         parameters: [
-            "bundle_id": "Target App bundle_id (required, search via injection.list)",
-            "target": "Optional: specific Mach-O to inject (framework name substring, e.g. BiliCr). Default auto-select main binary's mandatory framework",
-            "skip_probe": "Optional: skip startup selfcheck after injection (no probe/rollback, preserve for manual verification). Default false"
+            "bundle_id": "Target App bundle ID (required)",
+            "target": "Specific framework to inject (optional, auto)",
+            "skip_probe": "Skip startup check (optional, default false)"
         ],
         verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -273,7 +273,7 @@ final class ControlInjectTool: MCPTool {
 final class ControlStatusTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.status",
-        summary: "Check if ControlAgent is online in target app (localhost:4789 reachable). Returns app info, PID, available API list.",
+        summary: "Check if ControlAgent is running in the target app. Use for: verify injection worked, see if UI control is available. Don't use for: inject ControlAgent (use control.inject), take screenshot (use control.screenshot). Example: user says '小红书注入成功了吗' → check control status.",
         parameters: [:],
         verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -284,7 +284,7 @@ final class ControlStatusTool: MCPTool {
 final class ControlUITreeTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.ui_tree",
-        summary: "PREREQUISITE: call control.inject first. Get target app full UI tree (all windows, views, frames, text, accessibility info). AI decides which element to tap. Limited to 500 nodes.",
+        summary: "PREREQUISITE: call control.inject first. Dump the app's UI element tree (all buttons, text fields, frames). Use for: find exact UI elements to tap, understand app layout. Don't use for: just take screenshot (use control.screenshot, simpler), tap by text (use control.tap_text). Example: user says '小红书页面上有什么按钮' → dump UI tree.",
         parameters: [:],
         verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -347,8 +347,8 @@ final class ControlSwipeTool: MCPTool {
 final class ControlTypeTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.type",
-        summary: "PREREQUISITE: call control.inject first. Type text into target app current input field (first responder). If no field focused, text goes to clipboard.",
-        parameters: ["text": "Text to input (required)"],
+        summary: "PREREQUISITE: call control.inject first. Type text into the currently focused input field. Use for: type into already focused field. Don't use for: find field by label and type (use control.type_text), tap button (use control.tap). Example: user says '输入这段文字' → type into focused field.",
+        parameters: ["text": "Text to type into the input field (required)"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let text = params["text"] as? String else {
@@ -362,8 +362,8 @@ final class ControlTypeTool: MCPTool {
 final class ControlKeyTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.key",
-        summary: "PREREQUISITE: call control.inject first. Simulate hardware key. Supports home (go to home), back (go back), enter (return).",
-        parameters: ["key": "home/back/enter (required)"],
+        summary: "PREREQUISITE: call control.inject first. Simulate hardware button press (home/back/enter). Use for: go back to home screen, press back button, press enter. Don't use for: tap on screen (use control.tap), swipe gesture (use control.swipe). Example: user says '按 home 键回桌面' → press home key.",
+        parameters: ["key": "Which key to press: home / back / enter (required)"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let key = params["key"] as? String else {

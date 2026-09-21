@@ -169,11 +169,11 @@ final class CleanupExecuteTool: MCPTool {
 final class CleanupAiTool: MCPTool {
     let definition = ToolDefinition(
         name: "cleanup.ai",
-        summary: "AI fully-automatic cleanup of an app: scan items then clean by risk (default safe only; auto=true also cleans warn; danger skipped unless confirm=true) -> rescan verify -> output report. One-click cleanup.",
+        summary: "AI one-click full cleanup of an app. Use for: automatically clean all safe items in an app (cache, temp files). Don't use for: just scan what's cleanable (use cleanup.scan), specific cleanup (use cleanup.execute). Example: user says '一键清理小红书' → AI cleanup.",
         parameters: [
-            "bundle_id": "Target App bundle_id (required)",
-            "auto": "Optional: true to also clear warning-level (keychain/advertising id). Default false (safe items only)",
-            "confirm": "Optional: true to allow dangerous-level (container reset, auto-backup). Default false"
+            "bundle_id": "Target App bundle ID (required)",
+            "auto": "Also clear warning-level (keychain/ad ID) (default: false)",
+            "confirm": "Allow dangerous-level (full container reset) (default: false)"
         ],
         verified: true, category: "cleanup")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

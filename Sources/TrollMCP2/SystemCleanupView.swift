@@ -486,7 +486,7 @@ struct SystemCleanupView: View {
 final class SystemCleanupScanTool: MCPTool {
     let definition = ToolDefinition(
         name: "system.cleanup_scan",
-        summary: "Scan device-level cleanable items (system/app/photo caches, temp, logs, downloads, snapshots, trash, OTA + advanced WebKit/HTTP/Safari). Returns sizes and risk. Scan before execute.",
+        summary: "Scan the whole device for cleanable items. Use for: see what's taking up space on your iPhone, find system/app caches. Don't use for: clean specific app (use cleanup.scan), actually delete files (use system.cleanup_execute). Example: user says '手机内存不够，清理一下' → scan device.",
         parameters: [:],
     verified: true, category: "cleanup")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -509,8 +509,8 @@ final class SystemCleanupScanTool: MCPTool {
 final class SystemCleanupExecuteTool: MCPTool {
     let definition = ToolDefinition(
         name: "system.cleanup_execute",
-        summary: "Execute device-level cleanup. Pass item ids from scan result (e.g. [\"app_cache\",\"sys_cache\",\"ota\"]). risk=warn items (downloads/trash/OTA) will clear those dirs. Returns freed size and failures.",
-        parameters: ["items": "Item id array to clean (required)"], verified: true, category: "cleanup")
+        summary: "Actually delete the scanned cleanable items. Use for: after system.cleanup_scan, delete the selected items to free space. Don't use for: scan first (use system.cleanup_scan), clean specific app (use cleanup.execute). Example: user says '清理扫描出来的这些缓存' → execute cleanup.",
+        parameters: ["items": "Array of item IDs to clean (required, from scan result)"], verified: true, category: "cleanup")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let items = params["items"] as? [String], !items.isEmpty else {
             throw MCPError.invalidParams("items required (e.g. [\"app_cache\",\"sys_cache\"])")

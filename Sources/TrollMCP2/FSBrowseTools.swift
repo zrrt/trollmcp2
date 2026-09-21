@@ -89,12 +89,12 @@ private enum FSPolicy {
 final class FSTreeTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.tree",
-        summary: "Show directory tree (browse filesystem). Use for: see folder structure, find what's inside a directory. NOT for: reading file contents (use fs.read), searching by name (use fs.find). If result says 'truncated/too long', DON'T repeat same call — instead: 1) increase limit to 200, 2) set depth=1 then drill into subfolder one at a time, 3) use fs.find to locate specific files. Each call only shows top level by default.",
+        summary: "Browse directory structure. Use for: see what's inside a folder, find files by browsing. Don't use for: read file content (use fs.read), find files by name (use fs.find). Example: user says '看看小红书 Documents 里有什么' → list directory tree.",
         parameters: [
-            "bundle_id": "Target App bundle_id (browse App container). e.g. com.xingin.discover",
-            "path": "Absolute path (default: workspace root). e.g. /var/mobile/Containers/Data/Application/xxx/Library/Preferences",
-            "depth": "Recursion depth (default 1, max 3). Use depth=1 first, then drill into specific subfolder.",
-            "limit": "Max items per level (default 60, max 200). Increase to 200 if result is truncated."
+            "bundle_id": "Target app bundle ID (browse app container)",
+            "path": "Directory path (default: workspace root)",
+            "depth": "How deep to list (default: 1, max: 3)",
+            "limit": "Max items per level (default: 60)"
         ],
         verified: true, category: "filesystem")
 
@@ -173,14 +173,14 @@ final class FSTreeTool: MCPTool {
 final class FSReadTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.read",
-        summary: "Read a FILE's content (text/plist/json/sqlite). Use for: reading specific file. DON'T use for: listing directory contents (use fs.tree instead). If you get 'path not in allowed range' error: you used wrong path, call workspace.info to get correct workspace path. Do NOT repeat same failed call.",
+        summary: "Read a file's content. Use for: read text/plist/json files, inspect file contents. Don't use for: list directory (use fs.tree), search file content (use fs.grep). Example: user says '读一下这个 config.plist 文件' → read file.",
         parameters: [
-            "path": "Absolute file path (REQUIRED, unless using bundle_id+relative). e.g. /Workspace/reports/data.json",
-            "bundle_id": "Target App bundle_id (optional, use with relative). e.g. com.xingin.discover",
-            "relative": "Relative path inside app container (optional, use with bundle_id). e.g. Documents/user.json",
-            "max_bytes": "Max bytes (default 512KB, optional)",
-            "as": "Format: auto/text/json/hex (default auto, optional)",
-            "line_start": "Start line number (optional)",
+            "path": "File path to read",
+            "bundle_id": "Target app bundle ID (optional, for app container)",
+            "relative": "Relative path inside app container (optional)",
+            "max_bytes": "Max bytes to read (default: 512KB)",
+            "as": "Format: auto/text/json/hex (default: auto)",
+            "line_start": "Start reading from this line (optional)",
             "line_end": "End line number (optional)"
         ],
         verified: true, category: "filesystem")
@@ -338,13 +338,13 @@ final class FSReadTool: MCPTool {
 final class FSHexdumpTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.hexdump",
-        summary: "Hexdump file. Use for: inspect binary file.",
+        summary: "Hexdump a binary file (show hex + ASCII). Use for: inspect binary files, check file headers, debug file format. Don't use for: read text files (use fs.read), browse directory (use fs.tree). Example: user says '看看这个二进制文件头' → hexdump first 256 bytes.",
         parameters: [
-            "bundle_id": "Target App bundle_id (choose one with path)",
-            "relative": "Relative path inside container (when bundle_id set)",
-            "path": "Absolute path (choose one with bundle_id)",
+            "bundle_id": "Target App bundle_id (to browse app container)",
+            "relative": "Relative path inside app container (when using bundle_id)",
+            "path": "Absolute file path (when not using bundle_id)",
             "offset": "Start byte offset (default 0)",
-            "length": "Bytes to read (default 256, max 4096)"
+            "length": "How many bytes to show (default 256, max 4096)"
         ],
         verified: true, category: "filesystem")
 
@@ -400,14 +400,14 @@ final class FSHexdumpTool: MCPTool {
 final class FSZipTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.zip",
-        summary: "Create/extract zip archive. Use for: compress/decompress.",
+        summary: "List or read contents of a ZIP/IPA archive. Use for: inspect what's inside an IPA or zip file, read files from archive. Don't use for: extract files to disk (use shell.exec unzip), browse normal directory (use fs.tree). Example: user says 'IPA 里有什么' → list zip contents.",
         parameters: [
-            "path": "Absolute path to ZIP/IPA file (required)",
-            "action": "list (default) / read",
-            "entry": "Entry name to read when action=read",
-            "as": "read format: auto (default) / text / json / hex",
-            "filter": "Filename keyword filter when listing (optional)",
-            "limit": "Max list results (default 200)"
+            "path": "Path to ZIP/IPA file (required)",
+            "action": "list (show contents) / read (read specific file)",
+            "entry": "File name inside zip (when action=read)",
+            "as": "Read format: auto / text / json / hex",
+            "filter": "Filter filenames by keyword when listing",
+            "limit": "Max items to list (default 200)"
         ], verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -497,13 +497,13 @@ final class FSZipTool: MCPTool {
 final class FSSQLTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.sql",
-        summary: "Query SQLite database. Use for: read .sqlite/.db files.",
+        summary: "Query a SQLite database (.sqlite/.db file). Use for: read app databases, inspect stored data, query tables. Don't use for: read text files (use fs.read), read plist files (use fs.plist). Example: user says '小红书的数据库里有什么表' → list tables in SQLite.",
         parameters: [
-            "bundle_id": "Target App bundle_id (choose one with path)",
-            "relative": "Relative path inside container (e.g. Documents/xx.db)",
-            "path": "DB absolute path (choose one with bundle_id)",
-            "sql": "SQL statement (default list all tables/views)",
-            "limit": "Max rows (default 100, max 500)"
+            "bundle_id": "Target App bundle_id (to browse app container)",
+            "relative": "Relative path inside app container (e.g. Documents/data.db)",
+            "path": "Absolute DB file path (when not using bundle_id)",
+            "sql": "SQL query (default: list all tables)",
+            "limit": "Max rows to return (default 100, max 500)"
         ], verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -591,13 +591,13 @@ final class FSSQLTool: MCPTool {
 final class FSGrepTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.grep",
-        summary: "Search file content by regex. Use for: find text in files.",
+        summary: "Search for text/keyword inside files (grep). Use for: find which files contain a certain string, search app data for keywords. Don't use for: find files by name (use fs.find), read single file (use fs.read). Example: user says '小红书哪个文件存了token' → grep for 'token' in app container.",
         parameters: [
-            "dir": "Search directory (default workspace; see bundle_id mode)",
-            "bundle_id": "Target App bundle_id (if set, search inside App container)",
+            "dir": "Directory to search (default: workspace root)",
+            "bundle_id": "Search inside this app's container (instead of dir)",
             "pattern": "Search keyword (required, case-insensitive)",
-            "ext": "File extension filter (e.g. plist/json/log/txt, comma-separated, optional)",
-            "limit": "Max matches (default 60)"
+            "ext": "Only search these file extensions (e.g. plist/json/log)",
+            "limit": "Max matches to return (default 60)"
         ],
     verified: true, category: "filesystem")
 
@@ -672,13 +672,13 @@ final class FSGrepTool: MCPTool {
 final class FSWriteTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.write",
-        summary: "Write file (DANGEROUS). Use for: create or modify file content. Don't use for: read files (use fs.read), delete files (use fs.rm).",
+        summary: "Write/create a file. Use for: create new files, modify file content. Don't use for: read files (use fs.read), delete files (use fs.rm), edit specific part (use fs.edit). Warning: overwrites existing file! Example: user says '写一个 config.plist 文件' → write file.",
         parameters: [
-            "path": "Absolute path (or workspace relative path)",
-            "bundle_id": "Target App bundle_id (if set, write to App container)",
+            "path": "File path (absolute or workspace relative)",
+            "bundle_id": "Target app bundle ID (optional, writes to app container)",
             "relative": "Relative path inside container (for bundle_id mode)",
-            "content": "Text content to write (required)",
-            "backup": "Backup to .bak before overwrite (default true)"
+            "content": "File content to write",
+            "backup": "Backup before overwrite (default: true)"
         ], verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -725,15 +725,15 @@ final class FSWriteTool: MCPTool {
 final class FSEditTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.edit",
-        summary: "Edit file (find/replace). Use for: modify text file.",
+        summary: "Edit/modify a text file (find and replace specific content). Use for: change text in a file, modify config, replace specific words. Don't use for: write whole new file (use fs.write), delete file (use fs.rm). Example: user says '把这个文件里的 localhost 改成 127.0.0.1' → find and replace.",
         parameters: [
-            "path": "Absolute path (or workspace-relative)",
-            "bundle_id": "Target App bundle_id (set to edit its data container)",
-            "relative": "Relative path inside container (when bundle_id set)",
-            "line": "Line number to replace (1-based, with new_text)",
-            "new_text": "Replacement content (line mode)",
-            "old": "Old fragment (old/new mode)",
-            "new": "Replace with (old/new mode, omit to delete)"
+            "path": "File path (or workspace-relative)",
+            "bundle_id": "Target App bundle ID (to edit app container file)",
+            "relative": "Relative path inside app container",
+            "line": "Line number to replace (1-based)",
+            "new_text": "New content for that line",
+            "old": "Old text to find",
+            "new": "New text to replace with (omit to delete old)"
         ], verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -792,14 +792,14 @@ final class FSEditTool: MCPTool {
 final class FSDiffTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.diff",
-        summary: "Compare two files. Use for: check file differences.",
+        summary: "Compare two files and show differences. Use for: see what changed between two versions, check config differences. Don't use for: read file content (use fs.read), search file contents (use fs.grep). Example: user says '这两个配置文件有什么不一样' → diff them.",
         parameters: [
-            "path_a": "File A (absolute or workspace-relative)",
-            "path_b": "File B",
-            "bundle_id_a": "File A App bundle_id (optional)",
-            "relative_a": "File A relative path in container (when bundle_id_a set)",
-            "bundle_id_b": "File B App bundle_id (optional)",
-            "relative_b": "File B relative path in container (when bundle_id_b set)"
+            "path_a": "First file path",
+            "path_b": "Second file path",
+            "bundle_id_a": "Bundle ID for first file (if in app container)",
+            "relative_a": "Relative path for first file",
+            "bundle_id_b": "Bundle ID for second file",
+            "relative_b": "Relative path for second file"
         ], verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -902,12 +902,12 @@ final class FSDiffTool: MCPTool {
 final class FSHashTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.hash",
-        summary: "Get file hash (md5/sha256). Use for: verify file integrity.",
+        summary: "Calculate file hash (MD5/SHA256). Use for: verify file integrity, compare if two files are same, check file fingerprint. Don't use for: compare file content (use fs.diff), read file (use fs.read). Example: user says '这个 IPA 的 MD5 是多少' → calculate hash.",
         parameters: [
-            "path": "Absolute path (or workspace-relative)",
-            "bundle_id": "Target App bundle_id (set to read its data container)",
-            "relative": "Relative path inside container (when bundle_id set)",
-            "algo": "md5 / sha1 / sha256 (default) / sha512"
+            "path": "File path",
+            "bundle_id": "Bundle ID (if in app container)",
+            "relative": "Relative path in app container",
+            "algo": "Hash algorithm: md5 / sha1 / sha256 (default) / sha512"
         ], verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -964,12 +964,12 @@ final class FSHashTool: MCPTool {
 final class FSFindTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.find",
-        summary: "Find files by name/pattern. Use for: locate files.",
+        summary: "Find files by filename. Use for: locate a specific file by name, search for plist/db/log files. Don't use for: search file contents (use fs.grep), browse directory (use fs.tree). Example: user says '小红书的 plist 文件在哪' → find files named 'plist' in app container.",
         parameters: [
-            "dir": "Search dir (default workspace)",
-            "bundle_id": "Target App bundle_id (set to search inside its container)",
-            "name": "Filename keyword (required, case-insensitive)",
-            "ext": "Extension filter (e.g. plist/db/dylib, comma-separated, optional)",
+            "dir": "Directory to search (default: workspace root)",
+            "bundle_id": "Search inside this app's container (instead of dir)",
+            "name": "Filename keyword (required, e.g. 'plist' / 'config.db')",
+            "ext": "Filter by extension (e.g. plist / db / dylib)",
             "limit": "Max results (default 60)"
         ],
     verified: true, category: "filesystem")
@@ -1017,12 +1017,12 @@ final class FSFindTool: MCPTool {
 final class FSDownloadTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.download",
-        summary: "Download file to workspace. Use for: fetch file from URL.",
+        summary: "Download a file from URL to the workspace. Use for: fetch files from internet, download IPAs/dylibs/docs. Don't use for: open website in browser (use browser.open), read web page text (use web.fetch). Example: user says '下载这个 IPA' → download to workspace.",
         parameters: [
             "url": "http/https URL to download (required)",
-            "filename": "Save filename (default last URL segment)",
-            "subdir": "Workspace subdir (default downloads)",
-            "timeout": "Timeout seconds (default 60)"
+            "filename": "Save as this filename (default: use URL's last part)",
+            "subdir": "Workspace subdirectory (default: downloads)",
+            "timeout": "Download timeout in seconds (default 60)"
         ], verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -1075,15 +1075,15 @@ final class FSDownloadTool: MCPTool {
 final class FSPropertyListTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.plist",
-        summary: "Read plist file. Use for: parse property list.",
+        summary: "Read/modify a plist file (property list). Use for: read app settings, modify plist values, inspect configuration. Don't use for: read SQLite (use fs.sql), read text file (use fs.read). Example: user says '小红书的偏好设置是什么' → read plist file.",
         parameters: [
-            "bundle_id": "Target App bundle_id (choose one with path)",
-            "relative": "Relative path inside container (when bundle_id set)",
-            "path": "plist absolute path (choose one with bundle_id)",
-            "action": "get (default) / set / delete",
-            "key": "Key path, dot-separated, e.g. Root.Foo.Bar",
-            "value": "Value for set (auto-detect bool/number/JSON/string)",
-            "backup": "Backup .bak before write (default true)"
+            "bundle_id": "Target App bundle_id (to browse app container)",
+            "relative": "Relative path inside app container",
+            "path": "Absolute plist file path",
+            "action": "get (read) / set (write value) / delete (remove key)",
+            "key": "Key path (e.g. Root.User.IsVip)",
+            "value": "New value (for set action)",
+            "backup": "Backup before modifying (default true)"
         ],
     verified: true, category: "filesystem")
 
@@ -1250,10 +1250,7 @@ final class FSPropertyListTool: MCPTool {
 final class FSContainerTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.container",
-        summary: "Access App container files. Use for: browse App data.",
-        parameters: [
-            "bundle_id": "Target App bundle_id (required)"
-        ],
+        summary: "Open/browse an app's data container directory. Use for: see what's inside an app's data folder, navigate app sandbox. Don't use for: read specific file (use fs.read with bundle_id), list workspace files (use fs.tree). Example: user says '小红书的 Documents 里有什么' → access container.",
     verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -1286,11 +1283,11 @@ final class FSContainerTool: MCPTool {
 final class FSCrashTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.crash",
-        summary: "Analyze crash report. Use for: debug crashes.",
+        summary: "Read and analyze app crash reports. Use for: find out why an app crashed, debug crashes. Don't use for: collect logs (use log.collect), generate hook from crash (use crash.repro_template). Example: user says '小红书为什么闪退' → read crash logs.",
         parameters: [
-            "bundle_id": "Filter by process name or bundle_id (optional)",
-            "limit": "Recent crashes (default 3, max 10)",
-            "dir": "Crash log dir (default system CrashReporter)"
+            "bundle_id": "Filter by app bundle ID (optional)",
+            "limit": "How many recent crashes to show (default 3, max 10)",
+            "dir": "Crash log directory (default system CrashReporter)"
         ],
     verified: true, category: "filesystem")
 
@@ -1404,11 +1401,11 @@ final class FSCrashTool: MCPTool {
 final class FSImageInfoTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.image_info",
-        summary: "Image metadata: format/width/height/size (PNG/JPEG/GIF/WebP). To view content, use model vision or screenshot tool.",
+        summary: "Get image file metadata (format, width, height, size). Use for: check image dimensions, know image format. Don't use for: view image content (use model vision / screenshot), read text file (use fs.read). Example: user says '这张图片多大尺寸' → get image info.",
         parameters: [
-            "path": "Image absolute path (or workspace-relative)",
-            "bundle_id": "Target App bundle_id (set to read its data container)",
-            "relative": "Relative path inside container (when bundle_id set)"
+            "path": "Image file path",
+            "bundle_id": "Bundle ID (if in app container)",
+            "relative": "Relative path in app container"
         ], verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

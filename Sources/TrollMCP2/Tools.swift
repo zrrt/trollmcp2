@@ -6,8 +6,8 @@ import UIKit
 final class ArtifactReadTextTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.read_text",
-        summary: "Read artifact as text. Use for: inspect file content.",
-        parameters: ["path": "Workspace-relative path"], verified: true, category: "filesystem")
+        summary: "Read a text file from the workspace. Use for: read files you created or downloaded. Don't use for: browse directory (use fs.tree), read app container files (use fs.read with bundle_id). Example: user says '读一下那个报告' → read text file from workspace.",
+        parameters: ["path": "File path relative to workspace (e.g. reports/data.txt)"], verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["path"] as? String else {
@@ -22,8 +22,7 @@ final class ArtifactReadTextTool: MCPTool {
 final class ArtifactWriteTextTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.write_text",
-        summary: "Write text artifact. Use for: create file.",
-        parameters: ["path": "Workspace-relative path", "content": "Text content"], verified: true, category: "filesystem")
+        summary: "Write a text file to the workspace. Use for: create new file, save text results. Don't use for: write to app container (use container.write_text), edit existing file (use fs.edit). Example: user says '把这个结果保存成文件' → write to workspace.",
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["path"] as? String,
@@ -43,8 +42,7 @@ final class ArtifactWriteTextTool: MCPTool {
 final class ArtifactListTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.list",
-        summary: "List artifacts by type. Use for: browse files.",
-        parameters: ["subpath": "Optional subdir or file path"],
+        summary: "List files in the workspace directory. Use for: see what files are in workspace, browse downloaded files. Don't use for: browse app container files (use fs.tree), read file content (use fs.read). Example: user says 'workspace 里有什么文件' → list artifacts.",
     verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -88,8 +86,7 @@ final class ArtifactListTool: MCPTool {
 final class ArtifactFindTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.find",
-        summary: "Find artifact by name/pattern. Use for: locate file.",
-        parameters: ["ext": "Extension without dot (e.g. dylib/deb/ipa)", "name": "Filename substring (optional)", "max_depth": "Max recursion depth (default 8)", "limit": "Max results (default 20)"],
+        summary: "Find files in workspace by name or extension. Use for: locate a specific file (e.g. find all .ipa files). Don't use for: list directory (use artifact.list), search file contents (use fs.grep). Example: user says 'workspace 里的 IPA 文件在哪' → find by extension.",
     verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -141,7 +138,8 @@ final class ArtifactFindTool: MCPTool {
 // MARK: - 基础工具
 
 final class PingTool: MCPTool {
-    let definition = ToolDefinition(name: "ping", summary: "Connectivity test: returns pong with latency. Verify device/toolchain is online.")
+    let definition = ToolDefinition(name: "ping", summary: "Connectivity test. Use for: check if TrollAgent is responsive. Don't use for: check network connectivity (use shell.exec ping), check device info (use device.info). Example: user says '你还在吗' → ping test.",
+        parameters: [:])
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         ["pong": true, "ts": Int(Date().timeIntervalSince1970)]
@@ -165,7 +163,7 @@ final class DeviceInfoTool: MCPTool {
 final class DeviceProbeTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.probe",
-        summary: "Probe device environment: TrollStore/TrollFools, task_for_pid, app container read/write, injection binaries, amfid bypass inference",
+        summary: "Probe/check device environment: TrollStore installed, can we inject, what permissions available. Use for: check if device supports injection, see what capabilities are available. Don't use for: get device specs (use device.info), check battery/memory (use device.snapshot). Example: user says '我手机能注入吗，环境怎么样' → probe device.",
         verified: true, category: "device")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -306,7 +304,7 @@ final class MemoryTweakTool: MCPTool {
 final class ClipboardReadTool: MCPTool {
     let definition = ToolDefinition(
         name: "clipboard.read",
-        summary: "Read system clipboard text (last copied content: verification code, link, token, etc.)",
+        summary: "Read what's currently in the clipboard. Use for: get the last copied text, read verification code from clipboard. Don't use for: copy text to clipboard (use clipboard.write), save text to file (use artifact.write_text). Example: user says '剪贴板里复制了什么' → read clipboard.",
         parameters: [:],
         verified: true, category: "system")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -321,7 +319,7 @@ final class ClipboardReadTool: MCPTool {
 final class ClipboardWriteTool: MCPTool {
     let definition = ToolDefinition(
         name: "clipboard.write",
-        summary: "Write text to system clipboard for user to paste into other apps",
+        summary: "Copy text to the clipboard. Use for: put text on clipboard so user can paste it elsewhere. Don't use for: read clipboard (use clipboard.read), save text to file (use artifact.write_text). Example: user says '把这段文字复制一下' → write to clipboard.",
         parameters: ["text": "Text to copy to clipboard (required)"],
     verified: true, category: "system")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

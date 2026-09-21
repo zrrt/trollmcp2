@@ -177,8 +177,8 @@ final class GitHubFetchRunsTool: MCPTool {
 final class GitHubDownloadArtifactTool: MCPTool {
     let definition = ToolDefinition(
         name: "github.download_artifact",
-        summary: "Download CI artifact zip from a run (or latest successful run) to workspace downloads/, unzip for injection testing",
-        parameters: ["run_id": "Optional: specific run id; default auto-use latest successful run", "artifact_name": "Optional: artifact name; default auto-use first one"], verified: true, category: "build")
+        summary: "Download CI build artifact from GitHub Actions. Use for: download the built IPA/dylib after CI finishes. Don't use for: trigger CI build (use github.trigger_build), check build status (use github.account_status). Example: user says '下载刚才编译出来的 IPA' → download artifact.",
+        parameters: ["run_id": "Specific run ID (optional, uses latest successful)", "artifact_name": "Artifact name (optional, auto-detects)"], verified: true, category: "build")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let token = GHConfig.activeToken else {
             throw MCPError.failed("未登录 GitHub")

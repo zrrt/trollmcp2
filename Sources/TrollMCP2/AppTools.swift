@@ -11,8 +11,8 @@ import BackgroundTasks
 final class AppDepsTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.deps",
-        summary: "Show App dependencies (linked dylibs). Use for: check binary linkage.",
-        parameters: ["bundle_id": "Target App bundle_id"],
+        summary: "Show what dylibs an app links to (dependencies). Use for: analyze app structure, see if a dylib is already injected, check binary linkage. Don't use for: inject dylib (use injection.enable), check if encrypted (use app.encrypt_info). Example: user says '小红书依赖哪些库' → show app deps.",
+        parameters: ["bundle_id": "Target App bundle_id (e.g. com.xingin.discover)"],
         verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -89,8 +89,7 @@ private func openURLSync(_ url: URL) -> Bool {
 final class AppCacheInspectTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.cache_inspect",
-        summary: "Inspect App cache size. Use for: check cache usage.",
-        parameters: ["limit": "Max results (default 50)", "bundle_id": "Optional: filter by specific bundle_id"],
+        summary: "Check how much cache space each app uses. Use for: see which apps take up the most cache, find big cache users. Don't use for: actually clearing cache (use cleanup.scan/cleanup.execute), check free disk space (use device.snapshot). Example: user says '哪个 app 缓存最大' → inspect cache sizes.",
         verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -135,8 +134,8 @@ final class AppCacheInspectTool: MCPTool {
 final class AppCacheClearTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.cache_clear",
-        summary: "Clear App cache. Use for: free space.",
-        parameters: ["bundle_id": "Target App bundle_id", "dry_run": "Optional: true = calculate only, no delete"], verified: true, category: "app_control")
+        summary: "Clear an app's cache files (Caches/tmp directories). Use for: free up space, clear app cache. Don't use for: reset all app data (use device.refresh_container), wipe login state (use device.keychain_wipe). Example: user says '清小红书缓存' → clear app cache.",
+        parameters: ["bundle_id": "Target App bundle_id (e.g. com.xingin.discover)", "dry_run": "If true, just calculate how much would be freed (don't actually delete)"], verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else {
@@ -212,8 +211,7 @@ enum AppCacheScanner {
 final class AppOpenTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.open",
-        summary: "Open App by bundle_id. Use for: launch App.",
-        parameters: ["bundle_id": "Target App bundle_id"],
+        summary: "Launch/open an app on the iPhone. Use for: open app by bundle ID. Don't use for: restart app (use app.restart), inject dylib (use injection.enable). Example: user says '打开小红书' → open com.xingin.discover.",
     verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -282,12 +280,12 @@ private func waitAgentReady(timeout: TimeInterval = 8) -> Bool {
 final class AppOpenAndInputTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.open_and_input",
-        summary: "Open App and input text. Use for: automate App launch.",
+        summary: "Open app and automatically input text into it. Use for: launch app and fill in text (like search). Don't use for: just open app (use apps.open), type into already open app (use control.type_text). Example: user says '打开百度搜索 iPhone 15' → open and input text.",
         parameters: [
-            "bundle_id": "Target App bundle_id",
+            "bundle_id": "Target App bundle ID",
             "text": "Text to input",
-            "submit": "Submit after input (default false)",
-            "wait": "Wait seconds for agent ready (default 8)"
+            "submit": "Auto-submit after input (default false)",
+            "wait": "Wait seconds for app to load (default 8)"
         ], verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -331,36 +329,15 @@ final class AppOpenAndInputTool: MCPTool {
     }
 }
 
-// MARK: - 通用 App 控制（v2.9.103：直连 ControlAgent v4.1 HTTP 4792）
-
-final class AppsControlTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "apps.control",
-        summary: "[DEPRECATED] Use control.tap/control.swipe/control.type/control.tap_text instead. Old universal control tool.",
-        parameters: [
-            "action": "DEPRECATED - use control.tap/control.swipe/control.type instead"
-        ]
-    )
-
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        return [
-            "ok": false,
-            "deprecated": true,
-            "message": "apps.control is deprecated. Use control.tap(x,y), control.swipe(x1,y1,x2,y2), control.type(text), or control.tap_text(\"label\") instead.",
-            "hint": "These tools have fewer parameters and are easier to use."
-        ]
-    }
-}
-
 // MARK: - 微信消息准备
 
 final class WeChatPrepareMessageTool: MCPTool {
     let definition = ToolDefinition(
         name: "wechat.prepare_message",
-        summary: "Prepare a WeChat message (copy to clipboard and attempt to jump to WeChat)",
+        summary: "Prepare a WeChat message (copy to clipboard + open WeChat). Use for: send a WeChat message quickly, pre-fill text. Don't use for: just copy text (use clipboard tools), launch WeChat (use apps.open). Example: user says '帮我发微信给朋友说你好' → prepare message.",
         parameters: [
-            "text": "Message text",
-            "recipient": "Optional: recipient"
+            "text": "Message text to send",
+            "recipient": "Optional: recipient name"
         ], verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

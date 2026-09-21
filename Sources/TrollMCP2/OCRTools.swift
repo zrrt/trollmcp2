@@ -7,10 +7,10 @@ import UIKit
 final class OCRImageTool: MCPTool {
     let definition = ToolDefinition(
         name: "ocr.image",
-        summary: "Extract text from an image using iOS Vision framework. 识别图片文字 OCR 识图. Use when: (1) read text from a screenshot, (2) extract labels/numbers from an image, (3) OCR without AI vision.",
+        summary: "Extract text from an image (OCR). Use for: read text from a screenshot, recognize labels/numbers in an image. Don't use for: view image content (use model vision), read text file (use fs.read). Example: user says '这张截图里写了什么' → OCR it.",
         parameters: [
-            "path": "Absolute path to image file (PNG/JPG) (REQUIRED). e.g. /tmp/screenshot.png",
-            "lang": "Language hint: zh (Chinese, default) / en (English) / ja (Japanese) (optional)"
+            "path": "Absolute path to image file (required)",
+            "lang": "Language: zh / en / ja (optional, default: zh)"
         ],
         verified: true,
         category: "system")

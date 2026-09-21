@@ -148,13 +148,13 @@ final class FailureKnowledgeBase {
 final class KnowledgeBaseTool: MCPTool {
     let definition = ToolDefinition(
         name: "kb.query",
-        summary: "Query crash/error knowledge base. Input error text, auto-match known patterns and return cause + fix. Can also add new patterns.",
+        summary: "Query the crash/error knowledge base. Use for: look up known error patterns, find out what an error means and how to fix it. Don't use for: diagnose crash (use diagnose.crash), collect logs (use log.collect). Example: user says '这个错误是什么意思' → query knowledge base.",
         parameters: [
-            "error": "Error text (required, to match)",
-            "action": "query (default) or add",
-            "keyword": "Keyword when adding",
-            "cause": "Cause when adding",
-            "fix": "Fix when adding"
+            "error": "Error text to look up (required)",
+            "action": "query (default) or add new pattern",
+            "keyword": "Keyword (when adding new pattern)",
+            "cause": "Cause description (when adding)",
+            "fix": "Fix solution (when adding)"
         ],
     verified: true, category: "knowledge")
 
@@ -191,12 +191,12 @@ final class KnowledgeBaseTool: MCPTool {
 final class WorkspaceCleanupTool: MCPTool {
     let definition = ToolDefinition(
         name: "workspace.cleanup",
-        summary: "Clean workspace temp files: old build artifacts, download cache, logs, reports. Filter by age or size, supports dry-run preview.",
+        summary: "Clean up workspace temporary files. Use for: free up workspace space, remove old downloads/logs/reports. Don't use for: clean app cache (use cleanup.scan/execute), delete specific file (use fs.rm). Example: user says '清理一下 workspace 里的临时文件' → cleanup.",
         parameters: [
-            "dry_run": "Preview only, no delete (default true)",
-            "max_age_days": "Delete files older than N days (default 7)",
-            "max_size_mb": "Clean old files when a dir exceeds N MB (default 500)",
-            "targets": "Clean targets: downloads,logs,reports,all (default all)"
+            "dry_run": "Preview only, don't actually delete (default: true)",
+            "max_age_days": "Delete files older than N days (default: 7)",
+            "max_size_mb": "Clean when folder exceeds N MB (default: 500)",
+            "targets": "What to clean: downloads/logs/reports/all (default: all)"
         ],
     verified: true, category: "cleanup")
 

@@ -5,8 +5,8 @@ import Foundation
 final class DebugDumpConversationsTool: MCPTool {
     let definition = ToolDefinition(
         name: "debug.dump_conversations",
-        summary: "Debug: export conversation list (title/message count/first message content), to diagnose title garbling",
-        parameters: ["limit": "Max conversations to export (default 5, max 30)"], verified: true, category: "debug")
+        summary: "Debug: export list of chat conversations. Use for: debug conversation issues, see what chats exist internally. Don't use for: read a specific conversation (use debug.dump_messages), list skills (use skills.list). Example: user says '导出一下对话列表' → dump conversations.",
+        parameters: ["limit": "How many conversations to export (default: 5, max: 30)"], verified: true, category: "debug")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let limit = max(1, min((params["limit"] as? Int) ?? 5, 30))
@@ -33,8 +33,8 @@ final class DebugDumpConversationsTool: MCPTool {
 final class DebugDumpNetworkLogTool: MCPTool {
     let definition = ToolDefinition(
         name: "debug.dump_network_log",
-        summary: "Debug: export NetworkLog recent request logs (fallbacks/errors/HTTP status), to diagnose AI request failures and empty replies",
-        parameters: ["limit": "Max entries (default 50, max 100)"], verified: true, category: "debug")
+        summary: "Debug: export AI API request logs. Use for: diagnose why AI is not replying, see API errors. Don't use for: capture app network traffic (use network.capture), collect app crash logs (use log.collect). Example: user says 'AI 怎么不回复我，看看网络日志' → dump network log.",
+        parameters: ["limit": "How many log entries to show (default: 50, max: 100)"], verified: true, category: "debug")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let limit = max(1, min((params["limit"] as? Int) ?? 50, 100))
@@ -47,7 +47,7 @@ final class DebugDumpNetworkLogTool: MCPTool {
 final class DebugDumpModelConfigsTool: MCPTool {
     let definition = ToolDefinition(
         name: "debug.dump_model_configs",
-        summary: "Debug: export model config (baseURL/model name/key masked) and current request state (isLoading/statusText/turns), to diagnose AI not replying",
+        summary: "Debug: export AI model configuration. Use for: check what model is configured, debug AI connection issues. Don't use for: change model (use model.selectedProfileID), update model settings (use model.update). Example: user says '看看模型配置对不对' → dump model configs.",
         parameters: [:], verified: true, category: "debug")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

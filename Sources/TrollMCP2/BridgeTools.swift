@@ -79,8 +79,8 @@ enum AppContainer {
 
 final class BridgeContainerTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.container",
-        summary: "Get any app's bundle path + data container path + container size (foundation for cross-app data bridge).",
-        parameters: ["bundle_id": "Target App bundle_id"], verified: true, category: "filesystem")
+        summary: "Get an app's container paths. Use for: find where an app's data is stored, cross-app data operations. Don't use for: list files inside container (use bridge.ls), read file (use bridge.read). Example: user says '小红书的数据存在哪' → get container paths.",
+        parameters: ["bundle_id": "Target app bundle ID"], verified: true, category: "filesystem")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -104,8 +104,8 @@ final class BridgeContainerTool: MCPTool {
 
 final class BridgeLsTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.ls",
-        summary: "List a directory inside any app container (bundle=app install dir / data=data container).",
-        parameters: ["bundle_id": "Target App bundle_id", "scope": "bundle or data (default data)", "path": "Relative path inside container (default root)"], verified: true, category: "filesystem")
+        summary: "List files inside any app's container. Use for: browse another app's data files. Don't use for: list files in your own workspace (use fs.tree), read file content (use bridge.read). Example: user says '看看小红书 Documents 里有什么' → list directory.",
+        parameters: ["bundle_id": "Target app bundle ID", "scope": "bundle or data (default: data)", "path": "Relative path inside container (default: root)"], verified: true, category: "filesystem")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -136,8 +136,8 @@ final class BridgeLsTool: MCPTool {
 
 final class BridgeReadTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.read",
-        summary: "Read a file inside any app container (text/plist/JSON, truncated at 4000 chars; use fs.hexdump for binary).",
-        parameters: ["bundle_id": "Target App bundle_id", "scope": "bundle or data", "path": "Relative path inside container"], verified: true, category: "filesystem")
+        summary: "Read a file from another app's container. Use for: read another app's text/plist/JSON files. Don't use for: read binary files (use fs.hexdump), list directory (use bridge.ls). Example: user says '读一下小红书的 user.plist' → read file.",
+        parameters: ["bundle_id": "Target app bundle ID", "scope": "bundle or data", "path": "Relative path inside container"], verified: true, category: "filesystem")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -173,8 +173,8 @@ final class BridgeReadTool: MCPTool {
 
 final class BridgeCopyTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.copy",
-        summary: "Copy file/dir across app containers (A container → B container, or → workspace). Confirm target data is not corrupted before write.",
-        parameters: ["from_bundle": "Source App bundle_id", "from_scope": "Source scope", "from_path": "Source relative path", "to_bundle": "Target App bundle_id (use workspace for workspace)", "to_scope": "Target scope", "to_path": "Target relative path"], verified: true, category: "filesystem")
+        summary: "Copy files between app containers. Use for: transfer data from one app to another, export to workspace. Don't use for: copy within workspace (use fs.copy), list files (use bridge.ls). Example: user says '把小红书的聊天记录复制出来' → copy file.",
+        parameters: ["from_bundle": "Source app bundle ID", "from_scope": "Source scope", "from_path": "Source path", "to_bundle": "Target app bundle ID (or 'workspace')", "to_scope": "Target scope", "to_path": "Target path"], verified: true, category: "filesystem")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let fb = params["from_bundle"] as? String, !fb.isEmpty,
               let fs = params["from_scope"] as? String else {
@@ -214,8 +214,8 @@ final class BridgeCopyTool: MCPTool {
 
 final class BridgeExportTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.export",
-        summary: "Export a file/dir from any app container to workspace (default bridge_exports/<bundle_id>/), for backup/migration.",
-        parameters: ["bundle_id": "Target App bundle_id", "scope": "bundle or data", "path": "Relative path (default root = whole container)"], verified: true, category: "filesystem")
+        summary: "Export files from an app container to workspace. Use for: backup app data, migrate to another app. Don't use for: read file content (use bridge.read), copy between apps (use bridge.copy). Example: user says '把小红书的数据导出来备份' → export.",
+        parameters: ["bundle_id": "Target app bundle ID", "scope": "bundle or data", "path": "Relative path (default: root = whole container)"], verified: true, category: "filesystem")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
             throw MCPError.invalidParams("bundle_id required")
@@ -243,8 +243,8 @@ final class BridgeExportTool: MCPTool {
 
 final class BridgeImportTool: MCPTool {
     let definition = ToolDefinition(name: "bridge.import",
-        summary: "Import a file/dir from workspace into any app container (restore/migration). High-risk write, confirm target data can be overwritten.",
-        parameters: ["src_path": "Source path inside workspace", "bundle_id": "Target App bundle_id", "scope": "bundle or data", "to_path": "Target relative path inside container"])
+        summary: "Import files from workspace into an app container. Use for: restore app data, migrate data from another app. Don't use for: export from app (use bridge.export), copy between apps (use bridge.copy). Warning: high-risk write, may overwrite app data. Example: user says '把备份的数据导回小红书' → import.",
+        parameters: ["src_path": "Source path in workspace", "bundle_id": "Target app bundle ID", "scope": "bundle or data", "to_path": "Target path inside container"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let src = params["src_path"] as? String, !src.isEmpty,
               let bid = params["bundle_id"] as? String, !bid.isEmpty,

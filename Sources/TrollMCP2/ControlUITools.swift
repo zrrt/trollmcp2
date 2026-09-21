@@ -199,8 +199,8 @@ final class ProgressNotifier {
 
 final class UITapTool: MCPTool {
     let definition = ToolDefinition(name: "ui.tap",
-        summary: "Tap at screen coordinates via HID injection. FALLBACK: use control.tap instead (more precise, has UI tree). Only use ui.tap when target app is NOT injected with ControlAgent. Coordinates in points.",
-        parameters: ["x": "X coordinate in points (REQUIRED)", "y": "Y coordinate in points (REQUIRED)", "reason": "Why tap here (optional)"], verified: true, category: "ui_control")
+        summary: "Tap at screen coordinates. Use for: fallback when ControlAgent is NOT injected. Don't use for: normal taps (use control.tap which is more precise). Example: user says '点屏幕中间那个按钮' → tap at coordinates.",
+        parameters: ["x": "X coordinate (points)", "y": "Y coordinate (points)", "reason": "Why tap here (optional)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x = params["x"] as? Double, let y = params["y"] as? Double else {
             throw MCPError.invalidParams("x, y required（浮点 points）")
@@ -221,8 +221,8 @@ final class UITapTool: MCPTool {
 
 final class UISwipeTool: MCPTool {
     let definition = ToolDefinition(name: "ui.swipe",
-        summary: "Swipe via HID injection. FALLBACK: use control.swipe instead. Only use ui.swipe when target app NOT injected.",
-        parameters: ["x1": "Start X (REQUIRED)", "y1": "Start Y (REQUIRED)", "x2": "End X (REQUIRED)", "y2": "End Y (REQUIRED)", "duration_ms": "Duration ms default 300 (optional)", "reason": "Why swipe (optional)"], verified: true, category: "ui_control")
+        summary: "Swipe on the screen. Use for: fallback when ControlAgent is NOT injected. Don't use for: normal swipes (use control.swipe which is more precise). Example: user says '向上滑一下' → swipe up.",
+        parameters: ["x1": "Start X coordinate", "y1": "Start Y coordinate", "x2": "End X coordinate", "y2": "End Y coordinate", "duration_ms": "Swipe duration (default: 300ms)", "reason": "Why swipe (optional)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x1 = params["x1"] as? Double, let y1 = params["y1"] as? Double,
               let x2 = params["x2"] as? Double, let y2 = params["y2"] as? Double else {
@@ -245,8 +245,8 @@ final class UISwipeTool: MCPTool {
 
 final class UILongPressTool: MCPTool {
     let definition = ToolDefinition(name: "ui.long_press",
-        summary: "Long-press via HID injection. FALLBACK: use control.tap with long duration if possible.",
-        parameters: ["x": "X (REQUIRED)", "y": "Y (REQUIRED)", "duration_ms": "Long press ms default 800 (optional)", "reason": "Why (optional)"], verified: true, category: "ui_control")
+        summary: "Long press on screen coordinates. Use for: fallback when ControlAgent is NOT injected. Don't use for: normal long presses (use control.tap with long duration). Example: user says '长按这个图标' → long press.",
+        parameters: ["x": "X coordinate", "y": "Y coordinate", "duration_ms": "Press duration (default: 800ms)", "reason": "Why (optional)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let x = params["x"] as? Double, let y = params["y"] as? Double else {
             throw MCPError.invalidParams("x, y required")
@@ -268,8 +268,8 @@ final class UILongPressTool: MCPTool {
 
 final class UIClipboardTool: MCPTool {
     let definition = ToolDefinition(name: "ui.clipboard",
-        summary: "Write text to system clipboard. Use when: paste text into an app via long-press + Paste.",
-        parameters: ["text": "Text to write (REQUIRED)", "reason": "Why (optional)"], verified: true, category: "ui_control")
+        summary: "Copy text to system clipboard. Use for: paste text into apps (long-press + Paste). Don't use for: read clipboard (use clipboard.read), type text directly (use control.type). Example: user says '复制这段文字到输入框' → write to clipboard.",
+        parameters: ["text": "Text to copy", "reason": "Why (optional)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let text = params["text"] as? String else { throw MCPError.invalidParams("text required") }
         let reason = params["reason"] as? String ?? ""
@@ -284,7 +284,7 @@ final class UIClipboardTool: MCPTool {
 
 final class UIScreenshotTool: MCPTool {
     let definition = ToolDefinition(name: "ui.screenshot",
-        summary: "Screenshot current screen. 截图 屏幕. PREFER control.screenshot (more reliable when injected). Use ui.screenshot as fallback.",
+        summary: "Take a screenshot of current screen. Use for: fallback when ControlAgent is NOT injected. Don't use for: normal screenshots (use control.screenshot which is more reliable). Example: user says '截个屏看看' → take screenshot.",
         parameters: ["reason": "Why screenshot (optional)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let reason = params["reason"] as? String ?? ""
@@ -312,8 +312,8 @@ final class UIScreenshotTool: MCPTool {
 
 final class ProgressNotifyTool: MCPTool {
     let definition = ToolDefinition(name: "progress.notify",
-        summary: "During AI app control, send a system notification banner (visible at top of any screen) to report step progress.",
-        parameters: ["title": "Title (e.g. ✅ Store selected)", "body": "Body (e.g. Burger King - 2nd store)"], verified: true, category: "ui_control")
+        summary: "Show a system notification banner. Use for: report progress during long automation tasks. Don't use for: send message (use send_message), take screenshot (use ui.screenshot). Example: user says '自动化的时候通知我进度' → notify.",
+        parameters: ["title": "Notification title", "body": "Notification content"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let title = params["title"] as? String, !title.isEmpty else {
             throw MCPError.invalidParams("title required")
@@ -329,8 +329,8 @@ final class ProgressNotifyTool: MCPTool {
 
 final class ControlBeginTool: MCPTool {
     let definition = ToolDefinition(name: "control.begin",
-        summary: "Start an AI app-control session: register target app and plan (AI reports each step via control.update, UI shows live progress; target app must be brought to foreground first).",
-        parameters: ["target": "Target App name (e.g. Meituan)", "bundle_id": "Target bundle_id (optional)", "plan": "Plan steps array (string list)"],
+        summary: "Start an AI app-control session. Use for: begin a multi-step automation task, show progress UI. Don't use for: single tap/swipe (use control.tap/swipe directly). Example: user says '帮我在美团上点个外卖' → start control session.",
+        parameters: ["target": "Target app name", "bundle_id": "Target bundle ID (optional)", "plan": "List of planned steps"],
         verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let target = params["target"] as? String, !target.isEmpty else {
@@ -346,8 +346,8 @@ final class ControlBeginTool: MCPTool {
 
 final class ControlUpdateTool: MCPTool {
     let definition = ToolDefinition(name: "control.update",
-        summary: "Update a control session step status (running/done/failed) + details, UI refreshes live.",
-        parameters: ["step": "Step index (0-based)", "status": "pending/running/done/failed", "detail": "Details (optional)", "reason": "Why (optional)"],
+        summary: "Update progress of a control session. Use for: during automation, report each step's status to user. Don't use for: start control session (use control.begin), end session (use control.end). Example: user says '自动化执行到第3步了，更新一下进度' → update status.",
+        parameters: ["step": "Step number (0-based)", "status": "pending/running/done/failed", "detail": "Details (optional)", "reason": "Why (optional)"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let idx = params["step"] as? Int else { throw MCPError.invalidParams("step required") }
@@ -369,8 +369,8 @@ final class ControlUpdateTool: MCPTool {
 
 final class ControlFinishTool: MCPTool {
     let definition = ToolDefinition(name: "control.finish",
-        summary: "End control session, record final result (UI shows full report).",
-        parameters: ["result": "Result summary (what done / where stuck / next steps)"],
+        summary: "End a control session. Use for: finish automation task, report final result to user. Don't use for: start session (use control.begin), update progress (use control.update). Example: user says '自动化完成了，结束会话' → finish control session.",
+        parameters: ["result": "Final result summary"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let result = params["result"] as? String ?? "完成"

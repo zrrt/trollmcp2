@@ -6,10 +6,10 @@ import Foundation
 final class SSHTool: MCPTool {
     let definition = ToolDefinition(
         name: "ssh.exec",
-        summary: "Execute a command on a remote Linux server via SSH (configure SSH in settings first). Returns stdout/stderr/exit code.",
+        summary: "Run a shell command on a remote server via SSH. Use for: execute commands on your Linux server. Don't use for: run commands on iPhone shell (use shell.exec), browse web (use browser.navigate). Prerequisite: configure SSH in settings first. Example: user says '在服务器上跑一下这个命令' → ssh exec.",
         parameters: [
-            "command": "Shell command to run on remote server (required)",
-            "timeout": "Timeout seconds (optional, default 30)"
+            "command": "Shell command to run (required)",
+            "timeout": "Timeout in seconds (default: 30)"
         ],
         verified: true, category: "shell")
 
@@ -117,11 +117,11 @@ final class SSHTool: MCPTool {
 final class SCPTool: MCPTool {
     let definition = ToolDefinition(
         name: "ssh.scp",
-        summary: "Transfer files between local and remote Linux via SCP (configure SSH first). direction=upload or download.",
+        summary: "Transfer files between iPhone and remote server via SCP. Use for: upload/download files to/from your Linux server. Don't use for: run commands on server (use ssh.exec), download from internet (use fs.download). Prerequisite: configure SSH in settings. Example: user says '把这个文件传到服务器上' → scp upload.",
         parameters: [
-            "direction": "upload (local→remote) or download (remote→local)",
-            "local_path": "Local file path",
-            "remote_path": "Remote file path"
+            "direction": "upload (local to remote) or download (remote to local)",
+            "local_path": "Local file path on iPhone",
+            "remote_path": "Remote file path on server"
         ],
         verified: true, category: "shell")
 
