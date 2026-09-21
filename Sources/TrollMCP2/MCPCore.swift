@@ -261,23 +261,15 @@ public final class ToolRegistry: ObservableObject {
         // 元工具
         "tool_search",
         // 文件操作
-        "fs.read", "fs.write", "fs.find", "fs.tree",
-        // 设备/环境
-        "device.info",
+        "fs.read", "fs.write", "fs.tree",
         // 注入
         "injection.status",
         // 浏览器
         "browser.navigate",
-        // 工件/文件
-        "artifact.write_text",
         // 终端
         "shell.exec",
         // UI 操作闭环
-        "control.ui_tree", "control.tap", "control.tap_text", "control.type", "control.type_text", "control.swipe", "control.screenshot",
-        // OCR
-        "ocr.image",
-        // 进度通知
-        "progress.notify"
+        "control.tap", "control.tap_text", "control.type_text", "control.swipe", "control.screenshot"
     ]
 
     public func isEnabled(name: String) -> Bool {
