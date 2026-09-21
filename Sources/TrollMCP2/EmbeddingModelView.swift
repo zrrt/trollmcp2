@@ -141,18 +141,91 @@ struct EmbeddingModelView: View {
         isDownloading = true
         downloadProgress = 0
 
-        // 模拟下载进度（实际上是在预加载工具向量）
-        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
-            downloadProgress += 0.02
-            if downloadProgress >= 1.0 {
-                timer.invalidate()
-                isDownloading = false
-                modelDownloaded = true
-                embeddingEnabled = true
-                // TODO: 真正调用 EmbeddingManager.shared.preloadToolVectors()
-                vectorCount = 200  // 临时显示，等真正加载后更新
+        // 真正的下载逻辑
+        let fileManager = FileManager.default
+        let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let modelDir = documentsURL.appendingPathComponent("EmbeddingModel")
+
+        // 创建目录
+        try? fileManager.createDirectory(at: modelDir, withIntermediateDirectories: true)
+
+        let modelURL = modelDir.appendingPathComponent("AllMiniLML6V2.mlmodel")
+        let vocabURL = modelDir.appendingPathComponent("vocab.txt")
+
+        // 下载模型文件
+        let modelDownloadURL = URL(string: "https://raw.githubusercontent.com/Abhishek6353/AllMiniLML6V2-coreml/main/AllMiniLML6V2-coreml/Models/embeddings/AllMiniLML6V2.mlmodel")!
+        let vocabDownloadURL = URL(string: "https://raw.githubusercontent.com/Abhishek6353/AllMiniLML6V2-coreml/main/AllMiniLML6V2-coreml/Models/llm/vocab.txt")!
+
+        // 用 URLSession 下载
+        let session = URLSession.shared
+
+        // 先下载 vocab.txt（小文件，1MB）
+        let vocabTask = session.downloadTask(with: vocabDownloadURL) { tempURL, response, error in
+            guard let tempURL = tempURL, error == nil else {
+                DispatchQueue.main.async {
+                    isDownloading = false
+                    print("❌ Download vocab failed: \(error!)")
+                }
+                return
+            }
+
+            do {
+                // 移动到目标位置
+                if fileManager.fileExists(atPath: vocabURL.path) {
+                    try fileManager.removeItem(at: vocabURL)
+                }
+                try fileManager.moveItem(at: tempURL, to: vocabURL)
+
+                DispatchQueue.main.async {
+                    downloadProgress = 0.1
+                }
+
+                // 再下载模型文件（大文件，85MB）
+                let modelTask = session.downloadTask(with: modelDownloadURL) { tempURL, response, error in
+                    guard let tempURL = tempURL, error == nil else {
+                        DispatchQueue.main.async {
+                            isDownloading = false
+                            print("❌ Download model failed: \(error!)")
+                        }
+                        return
+                    }
+
+                    do {
+                        // 移动到目标位置
+                        if fileManager.fileExists(atPath: modelURL.path) {
+                            try fileManager.removeItem(at: modelURL)
+                        }
+                        try fileManager.moveItem(at: tempURL, to: modelURL)
+
+                        DispatchQueue.main.async {
+                            downloadProgress = 1.0
+                            isDownloading = false
+                            modelDownloaded = true
+                            embeddingEnabled = true
+                            vectorCount = 200  // 临时显示
+                            print("✅ Embedding model downloaded!")
+                        }
+                    } catch {
+                        DispatchQueue.main.async {
+                            isDownloading = false
+                            print("❌ Move model failed: \(error)")
+                        }
+                    }
+                }
+
+                // 跟踪下载进度
+                // TODO: 用 delegate 跟踪进度
+                modelTask.resume()
+
+            } catch {
+                DispatchQueue.main.async {
+                    isDownloading = false
+                    print("❌ Move vocab failed: \(error)")
+                }
             }
         }
+
+        vocabTask.resume()
     }
 
     private func deleteModel() {
