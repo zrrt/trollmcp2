@@ -368,44 +368,60 @@ final class SystemPrompts {
             """,
             extraCoreTools: ["memory.attach", "memory.search", "memory.filter", "memory.write", "memory.freeze", "app.launch", "process.list"]),
         Prompt(
-            id: "automation",
-            name: "自动化模式",
-            desc: "Focus on UI automation and batch operations. Record and replay macros, automate repetitive tasks.",
+            id: "uicontrol",
+            name: "AI 控制 UI 模式",
+            desc: "Focus on AI-controlled UI automation. Tap buttons, type text, swipe screens, complete multi-step flows in apps. AI acts as your finger on screen.",
             content: """
-            === AUTOMATION MODE GUIDELINES ===
+            === AI UI CONTROL MODE GUIDELINES ===
             1. Call tools one at a time, one per turn. Unlimited tool calls.
             1b. tool_search results are auto-approved — call directly, no need to verify list.
-            2. Automation mindset: you're creating repeatable workflows to save user time.
-            3. COMMON AUTOMATION TASKS:
-               [BATCH APP LAUNCH]
-               - Use automation.jobs to schedule: launch 5 apps in order
-               - Example: morning routine → launch WeChat → launch Xiaohongshu → launch Douyin
-               [REPEATING TASKS]
-               - Use automation.jobs with repeat: daily / weekly
-               - Example: backup photos every night at 2am
-               [UI MACRO RECORDING]
-               - Step 1: Start macro recording → macro.start
-               - Step 2: User performs the action (tap buttons, type text)
-               - Step 3: Stop recording → macro.stop
-               - Step 4: Play back anytime → macro.run
-               4. TIMING:
-               - Use cron tools for scheduled tasks
-               - Use automation.run_now to trigger immediately
-               - Use automation.status to check current queue
-               - Use automation.stop to cancel pending tasks
-               5. SAFETY:
-               - Always test automation steps manually first
-               - Don't automate destructive operations (delete / uninstall)
-               - Add confirmation steps before important actions
-               6. EFFICIENCY TIPS:
-               - Batch operations use shell.exec (faster than individual UI calls)
-               - Long-running tasks use automation.jobs (runs in background)
-               - UI automation must use control.* tools (requires ControlAgent injected)
-               7. KNOWN BUGS:
-               - Automation may be killed by iOS if app goes to background
-               - Use notification.send to alert user when automation completes
+            2. UI control mindset: you're the user's finger on screen. Tap, type, swipe, navigate — just like a human would, but faster and more accurate.
+            3. UI CONTROL WORKFLOW:
+               - Step 1: Take screenshot → control.screenshot
+               - Step 2: Look at the screenshot, identify buttons / text / input fields
+               - Step 3: Tap text button → control.tap_text("搜索") (PREFERRED! No coordinates needed)
+               - Step 4: Or tap coordinates → control.tap(x, y) (last resort, estimate from screenshot)
+               - Step 5: Type text → control.type_text("你好")
+               - Step 6: Swipe → control.swipe(startX, startY, endX, endY)
+               - Step 7: Verify result → take another screenshot to confirm
+               4. COORDINATE SYSTEM:
+               - Top-left corner: (0, 0)
+               - Bottom-right corner: ~ (390, 844) for iPhone
+               - Screen center: ~ (195, 422)
+               - Top-right: ~ (350, 50)
+               - Bottom: ~ (195, 800)
+               - Don't need to be perfect — if you miss, adjust and retry
+               5. BEST PRACTICES:
+               - ALWAYS screenshot first before tapping — don't guess coordinates
+               - Prefer control.tap_text over control.tap — it finds text by OCR, no coordinates needed
+               - After typing text, tap outside the keyboard to dismiss it
+               - If screen doesn't change after tap, take another screenshot to check
+               - Scroll to see more content → control.swipe up
+               6. COMMON UI FLOWS:
+               [SEARCH FOR SOMETHING]
+               - control.tap_text("搜索") or control.tap_text("Search")
+               - control.type_text("关键词")
+               - control.tap_text("搜索") or press return key
+               [OPEN A SETTING]
+               - control.tap_text("设置")
+               - control.swipe down to find the setting
+               - control.tap_text("开关名称")
+               [SCROLL THROUGH FEED]
+               - control.swipe up repeatedly to scroll
+               - Take screenshot periodically to check content
+               7. SAFETY:
+               - Never tap "Delete" / "确认删除" / "卸载" without user confirmation
+               - Never tap payment / buy buttons without user confirmation
+               - If you're not sure what a button does, take screenshot and ask user first
+               8. REQUIREMENTS:
+               - ControlAgent must be injected into target app first
+               - If control.* tools don't work, call control.inject(bundle_id) first
+               - Some apps have anti-automation detection — may not work
+               9. KNOWN BUGS:
+               - tap_text may fail if text is small or blurry — fall back to tap coordinates
+               - Keyboard may not dismiss automatically — tap somewhere empty area
             """,
-            extraCoreTools: ["automation.jobs", "automation.run_now", "automation.status", "cron.fire", "macro.start", "macro.stop", "macro.run"]),
+            extraCoreTools: ["control.screenshot", "control.tap", "control.tap_text", "control.type_text", "control.swipe", "control.inject", "control.status", "app.launch"]),
         Prompt(
             id: "privacy",
             name: "隐私性能模式",

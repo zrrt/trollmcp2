@@ -17,7 +17,7 @@ struct SystemPromptsView: View {
         "qa": "checkmark.seal.fill",
         "pentester": "shield.lefthalf.filled",
         "gamehacker": "gamecontroller.fill",
-        "automation": "wand.and.stars",
+        "uicontrol": "hand.point.up.fill",
         "privacy": "lock.shield.fill",
     ]
 
