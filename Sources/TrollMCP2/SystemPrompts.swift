@@ -105,8 +105,11 @@ final class SystemPrompts {
                - 看当前屏幕（任何 App）→ ui.screenshot（通用，不用注入）
                
                【UI 操作（需要注入 ControlAgent）】
-               - 点坐标 → control.tap（必须先 control.screenshot 确认坐标）
-               - 点文字 → control.tap_text（不用算坐标，直接点"搜索"）
+               - 点文字按钮 → control.tap_text（优先！不用坐标，直接点"搜索"）
+               - 点坐标 → control.tap（实在没办法才用，需要先截图估算坐标）
+               - 坐标怎么估算：屏幕左上角是 (0, 0)，右下角大概是 (390, 844)
+                 比如"屏幕中间"就是 (195, 422)，"右上角"就是 (350, 50)
+                 不准确也没关系，点偏了再调整
                - 输入文字 → control.type_text
                - 滑动 → control.swipe
                - 看屏幕 → control.screenshot（注入后可用）
