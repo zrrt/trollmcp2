@@ -26,6 +26,22 @@ struct ModelConfig: Codable, Identifiable, Hashable {
     var compatLevel: Int = 0
     /// v2.9.107：分组名（供应商分组管理，对齐 cc-switch provider groups）
     var group: String = "默认"
+    /// v3.1.1：是否支持视觉（VLM），自动根据模型名判断
+    var supportsVision: Bool {
+        let m = model.lowercased()
+        // 明确支持视觉的模型
+        if m.contains("gpt-4o") || m.contains("gpt-4-vision") || m.contains("gpt-4v") { return true }
+        if m.contains("claude-3") || m.contains("claude 3") { return true }
+        if m.contains("gemini") { return true }
+        if m.contains("qwen-vl") || m.contains("qwen2-vl") { return true }
+        if m.contains("glm-4v") || m.contains("glm4v") { return true }
+        if m.contains("vision") || m.contains("vl-") { return true }
+        // 明确不支持的
+        if m.contains("deepseek") { return false }
+        if m.contains("gpt-3.5") || m.contains("gpt-35") { return false }
+        // 默认：不支持（保守策略，避免 API 报错）
+        return false
+    }
 
     init(id: UUID = UUID(), name: String, provider: String, apiProtocol: String = "OpenAI Chat Completions",
          baseURL: String, apiKey: String, model: String, authMethod: String = "Bearer",

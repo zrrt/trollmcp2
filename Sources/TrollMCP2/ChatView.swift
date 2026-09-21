@@ -715,6 +715,11 @@ struct ChatView: View {
     private func send() {
         guard let cfg = modelStore.defaultConfig,
               (!inputText.isEmpty || !pendingAttachments.isEmpty || !pendingImages.isEmpty) else { return }
+        // v3.1.1: 提前检测：发了图片但模型不支持视觉，直接提示，不浪费 API 请求
+        if !pendingImages.isEmpty && !cfg.supportsVision {
+            showToast("⚠️ 当前模型不支持看图（VLM），请切换到支持视觉的模型（如 GPT-4o / Claude 3.5）")
+            return
+        }
         // v2.9.72：启动工作流可视化
         WorkflowManager.shared.startRun("处理请求")
         if store.selectedId == nil { store.newConversation() }
