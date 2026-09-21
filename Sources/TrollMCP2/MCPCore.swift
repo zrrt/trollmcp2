@@ -286,6 +286,7 @@ public final class ToolRegistry: ObservableObject {
         "system.lessons",   // v3.0.90：AI 经验教训库
         // 文件操作
         "fs.read", "fs.write", "fs.tree",
+        "workspace.info",   // v3.0.90：工作区结构说明
         // 注入
         "injection.status",
         // 浏览器
