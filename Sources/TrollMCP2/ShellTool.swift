@@ -116,10 +116,10 @@ final class ShellExecTool: MCPTool {
 final class ShellSetupDevEnvTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.setup_dev_env",
-        summary: "One-click setup basic dev environment (python3 + git + vim + curl + build-essential). Use for: new user first time using terminal, or after reinstalling. Idempotent: won't reinstall if already installed. Use when: user asks for 'setup dev env', 'install python', 'I need git', or first time running python3/git and it's not found.",
+        summary: "一键安装基础开发环境（python3 + git + vim + curl + 编译工具链）。新用户首次使用终端、或重装后需要开发工具时调用。幂等：已安装的不会重复装。",
         parameters: [
-            "skip_python": "Optional Bool: skip python3 install (default false)",
-            "skip_git": "Optional Bool: skip git install (default false)"
+            "skip_python": "可选：跳过 python3 安装（默认 false）",
+            "skip_git": "可选：跳过 git 安装（默认 false）"
         ],
         verified: false,
         category: "shell"
