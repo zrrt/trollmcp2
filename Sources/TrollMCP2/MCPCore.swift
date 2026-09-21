@@ -258,7 +258,7 @@ public final class ToolRegistry: ObservableObject {
         "ping",                 // 连通性
         "device.info", "device.probe",  // 设备/环境信息
         "workspace.info",       // 工作区信息
-        "artifact.list", "artifact.read_text", "artifact.find",  // 文件浏览/查找（AI 最常用，find 定位下载产物）
+        "artifact.list", "artifact.read_text", "artifact.write_text", "artifact.find",  // 文件浏览/读写/查找
         "model.config",         // 当前模型配置
         "injection.status",     // 注入状态（用户主线常用）
         "browser.status", "browser.navigate",   // v2.9.82：navigate 常驻核心，支持 url/back/forward
@@ -266,7 +266,13 @@ public final class ToolRegistry: ObservableObject {
         "app.launch",           // 启动目标 App（带 env/args）
         "ui.tap", "ui.swipe", "ui.long_press", "ui.clipboard", "ui.screenshot",  // HID 触摸注入 + 验证
         "progress.notify",      // 执行中节点横幅（用户实时看进度）
-        "control.begin", "control.update", "control.finish"  // 控制会话（计划→执行→报告）
+        "control.begin", "control.update", "control.finish",  // 控制会话（计划→执行→报告）
+        // v3.0.73：高频工具常驻——终端 + UI 操作 + 文件 + OCR
+        "shell.exec",           // 终端命令（高频）
+        "fs.tree", "fs.read", "fs.write", "fs.find",  // 文件浏览/读写/查找
+        "control.ui_tree", "control.tap", "control.tap_text", "control.type", "control.type_text", "control.swipe", "control.screenshot",  // UI 操作闭环
+        "ocr.image",            // OCR 识别截图文字
+        "app.start", "app.restart"  // App 控制
     ]
 
     public func isEnabled(name: String) -> Bool {
