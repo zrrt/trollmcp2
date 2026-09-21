@@ -188,6 +188,10 @@ final class SystemPrompts {
                - Don't search with same keyword twice. Try different synonyms: "抓包" → "network" → "http"
                - If still not found after 2 tries, tell user: "I don't have a tool for that, here's what I can do instead..."
                - Don't blindly spam tool_search 5+ times. Each search costs tokens and confuses you.
+            23. VECTOR SEMANTIC MODEL (if available):
+               - If user enabled the vector semantic model in settings, tool_search uses real embedding similarity.
+               - This means you can search with natural language: "帮我抓个包" will find network.capture even without exact keywords.
+               - You don't need to do anything special — just use tool_search normally, it will be smarter.
             """,
             extraCoreTools: []),
         Prompt(
