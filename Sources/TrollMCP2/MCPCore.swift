@@ -589,9 +589,6 @@ public final class ToolRegistry: ObservableObject {
         var hits: [(name: String, summary: String, score: Double)] = []
         loadToolVectors()  // v3.1.3：预计算工具向量（词袋版）
 
-        // v3.1.4：检查是否启用了真正的 embedding 模型
-        let useRealEmbedding = EmbeddingManager.shared.isReady
-
         // v3.1.3：计算查询的词袋向量
         var queryVector: [String: Double] = [:]
         if !q.isEmpty {
@@ -670,11 +667,6 @@ public final class ToolRegistry: ObservableObject {
                 if let toolVec = toolVectors[def.name], !queryVector.isEmpty {
                     let sim = cosineSimilarity(queryVector, toolVec)
                     score += sim * 5  // 向量相似度权重
-                }
-
-                // v3.1.4: 真正的 embedding 相似度（下载了模型后用）
-                if useRealEmbedding, let realSim = EmbeddingManager.shared.similarity(for: query, toolName: def.name) {
-                    score += realSim * 10  // 真正的 embedding 权重更高
                 }
             } else {
                 score = 1

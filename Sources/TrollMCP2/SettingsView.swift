@@ -202,11 +202,7 @@ struct SettingsView: View {
                 SettingsItem(title: L10n.t("row_kb"),
                              subtitle: "文件导入 · 来源检索",
                              icon: "books.vertical.fill", color: .tmBrown,
-                             destination: AnyView(KnowledgeBaseView())),
-                SettingsItem(title: "向量语义模型",
-                             subtitle: "AI 搜工具更准 · 下载/删除",
-                             icon: "brain.head.profile", color: .purple,
-                             destination: AnyView(EmbeddingModelView()))
+                             destination: AnyView(KnowledgeBaseView()))
             ]
             groups.append(SettingsGroup(header: L10n.t("sec_dev"), items: devItems))
         }
