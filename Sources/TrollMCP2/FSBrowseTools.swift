@@ -89,12 +89,12 @@ private enum FSPolicy {
 final class FSTreeTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.tree",
-        summary: "Show directory tree. Use for: browse filesystem structure, list files in a directory. Don't use for: read file contents (use fs.read), search apps (use injection.list).",
+        summary: "Show directory tree (browse filesystem). Use for: see folder structure, find what's inside a directory. NOT for: reading file contents (use fs.read), searching by name (use fs.find). If result says 'truncated/too long', DON'T repeat same call — instead: 1) increase limit to 200, 2) set depth=1 then drill into subfolder one at a time, 3) use fs.find to locate specific files. Each call only shows top level by default.",
         parameters: [
-            "bundle_id": "Target App bundle_id (choose one with path; if set, browse App container). e.g. com.xingin.discover",
-            "path": "Absolute path (choose one with bundle_id; default workspace root). e.g. /Workspace",
-            "depth": "Recursion depth (default 1, max 3)",
-            "limit": "Max items per level (default 60)"
+            "bundle_id": "Target App bundle_id (browse App container). e.g. com.xingin.discover",
+            "path": "Absolute path (default: workspace root). e.g. /var/mobile/Containers/Data/Application/xxx/Library/Preferences",
+            "depth": "Recursion depth (default 1, max 3). Use depth=1 first, then drill into specific subfolder.",
+            "limit": "Max items per level (default 60, max 200). Increase to 200 if result is truncated."
         ],
         verified: true, category: "filesystem")
 

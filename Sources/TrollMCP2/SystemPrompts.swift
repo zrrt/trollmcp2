@@ -160,6 +160,14 @@ final class SystemPrompts {
                - Search by Chinese synonyms: tool_search("截图") matches screenshot-related tools
                - After tool_search returns tools, they're auto-approved — call them directly next turn
                - Don't search for tools you already know — that's a waste
+            21. TRUNCATED RESULT HANDLING (CRITICAL!):
+               - If a tool returns "truncated" / "too long" / partial results, DO NOT repeat the exact same call
+               - Instead, CHANGE your approach:
+                 a) fs.tree truncated → increase limit=200, or set depth=1 and drill into subfolders one by one
+                 b) fs.grep too many results → narrow your search with more specific keyword
+                 c) fs.read file too big → read specific line range with offset/limit params
+               - One retry with different params is OK. Two retries with same params = you're stuck, stop and try another tool
+               - If you see "_cached": true in result, it means you're getting cached duplicate — don't call same tool again
             """,
             extraCoreTools: []),
         Prompt(
