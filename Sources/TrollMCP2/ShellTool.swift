@@ -111,3 +111,56 @@ final class ShellExecTool: MCPTool {
         return filtered.joined(separator: "\n")
     }
 }
+
+/// v3.1.1: shell.setup_dev_env — 一键安装基础开发环境
+final class ShellSetupDevEnvTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "shell.setup_dev_env",
+        summary: "One-click setup basic dev environment (python3 + git + vim + curl + build-essential). Use for: new user first time using terminal, or after reinstalling. Idempotent: won't reinstall if already installed. Use when: user asks for 'setup dev env', 'install python', 'I need git', or first time running python3/git and it's not found.",
+        parameters: [
+            "skip_python": "Optional Bool: skip python3 install (default false)",
+            "skip_git": "Optional Bool: skip git install (default false)"
+        ],
+        verified: false,
+        category: "shell"
+    )
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        var packages: [String] = []
+
+        if params["skip_python"] as? Bool != true {
+            packages.append("python3 py3-pip")
+        }
+        if params["skip_git"] as? Bool != true {
+            packages.append("git")
+        }
+        packages.append("vim curl wget build-base clang make")
+
+        let cmd = "apk add --no-cache \(packages.joined(separator: " "))"
+        let (output, exitCode, _) = ISHEngine.exec(cmd, timeout: 120)
+
+        var installed: [String] = []
+        var failed: [String] = []
+
+        for pkg in ["python3", "git", "vim", "curl", "gcc", "clang"] {
+            let (checkOut, checkRc, _) = ISHEngine.exec("which \(pkg)", timeout: 5)
+            if checkRc == 0 && !checkOut.isEmpty {
+                installed.append(pkg)
+            } else {
+                failed.append(pkg)
+            }
+        }
+
+        return [
+            "ok": exitCode == 0,
+            "command": cmd,
+            "exit_code": exitCode,
+            "installed": installed,
+            "failed": failed,
+            "message": exitCode == 0
+                ? "Development environment setup complete. Installed: \(installed.joined(separator: ", "))"
+                : "Setup may have partially failed. Check output.",
+            "hint": "Now you can run python3, git, vim, curl, make, clang directly in shell.exec"
+        ]
+    }
+}

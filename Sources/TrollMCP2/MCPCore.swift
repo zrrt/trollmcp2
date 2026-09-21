@@ -968,6 +968,7 @@ public final class ToolRegistry: ObservableObject {
         register(ScanQRTool())
         register(ProcessListTool())
         register(ShellExecTool())   // v3.0.28：内置终端，执行 shell 命令
+        register(ShellSetupDevEnvTool())   // v3.1.1：一键安装基础开发环境
 
         // M5.5 内置浏览器（v2.9.37：AI 可控，蓝框高亮元素；v2.9.88：+wait/text/scroll/submit）
         register(BrowserStatusTool())
