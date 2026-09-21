@@ -765,11 +765,9 @@ public final class ToolRegistry: ObservableObject {
                     if FailureKind.retryable(errMsg) && callCount == 1 {
                         WorkflowManager.shared.updateStep(tool: originalName, detail: "🔄 自动重试...", success: false)
                         Thread.sleep(forTimeInterval: 1.0)  // 等 1 秒再重试
-                        result = try t.invoke(params)
-                        // 重试成功了，继续走成功路径
-                        if Self.extractReturnedError(result) == nil {
-                            // 重试成功，继续
-                        } else {
+                        do {
+                            result = try t.invoke(params)
+                        } catch {
                             // 重试还是失败，继续走失败路径
                             AuditLog.shared.logTool(originalName, status: .failure,
                                                     elapsedMs: elapsedMs, dataBytes: 0, permission: perm,
@@ -780,6 +778,18 @@ public final class ToolRegistry: ObservableObject {
                             }
                             throw MCPError.classified(errMsg, code: info.code, reason: info.reason, nextStep: info.nextStep)
                         }
+                        // 重试成功了，继续走成功路径（如果还有返回式错误，继续往下走会再检查一次）
+                        if Self.extractReturnedError(result) != nil {
+                            // 重试还是返回式错误，继续走失败路径
+                            let newErrMsg = Self.extractReturnedError(result)!
+                            let newInfo = FailureKind.classify(newErrMsg)
+                            AuditLog.shared.logTool(originalName, status: .failure,
+                                                    elapsedMs: elapsedMs, dataBytes: 0, permission: perm,
+                                                    detail: newErrMsg, code: newInfo.code, reason: newInfo.reason, nextStep: newInfo.nextStep)
+                            WorkflowManager.shared.updateStep(tool: originalName, detail: newErrMsg, success: false)
+                            throw MCPError.classified(newErrMsg, code: newInfo.code, reason: newInfo.reason, nextStep: newInfo.nextStep)
+                        }
+                        // 重试成功，继续往下走
                     } else {
                         AuditLog.shared.logTool(originalName, status: .failure,
                                                 elapsedMs: elapsedMs, dataBytes: 0, permission: perm,

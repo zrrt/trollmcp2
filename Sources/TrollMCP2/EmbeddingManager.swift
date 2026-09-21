@@ -1,9 +1,10 @@
 import Foundation
 import CoreML
+import SwiftUI
 
 // MARK: - 本地 Embedding 管理器（all-MiniLM-L6-v2 Core ML）
 
-class EmbeddingManager {
+class EmbeddingManager: ObservableObject {
     static let shared = EmbeddingManager()
 
     // 工具描述的向量缓存
@@ -15,8 +16,8 @@ class EmbeddingManager {
     private var embeddingModel: MLModel?
 
     // 配置
-    @AppStorage("embedding_model_enabled") private var embeddingEnabled = false
-    @AppStorage("embedding_model_downloaded") private var modelDownloaded = false
+    @AppStorage("embedding_model_enabled") var embeddingEnabled = false
+    @AppStorage("embedding_model_downloaded") var modelDownloaded = false
 
     // Tokenizer
     private var tokenizer: MiniLMTokenizer?

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 // MARK: - 自动上下文提取器
 // 自动从用户消息中提取关键信息（App 名、bundle id、文件路径等）
