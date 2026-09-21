@@ -51,7 +51,7 @@ struct BrowserWaitTool: MCPTool {
 struct BrowserTextTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.text",
-        summary: "Get page text content. Use for: read web page.",
+        summary: "Get page text content. 获取网页内容 文本. Use for: read web page.",
         parameters: ["max_chars": "Max chars (default 3000)", "query": "Optional: only return context containing this keyword"],
     verified: true, category: "browser")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

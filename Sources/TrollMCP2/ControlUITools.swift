@@ -284,7 +284,7 @@ final class UIClipboardTool: MCPTool {
 
 final class UIScreenshotTool: MCPTool {
     let definition = ToolDefinition(name: "ui.screenshot",
-        summary: "Screenshot current screen. PREFER control.screenshot (more reliable when injected). Use ui.screenshot as fallback.",
+        summary: "Screenshot current screen. 截图 屏幕. PREFER control.screenshot (more reliable when injected). Use ui.screenshot as fallback.",
         parameters: ["reason": "Why screenshot (optional)"], verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let reason = params["reason"] as? String ?? ""

@@ -95,6 +95,37 @@ final class SystemPrompts {
                - 复杂逻辑/脚本 → 写脚本文件 → shell.exec 执行
                - 原则：简单操作用专用工具，批量/复杂操作用 shell
                - 不要把大段文本直接贴在聊天里，写成文件更好
+               
+               【浏览器操作】
+               - 打开/刷新网页 → browser.navigate
+               - 看网页内容/文本 → browser.text（不要截图，更快）
+               - 看网页结构/HTML → browser.snapshot
+               - 在网页里输入文字 → browser.type
+               - 在网页里点按钮 → browser.eval（执行 JS）
+               - 看当前屏幕（任何 App）→ ui.screenshot（通用，不用注入）
+               
+               【UI 操作（需要注入 ControlAgent）】
+               - 点坐标 → control.tap（必须先 control.screenshot 确认坐标）
+               - 点文字 → control.tap_text（不用算坐标，直接点"搜索"）
+               - 输入文字 → control.type_text
+               - 滑动 → control.swipe
+               - 看屏幕 → control.screenshot（注入后可用）
+               
+               【截图/OCR】
+               - 看屏幕内容 → ui.screenshot（通用，最快）
+               - 识别图片里的文字 → ocr.image（需要图片路径）
+               - 截图浏览器 → browser.navigate 后用 ui.screenshot
+               
+               【App 控制】
+               - 启动 App → app.launch
+               - 重启 App → app.restart
+               - 找 App 的 bundle_id → injection.list（带 query 参数）
+               - 查看注入状态 → injection.status
+               - 注入 dylib → inject（先 injection.list 找 bundle_id）
+               
+               【设备信息】
+               - 设备基本信息 → device.info
+               - 看运行中的进程 → process.list
             17. 循环检测（重要！非常重要！）：
                - 工具返回里有个字段叫 `_call_count`，表示你用同样的参数调了这个工具几次
                - 如果 `_call_count >= 2`，你已经在重复调用了——停下来！
