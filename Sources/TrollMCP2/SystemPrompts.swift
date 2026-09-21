@@ -12,6 +12,8 @@ final class SystemPrompts {
         let name: String
         let desc: String
         let content: String
+        /// v3.0.73：该模式额外常驻的工具（叠加在基础核心工具上）
+        var extraCoreTools: [String] = []
     }
 
     // MARK: - 内置系统指令套（不可编辑）
@@ -41,8 +43,8 @@ final class SystemPrompts {
                - Coruna 安全盾：设置里有 Coruna 漏洞安全检测，iOS 17.2 以下可检测
                - 清理中心：cleanup.ai 一键清理指定 App 的缓存/数据，workspace.cleanup 清理工作区临时文件
                - 工具打标签：verified: true, 的工具是已验证过的，可以放心用
-            """
-        ),
+            """,
+            extraCoreTools: []),
         Prompt(
             id: "developer",
             name: "开发者模式",
@@ -71,8 +73,8 @@ final class SystemPrompts {
                - pidOf 找不到进程的工具可能失败（injection.mem / device.fake），失败了换 injection.enable 文件注入
                - ldid 解析 entitlements 可能不准，app.entitlements / device.keychain_wipe 读到的可能是 TrollAgent 自己的
                - phone.call 可能没反应，返回 opened: true 但实际不弹拨号器
-            """
-        ),
+            """,
+            extraCoreTools: ["build.environment", "build.run", "toolchain.status", "github.trigger_build", "github.fetch_runs", "github.download_artifact"]),
         Prompt(
             id: "concise",
             name: "简洁模式",
@@ -134,8 +136,8 @@ final class SystemPrompts {
                - pidOf 找不到进程的工具可能失败（injection.mem / device.fake），失败了换 injection.enable 文件注入
                - ldid 解析 entitlements 可能不准，app.entitlements / device.keychain_wipe 读到的可能是 TrollAgent 自己的
                - phone.call 可能没反应，返回 opened: true 但实际不弹拨号器
-            """
-        ),
+            """,
+            extraCoreTools: ["injection.status", "injection.list", "injection.enable", "injection.mem", "injection.diagnose", "app.encrypt_info", "app.diagnose", "probe.inspect", "hook.apply"]),
         Prompt(
             id: "qa",
             name: "测试工程师模式",
@@ -153,8 +155,8 @@ final class SystemPrompts {
             5. 崩溃分析：用 crash.repro_template 生成复现 hook 模板，定位根因。
             6. 输出格式：测试步骤 → 预期结果 → 实际结果 → 结论 → 复现步骤。
             7. 所有测试结果记录到项目历史（project action=history）。
-            """
-        )
+            """,
+            extraCoreTools: ["fs.crash", "network.capture", "device.probe", "app.diagnose", "project"])
     ]
 
     // MARK: - 当前选中的系统指令
@@ -174,5 +176,10 @@ final class SystemPrompts {
         if SystemPrompts.builtin.contains(where: { $0.id == id }) {
             selectedId = id
         }
+    }
+
+    /// v3.0.73：当前模式的额外常驻工具
+    var currentExtraCoreTools: Set<String> {
+        Set(selected.extraCoreTools)
     }
 }

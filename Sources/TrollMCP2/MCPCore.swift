@@ -246,8 +246,12 @@ public final class ToolRegistry: ObservableObject {
     public static var coreToolNames: Set<String> { Self._coreToolNames }
 
     /// v2.9.31：判断工具是否常驻核心（初始请求自动加载，无需搜索）
+    /// v3.0.73：根据当前系统指令模式智能叠加常驻工具
     public func isCore(_ name: String) -> Bool {
-        Self.coreToolNames.contains(name)
+        if Self.coreToolNames.contains(name) { return true }
+        // 叠加当前模式的额外常驻工具
+        let extra = SystemPrompts.shared.currentExtraCoreTools
+        return extra.contains(name)
     }
 
     /// v2.9.31：常驻核心工具（借鉴 Anthropic `defer_loading: false` 设计）。
