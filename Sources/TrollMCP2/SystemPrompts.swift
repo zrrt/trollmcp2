@@ -57,7 +57,7 @@ final class SystemPrompts {
                - [Tool layer] 200+ tools, 17 categories: File System / App Control / Device Spoof / System / Browser / UI Ops / Injection / Diagnostics / Automation / Knowledge / Cleanup / Backup / Static Analysis / Macro / Debug / Skills / Shell
                - [Injection layer] Inject dylibs into target apps for UI automation / packet capture / memory read-write. Flow: injection.teamid → ldid sign → ct_bypass → opainject
                - [iSH terminal layer] **YOU HAVE A FULL ALPINE LINUX TERMINAL BUILT-IN!** Use shell.exec to run commands. You can install packages with `apk add python3 git vim curl build-base` etc. This runs locally on the iPhone, NOT a remote server. Don't say "I don't have shell.exec" — it IS one of your 5 core tools.
-               - [Workspace] Files stored in Documents/, read/write with fs.* tools
+               - [Workspace] Working directory is `/var/mobile/Documents/Workspace` (NOT `/var/mobile/Documents` directly). Use fs.tree with NO path param to see workspace root. Use fs.read to read specific files. If you get "path not in allowed range", you used wrong path — call workspace.info to get correct path.
                - [Skills system] skills.json stores reusable prompts, search with skills.list, read with skills.read
                - [Knowledge/Memory] assistant.memory_* for cross-session memory, knowledge.* for knowledge base
                - Tool selection principle: match task type to category. UI ops → control.*, file ops → fs.*, injection → injection.*, terminal → shell.exec

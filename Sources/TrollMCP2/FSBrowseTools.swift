@@ -173,7 +173,7 @@ final class FSTreeTool: MCPTool {
 final class FSReadTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.read",
-        summary: "Read text file. Use for: read file content (text, plist, json, sqlite). Don't use for: browse directory structure (use fs.tree), write files (use fs.write).",
+        summary: "Read a FILE's content (text/plist/json/sqlite). Use for: reading specific file. DON'T use for: listing directory contents (use fs.tree instead). If you get 'path not in allowed range' error: you used wrong path, call workspace.info to get correct workspace path. Do NOT repeat same failed call.",
         parameters: [
             "path": "Absolute file path (REQUIRED, unless using bundle_id+relative). e.g. /Workspace/reports/data.json",
             "bundle_id": "Target App bundle_id (optional, use with relative). e.g. com.xingin.discover",
