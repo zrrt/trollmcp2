@@ -473,8 +473,8 @@ final class InjectionEnableTool: MCPTool {
 }
 
 final class InjectionDisableTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.disable", summary: "Remove dylib injection from target App (desist=false: disable but keep backup for re-enable).",
-        parameters: ["bundle_id": "Target App bundle_id (required)", "desist": "Optional Bool: fully remove (default true; false=disable but keep backup, can re-enable via injection.restore)"], verified: true, category: "injection")
+    let definition = ToolDefinition(name: "injection.disable", summary: "Remove/uninstall dylib injection from an app. Use for: undo injection, rollback to original app, disable hook. Don't use for: just restart app (use app.restart), uninstall app (use app.uninstall). Example: user says '把小红书的注入删掉' → disable injection on com.xingin.discover.",
+        parameters: ["bundle_id": "Target App bundle_id (required). e.g. com.xingin.discover", "desist": "Optional Bool: fully remove (default true; false=disable but keep backup, can re-enable later)"], verified: true, category: "injection")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
         let desist = (params["desist"] as? Bool) ?? true
@@ -519,7 +519,7 @@ final class InjectionEnablePersistedTool: MCPTool {
 }
 
 final class InjectionStatusTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.status", summary: "Show current injection stats (which apps are already injected). Use for: check injection status. Don't use for: finding a specific App — use injection.list with query instead.", verified: true, category: "injection")
+    let definition = ToolDefinition(name: "injection.status", summary: "Show which apps are already injected (have dylib loaded). Use for: check if an app is already injected, see overall injection stats. Don't use for: find a specific app's bundle_id (use injection.list), inject into app (use injection.enable). Example: user says '小红书注入了吗' → check status of com.xingin.discover.", verified: true, category: "injection")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         InjectionManager.shared.status()
     }
@@ -536,9 +536,9 @@ final class InjectionInspectTool: MCPTool {
 
 final class InjectionListTool: MCPTool {
     // v2.9.41：检索式——query 按名称/bundle_id 模糊匹配，只返回命中项，不再全量 266 条塞给 AI
-    let definition = ToolDefinition(name: "injection.list", 
-        summary: "Search installed apps by keyword. Use for: find bundle_id for injection.",
-        parameters: ["query": "Search keyword (App name or bundle_id fragment, optional). If empty, return first 20 only. e.g. 小红书 / weibo / tiktok"],
+    let definition = ToolDefinition(name: "injection.list",
+        summary: "Search/find installed apps on the phone. Use for: find bundle_id for a specific app (e.g. find 小红书's bundle_id), list what apps are installed. Don't use for: check injection status (use injection.status), launch app (use app.launch). Example: user says '找小红书' → search '小红书' → get bundle_id com.xingin.discover.",
+        parameters: ["query": "Search keyword (App Chinese name or bundle_id fragment, optional). If empty, return first 20 only. e.g. 小红书 / 微博 / tiktok / weibo"],
         returns: ["apps": "List of matching apps (bundle_id + name)", "count": "Number of results"],
         verified: true, category: "injection")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
