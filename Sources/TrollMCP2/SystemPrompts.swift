@@ -84,6 +84,15 @@ final class SystemPrompts {
                - 不能写的：shell/exec/root/inject/download/delete 等危险操作
                - 写完后自动注册，下次 tool_search 就能搜到
                - 目的：让你越用越聪明，积累自己的工具库
+            18. 工具选择决策树（避免重合，省 token）：
+               - 读单个文件 → fs.read（不要用 shell "cat"）
+               - 写单个文件 → fs.write（不要用 shell "echo >"）
+               - 看目录结构 → fs.tree（不要用 shell "ls -la"）
+               - 找特定文件 → fs.find（不要用 shell "find"）
+               - 批量处理（10+ 文件）→ shell.exec（管道/正则更高效）
+               - 批量生成文件 → shell.exec（for 循环）
+               - 复杂逻辑/脚本 → 写脚本文件 → shell.exec 执行
+               - 原则：简单操作用专用工具，批量/复杂操作用 shell
                - 不要把大段文本直接贴在聊天里，写成文件更好
             17. 循环检测（重要）：
                - 如果你连续 2 次调用同一个工具、用同样的参数、得到相似的结果，你卡住了
