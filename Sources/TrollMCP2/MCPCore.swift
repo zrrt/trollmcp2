@@ -633,6 +633,10 @@ public final class ToolRegistry: ObservableObject {
                                             elapsedMs: elapsedMs, dataBytes: 0, permission: perm,
                                             detail: errMsg, code: info.code, reason: info.reason, nextStep: info.nextStep)
                     WorkflowManager.shared.updateStep(tool: originalName, detail: errMsg, success: false)
+                    // v3.1.1: 连续失败 3 次就拦截，不让 AI 继续循环
+                    if callCount >= loopThreshold {
+                        throw MCPError.failed("🚫 LOOP BLOCKED: You've called this tool \(callCount) times with same params and it keeps failing with the same error. STOP. Do NOT call it again. Try a completely different approach, or ask the user what to do. Error: \(errMsg)")
+                    }
                     throw MCPError.classified(errMsg, code: info.code, reason: info.reason, nextStep: info.nextStep)
                 }
                 let bytes = Self.resultBytes(result)
