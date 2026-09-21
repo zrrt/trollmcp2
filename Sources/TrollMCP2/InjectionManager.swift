@@ -1887,33 +1887,11 @@ final class InjectionManager {
         }
 
         // v3.1.1：安全限制——不能注入系统应用，防止白苹果
-        let systemBundlePrefixes = [
-            "com.apple.springboard",
-            "com.apple.backboardd",
-            "com.apple.imagent",
-            "com.apple.ntd",
-            "com.apple.coreservices",
-            "com.apple.mobile",
-            "com.apple.Preferences",
-            "com.apple.springboard",
-            "com.apple.SecurityAgent",
-            "com.apple.Keyboard",
-            "com.apple.Notes",
-            "com.apple.mobilesafari",
-            "com.apple.calculator",
-            "com.apple.weather",
-            "com.apple.stocks",
-            "com.apple.MobileSMS",
-            "com.apple.mobilephone",
-            "com.apple.FaceTime",
-            "com.apple.Music",
-            "com.apple.videos",
-            "com.apple.appstored"
-        ]
-        for prefix in systemBundlePrefixes {
-            if bundleId.lowercased().hasPrefix(prefix.lowercased()) {
-                return (false, "Safety block: Cannot inject into system app (\(bundleId)). This could cause a white screen / boot loop. Only third-party apps are allowed.")
-            }
+        // 方法：检查 app 是否在系统目录（/Applications）下，而不是用户安装目录
+        let isSystemApp = app.path.hasPrefix("/Applications/") ||
+                           app.path.hasPrefix("/System/Library/CoreServices/")
+        if isSystemApp {
+            return (false, "Safety block: Cannot inject into system app (\(bundleId)). This could cause a white screen / boot loop. Only third-party apps are allowed.")
         }
 
         let fm = FileManager.default
@@ -1944,18 +1922,18 @@ final class InjectionManager {
             return (false, "Failed to copy dylib: \(error.localizedDescription)")
         }
 
-        // Set permissions
+        // Set permissions (use root to ensure correct ownership)
         _ = spawnRoot("/bin/chmod", args: ["755", destDylib], timeout: 5)
+        _ = spawnRoot("/usr/sbin/chown", args: ["33:33", destDylib], timeout: 5)
 
-        // For "persist" mode: add to ElleKit plist
-        if mode == "persist" {
-            let plistPath = "\(jbRoot)/Library/Preferences/com.opa334.ellekit.plist"
-            // Note: ElleKit automatically loads all dylibs in TweakInject directory
-            // No need to modify plist manually
-        }
+        // Note: ElleKit loads all dylibs in /var/jb/Library/TweakInject/ globally
+        // To target specific apps, we would need to configure ellekit.plist
+        // For simplicity, this implementation loads globally (all apps)
 
         // Restart the app to load the dylib
-        let (killRc, killOut) = spawnRoot("/usr/bin/killall", args: [app.name], timeout: 5)
+        // Use executable name, not display name
+        let execName = (app.path as NSString).lastPathComponent
+        let (killRc, killOut) = spawnRoot("/usr/bin/killall", args: [execName], timeout: 5)
         _ = killRc; _ = killOut  // Ignore errors, app may not be running
 
         return (true, """
@@ -1963,8 +1941,7 @@ final class InjectionManager {
             - App: \(app.name) (\(bundleId))
             - Dylib: \(dylibName)
             - Mode: \(mode)
-            - Next step: launch the app to load the dylib
-            Note: This is runtime injection (no binary modification). Restart the app to take effect.
+            - Note: ElleKit loads globally (all apps). Restart the target app to load the dylib.
             """)
     }
 
