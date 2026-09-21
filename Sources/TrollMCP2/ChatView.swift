@@ -715,10 +715,27 @@ struct ChatView: View {
     private func send() {
         guard let cfg = modelStore.defaultConfig,
               (!inputText.isEmpty || !pendingAttachments.isEmpty || !pendingImages.isEmpty) else { return }
-        // v3.1.1: 提前检测：发了图片但模型不支持视觉，直接提示，不浪费 API 请求
+        // v3.1.1: 模型不支持视觉时，自动 OCR 识别图片文字，拼到消息里
+        var imagesToSend = pendingImages
         if !pendingImages.isEmpty && !cfg.supportsVision {
-            showToast("⚠️ 当前模型不支持看图（VLM），请切换到支持视觉的模型（如 GPT-4o / Claude 3.5）")
-            return
+            // 自动 OCR：把图片文字识别出来，拼到消息里
+            var ocrTexts: [String] = []
+            for (i, imgData) in pendingImages.enumerated() {
+                if let data = Data(base64Encoded: imgData.replacingOccurrences(of: "data:image/png;base64,", with: "").replacingOccurrences(of: "data:image/jpeg;base64,", with: "")) {
+                    let tmpPath = NSTemporaryDirectory() + "ocr_\(i).png"
+                    try? data.write(to: URL(fileURLWithPath: tmpPath))
+                    if let ocrResult = try? OCRImageTool().invoke(["path": tmpPath]),
+                       let text = ocrResult["text"] as? String, !text.isEmpty {
+                        ocrTexts.append("📷 图片\(i+1) 识别到的文字：\n\(text)")
+                    }
+                    try? FileManager.default.removeItem(atPath: tmpPath)
+                }
+            }
+            if !ocrTexts.isEmpty {
+                text = text + "\n\n" + ocrTexts.joined(separator: "\n\n")
+                imagesToSend = [] // 去掉图片，只发文字
+                showToast("🔍 已自动 OCR 识别图片文字")
+            }
         }
         // v2.9.72：启动工作流可视化
         WorkflowManager.shared.startRun("处理请求")
@@ -752,7 +769,7 @@ struct ChatView: View {
         // v2.9.10：附件预览与发送联动——从附件里取图片 dataURL（若预览被删则不再发送）
         let attImgs = pendingAttachments.compactMap { $0.dataURL }
         pendingAttachments = []
-        let finalImgs = attImgs.isEmpty ? imgs : attImgs
+        let finalImgs = attImgs.isEmpty ? imagesToSend : attImgs
         store.send(text, using: cfg, imageDataURLs: finalImgs, reasoningLevel: reasoning, smartSearch: smartSearch)
         AuditLog.shared.log("chat", detail: "发送消息")
     }
