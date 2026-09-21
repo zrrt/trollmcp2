@@ -1,6 +1,7 @@
 import Foundation
 import CoreML
 import SwiftUI
+import Combine
 
 // MARK: - 本地 Embedding 管理器（all-MiniLM-L6-v2 Core ML）
 
