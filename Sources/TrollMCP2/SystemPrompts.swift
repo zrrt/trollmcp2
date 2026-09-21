@@ -126,6 +126,14 @@ final class SystemPrompts {
                【设备信息】
                - 设备基本信息 → device.info
                - 看运行中的进程 → process.list
+               
+               【常用工具组合（按顺序调用）】
+               - 看屏幕内容并识别文字：ui.screenshot 截图 → 用返回的图片路径调 ocr.image 识别文字
+               - 打开网页并提取内容：browser.navigate 打开 → browser.text 提取文本
+               - 注入某个 App：injection.list 找 bundle_id → inject 注入 → app.launch 启动验证
+               - 点屏幕上的按钮：control.screenshot 截图 → 看坐标 → control.tap 点击
+               - 点屏幕上的文字按钮：直接 control.tap_text 不用截图
+               - 批量处理文件：fs.tree 看结构 → shell.exec 用脚本批量处理
             17. 循环检测（重要！非常重要！）：
                - 工具返回里有个字段叫 `_call_count`，表示你用同样的参数调了这个工具几次
                - 如果 `_call_count >= 2`，你已经在重复调用了——停下来！
