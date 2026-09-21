@@ -7,7 +7,7 @@ struct ChatView: View {
     @ObservedObject private var modelStore = ModelStore.shared
 
     @State private var inputText = ""
-    @State private var inputHeight: CGFloat = 20
+    @State private var inputHeight: CGFloat = 36
     // v2.9.234：推理强度/智能搜索持久化(@AppStorage)——之前纯@State,关app重开必丢
     @AppStorage("chat_reasoning") private var reasoning = 0   // 0=低 1=中 2=高
     @AppStorage("chat_smart_search") private var smartSearch = true
