@@ -607,7 +607,8 @@ struct ChatView: View {
                     AppUIState.shared.quickSkillsPresented = true
                 }
                 QuickTabButton(icon: "doc.text", label: "指令") {
-                    // TODO: 打开指令切换页
+                    AppUIState.shared.settingsJumpToModels = false
+                    AppUIState.shared.settingsPresented = true
                 }
                 QuickTabButton(icon: "folder", label: "文件") {
                     AppUIState.shared.quickFilesPresented = true
@@ -929,14 +930,14 @@ struct QuickTabButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 3) {
+            HStack(spacing: 4) {
                 Image(systemName: icon)
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                 Text(label)
                     .font(.caption)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
             .background(Color(.secondarySystemBackground))
             .foregroundColor(.secondary)
             .cornerRadius(10)
