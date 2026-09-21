@@ -546,7 +546,16 @@ public final class ToolRegistry: ObservableObject {
                     return ["ok": true, "data": cachedData]
                 }
 
+                // v3.0.90：工具执行超时保护——15 秒没返回就报错，防止一直卡着
+                var timedOut = false
+                let timeoutWorkItem = DispatchWorkItem {
+                    timedOut = true
+                    WorkflowManager.shared.updateStep(tool: originalName, detail: "⏱ 超时（15s）", success: false)
+                }
+                DispatchQueue.global().asyncAfter(deadline: .now() + 15, execute: timeoutWorkItem)
+
                 let result = try t.invoke(params)
+                timeoutWorkItem.cancel()
                 let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
                 // v2.9.134：返回式错误统一识别——工具 return ["error":...] / ["ok": false] /
                 // ["status": "failed"] 不再伪装成功（旧版 ok 恒为 true，AI 无法分辨成败，
