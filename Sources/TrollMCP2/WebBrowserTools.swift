@@ -204,7 +204,7 @@ struct BrowserEvalTool: MCPTool {
 struct BrowserNavigateTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.navigate",
-        summary: "Navigate to URL. Use for: change page.",
+        summary: "Navigate browser to URL. Use for: open web pages, change browser page. Don't use for: control native apps (use control.*), file operations (use fs.*), app management (use app.*).",
         parameters: ["url": "URL to open (optional)", "action": "back/forward/reload (optional)"],
     verified: true, category: "browser")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

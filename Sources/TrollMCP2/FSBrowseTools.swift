@@ -89,7 +89,7 @@ private enum FSPolicy {
 final class FSTreeTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.tree",
-        summary: "Show directory tree. Use for: browse filesystem structure.",
+        summary: "Show directory tree. Use for: browse filesystem structure, list files in a directory. Don't use for: read file contents (use fs.read), search apps (use injection.list).",
         parameters: [
             "bundle_id": "Target App bundle_id (choose one with path; if set, browse App container)",
             "path": "Absolute path (choose one with bundle_id; default workspace root)",
@@ -173,7 +173,7 @@ final class FSTreeTool: MCPTool {
 final class FSReadTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.read",
-        summary: "Read text file. Use: pass either path (absolute) OR bundle_id+relative (inside app container). Other params are optional.",
+        summary: "Read text file. Use for: read file content (text, plist, json, sqlite). Don't use for: browse directory structure (use fs.tree), write files (use fs.write).",
         parameters: [
             "path": "Absolute file path (REQUIRED, unless using bundle_id+relative)",
             "bundle_id": "Target App bundle_id (optional, use with relative)",
@@ -672,7 +672,7 @@ final class FSGrepTool: MCPTool {
 final class FSWriteTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.write",
-        summary: "Write file (DANGEROUS). Use for: modify file content.",
+        summary: "Write file (DANGEROUS). Use for: create or modify file content. Don't use for: read files (use fs.read), delete files (use fs.rm).",
         parameters: [
             "path": "Absolute path (or workspace relative path)",
             "bundle_id": "Target App bundle_id (if set, write to App container)",

@@ -71,6 +71,29 @@ final class InjectionDisableTool: MCPTool {
     }
 }
 
+// v3.0.89：iOS 17 兼容的静态注入（insert_dylib + trollstorehelper 重装）
+final class InjectionStaticTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "injection.static",
+        summary: "Static injection for iOS 17+ (ct_bypass broken). Copy app → insert_dylib → repack IPA → trollstorehelper reinstall. Use for: iOS 17.0+ where runtime injection (ct_bypass) no longer works. Don't use for: iOS 16 or earlier (use injection.enable instead, faster).",
+        parameters: [
+            "bundle_id": "Target App bundle_id (required)",
+            "dylib_path": "Local dylib path (required, e.g. Workspace/downloads/xxx.dylib)"
+        ], verified: true, category: "injection")
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let bid = params["bundle_id"] as? String else {
+            throw MCPError.invalidParams("bundle_id required")
+        }
+        guard let dylibPath = params["dylib_path"] as? String, !dylibPath.isEmpty else {
+            throw MCPError.invalidParams("dylib_path required")
+        }
+        let (ok, msg) = InjectionManager.shared.injectStatic(bundleId: bid, dylibPath: dylibPath)
+        AuditLog.shared.log("injection.static", detail: "\(bid) → \(dylibPath)")
+        return ["ok": ok, "message": msg]
+    }
+}
+
 final class InjectionEnablePersistedTool: MCPTool {
     let definition = ToolDefinition(name: "injection.enable_persisted", summary: "Re-enable disabled plugin from persistent backup (TrollFools-style enable toggle).",
         parameters: ["bundle_id": "Target App bundle_id (required)"], verified: true, category: "injection")

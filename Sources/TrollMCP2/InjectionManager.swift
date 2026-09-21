@@ -1796,4 +1796,96 @@ final class InjectionManager {
             "hint": "Use injection.list to find bundle_id + name for specific App."
         ]
     }
+
+    // MARK: - v3.0.89：iOS 17 兼容的静态注入（insert_dylib + trollstorehelper 重装）
+    /// 原理：复制 App bundle → 把 dylib 放进去 → insert_dylib 改主二进制 → 删旧签名 → 打包 IPA → trollstorehelper 重装
+    /// 为什么 iOS 17 能用：TrollStore 安装时自动用它的漏洞重签，不需要 ct_bypass 运行时改签名
+    func injectStatic(bundleId: String, dylibPath: String) -> (Bool, String) {
+        let fm = FileManager.default
+        guard let app = AppCatalog.find(bundleId) else {
+            return (false, "App not found: \(bundleId)")
+        }
+
+        let workspace = Workspace.root
+        let injectRoot = workspace.appendingPathComponent("static_inject").path
+        try? fm.createDirectory(atPath: injectRoot, withIntermediateDirectories: true)
+
+        // 1. 复制 App bundle 到临时目录
+        let appDirName = (app.path as NSString).lastPathComponent
+        let destApp = injectRoot + "/" + appDirName
+        _ = try? fm.removeItem(atPath: destApp)
+        let (cpRc, cpOut) = spawnRoot("/bin/cp", args: ["-a", app.path, destApp], timeout: 180)
+        guard cpRc == 0 else {
+            return (false, "Copy app failed: \(cpOut.prefix(200))")
+        }
+
+        // 2. 把 dylib 复制到 App bundle 的 Frameworks 目录
+        let frameworksDir = destApp + "/Frameworks"
+        try? fm.createDirectory(atPath: frameworksDir, withIntermediateDirectories: true)
+        let dylibName = (dylibPath as NSString).lastPathComponent
+        let destDylib = frameworksDir + "/" + dylibName
+        let (cpDylibRc, cpDylibOut) = spawnRoot("/bin/cp", args: [dylibPath, destDylib], timeout: 60)
+        guard cpDylibRc == 0 else {
+            return (false, "Copy dylib failed: \(cpDylibOut.prefix(200))")
+        }
+
+        // 3. 找主二进制路径
+        guard let plist = NSDictionary(contentsOfFile: destApp + "/Info.plist"),
+              let execName = plist["CFBundleExecutable"] as? String else {
+            return (false, "Cannot read Info.plist or find CFBundleExecutable")
+        }
+        let mainBin = destApp + "/" + execName
+
+        // 4. 用 insert_dylib 修改主二进制（添加 load command）
+        let dylibLoadPath = "@executable_path/Frameworks/" + dylibName
+        guard let insertDylib = binaryPath("insert_dylib") else {
+            return (false, "insert_dylib not bundled")
+        }
+        let (insRc, insOut) = spawnRoot(insertDylib, args: ["--inplace", dylibLoadPath, mainBin], timeout: 30)
+        guard insRc == 0 else {
+            return (false, "insert_dylib failed: \(insOut.prefix(300))")
+        }
+
+        // 5. 删除旧签名（TrollStore 安装时会重新签名）
+        let codeSign = destApp + "/_CodeSignature"
+        if fm.fileExists(atPath: codeSign) {
+            _ = spawnRoot("/bin/rm", args: ["-rf", codeSign])
+        }
+        let codeResources = destApp + "/CodeResources"
+        if fm.fileExists(atPath: codeResources) {
+            _ = spawnRoot("/bin/rm", args: ["-rf", codeResources])
+        }
+
+        // 6. 打包成 IPA（Payload/App.app 结构）
+        let ipaName = bundleId + "_injected.ipa"
+        let ipaPath = injectRoot + "/" + ipaName
+        let payloadRoot = injectRoot + "/Payload-" + bundleId
+        _ = try? fm.removeItem(atPath: payloadRoot)
+        try? fm.createDirectory(atPath: payloadRoot + "/Payload", withIntermediateDirectories: true)
+        let payloadApp = payloadRoot + "/Payload/" + appDirName
+        _ = try? fm.removeItem(atPath: payloadApp)
+        let (cpPayloadRc, cpPayloadOut) = spawnRoot("/bin/cp", args: ["-a", destApp, payloadApp], timeout: 180)
+        guard cpPayloadRc == 0 else {
+            return (false, "Assemble Payload failed: \(cpPayloadOut.prefix(200))")
+        }
+        _ = try? fm.removeItem(atPath: ipaPath)
+        guard ZipStorer.createZip(at: ipaPath, fromDirectory: payloadRoot) else {
+            return (false, "Zip IPA failed")
+        }
+        _ = try? fm.removeItem(atPath: payloadRoot)
+        _ = try? fm.removeItem(atPath: destApp)
+
+        // 7. TrollStore 静默安装（自动重签）
+        let helper = "/var/usr/bin/trollstorehelper"
+        guard fm.isExecutableFile(atPath: helper) else {
+            return (false, "trollstorehelper not available. IPA generated at: \(ipaPath)")
+        }
+        let (instRc, instOut) = spawnRoot(helper, args: ["install", ipaPath], timeout: 180)
+        guard instRc == 0 else {
+            return (false, "trollstorehelper install failed: \(instOut.prefix(300)). IPA at: \(ipaPath)")
+        }
+
+        AppCatalog.invalidateCache()
+        return (true, "Static injection success. App reinstalled with dylib: \(dylibName). IPA at: \(ipaPath)")
+    }
 }

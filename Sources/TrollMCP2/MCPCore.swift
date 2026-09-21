@@ -717,6 +717,7 @@ public final class ToolRegistry: ObservableObject {
         // M3 注入管理 + 容器
         register(InjectionEnableTool())
         register(InjectionDisableTool())
+        register(InjectionStaticTool())  // v3.0.89：iOS 17 兼容静态注入
         register(InjectionStatusTool())
         register(InjectionInspectTool())
         register(InjectionListTool())
