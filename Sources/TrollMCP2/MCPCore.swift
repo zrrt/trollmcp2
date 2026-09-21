@@ -340,6 +340,8 @@ public final class ToolRegistry: ObservableObject {
         "injection.status",
         // 浏览器
         "browser.navigate",
+        "browser.snapshot",  // v3.0.94：获取页面内容（HTML/DOM）
+        "browser.text",      // v3.0.94：获取页面文本
         // 终端
         "shell.exec",
         // UI 操作闭环
