@@ -29,19 +29,51 @@ class EmbeddingManager {
     private func loadModel() -> Bool {
         guard embeddingModel == nil else { return true }
 
-        // 查找模型文件
-        guard let modelURL = Bundle.main.url(forResource: "MiniLM", withExtension: "mlmodelc") else {
-            print("⚠️ Embedding: MiniLM.mlmodelc not found in bundle")
+        // 从 Documents 目录加载（运行时下载的，不打包进 App）
+        let fileManager = FileManager.default
+        let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let modelDir = documentsURL.appendingPathComponent("EmbeddingModel")
+
+        // 查找编译好的模型
+        let compiledModelURL = modelDir.appendingPathComponent("AllMiniLML6V2.mlmodelc")
+        let rawModelURL = modelDir.appendingPathComponent("AllMiniLML6V2.mlmodel")
+
+        // 如果没有编译好的，就编译原始模型
+        let finalModelURL: URL
+        if fileManager.fileExists(atPath: compiledModelURL.path) {
+            finalModelURL = compiledModelURL
+        } else if fileManager.fileExists(atPath: rawModelURL.path) {
+            do {
+                // 编译模型
+                print("⏳ Embedding: compiling model...")
+                finalModelURL = try MLModel.compileModel(at: rawModelURL)
+                // 移动到目标位置
+                let destURL = modelDir.appendingPathComponent(finalModelURL.lastPathComponent)
+                if fileManager.fileExists(atPath: destURL.path) {
+                    try fileManager.removeItem(at: destURL)
+                }
+                try fileManager.moveItem(at: finalModelURL, to: destURL)
+                print("✅ Embedding: model compiled")
+            } catch {
+                print("❌ Embedding: failed to compile model: \(error)")
+                return false
+            }
+        } else {
+            print("⚠️ Embedding: model not found in Documents")
             return false
         }
 
         do {
             let config = MLModelConfiguration()
             config.computeUnits = .cpuAndGPU  // 用 GPU 加速（Neural Engine 不支持 Transformer）
-            embeddingModel = try MLModel(contentsOf: modelURL, configuration: config)
+            embeddingModel = try MLModel(contentsOf: finalModelURL, configuration: config)
 
-            // 加载 tokenizer
-            tokenizer = try MiniLMTokenizer(vocabFileName: "vocab.txt", maxSequenceLength: 512)
+            // 加载 tokenizer（从 Documents 目录）
+            let vocabURL = modelDir.appendingPathComponent("vocab.txt")
+            tokenizer = try MiniLMTokenizer(vocabFileName: vocabURL.lastPathComponent,
+                                            resourceSubpath: nil,
+                                            bundle: Bundle(url: modelDir) ?? .main,
+                                            maxSequenceLength: 512)
 
             print("✅ Embedding: MiniLM model loaded")
             return true
