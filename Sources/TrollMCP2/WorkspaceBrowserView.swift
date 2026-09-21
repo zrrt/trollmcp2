@@ -46,6 +46,8 @@ struct WorkspaceBrowserView: View {
         "macros": "宏/脚本",
         "network_capture": "抓包数据",
         "plugins": "插件",
+        "projects": "编译项目",
+        "reports": "分析报告",
         "uploads": "用户上传附件",
         "screenshots": "截图",
         "tweaks": "注入插件(dylib)",
@@ -54,6 +56,19 @@ struct WorkspaceBrowserView: View {
         "tmp": "临时文件",
         "deb": "deb 包缓存"
     ]
+
+    /// v3.0.90：目录备注——先精确匹配，再模糊匹配（动态名字）
+    static func noteForDir(_ name: String) -> String? {
+        // 精确匹配
+        if let note = dirNotes[name] { return note }
+        // 模糊匹配（动态前缀）
+        if name.hasPrefix("replace_tmp_") { return "替换临时文件（注入用）" }
+        if name.hasPrefix("crash_repro_") { return "崩溃复现" }
+        if name.hasPrefix("static_inject") { return "静态注入临时目录" }
+        if name.hasSuffix(".db") { return "数据库文件" }
+        if name.hasSuffix(".plist") { return "配置文件" }
+        return nil
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -276,7 +291,7 @@ struct WorkspaceBrowserView: View {
                             isDir: isDir,
                             size: isDir ? 0 : (values?.fileSize ?? 0),
                             mtime: values?.contentModificationDate ?? Date.distantPast,
-                            note: isDir ? Self.dirNotes[name] : nil)
+                            note: isDir ? Self.noteForDir(name) : nil)
         }
         .sorted { $0.isDir && !$1.isDir ? true : (!$0.isDir && $1.isDir ? false : $0.name.localizedStandardCompare($1.name) == .orderedAscending) }
         // v2.9.292：目录总大小异步递归统计（主线程刷新，避免大目录卡 UI）

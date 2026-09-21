@@ -795,16 +795,49 @@ final class ToolHealthTool: MCPTool {
 }
 
 final class WorkspaceInfoTool: MCPTool {
-    let definition = ToolDefinition(name: "workspace.info", summary: "Show workspace info: path, free space, directory structure. Use for: locate files.")
+    let definition = ToolDefinition(name: "workspace.info", summary: "Show workspace info: path, free space, directory structure with descriptions. Use for: locate files, understand what each directory is for. Don't use for: read file contents (use fs.read).")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let fm = FileManager.default
         let items = (try? fm.contentsOfDirectory(atPath: Workspace.root.path)) ?? []
         let attrs = (try? fm.attributesOfItem(atPath: Workspace.root.path)) ?? [:]
+
+        // 目录说明（AI 一看就知道每个目录是干嘛的）
+        let dirDescriptions: [String: String] = [
+            "uploads": "用户上传的文件（图片/文件附件自动复制到这里）",
+            "downloads": "下载的文件（IPA / dylib / 工具等）",
+            "projects": "编译项目（每个项目一个子目录，放 tweak 源码）",
+            "duplicates": "App 双开副本（app.duplicate 生成）",
+            "static_inject": "静态注入临时目录（injection.static 用）",
+            "screenshots": "截图（control.screenshot 保存到这里）",
+            "tweaks": "内置 dylib 插件（ControlAgent / ProbeAgent / MemoryTweak 等）",
+            "bridge_exports": "桥接导出文件",
+            "artifacts": "生成的产物（编译结果 / 分析报告等）",
+            "knowledge": "知识库文件",
+            "backups": "备份文件（注入前自动备份）",
+            "logs": "日志文件",
+            "cache": "缓存文件"
+        ]
+
+        // 给每个条目加说明
+        var annotatedEntries: [[String: Any]] = []
+        for item in items {
+            var entry: [String: Any] = ["name": item]
+            if let desc = dirDescriptions[item] {
+                entry["description"] = desc
+            }
+            // 检查是不是目录
+            var isDir: ObjCBool = false
+            fm.fileExists(atPath: Workspace.root.appendingPathComponent(item).path, isDirectory: &isDir)
+            entry["is_dir"] = isDir.boolValue
+            annotatedEntries.append(entry)
+        }
+
         return [
             "root": Workspace.root.path,
-            "entries": items,
+            "entries": annotatedEntries,
             "entry_count": items.count,
-            "size_bytes": attrs[.size] ?? 0
+            "size_bytes": attrs[.size] ?? 0,
+            "note": "每个目录的用途已在 description 字段说明。需要读文件用 fs.read，看目录用 fs.tree。"
         ]
     }
 }
