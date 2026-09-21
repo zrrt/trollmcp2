@@ -149,7 +149,7 @@ final class PingTool: MCPTool {
 }
 
 final class DeviceInfoTool: MCPTool {
-    let definition = ToolDefinition(name: "device.info", summary: "Device info: iOS version, model, memory/storage/disk/battery, TrollAgent version, workspace path.", verified: true, category: "device")
+    let definition = ToolDefinition(name: "device.info", summary: "Get device info: iOS version, iPhone model, memory/storage, battery, TrollAgent version, workspace path. Use for: check what iOS version, know device specs, find workspace path. Don't use for: spoof/change device info (use device.fake), wipe keychain (use device.keychain_wipe). Example: user says '我手机什么型号' → get device info.", verified: true, category: "device")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         [
@@ -207,12 +207,12 @@ final class DeviceProbeTool: MCPTool {
 final class MemoryTweakTool: MCPTool {
     let definition = ToolDefinition(
         name: "memory",
-        summary: "H5GG-style memory modification. Requires MemoryTweak.dylib injected into target app first. action: search (full memory scan) / refine (filter previous results) / write / freeze / unfreeze / status / frozen (list frozen) / results (last search results). type: int|int64|float|double|byte|short. address in 0x hex.",
+        summary: "Game memory modification (like GameGuardian/H5GG). Use for: modify game values like coins, HP, lives, scores. Don't use for: read app files (use fs.read), network capture (use network.capture). Prerequisite: inject MemoryTweak.dylib into target game first. Workflow: 1) search for current value, 2) change value in game, 3) refine search, 4) write new value. Example: user says '改金币' → search coin count in game memory.",
         parameters: [
-            "action": "search|refine|write|freeze|unfreeze|status|frozen|results",
-            "value": "Value to search/write/freeze (required for search/refine/write/freeze)",
-            "type": "Data type: int(default)|int64|float|double|byte|short",
-            "address": "Memory address (required for write/freeze/unfreeze, 0x hex)"
+            "action": "search (first scan) / refine (filter results) / write (set new value) / freeze (lock value) / unfreeze / status / frozen (list locked values)",
+            "value": "Value to search/write/freeze. e.g. 1000 coins, 50 HP",
+            "type": "Data type: int (integer, default) / int64 / float (decimal) / double / byte / short",
+            "address": "Memory address (0x hex format, required for write/freeze)"
         ]
     )
 

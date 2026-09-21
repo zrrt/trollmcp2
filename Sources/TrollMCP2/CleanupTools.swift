@@ -105,8 +105,8 @@ final class CleanupScanner {
 final class CleanupScanTool: MCPTool {
     let definition = ToolDefinition(
         name: "cleanup.scan",
-        summary: "Scan an app for cleanable items (cache/keychain/advertising ID/data container/identifiers), returns itemized list with risk levels (safe/warn/danger) for cleanup.execute or cleanup.ai",
-        parameters: ["bundle_id": "Target App bundle_id (required)"],
+        summary: "Scan an app for cleanable items (cache, keychain, advertising ID, identifiers). Use for: find what can be cleaned in an app, see what's taking up space. Don't use for: actually deleting files (use cleanup.execute), clean workspace temp files (use workspace.cleanup). Example: user says '小红书缓存多大' → scan cleanup items.",
+        parameters: ["bundle_id": "Target App bundle_id (required). e.g. com.xingin.discover"],
         verified: true, category: "cleanup")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
@@ -140,11 +140,11 @@ final class CleanupScanTool: MCPTool {
 final class CleanupExecuteTool: MCPTool {
     let definition = ToolDefinition(
         name: "cleanup.execute",
-        summary: "Execute cleanup: clean specified items (cache/keychain/adid/container/idfv) on an app. danger-level container resets all data (auto-backup restorable). dry_run=true previews only",
+        summary: "Actually clean/delete cache/keychain/data from an app. Use for: clear app cache, reset app data, wipe app login state. Don't use for: just scanning what's cleanable (use cleanup.scan), clean workspace files (use workspace.cleanup). Warning: 'container' item will reset ALL app data (auto-backup). Example: user says '清小红书缓存' → clean cache items.",
         parameters: [
-            "bundle_id": "Target App bundle_id (required)",
-            "items": "Items to clean, e.g. [\"cache\",\"keychain\"] (required)",
-            "dry_run": "Optional: true preview only (default false)"
+            "bundle_id": "Target App bundle_id (required). e.g. com.xingin.discover",
+            "items": "Items to clean: cache / keychain / adid / container / idfv (required). e.g. [\"cache\",\"keychain\"]",
+            "dry_run": "Optional: true = preview only, don't actually delete (default false)"
         ], verified: true, category: "cleanup")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {

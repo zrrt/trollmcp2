@@ -121,8 +121,8 @@ final class GitHubAccountStatusTool: MCPTool {
 final class GitHubTriggerBuildTool: MCPTool {
     let definition = ToolDefinition(
         name: "github.trigger_build",
-        summary: "Trigger a GitHub Actions CI build with the logged-in account",
-        parameters: ["workflow": "Workflow filename (default build-trollmcp2.yml; for tweak use build-tweak.yml)", "tweak": "Only for build-tweak: tweak project name (e.g. CompileProbe)", "ref": "Branch name (default main)"], verified: true, category: "build")
+        summary: "Trigger GitHub Actions CI build (compile TrollAgent IPA or tweak). Use for: build new version of TrollAgent, compile a tweak dylib. Don't use for: run local shell commands (use shell.exec), download files (use fs tools). Prerequisite: GitHub account must be logged in. Example: user says '编译新版本' → trigger build-trollmcp2.yml workflow.",
+        parameters: ["workflow": "Workflow file: build-trollmcp2.yml (default, build IPA) or build-tweak.yml (build tweak dylib)", "tweak": "Only for tweak builds: tweak project name (e.g. CompileProbe / ProbeAgent)", "ref": "Git branch to build (default main)"], verified: true, category: "build")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let token = GHConfig.activeToken else {
             throw MCPError.failed("未登录 GitHub，请先在设置-GitHub 账号中登录")
