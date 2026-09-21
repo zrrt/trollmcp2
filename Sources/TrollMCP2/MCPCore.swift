@@ -528,7 +528,8 @@ public final class ToolRegistry: ObservableObject {
                 if nameL.contains(q) { score += 3 }
                 if sumL.contains(q) { score += 2 }
                 // 简单分词：每个词命中加分
-                for w in q.split(separator: " ").map({ String($0) }) where !w.isEmpty {
+                let queryWords = q.split(separator: " ").map({ String($0) }).filter { !$0.isEmpty }
+                for w in queryWords {
                     if nameL.contains(w) { score += 1 }
                     if sumL.contains(w) { score += 1 }
                 }
@@ -538,6 +539,32 @@ public final class ToolRegistry: ObservableObject {
                         for en in enList {
                             if nameL.contains(en.lowercased()) { score += 2 }
                             if sumL.contains(en.lowercased()) { score += 1 }
+                        }
+                    }
+                }
+                // v3.1.3: 类别速查表——常见任务 → 对应的工具类别
+                let categoryMap: [String: [String]] = [
+                    "截图": ["ui.screenshot", "control.screenshot", "ui"],
+                    "抓包": ["network.capture", "debug.dump_network_log"],
+                    "注入": ["injection", "jailbreak.inject", "control.inject"],
+                    "文件": ["fs.", "bridge.", "artifact."],
+                    "浏览器": ["browser."],
+                    "自动化": ["automation.", "macro.", "task.run"],
+                    "清理": ["cleanup.", "workspace.cleanup", "rescue."],
+                    "编译": ["build.", "github."],
+                    "崩溃": ["crash", "diagnose.", "log.collect"],
+                    "设备": ["device.", "system.overview"],
+                    "聊天": ["knowledge.", "assistant.memory"],
+                    "微信": ["wechat."],
+                    "定位": ["location."],
+                    "备份": ["backup."],
+                ]
+                for (task, cats) in categoryMap {
+                    if query.contains(task) {
+                        for cat in cats {
+                            if nameL.hasPrefix(cat) || nameL.contains(cat) {
+                                score += 3
+                            }
                         }
                     }
                 }
