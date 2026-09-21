@@ -80,9 +80,18 @@ enum ISHEngine {
         // 3. 挂载工作区：在 rootfs 里创建 /workspace → iOS Documents/Workspace 的 symlink
         // 这样 iSH 终端里 cd /workspace 就能直接读写 TrollAgent 工作区文件，不沙盒隔离
         let workspaceLink = dataPath + "/workspace"
-        let workspaceTarget = (rootfsDir as NSString).appendingPathComponent("../Workspace")
+        // v3.0.91：symlink 目标用相对路径（iSH 只认识 rootfs 内路径），
+        // /data/workspace → ../../Workspace 解析为 iSH 根目录下的 /Workspace，
+        // 再由 iOS 层 symlink 指向真正的 Documents/Workspace
+        let workspaceTarget = "../../Workspace"
         if !fm.fileExists(atPath: workspaceLink) {
             try? fm.createSymbolicLink(atPath: workspaceLink, withDestinationPath: workspaceTarget)
+        }
+        // 同时在 rootfs 根目录创建 /Workspace → Documents/Workspace 的 symlink（iOS 层绝对路径）
+        let rootWorkspaceLink = rootfsDir + "/Workspace"
+        let rootWorkspaceTarget = (rootfsDir as NSString).appendingPathComponent("../Workspace")
+        if !fm.fileExists(atPath: rootWorkspaceLink) {
+            try? fm.createSymbolicLink(atPath: rootWorkspaceLink, withDestinationPath: rootWorkspaceTarget)
         }
         // 默认 cwd 切到 /workspace
         guestCwd = "/workspace"
