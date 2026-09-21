@@ -288,6 +288,7 @@ public final class ToolRegistry: ObservableObject {
     private static let _coreToolNames: Set<String> = [
         // 元工具
         "tool_search",
+        "system.overview",  // v3.0.90：AI 全局视角目录
         // 文件操作
         "fs.read", "fs.write", "fs.tree",
         // 注入
@@ -398,6 +399,7 @@ public final class ToolRegistry: ObservableObject {
     }
 
     /// v2.9.16：tool_search 渐进式披露——按关键词搜索工具名/摘要，返回紧凑清单（不带完整 schema）
+    /// v3.0.90：去重——已会话授权的工具不再重复返回，避免 AI 反复搜以为能找到新工具
     public func searchTools(query: String, limit: Int = 8) -> [[String: String]] {
         lock.lock()
         defer { lock.unlock() }
@@ -405,6 +407,8 @@ public final class ToolRegistry: ObservableObject {
         var hits: [(name: String, summary: String, score: Int)] = []
         for (_, tool) in tools {
             let def = tool.definition
+            // v3.0.90：跳过已授权的工具（AI 已经知道了，不用再搜）
+            if isSessionApproved(def.name) || isCore(def.name) { continue }
             let nameL = def.name.lowercased()
             let sumL = def.summary.lowercased()
             var score = 0
@@ -713,6 +717,9 @@ public final class ToolRegistry: ObservableObject {
         register(AppsControlTool())
         register(AppDepsTool())
         // register(WeChatPrepareMessageTool())  // 去掉，半自动粘贴没用
+
+        // v3.0.90：系统概览工具（AI 全局视角目录）
+        register(SystemOverviewTool())
 
         // M3 注入管理 + 容器
         register(InjectionEnableTool())

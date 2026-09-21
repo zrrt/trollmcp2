@@ -6,6 +6,103 @@ import CoreLocation
 import UserNotifications
 import Vision
 
+// MARK: - v3.0.90：system.overview — AI 全局视角目录
+
+final class SystemOverviewTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "system.overview",
+        summary: "Get complete system overview: all tool categories, typical tools per category, and recommended workflows. Use when: you don't know what tools are available, or you're unsure which tool to use. Don't use for: specific tasks (use the actual tool directly).",
+        parameters: [:],
+        verified: true, category: "system")
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        return [
+            "system": "TrollAgent",
+            "version": "3.0.90",
+            "tool_categories": [
+                [
+                    "category": "File System (fs.*)",
+                    "typical_tools": ["fs.read", "fs.write", "fs.tree", "fs.find"],
+                    "use_for": "Read/write files, browse directories, search files"
+                ],
+                [
+                    "category": "Injection (injection.*)",
+                    "typical_tools": ["injection.list", "injection.enable", "injection.status", "injection.mem"],
+                    "use_for": "Inject dylib into apps, check injection status, search installed apps"
+                ],
+                [
+                    "category": "UI Control (control.*)",
+                    "typical_tools": ["control.inject", "control.tap", "control.tap_text", "control.type_text", "control.swipe", "control.screenshot"],
+                    "use_for": "Control target app UI: tap, swipe, type text, screenshot"
+                ],
+                [
+                    "category": "App Control (app.*)",
+                    "typical_tools": ["app.launch", "app.restart", "app.duplicate", "app.encrypt_info"],
+                    "use_for": "Launch/restart apps, clone apps, check encryption status"
+                ],
+                [
+                    "category": "System (system.*)",
+                    "typical_tools": ["device.info", "device.battery", "system.overview"],
+                    "use_for": "Device info, battery status, system overview"
+                ],
+                [
+                    "category": "Browser (browser.*)",
+                    "typical_tools": ["browser.navigate", "browser.screenshot"],
+                    "use_for": "Web browsing, navigate to URLs"
+                ],
+                [
+                    "category": "Shell (shell.*)",
+                    "typical_tools": ["shell.exec"],
+                    "use_for": "Run shell commands (Linux/iSH environment)"
+                ],
+                [
+                    "category": "Memory (memory)",
+                    "typical_tools": ["memory"],
+                    "use_for": "H5GG-style memory modification: search, filter, write, freeze values"
+                ],
+                [
+                    "category": "Diagnostics (diagnostics.*)",
+                    "typical_tools": ["probe.inspect", "device.probe"],
+                    "use_for": "Inspect app internals, probe classes/methods"
+                ]
+            ],
+            "recommended_workflows": [
+                [
+                    "task": "Inject dylib into an app",
+                    "steps": [
+                        "1. injection.list(\"keyword\") — find bundle_id",
+                        "2. injection.enable(bundle_id) — inject dylib (persistent)",
+                        "3. control.inject(bundle_id) — inject ControlAgent for UI control",
+                        "4. control.screenshot() — verify injection worked"
+                    ]
+                ],
+                [
+                    "task": "Control an app's UI",
+                    "steps": [
+                        "1. control.inject(bundle_id) — inject ControlAgent",
+                        "2. control.screenshot() — see current screen",
+                        "3. control.tap_text(\"button text\") — tap by text",
+                        "4. control.type_text(\"search\", \"query\") — type into field"
+                    ]
+                ],
+                [
+                    "task": "Read app container files",
+                    "steps": [
+                        "1. fs.tree(bundle_id) — browse container directory",
+                        "2. fs.read(path) — read specific file"
+                    ]
+                ]
+            ],
+            "tips": [
+                "If you don't know which tool to use, call tool_search first",
+                "If you're stuck after 2 tries, ask the user for clarification",
+                "Don't repeat the same tool with the same params — it's a loop",
+                "iOS 17+: use injection.static (ct_bypass is broken)"
+            ]
+        ]
+    }
+}
+
 // MARK: - M3 注入工具
 
 final class InjectionEnableTool: MCPTool {
