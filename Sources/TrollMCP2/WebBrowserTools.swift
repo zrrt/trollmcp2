@@ -51,8 +51,8 @@ struct BrowserWaitTool: MCPTool {
 struct BrowserTextTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.text",
-        summary: "Get page text content. 获取网页内容 文本. Use for: read web page.",
-        parameters: ["max_chars": "Max chars (default 3000)", "query": "Optional: only return context containing this keyword"],
+        summary: "Read text content of current web page. Use for: read what's on a webpage, extract article text, search within page. Don't use for: open new URL (use browser.navigate), inspect page HTML/structure (use browser.snapshot), type into input box (use browser.type), click buttons (use browser.eval). Example: user says '百度搜了什么' → read current page text.",
+        parameters: ["max_chars": "Max characters to return (default 3000)", "query": "Optional: only return text containing this keyword (e.g. '价格')"],
     verified: true, category: "browser")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let maxChars = params["max_chars"] as? Int ?? 3000
@@ -141,8 +141,8 @@ struct BrowserWaitForTool: MCPTool {
 struct BrowserSnapshotTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.snapshot",
-        summary: "Take browser snapshot (HTML/DOM). Use for: inspect page structure. Filter by keyword to avoid huge pages.",
-        parameters: ["query": "Filter keyword (fuzzy match by element text/tag/placeholder/href/name, optional. If empty, return first 20)"],
+        summary: "Inspect web page HTML structure / find buttons/inputs. Use for: find specific element on page, debug why click didn't work, see what clickable elements exist. Don't use for: just reading text (use browser.text, simpler), open new URL (use browser.navigate). Example: user says '页面上有什么按钮' → snapshot and list clickable elements.",
+        parameters: ["query": "Filter keyword (optional: only return elements matching this text/tag/name. e.g. '搜索' / '登录' / 'button')"],
     verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let q = params["query"] as? String
@@ -170,8 +170,8 @@ struct BrowserClickTool: MCPTool {
 struct BrowserTypeTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.type",
-        summary: "Type text into element. Use for: input text.",
-        parameters: ["idx": "integer", "text": "string"], verified: true)
+        summary: "Type text into an input field on the web page. Use for: type into search box, fill form field on a website. Don't use for: type into native app (use control.type_text), click a button (use browser.eval). Prerequisite: first call browser.snapshot to find the input element's idx. Example: type 'iPhone 15' into search box.",
+        parameters: ["idx": "Element index from browser.snapshot result (integer, required)", "text": "Text to type into the input field (required)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let idx = params["idx"] as? Int ?? (params["idx"] as? String).flatMap({ Int($0) }) else {
             throw MCPError.invalidParams("browser.type 需要整数 idx 参数")
