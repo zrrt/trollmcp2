@@ -205,7 +205,7 @@ struct BrowserNavigateTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.navigate",
         summary: "Navigate browser to URL. Use for: open web pages, change browser page. Don't use for: control native apps (use control.*), file operations (use fs.*), app management (use app.*).",
-        parameters: ["url": "URL to open (optional)", "action": "back/forward/reload (optional)"],
+        parameters: ["url": "URL to open (optional). e.g. https://www.baidu.com", "action": "back/forward/reload (optional)"],
     verified: true, category: "browser")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         // v2.9.251: 兼容 url 参数——AI 常用 browser.navigate {url} 开网页,此前只认 action 导致"打开失败"

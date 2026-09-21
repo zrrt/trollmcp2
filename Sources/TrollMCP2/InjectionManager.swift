@@ -1867,7 +1867,9 @@ final class InjectionManager {
         ]
     }
 
-    /// Runtime injection via ElleKit (jailbreak environment only)
+    /// Dylib injection via ElleKit (jailbreak environment only)
+    /// Note: ElleKit loads dylib at app startup (not runtime attach).
+    /// Put dylib in TweakInject directory → next app launch loads it.
     /// - Parameters:
     ///   - bundleId: target app bundle id
     ///   - dylibPath: path to dylib to inject
@@ -1937,11 +1939,11 @@ final class InjectionManager {
         _ = killRc; _ = killOut  // Ignore errors, app may not be running
 
         return (true, """
-            ElleKit runtime injection successful!
+            ElleKit injection successful!
             - App: \(app.name) (\(bundleId))
             - Dylib: \(dylibName)
             - Mode: \(mode)
-            - Note: ElleKit loads globally (all apps). Restart the target app to load the dylib.
+            - Note: ElleKit loads globally (all apps) at startup. Restart the target app to load the dylib.
             """)
     }
 

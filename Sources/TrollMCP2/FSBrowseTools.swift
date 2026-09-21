@@ -91,8 +91,8 @@ final class FSTreeTool: MCPTool {
         name: "fs.tree",
         summary: "Show directory tree. Use for: browse filesystem structure, list files in a directory. Don't use for: read file contents (use fs.read), search apps (use injection.list).",
         parameters: [
-            "bundle_id": "Target App bundle_id (choose one with path; if set, browse App container)",
-            "path": "Absolute path (choose one with bundle_id; default workspace root)",
+            "bundle_id": "Target App bundle_id (choose one with path; if set, browse App container). e.g. com.xingin.discover",
+            "path": "Absolute path (choose one with bundle_id; default workspace root). e.g. /Workspace",
             "depth": "Recursion depth (default 1, max 3)",
             "limit": "Max items per level (default 60)"
         ],
@@ -175,9 +175,9 @@ final class FSReadTool: MCPTool {
         name: "fs.read",
         summary: "Read text file. Use for: read file content (text, plist, json, sqlite). Don't use for: browse directory structure (use fs.tree), write files (use fs.write).",
         parameters: [
-            "path": "Absolute file path (REQUIRED, unless using bundle_id+relative)",
-            "bundle_id": "Target App bundle_id (optional, use with relative)",
-            "relative": "Relative path inside app container (optional, use with bundle_id)",
+            "path": "Absolute file path (REQUIRED, unless using bundle_id+relative). e.g. /Workspace/reports/data.json",
+            "bundle_id": "Target App bundle_id (optional, use with relative). e.g. com.xingin.discover",
+            "relative": "Relative path inside app container (optional, use with bundle_id). e.g. Documents/user.json",
             "max_bytes": "Max bytes (default 512KB, optional)",
             "as": "Format: auto/text/json/hex (default auto, optional)",
             "line_start": "Start line number (optional)",

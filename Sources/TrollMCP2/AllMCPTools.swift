@@ -53,7 +53,7 @@ final class SystemOverviewTool: MCPTool {
                 [
                     "category": "Jailbreak (jailbreak.*)",
                     "typical_tools": ["jailbreak.status", "jailbreak.inject"],
-                    "use_for": "Runtime dylib injection via ElleKit (jailbreak environment only). Use when: device is jailbroken (Relaxin/RootHide/Dopamine). Faster than static injection, no binary modification."
+                    "use_for": "Dylib injection via ElleKit (jailbreak environment only). Use when: device is jailbroken (Relaxin/RootHide/Dopamine). Faster than static injection, no binary modification. Note: loads at app startup, not runtime attach."
                 ],
                 [
                     "category": "UI Control (control.*)",
@@ -133,7 +133,7 @@ final class SystemOverviewTool: MCPTool {
                 "If you're stuck after 2 tries, ask the user for clarification",
                 "Don't repeat the same tool with the same params — it's a loop",
                 "Before injecting dylib, call jailbreak.status() to detect environment",
-                "Jailbreak environment (ElleKit): use jailbreak.inject (fast, no reinstall)",
+                "Jailbreak environment (ElleKit): use jailbreak.inject (fast, no reinstall, loads at startup)",
                 "TrollStore + iOS ≤17.0: use injection.enable (ct_bypass runtime)",
                 "TrollStore + iOS 17.0.1+: use injection.static (static injection)",
                 "iOS 17+: ct_bypass is broken on TrollStore — use static or jailbreak.inject"
@@ -581,7 +581,7 @@ final class JailbreakStatusTool: MCPTool {
 final class JailbreakInjectTool: MCPTool {
     let definition = ToolDefinition(
         name: "jailbreak.inject",
-        summary: "Runtime dylib injection via ElleKit (jailbreak only). Use for: inject dylib into app WITHOUT modifying binary (faster, no reinstall). Only works on jailbroken devices (Relaxin/RootHide/Dopamine). Don't use for: non-jailbroken devices — use injection.enable instead. Safety: cannot inject system apps.",
+        summary: "Dylib injection via ElleKit (jailbreak only). Use for: inject dylib into app WITHOUT modifying binary (faster, no reinstall). ElleKit loads dylib at app startup (not runtime attach). Only works on jailbroken devices (Relaxin/RootHide/Dopamine). Don't use for: non-jailbroken devices — use injection.enable instead. Safety: cannot inject system apps. Note: restart target app to take effect.",
         parameters: [
             "bundle_id": "Target app bundle_id (e.g. com.xingin.discover for Xiaohongshu). System apps are blocked for safety.",
             "dylib_path": "Path to the dylib file to inject (e.g. /var/mobile/Containers/Data/Application/.../Documents/MyDylib.dylib)",
