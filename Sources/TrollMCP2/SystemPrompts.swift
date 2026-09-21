@@ -160,7 +160,7 @@ final class SystemPrompts {
                - Search by Chinese synonyms: tool_search("截图") matches screenshot-related tools
                - After tool_search returns tools, they're auto-approved — call them directly next turn
                - Don't search for tools you already know — that's a waste
-               """,
+            """,
             extraCoreTools: []),
         Prompt(
             id: "developer",
