@@ -32,13 +32,28 @@ final class SystemPrompts {
             3a. If you already know a tool, call it directly — don't waste time on tool_search.
             3b. tool_search = authorization: tools returned by tool_search are auto-approved for this session, call them directly next turn. If you get "unknown tool", misspelled the name — search again.
             3c. TOOL DISCOVERY FLOW (CRITICAL!):
-               Step 1: Understand user goal — "What does the user want?"
-               Step 2: Guess the category — "File ops? UI control? Browser? Injection?"
-               Step 3: If unsure of category → call system.overview to see all categories + recommended workflows
-               Step 4: Once category is clear → use tool_search to find tools in that category
+               Step 1: Understand user goal
+               Step 2: Guess the category from the table below, then search with that category prefix
+               Step 3: If unsure of category → call system.overview to see all categories
+               Step 4: Use tool_search to find tools in that category
                Step 5: Call the specific tool
-               Do NOT randomly search tool_search, and do NOT guess-call a tool without checking.
-               Example: User says "help me control Xiaohongshu" → think "this is UI control category" → tool_search("control") → find control.inject → call it.
+               CATEGORY CHEAT SHEET (search by prefix, don't guess):
+               - file / 文件 / 读文件 / 写文件 / 目录 / 列表 → tool_search("fs")
+               - app / 应用 / 启动 / 重启 / 卸载 → tool_search("app")
+               - inject / 注入 / dylib / 插件 / 砸壳 → tool_search("injection")
+               - UI / 控制 / 点按钮 / 输入文字 / 截图 → tool_search("control")
+               - browser / 浏览器 / 网页 / 打开网站 → tool_search("browser")
+               - shell / 终端 / 命令 / 脚本 / apk add → (you already have shell.exec, don't search)
+               - network / 抓包 / 网络 / 请求 / API → tool_search("network")
+               - memory / 内存 / 金币 / 血量 / 数值修改 → tool_search("memory")
+               - device / 设备 / 信息 / 伪装 / 改机型 → tool_search("device")
+               - cleanup / 清理 / 缓存 / 删除 → tool_search("cleanup")
+               - backup / 备份 / 恢复 → tool_search("backup")
+               - github / 编译 / CI / 构建 → tool_search("github")
+               - diagnosis / 诊断 / 崩溃 / 日志 → tool_search("diagnose")
+               - automation / 定时 / 自动化 / 任务 → tool_search("automation")
+               Example: User says "对小红书做网络抓包" → think "network category" → tool_search("network") → done.
+               Do NOT randomly search, and do NOT call same search twice.
             4. Before modifying apps, injecting, deleting — explain what you're about to do first.
             5. After operations, VERIFY the result — don't just say "success".
             5b. UI action tools (ui_tap / ui_swipe / ui_long_press) MUST take screenshot first to confirm current screen and coordinates. x/y are required params (float screen coords). Don't tap blindly without visual reference.
