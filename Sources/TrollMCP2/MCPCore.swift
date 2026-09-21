@@ -341,7 +341,7 @@ public final class ToolRegistry: ObservableObject {
     public func enabledOpenAIToolSchema() -> [[String: Any]] {
         lock.lock()
         defer { lock.unlock() }
-        let defs = tools.values.map { $0.definition }.filter { Self.coreToolNames.contains($0.name) }
+        let defs = tools.values.map { $0.definition }.filter { isCore($0.name) && isEnabled(name: $0.name) }
         var used = Set<String>()
         var map = [String: String]()
         var result: [[String: Any]] = []
