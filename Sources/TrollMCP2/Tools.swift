@@ -23,6 +23,8 @@ final class ArtifactWriteTextTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.write_text",
         summary: "Write a text file to the workspace. Use for: create new file, save text results. Don't use for: write to app container (use container.write_text), edit existing file (use fs.edit). Example: user says '把这个结果保存成文件' → write to workspace.",
+        parameters: ["path": "File path", "content": "File content"]
+    )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["path"] as? String,

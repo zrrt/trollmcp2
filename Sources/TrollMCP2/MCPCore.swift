@@ -863,7 +863,6 @@ public final class ToolRegistry: ObservableObject {
         register(AppCacheClearTool())
         // register(AppOpenTool())  // 合并到 app.start（多级策略更可靠），重复
         register(AppOpenAndInputTool())
-        register(AppsControlTool())
         register(AppDepsTool())
         // register(WeChatPrepareMessageTool())  // 去掉，半自动粘贴没用
 

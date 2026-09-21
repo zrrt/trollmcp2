@@ -250,6 +250,7 @@ final class AutomationSetEnabledTool: MCPTool {
 
 final class ModelAuthenticationTool: MCPTool {
     let definition = ToolDefinition(name: "model.authentication", summary: "Check AI model authentication status. Use for: verify API key is configured correctly. Don't use for: switch model (use model.selectedProfileID), update model settings (use model.update). Example: user says '检查一下模型 API key 对不对' → check auth.",
+        parameters: [:])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let config = ModelStore.shared.defaultConfig else {
             throw MCPError.failed("no model configured")

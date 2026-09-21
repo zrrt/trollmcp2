@@ -732,7 +732,7 @@ struct ChatView: View {
                 }
             }
             if !ocrTexts.isEmpty {
-                text = text + "\n\n" + ocrTexts.joined(separator: "\n\n")
+                inputText = inputText + "\n\n" + ocrTexts.joined(separator: "\n\n")
                 imagesToSend = [] // 去掉图片，只发文字
                 showToast("🔍 已自动 OCR 识别图片文字")
             }

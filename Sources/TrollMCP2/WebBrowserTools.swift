@@ -82,6 +82,8 @@ struct BrowserSubmitTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.submit",
         summary: "Submit a web form (click submit button). Use for: submit a filled-in form on a webpage. Don't use for: fill form fields (use browser.fill_form), click random button (use browser.eval). Prerequisite: first use browser.snapshot to get element idx. Example: user says '提交搜索' → submit form.",
+        parameters: ["idx": "Element index from snapshot"]
+    )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let idx = params["idx"] as? Int ?? (params["idx"] as? String).flatMap({ Int($0) }) else {
             throw MCPError.invalidParams("browser.submit 需要整数 idx 参数")
@@ -153,6 +155,8 @@ struct BrowserClickTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.click",
         summary: "Click a web page element (button/link). Use for: click buttons, links on a webpage. Don't use for: submit form (use browser.submit), type text (use browser.type). Prerequisite: first use browser.snapshot to get element idx. Example: user says '点这个登录按钮' → click element.",
+        parameters: ["idx": "Element index from snapshot"]
+    )
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let idx = params["idx"] as? Int ?? (params["idx"] as? String).flatMap({ Int($0) }) else {
             throw MCPError.invalidParams("browser.click 需要整数 idx 参数")
