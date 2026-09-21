@@ -483,6 +483,10 @@ public final class ToolRegistry: ObservableObject {
             let sumL = def.summary.lowercased()
             var score = 0
             if !q.isEmpty {
+                // v3.1.0: 类别前缀匹配——搜 "browser" 就返回所有 browser.* 工具
+                if nameL.hasPrefix(q + ".") || nameL.hasPrefix(q + "_") {
+                    score += 10  // 类别匹配权重最高
+                }
                 if nameL.contains(q) { score += 3 }
                 if sumL.contains(q) { score += 2 }
                 // 简单分词：每个词命中加分
