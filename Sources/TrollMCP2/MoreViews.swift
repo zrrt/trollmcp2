@@ -842,6 +842,22 @@ struct DeveloperInstructionsView: View {
             .padding(.vertical, 8)
 
             List {
+                // 破甲测试说明卡
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("破甲测试专用", systemImage: "hammer.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.orange)
+                        Text("这里的模型破甲指令会作为补充提示词注入 AI，适合做破甲、越狱、注入、绕过等高级测试任务。")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("选「开发者模式」系统指令 + 这里的破甲指令 = 最强的破甲测试组合。")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+
                 if items.isEmpty {
                     Section {
                         Text(L10n.t("ui_136"))
@@ -851,20 +867,19 @@ struct DeveloperInstructionsView: View {
                     ForEach(items) { item in
                         VStack(alignment: .leading, spacing: 4) {
                             HStack(spacing: 8) {
+                                // 开关按钮
+                                Button(action: { toggleEnabled(item) }) {
+                                    Image(systemName: item.enabled ? "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 22))
+                                        .foregroundColor(item.enabled ? .tmCyan : Color(.systemGray4))
+                                }
+                                .buttonStyle(BorderlessButtonStyle())
+
                                 Text(item.name)
                                     .font(.body)
                                     .foregroundColor(item.enabled ? .primary : .secondary)
-                                if item.isDefault {
-                                    Text(L10n.t("ui_144"))
-                                        .font(.caption2)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(Color.blue.opacity(0.15))
-                                        .foregroundColor(.blue)
-                                        .cornerRadius(6)
-                                }
                                 Spacer()
-                                // v2.9.24：一键复制按钮（无需长按）
+                                // 一键复制按钮
                                 Button(action: { copyItem(item) }) {
                                     Image(systemName: copiedName == item.name ? "checkmark" : "doc.on.doc")
                                         .font(.subheadline)
@@ -884,11 +899,6 @@ struct DeveloperInstructionsView: View {
                             editing = DevInstrEditorPayload(name: item.name, content: item.content)
                         }
                         .contextMenu {
-                            if !item.isDefault {
-                                Button(action: { makeDefault(item) }) {
-                                    Label("设为默认（注入 AI）", systemImage: "checkmark.seal.fill")
-                                }
-                            }
                             Button(action: { copyItem(item) }) {
                                 Label("复制内容", systemImage: "doc.on.doc")
                             }
@@ -903,14 +913,9 @@ struct DeveloperInstructionsView: View {
                         }
                     }
                     Section {
-                        Toggle("AI 请求注入默认指令", isOn: Binding(
-                            get: { DeveloperInstructionStore.shared.defaultInjectionContent() != nil },
-                            set: { _ in }
-                        ))
-                        .accentColor(.tmCyan)
-                        .disabled(true)
-                    } footer: {
-                        Text(L10n.t("ui_146"))
+                        Text("所有开启的指令都会合并后注入 AI 请求。系统指令先注入，破甲指令后注入。")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
                 }
             }
@@ -960,6 +965,11 @@ struct DeveloperInstructionsView: View {
                 withAnimation { copiedName = nil }
             }
         }
+    }
+
+    private func toggleEnabled(_ item: DeveloperInstructionStore.Item) {
+        DeveloperInstructionStore.shared.setEnabled(name: item.name, enabled: !item.enabled)
+        reload()
     }
 
     private func remove(_ item: DeveloperInstructionStore.Item) {
