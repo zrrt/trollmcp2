@@ -1298,16 +1298,25 @@ struct MessageBubble: View {
 
             // 🔧✅ 2. 工具调用 + 工具结果（同一个灰色大气泡）
             VStack(alignment: .leading, spacing: 6) {
-                // 工具调用（浅蓝色小气泡，只显示工具名）
-                HStack(spacing: 6) {
-                    Image(systemName: "wrench.and.screwdriver")
-                        .font(.system(size: 12))
-                        .foregroundColor(.blue)
-                    Text("调用工具：\(message.toolName ?? "")")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundColor(.blue)
-                    Spacer()
+                // 工具调用（浅蓝色小气泡，显示工具名 + 参数）
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "wrench.and.screwdriver")
+                            .font(.system(size: 12))
+                            .foregroundColor(.blue)
+                        Text("调用工具：\(message.toolName ?? "")")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.blue)
+                        Spacer()
+                    }
+                    // 参数摘要（紫色，特殊颜色标注）
+                    if let args = message.toolArgs, !args.isEmpty {
+                        Text(args)
+                            .font(.caption2)
+                            .foregroundColor(.purple)
+                            .padding(.leading, 22)
+                    }
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)

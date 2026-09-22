@@ -510,6 +510,8 @@ struct ChatMessage: Codable, Identifiable, Hashable {
     var toolCalls: [ToolCall]?
     var toolCallId: String?
     var toolName: String?
+    /// v3.1.26：工具调用参数摘要（tool 消息专用），UI 里用特殊颜色显示
+    var toolArgs: String? = nil
     /// v2.9.9：多模态附件。存 data URL（如 "data:image/jpeg;base64,..."）。
     /// 发送时若非空，OpenAIClient 把 content 序列化为多模态数组。
     var imageDataURLs: [String]? = nil
@@ -1017,6 +1019,27 @@ final class ConversationStore: ObservableObject {
         return trimmed.replacingOccurrences(of: "\n", with: " ")
     }
 
+    /// v3.1.26：把参数 JSON 转成简短摘要（比如 "url: https://xxx"）
+    /// UI 里用特殊颜色显示，太长就截断
+    static func summarizeArgs(_ argsString: String) -> String? {
+        guard let data = argsString.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        // 只取前 2 个参数，每个值截断到 50 字符
+        let entries = json.prefix(2).map { key, value -> String in
+            let val: String
+            if let s = value as? String {
+                val = s
+            } else {
+                val = "\(value)"
+            }
+            let truncated = val.count > 50 ? String(val.prefix(50)) + "..." : val
+            return "\(key): \(truncated)"
+        }
+        return entries.joined(separator: ", ")
+    }
+
     /// v2.9.31：递归处理一批工具调用。工具在后台线程执行（避免耗时操作阻塞主线程），
     /// 结果经 handleDispatchResult 回主线程继续。
     private func processToolCalls(_ calls: [ToolCall],
@@ -1082,6 +1105,8 @@ final class ConversationStore: ObservableObject {
             }
             var next = toolMessages
             var toolMsg = ChatMessage(role: "tool", content: content, toolCallId: call.id, toolName: call.name)
+            // v3.1.26：存参数摘要，UI 里用特殊颜色显示
+            toolMsg.toolArgs = Self.summarizeArgs(call.arguments)
             // v3.0.2：把思考说明传到 tool 消息里，前端在 toolBubble 顶部显示
             if !thinkText.isEmpty { toolMsg.thinking = thinkText }
             next.append(toolMsg)
