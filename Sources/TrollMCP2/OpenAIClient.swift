@@ -445,8 +445,9 @@ final class OpenAIClient {
             }
             // v3.1.25：同时读取 reasoning_content 存到 thinking（之前被完全忽略了）
             let thinking = (message["reasoning_content"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !text.isEmpty || !thinking.isNilOrEmpty {
-                return .text(text, thinking: thinking?.isEmpty == true ? nil : thinking)
+            let hasThinking = (thinking != nil && !thinking!.isEmpty)
+            if !text.isEmpty || hasThinking {
+                return .text(text, thinking: hasThinking ? thinking : nil)
             }
             return .text("", thinking: nil)
         }
