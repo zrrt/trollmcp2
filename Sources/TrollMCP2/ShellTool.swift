@@ -367,7 +367,7 @@ final class ShellExecTool: MCPTool {
         }
         
         let pattern = parts[1].trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
-        let filePath = parts[2]
+        let filePath = (parts[2] as NSString).expandingTildeInPath
         
         guard fm.fileExists(atPath: filePath) else {
             return [
