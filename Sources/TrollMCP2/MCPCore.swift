@@ -358,9 +358,9 @@ public final class ToolRegistry: ObservableObject {
         "web.search", "web.fetch", "knowledge.search",
         // v3.1.33: 大部分工具已被 shell 代替，只保留 shell 做不到的
         // 已删：device.info（df/free/uname） / workspace.info（pwd） / artifact.*（ls/cat/find）
+        // 已删：github.*（curl 调 API）
         // shell 做不到的：fs.zip（解压） / fs.image_info（图片信息）
         "fs.zip", "fs.image_info",
-        "github.account_status", "github.trigger_build", "github.fetch_runs", "github.download_artifact",
         "model.config", "model.authentication", "model.selected_profile_id",
         "skills.list", "skills.read",   // v2.9.17：技能发现/读取
         "gateway.status", "injection.status", "injection.list", "injection.inspect",   // 查询类
