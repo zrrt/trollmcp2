@@ -275,8 +275,39 @@ final class WebFetchTool: MCPTool {
             task.resume()
         }
         sem.wait()
+        
+        // v3.1.21: web.fetch 失败自动 fallback 到内置浏览器
+        // AI 根本不需要知道这个逻辑，直接调用 web.fetch 就能得到结果
+        if html == nil {
+            AuditLog.shared.log("web.fetch", detail: "直接 fetch 失败，fallback 到内置浏览器: \(urlString)")
+            do {
+                // 1. 用内置浏览器打开网页
+                if let navTool = ToolRegistry.shared.tool(named: "browser.navigate") {
+                    _ = try navTool.invoke(["url": urlString])
+                }
+                // 2. 等 2 秒加载
+                Thread.sleep(forTimeInterval: 2.0)
+                // 3. 读取网页内容
+                if let textTool = ToolRegistry.shared.tool(named: "browser.text") {
+                    let result = try textTool.invoke([:])
+                    if let text = result["text"] as? String, !text.isEmpty {
+                        AuditLog.shared.log("web.fetch", detail: "fallback 成功: \(urlString) → \(text.count) chars")
+                        return [
+                            "url": urlString,
+                            "title": result["title"] as? String ?? "",
+                            "text": String(text.prefix(maxChars)),
+                            "fallback_used": true,
+                            "note": "Direct fetch failed, used built-in browser as fallback"
+                        ]
+                    }
+                }
+            } catch {
+                AuditLog.shared.log("web.fetch", detail: "fallback 也失败: \(error.localizedDescription)")
+            }
+        }
+        
         guard let raw = html else {
-            throw MCPError.failed("fetch failed: \(urlString)")
+            throw MCPError.failed("fetch failed: \(urlString) (direct fetch and browser fallback both failed)")
         }
         // 提取标题 + 正文纯文本
         let title = raw.firstCapture(pattern: "<title[^>]*>(.*?)</title>")?.stripHTMLTags() ?? ""
