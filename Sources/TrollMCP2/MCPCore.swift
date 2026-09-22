@@ -1312,7 +1312,7 @@ final class ToolSearchTool: MCPTool {
         // 单次搜索比 v2.9.165 再省 ~40 token，且信息不减。
         // v3.0.95：加 hint 明确告诉 AI "这些工具你现在就可以调用了"
         let totalTools = ToolRegistry.shared.tools.count
-        let approvedCount = ToolRegistry.shared.approvedTools().count
+        let approvedCount = ToolRegistry.shared.approvedToolNames().count
         var hint = "✅ These tools are now authorized and ready to call directly."
         hint += "\n🔍 Search #\(toolSearchCount) | 📊 Total: \(totalTools) tools | \(approvedCount) approved | \(totalTools - approvedCount) remaining."
         if toolSearchCount >= 3 {
