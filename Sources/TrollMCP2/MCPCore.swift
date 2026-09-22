@@ -214,6 +214,8 @@ public final class ToolRegistry: ObservableObject {
     /// v2.9.22：会话内已授权工具（AI 通过 tool_search 搜索到并决定调用即自动放行，
     /// 无需用户手动开 Toggle）。新会话时清空。
     private var sessionApproved: Set<String> = []
+    /// v3.1.8：tool_search 调用计数——告诉 AI 已经搜了几次
+    private var toolSearchCount: Int = 0
     /// v2.9.26：策略版本号。setEnabled 时递增，通过 @Published 可靠触发
     /// 工具权限策略页刷新（修复 iOS16 List 内 Toggle 只靠 objectWillChange.send()
     /// 刷新不可靠、开关点了没反应/弹回的问题）。
@@ -1298,6 +1300,7 @@ final class ToolSearchTool: MCPTool {
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let query = (params["query"] as? String) ?? ""
         let limit = (params["limit"] as? NSNumber)?.intValue ?? 0
+        toolSearchCount += 1
         let hits = ToolRegistry.shared.searchTools(query: query, limit: limit)
         // v2.9.31：去掉敏感工具区分——搜索到即自动授权本会话（无弹窗，AI 自由调用）
         for h in hits {
@@ -1311,9 +1314,12 @@ final class ToolSearchTool: MCPTool {
         let totalTools = ToolRegistry.shared.tools.count
         let approvedCount = ToolRegistry.shared.approvedTools().count
         var hint = "✅ These tools are now authorized and ready to call directly."
-        hint += "\n📊 Total: \(totalTools) tools available | \(approvedCount) already approved | \(totalTools - approvedCount) remaining."
+        hint += "\n🔍 Search #\(toolSearchCount) | 📊 Total: \(totalTools) tools | \(approvedCount) approved | \(totalTools - approvedCount) remaining."
+        if toolSearchCount >= 3 {
+            hint += "\n⚠️ You've searched \(toolSearchCount) times. Stop searching and use what you have. If you can't find the right tool, tell the user what you can do."
+        }
         if hits.isEmpty {
-            hint += "\n⚠️ No new tools found for '\(query)'. You've seen all relevant tools."
+            hint += "\n⚠️ No new tools found for '\(query)'."
         }
         for h in hits.prefix(5) {
             if let n = h["name"], let s = h["summary"] {
