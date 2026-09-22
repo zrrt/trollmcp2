@@ -1320,55 +1320,60 @@ final class ToolSearchTool: MCPTool {
         var isCategoryList = false
         
         if ToolSearchTool.searchCount == 1 {
-            // v3.1.29: 第一次调用返回分类列表（文件夹式）
-            // 根据工具名前缀自动推断分类，不用每个工具都标 category
+            // v3.1.30: 第一次调用返回大分类列表（第一层文件夹）
             let allTools = ToolRegistry.shared.definitions
             var categoryMap: [String: Int] = [:]
             for def in allTools {
-                // 先看有没有标 category
                 var cat = def.category
-                // 如果没标（misc），根据工具名前缀推断
                 if cat == "misc" || cat.isEmpty {
-                    let prefix = def.name.components(separatedBy: ".").first ?? "misc"
-                    cat = prefix
+                    cat = def.name.components(separatedBy: ".").first ?? "misc"
                 }
                 categoryMap[cat, default: 0] += 1
             }
-            // 返回分类列表
             hits = categoryMap.map { cat, count in
                 return ["name": "📁 \(cat)", "summary": "\(count) 个工具，搜索 '\(cat)' 查看详情"]
             }
-            // 按工具数量排序
             hits.sort { ($0["summary"] ?? "").count > ($1["summary"] ?? "").count }
             isCategoryList = true
-            // 第一次调用自动授权全部工具
             for def in allTools {
                 ToolRegistry.shared.approveForSession(def.name)
             }
-        } else if !query.isEmpty,
-                  let matchedCat = ToolRegistry.shared.definitions.first(where: { def in
-                      var cat = def.category
-                      if cat == "misc" || cat.isEmpty {
-                          cat = def.name.components(separatedBy: ".").first ?? "misc"
-                      }
-                      return cat.lowercased() == query.lowercased()
-                  }) != nil {
-            // v3.1.29: 如果 AI 传的是分类名，返回该分类下的所有工具
-            let catTools = ToolRegistry.shared.definitions.filter { def in
+        } else if !query.isEmpty {
+            // v3.1.30: 判断是不是大分类
+            let allTools = ToolRegistry.shared.definitions
+            let catTools = allTools.filter { def in
                 var cat = def.category
                 if cat == "misc" || cat.isEmpty {
                     cat = def.name.components(separatedBy: ".").first ?? "misc"
                 }
                 return cat.lowercased() == query.lowercased()
             }
-            hits = catTools.map { def in
-                let shortDesc = def.summary.components(separatedBy: ". Use for:").first ?? def.summary
-                let trimmed = shortDesc.count > 60 ? String(shortDesc.prefix(60)) + "..." : shortDesc
-                return ["name": def.name, "summary": trimmed]
-            }
-            // 授权该分类下的所有工具
-            for def in catTools {
-                ToolRegistry.shared.approveForSession(def.name)
+            
+            if catTools.count > 15 {
+                // 大分类下工具太多，拆成子分类（根据工具名前缀）
+                var subCategoryMap: [String: Int] = [:]
+                for def in catTools {
+                    let prefix = def.name.components(separatedBy: ".").first ?? "misc"
+                    subCategoryMap[prefix, default: 0] += 1
+                }
+                hits = subCategoryMap.map { subcat, count in
+                    return ["name": "📁 \(subcat)", "summary": "\(count) 个工具，搜索 '\(subcat)' 查看详情"]
+                }
+                hits.sort { ($0["summary"] ?? "").count > ($1["summary"] ?? "").count }
+                isCategoryList = true
+                for def in catTools {
+                    ToolRegistry.shared.approveForSession(def.name)
+                }
+            } else {
+                // 工具不多，直接返回具体工具
+                hits = catTools.map { def in
+                    let shortDesc = def.summary.components(separatedBy: ". Use for:").first ?? def.summary
+                    let trimmed = shortDesc.count > 60 ? String(shortDesc.prefix(60)) + "..." : shortDesc
+                    return ["name": def.name, "summary": trimmed]
+                }
+                for def in catTools {
+                    ToolRegistry.shared.approveForSession(def.name)
+                }
             }
         } else {
             // 按关键词搜索
