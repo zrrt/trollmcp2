@@ -1310,13 +1310,26 @@ final class ToolSearchTool: MCPTool {
         // v3.1.20: 第一次调用 tool_search 时，返回全部工具名+一句话介绍
         // AI 一次看完全部，不用反复搜
         // v3.1.24: 改成返回全部工具（不管什么模式），不是只返回 enabledDefinitions
+        // v3.1.25: 第一次调用只返回简短描述（第一句话），不返回完整 Use for/Don't use for
+        //          避免 210 个工具太长导致 AI 陷入死循环
         var hits: [[String: String]]
         if ToolSearchTool.searchCount == 1 {
-            // 第一次：返回全部工具（不管什么模式都全量加载）
+            // 第一次：返回全部工具（不管什么模式都全量加载），但只返回简短描述
             let allTools = ToolRegistry.shared.definitions
-            hits = allTools.map { ["name": $0.name, "summary": $0.summary] }
+            hits = allTools.map { def in
+                // 截取 summary 的第一句话（到第一个 . 或 \n 为止）
+                let shortSummary: String
+                if let range = def.summary.range(of: ". ") {
+                    shortSummary = String(def.summary[..<range.lowerBound]) + "."
+                } else if let newlineRange = def.summary.range(of: "\n") {
+                    shortSummary = String(def.summary[..<newlineRange.lowerBound])
+                } else {
+                    shortSummary = def.summary
+                }
+                return ["name": def.name, "summary": shortSummary]
+            }
         } else {
-            // 之后：按关键词搜索
+            // 之后：按关键词搜索，返回完整描述
             hits = ToolRegistry.shared.searchTools(query: query, limit: limit)
         }
         // v3.1.9: 不自动授权全部搜到的工具——按需加载，AI 实际调用时才授权
