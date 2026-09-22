@@ -1291,51 +1291,95 @@ struct MessageBubble: View {
 
     private var toolBubble: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // 📦 折叠头部——只显示一行，用户点一下才展开
-            Button(action: { withAnimation { expanded.toggle() } }) {
+            // 📝 1. 思考过程（独立折叠）
+            if let thinking = message.thinking, !thinking.isEmpty {
+                thinkingMiniBubble(thinking)
+            }
+
+            // 🔧 2. 工具调用（独立折叠，只显示工具名）
+            toolCallMiniBubble
+
+            // ✅ 3. 工具结果（独立折叠）
+            toolResultMiniBubble
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(14)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .strokeBorder(isSelected ? Color.blue : Color.clear, lineWidth: 2)
+        )
+    }
+
+    // 📝 思考过程迷你气泡
+    private func thinkingMiniBubble(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button(action: { withAnimation { toggleThinking() } }) {
                 HStack(spacing: 6) {
-                    Image(systemName: message.isError ? "exclamationmark.circle" : "checkmark.circle")
-                        .font(.system(size: 16))
-                        .foregroundColor(message.isError ? .red : .green)
-                    Text("工具：\(message.toolName ?? "")")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-                    Spacer()
-                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                    Image(systemName: "brain.head.profile")
+                        .font(.system(size: 12))
+                        .foregroundColor(.orange)
+                    Text(thinkingExpanded ? "思考过程 ▴" : "思考过程 ▾")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .fontWeight(.medium)
+                        .foregroundColor(.orange)
+                    Spacer()
                 }
             }
             .buttonStyle(.plain)
-
-            // 展开后才显示详细内容
-            if expanded {
-                // 🟠 AI 思考（只有后端传了 thinking 才显示）
-                if let thinking = message.thinking, !thinking.isEmpty {
-                    HStack(spacing: 6) {
-                        Image(systemName: "brain.head.profile")
-                            .font(.system(size: 12))
-                            .foregroundColor(.orange)
-                        Text(thinking)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
+            if thinkingExpanded {
+                Text(text)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.orange.opacity(0.08))
-                    .cornerRadius(12)
-                }
+                    .cornerRadius(8)
+            }
+        }
+    }
 
-                // ✅ 工具结果
+    // 🔧 工具调用迷你气泡
+    private var toolCallMiniBubble: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "wrench.and.screwdriver")
+                .font(.system(size: 12))
+                .foregroundColor(.blue)
+            Text("调用工具：\(message.toolName ?? "")")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.blue)
+            Spacer()
+        }
+    }
+
+    // ✅ 工具结果迷你气泡
+    private var toolResultMiniBubble: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button(action: { withAnimation { expanded.toggle() } }) {
+                HStack(spacing: 6) {
+                    Image(systemName: message.isError ? "exclamationmark.circle" : "checkmark.circle")
+                        .font(.system(size: 12))
+                        .foregroundColor(message.isError ? .red : .green)
+                    Text(expanded ? "工具结果 ▴" : "工具结果 ▾")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(message.isError ? .red : .green)
+                    Spacer()
+                }
+            }
+            .buttonStyle(.plain)
+            if expanded {
                 Text(message.content)
                     .font(.system(.caption, design: .monospaced))
                     .foregroundColor(.secondary)
                     .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color(.tertiarySystemBackground))
                     .cornerRadius(8)
 
-                // v3.1.6: 工具结果里的文件 → 可点击卡片，点了直接 QuickLook 预览
+                // v3.1.6: 工具结果里的文件 → 可点击卡片
                 let files = FilePathExtractor.extractFiles(from: message.content)
                 if !files.isEmpty {
                     VStack(spacing: 6) {
@@ -1346,14 +1390,6 @@ struct MessageBubble: View {
                 }
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(14)
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(isSelected ? Color.blue : Color.clear, lineWidth: 2)
-        )
     }
 }
 
