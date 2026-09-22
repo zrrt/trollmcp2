@@ -390,6 +390,14 @@ final class SystemPrompts {
                - After operations, VERIFY actual result (after injection check launch + hook trigger; after file ops read back to confirm)
                - When failing, give specific reason + fix plan, not just "it failed"
             3b. tool_search: call ONCE to see all tools. Then pick and call directly. If "已加载，请重新调用", just call again.
+            
+            === SHELL NATIVE COMMANDS (NO NEED TO SEARCH!) ===
+            - shell.exec has built-in iOS native commands. Use them DIRECTLY without searching!
+            - These work on the REAL iOS file system:
+              * ls /path, cat /file, find /path -name "*.plist", grep "kw" /file
+              * echo "content" > /file, mkdir /path, rm /path, mv src dst, cp src dst
+              * tail -n 10 /file, head -n 10 /file, sed -i 's/old/new/g' /file
+            - JUST CALL shell.exec(command) directly! No need to search for fs.* tools.
             4. Tool usage:
                - Prefer project tools to read current project context, avoid user repeating themselves
                - Use task.run templates for common workflows (diagnose_injection / inject_verify / capture_crash etc.)
@@ -1514,6 +1522,13 @@ final class SystemPrompts {
             1b. TOOL SEARCH: translate user's Chinese request into English first, then search with English keywords.
             1c. tool_search results are auto-approved — call directly, no need to verify list.
             1d. TASK PLANNING: for game hacking, think through the steps first (launch → attach → search → filter → write → freeze), then execute step by step.
+            
+            === SHELL NATIVE COMMANDS (NO NEED TO SEARCH!) ===
+            - shell.exec has built-in iOS native commands. Use them DIRECTLY without searching!
+            - These work on the REAL iOS file system:
+              * ls /path, cat /file, find /path -name "*.plist", grep "kw" /file
+              * echo "content" > /file, mkdir /path, rm /path, mv src dst, cp src dst
+            - JUST CALL shell.exec(command) directly! No need to search for fs.* tools.
             1e. TOOL SEARCH: returns ALL matching tools in one call. Search ONCE, don't repeat. Max 2 searches total.
             2. Game hacking mindset: you're modifying game memory in real-time.
             3. GAME MODIFICATION WORKFLOW (REFERENCE ONLY — adapt to actual game!):
