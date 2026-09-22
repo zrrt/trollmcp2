@@ -208,14 +208,14 @@ public final class ToolRegistry: ObservableObject {
     public static let shared = ToolRegistry()
 
     private var tools: [String: MCPTool] = [:]
+    /// v3.1.8：公开工具总数
+    public var toolCount: Int { tools.count }
     private var apiNameToOriginal: [String: String] = [:]
     private let lock = NSLock()
     private let disabledKey = "trollmcp2.disabled_tools"
     /// v2.9.22：会话内已授权工具（AI 通过 tool_search 搜索到并决定调用即自动放行，
     /// 无需用户手动开 Toggle）。新会话时清空。
     private var sessionApproved: Set<String> = []
-    /// v3.1.8：tool_search 调用计数——告诉 AI 已经搜了几次
-    private var toolSearchCount: Int = 0
     /// v2.9.26：策略版本号。setEnabled 时递增，通过 @Published 可靠触发
     /// 工具权限策略页刷新（修复 iOS16 List 内 Toggle 只靠 objectWillChange.send()
     /// 刷新不可靠、开关点了没反应/弹回的问题）。
@@ -1292,6 +1292,8 @@ public final class ToolRegistry: ObservableObject {
 /// 命中后 App 会把对应工具的完整 schema 注入下一轮请求，从而
 /// 不必把 80+ 工具全量塞进每次请求（学 OpenClaw / OpenAI Tool Search）。
 final class ToolSearchTool: MCPTool {
+    // v3.1.8：tool_search 调用计数——告诉 AI 已经搜了几次
+    static var searchCount: Int = 0
     let definition = ToolDefinition(
         name: "tool_search",
         summary: "Search for a tool by keyword. Use for: you need a tool but don't know its exact name, discover new tools. Don't use for: you already know the tool name (call it directly), list all tools (use system.overview). Example: user says '帮我抓包' → search 'network capture' → find network.capture.",
@@ -1300,7 +1302,7 @@ final class ToolSearchTool: MCPTool {
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let query = (params["query"] as? String) ?? ""
         let limit = (params["limit"] as? NSNumber)?.intValue ?? 0
-        toolSearchCount += 1
+        ToolSearchTool.searchCount += 1
         let hits = ToolRegistry.shared.searchTools(query: query, limit: limit)
         // v2.9.31：去掉敏感工具区分——搜索到即自动授权本会话（无弹窗，AI 自由调用）
         for h in hits {
@@ -1311,12 +1313,12 @@ final class ToolSearchTool: MCPTool {
         // summary 改 desc 短摘要（30 字足够 AI 判断用途）、_noMessage 省顶层 message。
         // 单次搜索比 v2.9.165 再省 ~40 token，且信息不减。
         // v3.0.95：加 hint 明确告诉 AI "这些工具你现在就可以调用了"
-        let totalTools = ToolRegistry.shared.tools.count
+        let totalTools = ToolRegistry.shared.toolCount
         let approvedCount = ToolRegistry.shared.approvedToolNames().count
         var hint = "✅ These tools are now authorized and ready to call directly."
-        hint += "\n🔍 Search #\(toolSearchCount) | 📊 Total: \(totalTools) tools | \(approvedCount) approved | \(totalTools - approvedCount) remaining."
-        if toolSearchCount >= 3 {
-            hint += "\n⚠️ You've searched \(toolSearchCount) times. Stop searching and use what you have. If you can't find the right tool, tell the user what you can do."
+        hint += "\n🔍 Search #\(ToolSearchTool.searchCount) | 📊 Total: \(totalTools) tools | \(approvedCount) approved | \(totalTools - approvedCount) remaining."
+        if ToolSearchTool.searchCount >= 3 {
+            hint += "\n⚠️ You've searched \(ToolSearchTool.searchCount) times. Stop searching and use what you have. If you can't find the right tool, tell the user what you can do."
         }
         if hits.isEmpty {
             hint += "\n⚠️ No new tools found for '\(query)'."
