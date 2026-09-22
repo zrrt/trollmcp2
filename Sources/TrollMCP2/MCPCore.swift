@@ -1321,13 +1321,18 @@ final class ToolSearchTool: MCPTool {
         
         if ToolSearchTool.searchCount == 1 {
             // v3.1.29: 第一次调用返回分类列表（文件夹式）
-            // 像文件夹一样，AI 先选分类，再看该分类下的工具
-            // 这样每次只显示几十个工具，小模型也能处理
+            // 根据工具名前缀自动推断分类，不用每个工具都标 category
             let allTools = ToolRegistry.shared.definitions
-            // 按 category 分组
             var categoryMap: [String: Int] = [:]
             for def in allTools {
-                categoryMap[def.category, default: 0] += 1
+                // 先看有没有标 category
+                var cat = def.category
+                // 如果没标（misc），根据工具名前缀推断
+                if cat == "misc" || cat.isEmpty {
+                    let prefix = def.name.components(separatedBy: ".").first ?? "misc"
+                    cat = prefix
+                }
+                categoryMap[cat, default: 0] += 1
             }
             // 返回分类列表
             hits = categoryMap.map { cat, count in
@@ -1342,10 +1347,20 @@ final class ToolSearchTool: MCPTool {
             }
         } else if !query.isEmpty,
                   let matchedCat = ToolRegistry.shared.definitions.first(where: { def in
-                      def.category.lowercased() == query.lowercased()
-                  })?.category {
+                      var cat = def.category
+                      if cat == "misc" || cat.isEmpty {
+                          cat = def.name.components(separatedBy: ".").first ?? "misc"
+                      }
+                      return cat.lowercased() == query.lowercased()
+                  }) != nil {
             // v3.1.29: 如果 AI 传的是分类名，返回该分类下的所有工具
-            let catTools = ToolRegistry.shared.definitions.filter { $0.category == matchedCat }
+            let catTools = ToolRegistry.shared.definitions.filter { def in
+                var cat = def.category
+                if cat == "misc" || cat.isEmpty {
+                    cat = def.name.components(separatedBy: ".").first ?? "misc"
+                }
+                return cat.lowercased() == query.lowercased()
+            }
             hits = catTools.map { def in
                 let shortDesc = def.summary.components(separatedBy: ". Use for:").first ?? def.summary
                 let trimmed = shortDesc.count > 60 ? String(shortDesc.prefix(60)) + "..." : shortDesc
