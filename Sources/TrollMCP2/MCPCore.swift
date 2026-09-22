@@ -1299,14 +1299,25 @@ final class ToolSearchTool: MCPTool {
     static var searchCount: Int = 0
     let definition = ToolDefinition(
         name: "tool_search",
-        summary: "Search for a tool by keyword. Use for: you need a tool but don't know its exact name, discover new tools. Don't use for: you already know the tool name (call it directly), list all tools (use system.overview). Example: user says '帮我抓包' → search 'network capture' → find network.capture.",
+        summary: "Search for tools. Use for: you need a tool but don't know its exact name. First call returns ALL tools (name + one-line desc) so you can see everything at once. Subsequent calls search by keyword. Don't use for: you already know the tool name (call it directly). Example: user says '帮我抓包' → first call shows all tools → find network.capture.",
         parameters: ["query": "Search keyword (e.g. '抓包', 'injection', 'file')", "limit": "Max results (default 8)"], verified: true, category: "system")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let query = (params["query"] as? String) ?? ""
         let limit = (params["limit"] as? NSNumber)?.intValue ?? 0
         ToolSearchTool.searchCount += 1
-        let hits = ToolRegistry.shared.searchTools(query: query, limit: limit)
+        
+        // v3.1.20: 第一次调用 tool_search 时，返回全部工具名+一句话介绍
+        // AI 一次看完全部，不用反复搜
+        var hits: [[String: String]]
+        if ToolSearchTool.searchCount == 1 {
+            // 第一次：返回全部工具
+            let allTools = ToolRegistry.shared.enabledDefinitions
+            hits = allTools.map { ["name": $0.name, "summary": $0.summary] }
+        } else {
+            // 之后：按关键词搜索
+            hits = ToolRegistry.shared.searchTools(query: query, limit: limit)
+        }
         // v3.1.9: 不自动授权全部搜到的工具——按需加载，AI 实际调用时才授权
         // 这样只加载要用的那个工具的完整 schema，不加载全部
         // for h in hits {
@@ -1327,13 +1338,15 @@ final class ToolSearchTool: MCPTool {
         if hits.isEmpty {
             hint += "\n⚠️ No new tools found for '\(query)'."
         }
-        for h in hits.prefix(5) {
+        // v3.1.20: 第一次调用显示全部工具，之后只显示前 5 个
+        let showCount = (ToolSearchTool.searchCount == 1) ? hits.count : min(5, hits.count)
+        for h in hits.prefix(showCount) {
             if let n = h["name"], let s = h["summary"] {
                 hint += "\n  - \(n): \(String(s.prefix(40)))"
             }
         }
-        if hits.count > 5 {
-            hint += "\n  ... and \(hits.count - 5) more"
+        if hits.count > showCount {
+            hint += "\n  ... and \(hits.count - showCount) more"
         }
         return [
             "_noMessage": true,
