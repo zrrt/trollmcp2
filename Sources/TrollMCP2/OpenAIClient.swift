@@ -366,11 +366,12 @@ final class OpenAIClient {
         return preferred
     }
 
-    /// v2.9.20：推理强度名。0=low 1=medium 2=high
+    /// v2.9.20：推理强度名。0=low 1=medium 2=high 3=none（完全不思考）
     private func reasoningEffortName() -> String {
         switch currentReasoningLevel {
         case 0: return "low"
         case 2: return "high"
+        case 3: return "none"
         default: return "medium"
         }
     }

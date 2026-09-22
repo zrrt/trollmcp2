@@ -11,6 +11,8 @@ struct ChatView: View {
     // v2.9.234：推理强度/智能搜索持久化(@AppStorage)——之前纯@State,关app重开必丢
     @AppStorage("chat_reasoning") private var reasoning = 0   // 0=低 1=中 2=高
     @AppStorage("chat_smart_search") private var smartSearch = true
+    // v3.1.25：思考模型总开关——关闭时完全不思考，直接回复（reasoning_effort=none）
+    @AppStorage("chat_think_enabled") private var thinkEnabled = true
     @State private var keyboardHeight: CGFloat = 0   // v2.9.234：键盘高度(消息列表跟随上移)
     @State private var attachmentSheet: AttachmentSheet?
     @State private var showModelPicker = false  // v2.9.36：聊天框切换上游模型
@@ -468,7 +470,7 @@ struct ChatView: View {
         guard let cfg = modelStore.defaultConfig else { return }
         if store.selectedId == nil { store.newConversation() }
         inputText = ""
-        store.send(text, using: cfg, reasoningLevel: reasoning, smartSearch: smartSearch)
+        store.send(text, using: cfg, reasoningLevel: thinkEnabled ? reasoning : 3, smartSearch: smartSearch)
     }
 
     private var messageList: some View {
@@ -634,6 +636,10 @@ struct ChatView: View {
                 ChatChip(label: "推理·\(reasoningLabel())", action: {
                     reasoning = (reasoning + 1) % 3
                 }, accent: true, icon: "gauge.with.dots.needle.67percent")
+                .frame(maxWidth: .infinity)
+                ChatChip(label: "思考·\(thinkEnabled ? "开" : "关")", action: {
+                    thinkEnabled.toggle()
+                }, accent: thinkEnabled, icon: "brain")
                 .frame(maxWidth: .infinity)
                 ChatChip(label: "搜索·\(smartSearch ? "开" : "关")", action: {
                     smartSearch.toggle()
