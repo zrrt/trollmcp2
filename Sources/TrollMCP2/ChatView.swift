@@ -976,11 +976,12 @@ struct ChatChip: View {
                 }
                 Text(label)
                     .font(.caption)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
+                    .fixedSize()
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 5)
+            .frame(height: 32)
+            .padding(.horizontal, 8)
             .background(accent ? Color.blue.opacity(0.14) : Color(.systemGray5))
             .foregroundColor(accent ? Color.blue : Color.secondary)
             .overlay(
