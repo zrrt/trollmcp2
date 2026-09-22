@@ -112,6 +112,55 @@ final class ShellExecTool: MCPTool {
             return result
         }
         
+        // 6. mkdir 命令——iOS 原生实现（建目录）
+        if trimmed.hasPrefix("mkdir ") {
+            let result = ShellExecTool.runIOSMkdir(trimmed)
+            AuditLog.shared.log("shell.exec (ios mkdir)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
+        // 7. rm 命令——iOS 原生实现（删文件/目录）
+        if trimmed.hasPrefix("rm ") {
+            let result = ShellExecTool.runIOSRm(trimmed)
+            AuditLog.shared.log("shell.exec (ios rm)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
+        // 8. mv 命令——iOS 原生实现（移动/重命名）
+        if trimmed.hasPrefix("mv ") {
+            let result = ShellExecTool.runIOSMv(trimmed)
+            AuditLog.shared.log("shell.exec (ios mv)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
+        // 9. cp 命令——iOS 原生实现（复制）
+        if trimmed.hasPrefix("cp ") {
+            let result = ShellExecTool.runIOCp(trimmed)
+            AuditLog.shared.log("shell.exec (ios cp)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
+        // 10. tail 命令——iOS 原生实现（看文件末尾）
+        if trimmed.hasPrefix("tail ") {
+            let result = ShellExecTool.runIOSTail(trimmed)
+            AuditLog.shared.log("shell.exec (ios tail)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
+        // 11. head 命令——iOS 原生实现（看文件开头）
+        if trimmed.hasPrefix("head ") {
+            let result = ShellExecTool.runIOSHead(trimmed)
+            AuditLog.shared.log("shell.exec (ios head)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
+        // 12. sed 命令——iOS 原生实现（替换内容）
+        if trimmed.hasPrefix("sed ") {
+            let result = ShellExecTool.runIOSSed(trimmed)
+            AuditLog.shared.log("shell.exec (ios sed)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
         // v3.0.41：iSH 为唯一引擎（ios_system 已删除）。初始化失败直接报错，不再回退。
         let (output, exitCode, timedOut) = ISHEngine.exec(command, timeout: timeout)
         
@@ -468,6 +517,193 @@ final class ShellExecTool: MCPTool {
                 "stdout": "Write failed: \(error.localizedDescription)",
                 "ios_native": true
             ]
+        }
+    }
+    
+    /// v3.1.32: iOS 原生 mkdir 命令——建目录
+    private static func runIOSMkdir(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        
+        guard parts.count >= 2 else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: mkdir <path>", "ios_native": true]
+        }
+        
+        let path = (parts[1] as NSString).expandingTildeInPath
+        
+        do {
+            try fm.createDirectory(atPath: path, withIntermediateDirectories: true, attributes: nil)
+            return ["command": command, "exit_code": 0, "stdout": "Created directory: \(path)", "ios_native": true]
+        } catch {
+            return ["command": command, "exit_code": 1, "stdout": "mkdir failed: \(error.localizedDescription)", "ios_native": true]
+        }
+    }
+    
+    /// v3.1.32: iOS 原生 rm 命令——删文件/目录
+    private static func runIOSRm(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        
+        guard parts.count >= 2 else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: rm <path>", "ios_native": true]
+        }
+        
+        let path = (parts[1] as NSString).expandingTildeInPath
+        
+        do {
+            try fm.removeItem(atPath: path)
+            return ["command": command, "exit_code": 0, "stdout": "Removed: \(path)", "ios_native": true]
+        } catch {
+            return ["command": command, "exit_code": 1, "stdout": "rm failed: \(error.localizedDescription)", "ios_native": true]
+        }
+    }
+    
+    /// v3.1.32: iOS 原生 mv 命令——移动/重命名
+    private static func runIOSMv(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        
+        guard parts.count >= 3 else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: mv <source> <destination>", "ios_native": true]
+        }
+        
+        let src = (parts[1] as NSString).expandingTildeInPath
+        let dst = (parts[2] as NSString).expandingTildeInPath
+        
+        do {
+            try fm.moveItem(atPath: src, toPath: dst)
+            return ["command": command, "exit_code": 0, "stdout": "Moved: \(src) -> \(dst)", "ios_native": true]
+        } catch {
+            return ["command": command, "exit_code": 1, "stdout": "mv failed: \(error.localizedDescription)", "ios_native": true]
+        }
+    }
+    
+    /// v3.1.32: iOS 原生 cp 命令——复制
+    private static func runIOCp(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        
+        guard parts.count >= 3 else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: cp <source> <destination>", "ios_native": true]
+        }
+        
+        let src = (parts[1] as NSString).expandingTildeInPath
+        let dst = (parts[2] as NSString).expandingTildeInPath
+        
+        do {
+            try fm.copyItem(atPath: src, toPath: dst)
+            return ["command": command, "exit_code": 0, "stdout": "Copied: \(src) -> \(dst)", "ios_native": true]
+        } catch {
+            return ["command": command, "exit_code": 1, "stdout": "cp failed: \(error.localizedDescription)", "ios_native": true]
+        }
+    }
+    
+    /// v3.1.32: iOS 原生 tail 命令——看文件末尾
+    private static func runIOSTail(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        
+        guard parts.count >= 2 else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: tail -n <lines> <file>", "ios_native": true]
+        }
+        
+        var lines = 10
+        var filePath = ""
+        
+        for i in 1..<parts.count {
+            if parts[i] == "-n", i + 1 < parts.count {
+                lines = Int(parts[i+1]) ?? 10
+            } else if !parts[i].hasPrefix("-") {
+                filePath = parts[i]
+            }
+        }
+        
+        guard !filePath.isEmpty else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: tail -n <lines> <file>", "ios_native": true]
+        }
+        
+        let path = (filePath as NSString).expandingTildeInPath
+        
+        do {
+            let content = try String(contentsOfFile: path, encoding: .utf8)
+            let allLines = content.components(separatedBy: .newlines)
+            let start = max(0, allLines.count - lines)
+            let result = allLines[start...].joined(separator: "\n")
+            return ["command": command, "exit_code": 0, "stdout": result, "ios_native": true]
+        } catch {
+            return ["command": command, "exit_code": 1, "stdout": "tail failed: \(error.localizedDescription)", "ios_native": true]
+        }
+    }
+    
+    /// v3.1.32: iOS 原生 head 命令——看文件开头
+    private static func runIOSHead(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        
+        guard parts.count >= 2 else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: head -n <lines> <file>", "ios_native": true]
+        }
+        
+        var lines = 10
+        var filePath = ""
+        
+        for i in 1..<parts.count {
+            if parts[i] == "-n", i + 1 < parts.count {
+                lines = Int(parts[i+1]) ?? 10
+            } else if !parts[i].hasPrefix("-") {
+                filePath = parts[i]
+            }
+        }
+        
+        guard !filePath.isEmpty else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: head -n <lines> <file>", "ios_native": true]
+        }
+        
+        let path = (filePath as NSString).expandingTildeInPath
+        
+        do {
+            let content = try String(contentsOfFile: path, encoding: .utf8)
+            let allLines = content.components(separatedBy: .newlines)
+            let end = min(lines, allLines.count)
+            let result = allLines[0..<end].joined(separator: "\n")
+            return ["command": command, "exit_code": 0, "stdout": result, "ios_native": true]
+        } catch {
+            return ["command": command, "exit_code": 1, "stdout": "head failed: \(error.localizedDescription)", "ios_native": true]
+        }
+    }
+    
+    /// v3.1.32: iOS 原生 sed 命令——替换内容
+    private static func runIOSSed(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        
+        // 格式：sed -i 's/old/new/g' file
+        guard parts.count >= 4, parts[1] == "-i" else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: sed -i 's/old/new/g' <file>", "ios_native": true]
+        }
+        
+        let pattern = parts[2].trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+        let filePath = (parts[3] as NSString).expandingTildeInPath
+        
+        // 解析 s/old/new/g
+        let sedPattern = #"^s/(.+)/(.+)/g?$"#
+        guard let regex = try? NSRegularExpression(pattern: sedPattern),
+              let match = regex.firstMatch(in: pattern, range: NSRange(pattern.startIndex..., in: pattern)) else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: sed -i 's/old/new/g' <file>", "ios_native": true]
+        }
+        
+        let oldRange = Range(match.range(at: 1), in: pattern)!
+        let newRange = Range(match.range(at: 2), in: pattern)!
+        let oldStr = String(pattern[oldRange])
+        let newStr = String(pattern[newRange])
+        
+        do {
+            let content = try String(contentsOfFile: filePath, encoding: .utf8)
+            let newContent = content.replacingOccurrences(of: oldStr, with: newStr)
+            try newContent.write(toFile: filePath, atomically: true, encoding: .utf8)
+            return ["command": command, "exit_code": 0, "stdout": "Replaced '\(oldStr)' with '\(newStr)' in \(filePath)", "ios_native": true]
+        } catch {
+            return ["command": command, "exit_code": 1, "stdout": "sed failed: \(error.localizedDescription)", "ios_native": true]
         }
     }
     
