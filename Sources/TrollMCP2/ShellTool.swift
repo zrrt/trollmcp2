@@ -34,7 +34,7 @@ enum ShellDiag {
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "Run a shell command (terminal/command line/sh): full Alpine Linux (iSH engine), built-in ls/cat/grep/find/tar/curl/python/busybox + apk packages + scripts. cd persists. Dangerous commands auto-blocked. Use for: file operations, scripting, installing packages, downloading files, text processing. Don't use for: UI taps/swipes (use control.* or ui.*), app control (use app.*), injection (use injection.*).",
+        summary: "Run a shell command (terminal/command line/sh): Has 16 iOS native commands (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc) that work DIRECTLY on the REAL iOS file system, plus full Alpine Linux (iSH engine) for advanced scripting. Use for: file operations (read/write/list/search files), downloading files, text processing. Don't use for: UI taps/swipes (use control.* or ui.*), app control (use app.*), injection (use injection.*). Example: 'read file' → cat /path/to/file; 'find plist' → find /path -name '*.plist'; 'write config' → echo 'content' > /path/to/file.",
         parameters: [
             "command": "Shell command to execute (required)",
             "timeout": "Timeout seconds (default 30, max 120)",
