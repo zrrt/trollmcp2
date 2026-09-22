@@ -140,7 +140,7 @@ final class AuditLog: ObservableObject {
     /// 按工具聚合健康度：失败数排序 → 一眼看出"哪些工具有问题"
     func healthSummary(limit: Int = 30) -> [ToolHealth] {
         var map: [String: (s: Int, f: Int, ms: [Int], code: [String: Int], lastFail: String)] = [:]
-        for e in entries where e.status != nil {
+        for e in entries where e.status != nil && !e.category.isEmpty {
             let k = e.category
             var v = map[k] ?? (s: 0, f: 0, ms: [Int](), code: [String: Int](), lastFail: "")
             if e.status == .success { v.s += 1 }
@@ -175,7 +175,7 @@ final class AuditLog: ObservableObject {
     func codeDistribution() -> [CodeDist] {
         var map: [String: Int] = [:]
         for e in entries where e.status == .failure {
-            let c = e.errorCode ?? "unknown"
+            let c = (e.errorCode ?? "unknown").isEmpty ? "unknown" : e.errorCode!
             map[c, default: 0] += 1
         }
         return map.map { CodeDist(code: $0.key, count: $0.value) }
