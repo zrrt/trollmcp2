@@ -1105,14 +1105,26 @@ final class ShellExecTool: MCPTool {
     /// v3.1.32: iOS 原生 sqlite3 命令——查询 SQLite 数据库
     private static func runIOSSqlite(_ command: String) -> [String: Any] {
         let fm = FileManager.default
-        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
         
-        guard parts.count >= 3 else {
+        // 解析：sqlite3 <db_path> "<query>"
+        // 从第一个引号开始，到最后一个引号结束，中间是 SQL 语句
+        guard let firstQuote = command.firstIndex(of: "\"") else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: sqlite3 <db_file> \"SELECT * FROM table\"", "ios_native": true]
+        }
+        guard let lastQuote = command.lastIndex(of: "\""), firstQuote != lastQuote else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: sqlite3 <db_file> \"SELECT * FROM table\"", "ios_native": true]
+        }
+        
+        let query = String(command[command.index(after: firstQuote)..<lastQuote])
+        
+        // 提取 db 路径（在第一个引号之前）
+        let beforeQuote = command[..<firstQuote].trimmingCharacters(in: .whitespaces)
+        let parts = beforeQuote.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        guard parts.count >= 2 else {
             return ["command": command, "exit_code": 1, "stdout": "Usage: sqlite3 <db_file> \"SELECT * FROM table\"", "ios_native": true]
         }
         
         let dbPath = (parts[1] as NSString).expandingTildeInPath
-        let query = parts[2].trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
         
         guard fm.fileExists(atPath: dbPath) else {
             return ["command": command, "exit_code": 1, "stdout": "sqlite3: \(dbPath): No such file", "ios_native": true]

@@ -358,10 +358,12 @@ public final class ToolRegistry: ObservableObject {
         "artifact.read_text", "artifact.write_text", "artifact.list",
         "artifact.find",   // v2.9.33/34：递归查找下载产物（与 coreToolNames 保持一致，否则报"未加载"）
         "web.search", "web.fetch", "knowledge.search",
-        "fs.tree", "fs.read", "fs.hexdump",   // v2.9.111：Filza 式文件浏览/二进制分析
-        "fs.zip", "fs.sql", "fs.grep",        // v2.9.112：ZIP 浏览 / SQLite 查询 / 文本搜索
-        "fs.write", "fs.edit", "fs.diff", "fs.hash", "fs.find", "fs.download",  // v2.9.113：读写/对比/校验/搜索/下载
-        "fs.plist", "fs.container", "fs.crash", "fs.image_info",  // v2.9.115：plist 键值 / 容器定位 / 崩溃解析 / 图片元数据
+        // v3.1.32: 删除废弃 fs.* 工具（已被 shell 代替）
+        // fs.tree, fs.read, fs.grep, fs.write, fs.edit, fs.find, fs.container
+        "fs.hexdump",   // 二进制分析
+        "fs.zip", "fs.sql",        // ZIP 浏览 / SQLite 查询
+        "fs.diff", "fs.hash", "fs.download",  // 对比/校验/下载
+        "fs.plist", "fs.crash", "fs.image_info",  // plist / 崩溃 / 图片
         "github.account_status", "github.trigger_build", "github.fetch_runs", "github.download_artifact",
         "model.config", "model.authentication", "model.selected_profile_id",
         "skills.list", "skills.read",   // v2.9.17：技能发现/读取
@@ -393,9 +395,7 @@ public final class ToolRegistry: ObservableObject {
         "tool_search",
         // 全局视角（让 AI 知道有什么工具类别）
         "system.overview",
-        // 最常用：读文件
-        "fs.read",
-        // 最常用：终端
+        // 最常用：终端（代替了 fs.read）
         "shell.exec",
         // 最常用：截图
         "control.screenshot"
