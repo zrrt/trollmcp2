@@ -73,6 +73,17 @@ final class ShellExecTool: MCPTool {
         
         let timeout = min(max((params["timeout"] as? Double) ?? 30, 1), 120)
         
+        // v3.1.32: iOS 原生命令拦截——直接用 iOS FileManager 执行，不经过 Alpine
+        // 这样就能访问整个 iOS 文件系统了！
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // 1. ls 命令——iOS 原生实现
+        if trimmed.hasPrefix("ls ") || trimmed == "ls" {
+            let result = ShellExecTool.runIOSls(trimmed)
+            AuditLog.shared.log("shell.exec (ios ls)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
         // v3.0.41：iSH 为唯一引擎（ios_system 已删除）。初始化失败直接报错，不再回退。
         let (output, exitCode, timedOut) = ISHEngine.exec(command, timeout: timeout)
         
@@ -99,6 +110,94 @@ final class ShellExecTool: MCPTool {
             result["hint"] = "命令超过 \(Int(timeout)) 秒未完成，已 SIGKILL 进程组回收。"
         }
         return result
+    }
+    
+    /// v3.1.32: iOS 原生 ls 命令——直接访问 iOS 文件系统
+    private static func runIOSls(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        
+        var showAll = false
+        var showLong = false
+        var path = "."
+        
+        // 解析选项
+        for part in parts.dropFirst() {
+            if part.hasPrefix("-") {
+                showAll = part.contains("a")
+                showLong = part.contains("l")
+            } else {
+                path = part
+            }
+        }
+        
+        // 解析路径
+        var resolvedPath = (path as NSString).expandingTildeInPath
+        if resolvedPath == "." || resolvedPath == "./" {
+            resolvedPath = NSHomeDirectory() + "/Documents"
+        }
+        
+        // 检查目录是否存在
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: resolvedPath, isDirectory: &isDir), isDir.boolValue else {
+            return [
+                "command": command,
+                "exit_code": 1,
+                "stdout": "ls: cannot access '\(path)': No such file or directory",
+                "cwd": NSHomeDirectory() + "/Documents",
+                "ios_native": true,
+                "hint": "iOS 原生 ls：直接访问 iOS 文件系统"
+            ]
+        }
+        
+        // 列出目录内容
+        do {
+            let items = try fm.contentsOfDirectory(atPath: resolvedPath)
+            let sorted = items.sorted()
+            
+            if showLong {
+                // 长格式输出（简化版）
+                var lines: [String] = []
+                lines.append("total \(items.count)")
+                for item in sorted {
+                    if !showAll && item.hasPrefix(".") { continue }
+                    let fullPath = resolvedPath + "/" + item
+                    var itemIsDir: ObjCBool = false
+                    fm.fileExists(atPath: fullPath, isDirectory: &itemIsDir)
+                    let type = itemIsDir.boolValue ? "d" : "-"
+                    // 简化：只显示类型和名字
+                    lines.append("\(type)rwxr-xr-x  1  mobile  mobile  \(String(format: "%8d", 4096))  \(item)")
+                }
+                return [
+                    "command": command,
+                    "exit_code": 0,
+                    "stdout": lines.joined(separator: "\n"),
+                    "cwd": resolvedPath,
+                    "ios_native": true,
+                    "hint": "iOS 原生 ls：直接访问 iOS 文件系统"
+                ]
+            } else {
+                // 短格式输出
+                let visible = showAll ? sorted : sorted.filter { !$0.hasPrefix(".") }
+                return [
+                    "command": command,
+                    "exit_code": 0,
+                    "stdout": visible.joined(separator: "  "),
+                    "cwd": resolvedPath,
+                    "ios_native": true,
+                    "hint": "iOS 原生 ls：直接访问 iOS 文件系统"
+                ]
+            }
+        } catch {
+            return [
+                "command": command,
+                "exit_code": 1,
+                "stdout": "ls: cannot access '\(path)': \(error.localizedDescription)",
+                "cwd": resolvedPath,
+                "ios_native": true,
+                "hint": "iOS 原生 ls"
+            ]
+        }
     }
     
     /// 过滤杂散调试噪音行
