@@ -968,7 +968,8 @@ public final class ToolRegistry: ObservableObject {
             return Self.errorMessage(from: result["error"], fallback: "工具返回 ok=false")
         }
         // ② error 键（String 或 [String:Any] 字典）
-        if let errBox = result["error"] {
+        // v3.1.8：nil error 不应该被当成错误——只有 error 有值时才算
+        if let errBox = result["error"], !(errBox is NSNull) {
             return Self.errorMessage(from: errBox, fallback: "工具返回错误（未提供原因）")
         }
         // ③ status 失败态
