@@ -533,7 +533,7 @@ public final class ToolRegistry: ObservableObject {
 
     /// v2.9.16：tool_search 渐进式披露——按关键词搜索工具名/摘要，返回紧凑清单（不带完整 schema）
     /// v3.0.90：去重——已会话授权的工具不再重复返回，避免 AI 反复搜以为能找到新工具
-    public func searchTools(query: String, limit: Int = 20) -> [[String: String]] {
+    public func searchTools(query: String, limit: Int = 50) -> [[String: String]] {
         // v3.0.90：去掉锁——只读操作，不需要锁，避免死锁
         // v3.1.1：iOS 版本过滤——不支持当前 iOS 版本的工具不返回
         let iosMajor = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
@@ -674,7 +674,10 @@ public final class ToolRegistry: ObservableObject {
             if score > 0 { hits.append((def.name, def.summary, score)) }
         }
         hits.sort { $0.score > $1.score }
-        return hits.prefix(limit).map { ["name": $0.name, "summary": $0.summary] }
+        // v3.1.7: 不带重复——已授权过的工具不再返回，避免 AI 反复搜以为能找到新工具
+        let approved = sessionApproved
+        let freshHits = hits.filter { !approved.contains($0.name) }
+        return freshHits.prefix(limit).map { ["name": $0.name, "summary": $0.summary] }
     }
 
     /// v2.9.16：返回单个工具的完整 OpenAI function schema（供 tool_search 命中后动态注入下一轮）
@@ -1290,8 +1293,8 @@ final class ToolSearchTool: MCPTool {
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let query = (params["query"] as? String) ?? ""
-        let limit = (params["limit"] as? NSNumber)?.intValue ?? 20
-        let hits = ToolRegistry.shared.searchTools(query: query, limit: max(1, min(limit, 30)))
+        let limit = (params["limit"] as? NSNumber)?.intValue ?? 50
+        let hits = ToolRegistry.shared.searchTools(query: query, limit: max(1, min(limit, 100)))
         // v2.9.31：去掉敏感工具区分——搜索到即自动授权本会话（无弹窗，AI 自由调用）
         for h in hits {
             guard let n = h["name"], !n.isEmpty else { continue }
