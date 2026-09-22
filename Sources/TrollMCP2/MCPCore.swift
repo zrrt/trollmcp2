@@ -604,8 +604,8 @@ public final class ToolRegistry: ObservableObject {
 
         for (_, tool) in tools {
             let def = tool.definition
-            // v3.0.90：跳过已授权的工具（AI 已经知道了，不用再搜）
-            if isSessionApproved(def.name) || isCore(def.name) { continue }
+            // v3.1.8: 跳过已授权的工具，但常驻核心工具除外（AI 需要能搜到才知道有）
+            if isSessionApproved(def.name) && !isCore(def.name) { continue }
 
             // v3.1.1：iOS 版本过滤
             if let minV = def.minIOSMajor, iosMajor < minV { continue }
