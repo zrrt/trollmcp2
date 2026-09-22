@@ -1323,19 +1323,15 @@ final class ToolSearchTool: MCPTool {
         //          避免 210 个工具太长导致 AI 陷入死循环
         var hits: [[String: String]]
         if ToolSearchTool.searchCount == 1 {
-            // 第一次：返回全部工具（不管什么模式都全量加载），但只返回简短描述
+            // v3.1.27: 第一次调用返回全部工具的完整描述（包括 Use for/Don't use for/Example）
+            // 这样 AI 知道每个工具怎么用，不会瞎试
             let allTools = ToolRegistry.shared.definitions
             hits = allTools.map { def in
-                // 截取 summary 的第一句话（到第一个 . 或 \n 为止）
-                let shortSummary: String
-                if let range = def.summary.range(of: ". ") {
-                    shortSummary = String(def.summary[..<range.lowerBound]) + "."
-                } else if let newlineRange = def.summary.range(of: "\n") {
-                    shortSummary = String(def.summary[..<newlineRange.lowerBound])
-                } else {
-                    shortSummary = def.summary
-                }
-                return ["name": def.name, "summary": shortSummary]
+                return ["name": def.name, "summary": def.summary]
+            }
+            // 第一次调用自动授权全部工具，AI 可以直接调用
+            for def in allTools {
+                ToolRegistry.shared.approveForSession(def.name)
             }
         } else {
             // 之后：按关键词搜索，返回完整描述
@@ -1355,6 +1351,9 @@ final class ToolSearchTool: MCPTool {
         let approvedCount = ToolRegistry.shared.approvedToolNames().count
         var hint = "✅ These tools are now authorized and ready to call directly."
         hint += "\n🔍 Search #\(ToolSearchTool.searchCount) | 📊 Total: \(totalTools) tools | \(approvedCount) approved | \(totalTools - approvedCount) remaining."
+        if ToolSearchTool.searchCount == 1 {
+            hint += "\n💡 This is ALL tools. You can call any of them directly. No need to search again unless you forgot the tool name."
+        }
         if ToolSearchTool.searchCount >= 3 {
             hint += "\n⚠️ You've searched \(ToolSearchTool.searchCount) times. Stop searching and use what you have. If you can't find the right tool, tell the user what you can do."
         }
