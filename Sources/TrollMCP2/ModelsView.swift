@@ -83,7 +83,8 @@ struct ModelsView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingUsage) {
+        // v2.9.180: 用量统计用 fullScreenCover，避免 iOS 14 多 sheet 冲突闪退
+        .fullScreenCover(isPresented: $showingUsage) {
             UsageStatsView()
         }
         .sheet(item: $editing, onDismiss: { editing = nil }) { cfg in
