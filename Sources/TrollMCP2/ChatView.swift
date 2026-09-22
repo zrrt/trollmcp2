@@ -1291,25 +1291,17 @@ struct MessageBubble: View {
 
     private var toolBubble: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // 📝 1. 思考过程（独立折叠）
+            // 📝 1. 思考过程（独立气泡，可折叠）
             if let thinking = message.thinking, !thinking.isEmpty {
                 thinkingMiniBubble(thinking)
             }
 
-            // 🔧 2. 工具调用（独立折叠，只显示工具名）
+            // 🔧 2. 工具调用（独立气泡，一行）
             toolCallMiniBubble
 
-            // ✅ 3. 工具结果（独立折叠）
+            // ✅ 3. 工具结果（独立气泡，可折叠）
             toolResultMiniBubble
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(14)
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(isSelected ? Color.blue : Color.clear, lineWidth: 2)
-        )
     }
 
     // 📝 思考过程迷你气泡
