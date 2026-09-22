@@ -576,6 +576,43 @@ struct ToolPermissionPoliciesView: View {
             .padding(.bottom, 4)
 
             List {
+                Section {
+                    NavigationLink(destination: SystemCapabilitiesView()) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "hand.raised.fill")
+                                .foregroundColor(.red)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("系统权限")
+                                    .foregroundColor(.primary)
+                                Text("通知/位置/通讯录/日历/快捷指令")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    NavigationLink(destination: AutomationCenterView()) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "bolt.fill")
+                                .foregroundColor(.yellow)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("自动化")
+                                    .foregroundColor(.primary)
+                                Text("任务 · 历史 · 重试")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+
                 Section(header: SettingSectionHeader(title: "策略")) {
                     // v2.9.31：工具按需加载——初始请求只带常驻核心（标★），其余靠搜索加载；
                     // v2.9.32：去掉授权弹窗，AI 搜索到工具即自动放行本会话。
