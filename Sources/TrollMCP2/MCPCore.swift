@@ -1395,7 +1395,7 @@ final class ToolSearchTool: MCPTool {
             hint += "\n   - User wants to inject/hook → search 'injection'"
             hint += "\n   - User wants to check device info → search 'device'"
             hint += "\n   - User wants to clean junk → search 'cleanup'"
-        } else if !query.isEmpty, catTools.count > 15 {
+        } else if !query.isEmpty, hits.count > 15, hits.first?["name"]?.hasPrefix("📁") == true {
             hint += "\n💡 You selected '\(query)'. Pick the most relevant sub-category and search again ONCE."
         } else if !query.isEmpty {
             hint += "\n💡 You selected '\(query)'. These are the tools. Pick one and call it directly - no need to search again."
