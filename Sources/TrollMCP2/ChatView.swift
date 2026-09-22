@@ -246,6 +246,34 @@ struct ChatView: View {
                 showToast("已回到前台")
             }
         }
+        // 自定义分享面板（侧载环境下 UIActivityViewController 会闪退）
+        .confirmationDialog("分享到...", isPresented: $_showShare, titleVisibility: .visible) {
+            Button("复制到剪贴板") {
+                UIPasteboard.general.string = shareText
+                showToast("已复制")
+            }
+            Button("短信分享") {
+                let escaped = shareText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                if let url = URL(string: "sms:&body=\(escaped)") {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("微信分享") {
+                // 微信分享到聊天：用 pasteboard 复制后提示用户去微信粘贴
+                UIPasteboard.general.string = shareText
+                if let url = URL(string: "weixin://") {
+                    UIApplication.shared.open(url)
+                    showToast("已复制，请在微信粘贴发送")
+                }
+            }
+            Button("复制到巨魔") {
+                UIPasteboard.general.string = shareText
+                showToast("已复制，请在巨魔粘贴")
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("选择分享方式")
+        }
     }
 
     private var emptyState: some View {
@@ -882,15 +910,21 @@ struct ChatView: View {
     }
 
     // v2.9.179：分享面板在侧载环境下会系统级 Segfault（MobileIcons/CoreImage）
-    // 改成复制+提示，保证用户永远能拿到内容
+    // 改成自定义分享 ActionSheet，列出常用分享目标
+    private var showShareSheet: Bool {
+        get { _showShare }
+        set { _showShare = newValue }
+    }
+    @State private var _showShare = false
+
     private func presentShareSheet(text: String) {
         let content = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty else {
             showToast("没有可分享的内容")
             return
         }
-        UIPasteboard.general.string = content
-        showToast("已复制到剪贴板，可粘贴到其他 App")
+        shareText = content
+        _showShare = true
     }
 
     /// 把勾选的消息拼成可读文本（按会话内顺序），用于复制 / 分享。
