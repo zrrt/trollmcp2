@@ -1296,9 +1296,9 @@ struct MessageBubble: View {
                 thinkingMiniBubble(thinking)
             }
 
-            // 🔧✅ 2. 工具调用 + 工具结果（同一个灰色气泡）
+            // 🔧✅ 2. 工具调用 + 工具结果（同一个灰色大气泡）
             VStack(alignment: .leading, spacing: 6) {
-                // 工具调用（蓝色文字，只显示工具名）
+                // 工具调用（浅蓝色小气泡，只显示工具名）
                 HStack(spacing: 6) {
                     Image(systemName: "wrench.and.screwdriver")
                         .font(.system(size: 12))
@@ -1309,6 +1309,10 @@ struct MessageBubble: View {
                         .foregroundColor(.blue)
                     Spacer()
                 }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.blue.opacity(0.1))
+                .cornerRadius(8)
 
                 // 工具结果（可折叠）
                 toolResultMiniBubble
@@ -1344,20 +1348,6 @@ struct MessageBubble: View {
                     .background(Color.orange.opacity(0.08))
                     .cornerRadius(8)
             }
-        }
-    }
-
-    // 🔧 工具调用迷你气泡
-    private var toolCallMiniBubble: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "wrench.and.screwdriver")
-                .font(.system(size: 12))
-                .foregroundColor(.blue)
-            Text("调用工具：\(message.toolName ?? "")")
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(.blue)
-            Spacer()
         }
     }
 
