@@ -1101,7 +1101,7 @@ public final class ToolRegistry: ObservableObject {
         register(IPAInspectTool())
         register(DylibInspectTool())
         register(InjectionDiagnoseTool())
-        register(LogCollectTool())
+        // v3.1.33: 删 LogCollectTool（用 shell cat 代替）
         register(NetworkCaptureTool())
 
         // v2.9.70：进程管理 + 测试编排器
@@ -1114,18 +1114,18 @@ public final class ToolRegistry: ObservableObject {
 
         // v2.9.71：自动诊断 + 本地 HTTP 服务
         register(DiagnoseStartupTool())
-        register(DiagnoseCrashTool())
+        // v3.1.33: 删 DiagnoseCrashTool（用 shell cat 代替）
         register(ServerStartTool())
         register(ServerStopTool())
         register(ServerStatusTool())
 
         // v2.9.72：知识库 + 清理 + 符号 + 插件 + 兼容矩阵 + 崩溃复现
         register(KnowledgeBaseTool())
-        register(WorkspaceCleanupTool())
+        // v3.1.33: 删 WorkspaceCleanupTool（用 shell rm 代替）
         register(BinarySymbolsTool())
         register(PluginTool())
         register(CompatibilityTool())
-        register(CrashReproTool())
+        // v3.1.33: 删 CrashReproTool（用 shell 代替）
 
         // v2.9.73：项目上下文 + 任务模板
         register(ProjectTool())
@@ -1156,7 +1156,7 @@ public final class ToolRegistry: ObservableObject {
         register(LocationGetTool())
         register(NotificationSendTool())
         register(ScanQRTool())
-        register(ProcessListTool())
+        // v3.1.33: 删 ProcessListTool（用 shell ps 代替）
         register(ShellExecTool())   // v3.0.28：内置终端，执行 shell 命令
 
         // M5.5 内置浏览器（v2.9.37：AI 可控，蓝框高亮元素；v2.9.88：+wait/text/scroll/submit）
@@ -1238,8 +1238,8 @@ public final class ToolRegistry: ObservableObject {
         register(FSFindTool())
         register(FSDownloadTool())
         register(FSPropertyListTool())
-        register(FSContainerTool())
-        register(FSCrashTool())
+        // v3.1.33: 删 FSContainerTool（用 shell ls 代替）
+        // v3.1.33: 删 FSCrashTool（用 shell cat 代替）
         register(FSImageInfoTool())
 
         // v2.9.139：AI 控制任意 App（HID 触摸注入 + 进度横幅 + 控制会话）
