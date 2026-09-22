@@ -52,12 +52,17 @@ final class DebugDumpConversationTool: MCPTool {
             "totalMessages": conv.messages.count,
             "returnedMessages": messages.count,
             "messages": messages.map { msg -> [String: Any] in
-                [
+                var dict: [String: Any] = [
                     "role": msg.role,
                     "content": msg.content,
                     "timestamp": msg.timestamp.timeIntervalSince1970,
                     "isError": msg.isError
                 ]
+                // v3.1.26：加上 thinking / toolName / toolArgs 便于远程调试 UI
+                if let t = msg.thinking, !t.isEmpty { dict["thinking"] = t }
+                if let n = msg.toolName { dict["toolName"] = n }
+                if let a = msg.toolArgs { dict["toolArgs"] = a }
+                return dict
             }
         ]
     }
