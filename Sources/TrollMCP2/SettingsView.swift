@@ -102,21 +102,12 @@ struct SettingsView: View {
                          destination: AnyView(RemoteControlView())),
             // v2.9.144：AI 控制中心 + 操作宏（从聊天框移入设置，退出设置页后全屏弹出）
             SettingsItem(title: L10n.t("ui_172"),
-                         subtitle: "计划 · 分色日志 · 现场截图",
+                         subtitle: "计划 · 分色日志 · 现场截图 · 操作宏",
                          icon: "target", color: .tmCyan,
                          action: {
                              presentationMode.wrappedValue.dismiss()
                              DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                                  AppUIState.shared.controlPresented = true
-                             }
-                         }),
-            SettingsItem(title: L10n.t("ui_183"),
-                         subtitle: "录制 · 回放 · 导出",
-                         icon: "play.rectangle", color: .orange,
-                         action: {
-                             presentationMode.wrappedValue.dismiss()
-                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                                 AppUIState.shared.macroPresented = true
                              }
                          })
         ]

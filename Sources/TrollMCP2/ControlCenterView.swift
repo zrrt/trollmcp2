@@ -7,6 +7,7 @@ struct ControlCenterView: View {
     @ObservedObject private var session = ControlSession.shared
     @ObservedObject private var ui = AppUIState.shared
     @Environment(\.presentationMode) private var pm
+    @State private var showMacro = false
 
     var body: some View {
         CompatNav {
@@ -44,12 +45,22 @@ struct ControlCenterView: View {
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        ui.controlPresented = false
-                    } label: {
-                        Image(systemName: "chevron.down")
+                    HStack(spacing: 16) {
+                        Button {
+                            showMacro = true
+                        } label: {
+                            Image(systemName: "play.rectangle")
+                        }
+                        Button {
+                            ui.controlPresented = false
+                        } label: {
+                            Image(systemName: "chevron.down")
+                        }
                     }
                 }
+            }
+            .sheet(isPresented: $showMacro) {
+                MacroView()
             }
         }
     }
