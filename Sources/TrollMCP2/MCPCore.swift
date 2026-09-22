@@ -676,9 +676,10 @@ public final class ToolRegistry: ObservableObject {
             if score > 0 { hits.append((def.name, def.summary, score)) }
         }
         hits.sort { $0.score > $1.score }
-        // v3.1.7: 不带重复——已授权过的工具不再返回
+        // v3.1.8: 不带重复——已授权过的工具不再返回，但常驻核心工具除外
+        // （常驻工具一开始就加载了，AI 搜不到就以为没有，必须能搜到）
         let approved = sessionApproved
-        let freshHits = hits.filter { !approved.contains($0.name) }
+        let freshHits = hits.filter { !approved.contains($0.name) || isCore($0.name) }
         // v3.1.7: limit=0 表示返回全部匹配的工具，不限制数量
         if limit <= 0 {
             return freshHits.map { ["name": $0.name, "summary": $0.summary] }
