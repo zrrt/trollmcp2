@@ -110,7 +110,7 @@ struct AuditLogView: View {
         }
     }
 
-    private var sortedEntries: [Entry] {
+    private var sortedEntries: [AuditLog.Entry] {
         var result = log.entries
         switch sortBy {
         case .time:

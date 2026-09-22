@@ -247,7 +247,7 @@ struct ChatView: View {
             }
         }
         // 自定义分享面板（侧载环境下 UIActivityViewController 会闪退）
-        .confirmationDialog("分享到...", isPresented: $_showShare, titleVisibility: .visible) {
+        .confirmationDialog("分享到...", isPresented: $showShare, titleVisibility: .visible) {
             Button("复制到剪贴板") {
                 UIPasteboard.general.string = shareText
                 showToast("已复制")
@@ -911,12 +911,6 @@ struct ChatView: View {
 
     // v2.9.179：分享面板在侧载环境下会系统级 Segfault（MobileIcons/CoreImage）
     // 改成自定义分享 ActionSheet，列出常用分享目标
-    private var showShareSheet: Bool {
-        get { _showShare }
-        set { _showShare = newValue }
-    }
-    @State private var _showShare = false
-
     private func presentShareSheet(text: String) {
         let content = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty else {
@@ -924,7 +918,7 @@ struct ChatView: View {
             return
         }
         shareText = content
-        _showShare = true
+        showShare = true
     }
 
     /// 把勾选的消息拼成可读文本（按会话内顺序），用于复制 / 分享。
