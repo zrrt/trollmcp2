@@ -1387,9 +1387,18 @@ final class ToolSearchTool: MCPTool {
         
         if isCategoryList {
             hint += "\n📁 This is the CATEGORY LIST. Each folder = one category of tools."
-            hint += "\n💡 To see tools in a category, search for the category name (e.g. 'filesystem', 'browser', 'app_control')."
-        } else if ToolSearchTool.searchCount == 2, !query.isEmpty {
-            hint += "\n💡 You selected the '\(query)' category. You can call these tools directly."
+            hint += "\n💡 Pick the MOST relevant category based on user's request. Search only ONCE - don't browse multiple categories."
+            hint += "\n   Examples:"
+            hint += "\n   - User wants to read/edit files → search 'filesystem'"
+            hint += "\n   - User wants to control browser → search 'browser'"
+            hint += "\n   - User wants to launch/stop apps → search 'app_control'"
+            hint += "\n   - User wants to inject/hook → search 'injection'"
+            hint += "\n   - User wants to check device info → search 'device'"
+            hint += "\n   - User wants to clean junk → search 'cleanup'"
+        } else if !query.isEmpty, catTools.count > 15 {
+            hint += "\n💡 You selected '\(query)'. Pick the most relevant sub-category and search again ONCE."
+        } else if !query.isEmpty {
+            hint += "\n💡 You selected '\(query)'. These are the tools. Pick one and call it directly - no need to search again."
         }
         
         if ToolSearchTool.searchCount >= 4 {
