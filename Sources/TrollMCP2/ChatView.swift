@@ -1291,57 +1291,43 @@ struct MessageBubble: View {
 
     private var toolBubble: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // 🟠 AI 思考（只有后端传了 thinking 才显示）
-            if let thinking = message.thinking, !thinking.isEmpty {
+            // 📦 折叠头部——只显示一行，用户点一下才展开
+            Button(action: { withAnimation { expanded.toggle() } }) {
                 HStack(spacing: 6) {
-                    Image(systemName: "brain.head.profile")
-                        .font(.system(size: 12))
-                        .foregroundColor(.orange)
-                    Text(thinking)
+                    Image(systemName: message.isError ? "exclamationmark.circle" : "checkmark.circle")
+                        .font(.system(size: 16))
+                        .foregroundColor(message.isError ? .red : .green)
+                    Text("工具：\(message.toolName ?? "")")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.orange.opacity(0.08))
-                .cornerRadius(12)
-            }
-
-            // 🔧 调用工具——蓝色气泡，不要折叠符
-            HStack(alignment: .top, spacing: 6) {
-                Image(systemName: "wrench.and.screwdriver")
-                    .font(.system(size: 12))
-                    .foregroundColor(.blue)
-                Text("调用工具 \(message.toolName ?? "")")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.primary)
-                if let th = message.thinking, !th.isEmpty {
-                    Text("  \(th)")
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                    Spacer()
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-                Spacer()
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color.blue.opacity(0.08))
-            .cornerRadius(12)
+            .buttonStyle(.plain)
 
-            // ✅ 工具结果（绿色对勾）
-            HStack(spacing: 8) {
-                Image(systemName: message.isError ? "exclamationmark.circle" : "checkmark.circle")
-                    .font(.system(size: 18))
-                    .foregroundColor(message.isError ? .red : .green)
-                Text("工具结果")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                Spacer()
-                Image(systemName: expanded ? "chevron.up" : "chevron.down")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+            // 展开后才显示详细内容
             if expanded {
+                // 🟠 AI 思考（只有后端传了 thinking 才显示）
+                if let thinking = message.thinking, !thinking.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "brain.head.profile")
+                            .font(.system(size: 12))
+                            .foregroundColor(.orange)
+                        Text(thinking)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.orange.opacity(0.08))
+                    .cornerRadius(12)
+                }
+
+                // ✅ 工具结果
                 Text(message.content)
                     .font(.system(.caption, design: .monospaced))
                     .foregroundColor(.secondary)
