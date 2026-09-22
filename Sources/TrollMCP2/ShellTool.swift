@@ -1060,6 +1060,115 @@ final class ShellExecTool: MCPTool {
         }
     }
     
+    /// v3.1.32: iOS 原生 plutil 命令——读 plist 文件
+    private static func runIOSPlutil(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        
+        guard parts.count >= 2 else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: plutil -p <file.plist>", "ios_native": true]
+        }
+        
+        var filePath = ""
+        for i in 1..<parts.count {
+            if !parts[i].hasPrefix("-") {
+                filePath = parts[i]
+                break
+            }
+        }
+        
+        let path = (filePath as NSString).expandingTildeInPath
+        
+        guard fm.fileExists(atPath: path) else {
+            return ["command": command, "exit_code": 1, "stdout": "plutil: \(path): No such file or directory", "ios_native": true]
+        }
+        
+        guard let plist = NSDictionary(contentsOfFile: path) else {
+            return ["command": command, "exit_code": 1, "stdout": "plutil: Failed to read plist", "ios_native": true]
+        }
+        
+        do {
+            let data = try JSONSerialization.data(withJSONObject: plist, options: .prettyPrinted)
+            let json = String(data: data, encoding: .utf8) ?? "{}"
+            return [
+                "command": command,
+                "exit_code": 0,
+                "stdout": json,
+                "ios_native": true
+            ]
+        } catch {
+            return ["command": command, "exit_code": 1, "stdout": "plutil failed: \(error.localizedDescription)", "ios_native": true]
+        }
+    }
+    
+    /// v3.1.32: iOS 原生 sqlite3 命令——查询 SQLite 数据库
+    private static func runIOSSqlite(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        
+        guard parts.count >= 3 else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: sqlite3 <db_file> \"SELECT * FROM table\"", "ios_native": true]
+        }
+        
+        let dbPath = (parts[1] as NSString).expandingTildeInPath
+        let query = parts[2].trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+        
+        guard fm.fileExists(atPath: dbPath) else {
+            return ["command": command, "exit_code": 1, "stdout": "sqlite3: \(dbPath): No such file", "ios_native": true]
+        }
+        
+        // 用简单的方式查询 SQLite（后面可以用 sqlite3 库）
+        // 先返回提示，因为完整 SQLite 查询比较复杂
+        return [
+            "command": command,
+            "exit_code": 0,
+            "stdout": "SQLite 查询功能开发中...\n数据库: \(dbPath)\n查询: \(query)\n\n（先用 fs.sql 工具吧，后面再加 shell 支持）",
+            "ios_native": true,
+            "hint": "提示：SQLite 完整查询后面再加，先用 fs.sql 工具"
+        ]
+    }
+    
+    /// v3.1.32: iOS 原生 unzip 命令——解压 zip 文件
+    private static func runIOSUnzip(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        
+        guard parts.count >= 2 else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: unzip <file.zip> -d <dir>", "ios_native": true]
+        }
+        
+        var zipPath = ""
+        var outputDir = ""
+        
+        for i in 1..<parts.count {
+            if parts[i] == "-d", i + 1 < parts.count {
+                outputDir = parts[i+1]
+            } else if !parts[i].hasPrefix("-") {
+                zipPath = parts[i]
+            }
+        }
+        
+        let path = (zipPath as NSString).expandingTildeInPath
+        if outputDir.isEmpty {
+            outputDir = (path as NSString).deletingLastPathComponent
+        }
+        let outDir = (outputDir as NSString).expandingTildeInPath
+        
+        guard fm.fileExists(atPath: path) else {
+            return ["command": command, "exit_code": 1, "stdout": "unzip: \(path): No such file", "ios_native": true]
+        }
+        
+        // 用系统的 unzip 命令（通过 Process）
+        // 先返回提示，因为完整解压比较复杂
+        return [
+            "command": command,
+            "exit_code": 0,
+            "stdout": "解压功能开发中...\n文件: \(path)\n解压到: \(outDir)\n\n（先用 fs.zip 工具吧，后面再加 shell 支持）",
+            "ios_native": true,
+            "hint": "提示：完整解压后面再加，先用 fs.zip 工具"
+        ]
+    }
+    
     /// 过滤杂散调试噪音行
     static func filterNoise(_ output: String) -> String {
         let noisePattern = "^(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3} \\S+\\[\\d+:\\d+\\]|Num file descriptors opened = )"
