@@ -86,10 +86,13 @@ struct DownloadsView: View {
                 toast = "已复制路径"
             }
             Button("用其他 App 打开") {
-                let vc = UIActivityViewController(activityItems: [URL(fileURLWithPath: sharePath)], applicationActivities: nil)
-                if let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first?.windows.first {
+                // v3.1.23: 统一用 UIDocumentInteractionController（侧载更稳定）
+                let url = URL(fileURLWithPath: sharePath)
+                let controller = UIDocumentInteractionController(url: url)
+                if let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first?.windows.first,
+                   let rootVC = window.rootViewController {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                        window.rootViewController?.present(vc, animated: true)
+                        controller.presentOpenInMenu(from: CGRect(x: rootVC.view.bounds.midX, y: rootVC.view.bounds.midY, width: 0, height: 0), in: rootVC.view, animated: true)
                     }
                 }
             }
