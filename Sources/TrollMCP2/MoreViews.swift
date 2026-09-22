@@ -980,8 +980,10 @@ struct DeveloperInstructionsView: View {
                                 // 开关按钮
                                 Button(action: { toggleEnabled(item) }) {
                                     Image(systemName: item.enabled ? "checkmark.circle.fill" : "circle")
-                                        .font(.system(size: 22))
+                                        .font(.system(size: 24))
                                         .foregroundColor(item.enabled ? .tmCyan : Color(.systemGray4))
+                                        .frame(width: 44, height: 44)
+                                        .contentShape(Rectangle())
                                 }
                                 .buttonStyle(BorderlessButtonStyle())
 

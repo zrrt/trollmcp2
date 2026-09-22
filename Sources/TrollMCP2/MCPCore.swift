@@ -1309,10 +1309,11 @@ final class ToolSearchTool: MCPTool {
         
         // v3.1.20: 第一次调用 tool_search 时，返回全部工具名+一句话介绍
         // AI 一次看完全部，不用反复搜
+        // v3.1.24: 改成返回全部工具（不管什么模式），不是只返回 enabledDefinitions
         var hits: [[String: String]]
         if ToolSearchTool.searchCount == 1 {
-            // 第一次：返回全部工具
-            let allTools = ToolRegistry.shared.enabledDefinitions
+            // 第一次：返回全部工具（不管什么模式都全量加载）
+            let allTools = ToolRegistry.shared.definitions
             hits = allTools.map { ["name": $0.name, "summary": $0.summary] }
         } else {
             // 之后：按关键词搜索
