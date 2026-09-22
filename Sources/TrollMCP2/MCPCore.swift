@@ -1342,7 +1342,7 @@ final class ToolSearchTool: MCPTool {
         let showCount = (ToolSearchTool.searchCount == 1) ? hits.count : min(5, hits.count)
         for h in hits.prefix(showCount) {
             if let n = h["name"], let s = h["summary"] {
-                hint += "\n  - \(n): \(String(s.prefix(80)))"
+                hint += "\n  - \(n): \(s)"
             }
         }
         if hits.count > showCount {
@@ -1356,8 +1356,8 @@ final class ToolSearchTool: MCPTool {
             "tools": hits.map { h -> [String: String] in
                 var d = h
                 if let s = d["summary"] {
-                    // v3.1.21: 描述从 30 字加到 80 字，AI 能看清楚工具用途
-                    d["desc"] = String(s.prefix(80))
+                    // v3.1.22: 去掉截断，返回完整描述，AI 能准确理解工具用途
+                    d["desc"] = s
                     d.removeValue(forKey: "summary")
                 }
                 return d
