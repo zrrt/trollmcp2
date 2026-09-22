@@ -50,10 +50,14 @@ private enum FSPolicy {
             "/var/db",
             "/var/containers/Shared/SystemGroup",
             "/var/mobile/Library/SpringBoard",
-            "/var/mobile/Library/UserNotifications"
+            "/var/mobile/Library/UserNotifications",
+            // v3.1.25: 禁止 AI 访问破甲指令目录（未勾选的破甲指令不应该被 AI 读取）
+            "/KnowledgeBase/DeveloperInstructions"
         ]
         for d in denied {
             if s2.hasPrefix(d) || s.hasPrefix(d) { return false }
+            // v3.1.25: 也检查子路径（路径里包含这个字符串就拒绝）
+            if s2.contains(d) || s.contains(d) { return false }
         }
         return true
     }
