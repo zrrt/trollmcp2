@@ -1404,13 +1404,30 @@ struct FileCardRow: View {
         }
         .buttonStyle(PlainButtonStyle())
         .contextMenu {
-            Button(action: { SharePresenter.present([url]) }) {
+            Button(action: { shareFile() }) {
                 Label("分享", systemImage: "square.and.arrow.up")
+            }
+            Button(action: { openInTrollStore() }) {
+                Label("用 TrollStore 安装", systemImage: "shippingbox")
             }
         }
         .sheet(isPresented: $showPreview) {
             QLFilePreview(urls: [url])
         }
+    }
+
+    // 用 UIDocumentInteractionController 分享文件（不枚举图标，避免侧载环境系统级 Segfault）
+    private func shareFile() {
+        let controller = UIDocumentInteractionController(url: url)
+        controller.presentOpenInMenu(from: CGRect(x: 0, y: 0, width: 100, height: 100), in: UIApplication.shared.windows.first ?? UIView(), animated: true)
+    }
+
+    // 直接用 TrollStore URL scheme 安装
+    private func openInTrollStore() {
+        // TrollStore 的 URL scheme 是 trollstore://install?url=...
+        // 但本地文件需要先复制到 TrollStore 能访问的位置
+        // 这里直接用 OpenIn 菜单让用户选 TrollStore
+        shareFile()
     }
 }
 
