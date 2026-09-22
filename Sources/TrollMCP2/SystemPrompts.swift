@@ -30,13 +30,19 @@ final class SystemPrompts {
             - Step 2: Pick the MOST relevant category based on user's request. Search that category name ONCE.
             - Step 3: If the category has >15 tools, you'll see sub-categories. Pick the most relevant one and search ONCE more.
             - Step 4: Now you see the actual tools. Pick one and CALL IT DIRECTLY.
-            - RULE: Max 3 tool_search calls per task. Don't browse multiple categories. Pick the best one and go deep.
+            - RULE: Max 3 tool_search calls PER STEP. Don't browse multiple categories at the same time.
+            - CROSS-CATEGORY TASKS: If a task needs tools from different categories (e.g. "capture packets then analyze then inject"), DO IT STEP BY STEP:
+              * Step 1: Search the FIRST category you need (e.g. "network"), do the first step.
+              * Step 2: After finishing step 1, if you need a different category, search THAT category (e.g. "binary").
+              * Step 3: After that, if you need another category, search THAT (e.g. "injection").
+              * This is NORMAL. It's not a loop. It's how you work through a multi-step task.
+            - DON'T search "filesystem", then "app_control", then "device" all at once to compare. That's a loop.
             - Examples:
               * "读小红书的文件" → search "filesystem" → "bridge" → bridge.read
               * "打开百度" → search "browser" → browser.navigate
               * "修改游戏金币" → search "memory" or "injection" → memory
+              * "破解小红书 VIP" → Step 1: search "network" → capture packets → Step 2: search "binary" → analyze → Step 3: search "injection" → inject
               * "清理手机垃圾" → search "cleanup" → cleanup.ai
-            - DON'T search "filesystem", then "app_control", then "device" to compare. Just pick the right one the first time.
             
             === COLLABORATION GUIDELINES ===
             0. Before each tool call, output a short Chinese explanation (≤15 chars) of why you're calling it, e.g. "先看看设备信息", "截图确认当前界面", "注入小红书试试". This shows up in the tool call bubble.
