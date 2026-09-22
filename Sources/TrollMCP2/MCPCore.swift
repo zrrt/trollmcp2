@@ -358,12 +358,9 @@ public final class ToolRegistry: ObservableObject {
         "artifact.read_text", "artifact.write_text", "artifact.list",
         "artifact.find",   // v2.9.33/34：递归查找下载产物（与 coreToolNames 保持一致，否则报"未加载"）
         "web.search", "web.fetch", "knowledge.search",
-        // v3.1.32: 删除废弃 fs.* 工具（已被 shell 代替）
-        // fs.tree, fs.read, fs.grep, fs.write, fs.edit, fs.find, fs.container
-        "fs.hexdump",   // 二进制分析
-        "fs.zip", "fs.sql",        // ZIP 浏览 / SQLite 查询
-        "fs.diff", "fs.hash", "fs.download",  // 对比/校验/下载
-        "fs.plist", "fs.crash", "fs.image_info",  // plist / 崩溃 / 图片
+        // v3.1.32: 大部分 fs.* 工具已被 shell 代替，只保留 2 个
+        // shell 做不到的：fs.zip（解压） / fs.image_info（图片信息）
+        "fs.zip", "fs.image_info",
         "github.account_status", "github.trigger_build", "github.fetch_runs", "github.download_artifact",
         "model.config", "model.authentication", "model.selected_profile_id",
         "skills.list", "skills.read",   // v2.9.17：技能发现/读取
