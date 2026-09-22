@@ -878,7 +878,10 @@ public final class ToolRegistry: ObservableObject {
                 throw classified
             }
         }
-        throw MCPError.failed("tool \(originalName) 未加载，请先调用 tool_search 搜索该工具")
+        // v3.1.9: 工具未授权 → 自动授权 + 返回"已加载，请重新调用"
+        // 这样 AI 不用反复搜 tool_search，直接调用时自动加载
+        approveForSession(originalName)
+        throw MCPError.failed("tool \(originalName) 已加载，schema 已注入下一轮，请重新调用")
     }
 
     // v2.9.128：解包 classified 的 code/reason/nextStep（审计记录用）
@@ -1304,11 +1307,12 @@ final class ToolSearchTool: MCPTool {
         let limit = (params["limit"] as? NSNumber)?.intValue ?? 0
         ToolSearchTool.searchCount += 1
         let hits = ToolRegistry.shared.searchTools(query: query, limit: limit)
-        // v2.9.31：去掉敏感工具区分——搜索到即自动授权本会话（无弹窗，AI 自由调用）
-        for h in hits {
-            guard let n = h["name"], !n.isEmpty else { continue }
-            ToolRegistry.shared.approveForSession(n)
-        }
+        // v3.1.9: 不自动授权全部搜到的工具——按需加载，AI 实际调用时才授权
+        // 这样只加载要用的那个工具的完整 schema，不加载全部
+        // for h in hits {
+        //     guard let n = h["name"], !n.isEmpty else { continue }
+        //     ToolRegistry.shared.approveForSession(n)
+        // }
         // v2.9.167：按用户示例最紧凑形态——无 hint/无 query、authorized 保留（明确可直调）、
         // summary 改 desc 短摘要（30 字足够 AI 判断用途）、_noMessage 省顶层 message。
         // 单次搜索比 v2.9.165 再省 ~40 token，且信息不减。
