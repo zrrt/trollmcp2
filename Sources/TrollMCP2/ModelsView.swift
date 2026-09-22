@@ -66,22 +66,11 @@ struct ModelsView: View {
         .navigationTitle("模型 API")
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
-
-                Button(action: { showingImporter = true }) {
-                    Image(systemName: "square.and.arrow.down")
-                }
-                .help("导入配置")
                 // v2.9.108：从剪贴板粘贴导入（借鉴 cc-switch ccswitch:// 一键导入思路，零 URL Scheme 风险）
                 Button(action: importFromClipboard) {
                     Image(systemName: "doc.on.clipboard")
                 }
                 .help("从剪贴板导入")
-                Button(action: { exportDoc = ConfigDoc(text: store.exportJSON()); showingExporter = true }) {
-                    Image(systemName: "square.and.arrow.up")
-                }
-                .help("导出配置")
-            
-
                 Button(action: { showingUsage = true }) {
                     Image(systemName: "chart.bar.fill")
                 }
