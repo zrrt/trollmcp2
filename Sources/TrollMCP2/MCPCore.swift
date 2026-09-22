@@ -1308,7 +1308,13 @@ final class ToolSearchTool: MCPTool {
         // summary 改 desc 短摘要（30 字足够 AI 判断用途）、_noMessage 省顶层 message。
         // 单次搜索比 v2.9.165 再省 ~40 token，且信息不减。
         // v3.0.95：加 hint 明确告诉 AI "这些工具你现在就可以调用了"
-        var hint = "✅ These tools are now authorized and ready to call directly:"
+        let totalTools = ToolRegistry.shared.tools.count
+        let approvedCount = ToolRegistry.shared.approvedTools().count
+        var hint = "✅ These tools are now authorized and ready to call directly."
+        hint += "\n📊 Total: \(totalTools) tools available | \(approvedCount) already approved | \(totalTools - approvedCount) remaining."
+        if hits.isEmpty {
+            hint += "\n⚠️ No new tools found for '\(query)'. You've seen all relevant tools."
+        }
         for h in hits.prefix(5) {
             if let n = h["name"], let s = h["summary"] {
                 hint += "\n  - \(n): \(String(s.prefix(40)))"
