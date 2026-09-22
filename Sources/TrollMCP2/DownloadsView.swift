@@ -12,6 +12,9 @@ struct DownloadsView: View {
     @State private var showConfirm = false
     @State private var confirmMessage = ""
     @State private var refreshTick = false
+    @State private var showShare = false
+    @State private var sharePath = ""
+    @State private var toast: String?
 
     struct DownloadItem: Identifiable {
         let id = UUID()
@@ -76,6 +79,40 @@ struct DownloadsView: View {
                 secondaryButton: .cancel()
             )
         }
+        // 自定义分享 ActionSheet（侧载环境下 UIActivityViewController 会闪退）
+        .confirmationDialog("分享文件", isPresented: $showShare, titleVisibility: .visible) {
+            Button("复制文件路径") {
+                UIPasteboard.general.string = sharePath
+                toast = "已复制路径"
+            }
+            Button("用其他 App 打开") {
+                let vc = UIActivityViewController(activityItems: [URL(fileURLWithPath: sharePath)], applicationActivities: nil)
+                if let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first?.windows.first {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                        window.rootViewController?.present(vc, animated: true)
+                    }
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("选择分享方式")
+        }
+        .overlay(alignment: .bottom) {
+            if let toast = toast {
+                Text(toast)
+                    .font(.caption)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+                    .padding(.bottom, 20)
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                            self.toast = nil
+                        }
+                    }
+            }
+        }
         .onAppear { refresh() }
     }
 
@@ -136,6 +173,14 @@ struct DownloadsView: View {
             }
         }
         .contextMenu {
+            Button(action: {
+                if !item.isDir {
+                    sharePath = item.path
+                    showShare = true
+                }
+            }) {
+                Label("分享", systemImage: "square.and.arrow.up")
+            }
             Button(action: { try? FileManager.default.removeItem(atPath: item.path); refresh() }) {
                 Label("删除", systemImage: "trash")
             }

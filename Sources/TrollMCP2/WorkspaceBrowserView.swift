@@ -18,6 +18,7 @@ struct WorkspaceBrowserView: View {
     @State private var previewItem: FileItem?
     @State private var showShare = false
     @State private var shareURL: URL?
+    @State private var sharePath: String = ""
     @State private var confirmDelete: FileItem?
     @State private var showNewFolder = false
     @State private var newFolderName = ""
@@ -175,8 +176,9 @@ struct WorkspaceBrowserView: View {
                             Button { copyPath(item.path) } label: { Label("复制路径", systemImage: "doc.on.doc") }
                             if !item.isDir {
                                 Button {
-                                SharePresenter.present([URL(fileURLWithPath: item.path)])
-                            } label: { Label("分享", systemImage: "square.and.arrow.up") }
+                                    sharePath = item.path
+                                    showShare = true
+                                } label: { Label("分享", systemImage: "square.and.arrow.up") }
                             }
                             Button(role: .destructive) { confirmDelete = item } label: { Label("删除", systemImage: "trash") }
                         }
@@ -234,6 +236,25 @@ struct WorkspaceBrowserView: View {
                 }
             }
             Button("取消", role: .cancel) { newFolderName = "" }
+        }
+        // 自定义分享 ActionSheet（侧载环境下 UIActivityViewController 会闪退）
+        .confirmationDialog("分享文件", isPresented: $showShare, titleVisibility: .visible) {
+            Button("复制文件路径") {
+                UIPasteboard.general.string = sharePath
+                toast = "已复制路径"
+            }
+            Button("用其他 App 打开") {
+                // 用 UIActivityViewController 打开文件（文件分享比文本分享稳定一些）
+                let vc = UIActivityViewController(activityItems: [URL(fileURLWithPath: sharePath)], applicationActivities: nil)
+                if let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first?.windows.first {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                        window.rootViewController?.present(vc, animated: true)
+                    }
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("选择分享方式")
         }
         .overlay(alignment: .bottom) {
             if let toast = toast {
