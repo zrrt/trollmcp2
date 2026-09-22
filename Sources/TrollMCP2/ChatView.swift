@@ -881,14 +881,16 @@ struct ChatView: View {
         presentShareSheet(text: text)
     }
 
-    // v2.9.169：统一 SharePresenter——修复 contextMenu 收起动画中 present 崩溃
+    // v2.9.179：分享面板在侧载环境下会系统级 Segfault（MobileIcons/CoreImage）
+    // 改成复制+提示，保证用户永远能拿到内容
     private func presentShareSheet(text: String) {
         let content = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty else {
             showToast("没有可分享的内容")
             return
         }
-        SharePresenter.present([content], excluded: [.assignToContact, .print])
+        UIPasteboard.general.string = content
+        showToast("已复制到剪贴板，可粘贴到其他 App")
     }
 
     /// 把勾选的消息拼成可读文本（按会话内顺序），用于复制 / 分享。
