@@ -198,9 +198,12 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
         var r: [String: Any] = [
             "url": currentURL,
             "title": pageTitle,
-            "loaded": ready,
-            "error": (lastError.isEmpty ? nil : lastError) as Any
+            "loaded": ready
         ]
+        // v3.1.8：只有真的有错误时才放 error 键，避免框架把 nil error 当成错误
+        if !lastError.isEmpty {
+            r["error"] = lastError
+        }
         // 顺带返回页面正文长度，方便 AI 判断内容是否就位
         let textLen = evalSync("(document.body && document.body.innerText || '').length")
         r["body_text_length"] = Int(textLen) ?? 0

@@ -43,6 +43,10 @@ struct BrowserWaitTool: MCPTool {
         let timeout = params["timeout"] as? Int ?? 15
         let r = BrowserManager.shared.wait(timeout: timeout)
         AuditLog.shared.log("browser.wait", detail: "loaded=\(r["loaded"] ?? false)")
+        // v3.1.8：返回更明确的错误信息，而不是"未知错误"
+        if !(r["ok"] as? Bool ?? true) {
+            return r
+        }
         return r
     }
 }
