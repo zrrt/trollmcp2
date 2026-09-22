@@ -1019,6 +1019,8 @@ public final class ToolRegistry: ObservableObject {
         register(DeviceInfoTool())
         register(DeviceProbeTool())
         register(MemoryTweakTool())   // v2.9.60：H5GG式内存修改（需先注入MemoryTweak.dylib）
+        // v3.1.34: control 大工具 + 子命令（合并 10 个 control.* 工具）
+        register(ControlExecTool())
         // v2.9.75：ControlAgent 通用 UI 控制（注入后 AI 可控制任意 App UI）
         register(ControlInjectTool())
         register(ControlStatusTool())

@@ -510,3 +510,87 @@ final class ControlTypeTextTool: MCPTool {
         ]
     }
 }
+
+// MARK: - v3.1.34: control 大工具 + 子命令（合并 10 个 control.* 工具）
+
+final class ControlExecTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "control",
+        summary: "Control target app UI (tap/type/swipe/screenshot/key). Use subcommand to specify action. Use for: UI automation, controlling app screen. Don't use for: shell commands (use shell.exec), browser control (use browser.*). Example: tap → control tap x:100 y:200; screenshot → control screenshot; type text → control type text:'hello'; tap by text → control tap_text text:'登录'; press home → control key key:home. Subcommands: inject / status / ui_tree / screenshot / tap / swipe / type / key / tap_text / type_text.",
+        parameters: [
+            "command": "Subcommand: inject / status / ui_tree / screenshot / tap / swipe / type / key / tap_text / type_text",
+            "bundle_id": "App bundle ID (for inject)",
+            "x": "X coordinate (for tap)",
+            "y": "Y coordinate (for tap)",
+            "text": "Text (for type / tap_text)",
+            "key": "Key name: home/back/enter (for key)",
+            "placeholder": "Field placeholder (for type_text)"
+        ],
+        verified: true, category: "ui_control")
+    
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let command = params["command"] as? String else {
+            throw MCPError.invalidParams("command required")
+        }
+        
+        AuditLog.shared.log("control", detail: command)
+        
+        switch command {
+        case "inject":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try ControlInjectTool().invoke(["bundle_id": bundleId])
+            
+        case "status":
+            return ControlAgentTools.shared.status()
+            
+        case "ui_tree":
+            return ControlAgentTools.shared.uiTree()
+            
+        case "screenshot":
+            return ControlAgentTools.shared.screenshot()
+            
+        case "tap":
+            guard let x = params["x"] as? Double, let y = params["y"] as? Double else {
+                throw MCPError.invalidParams("x and y required")
+            }
+            return ControlAgentTools.shared.tap(x: x, y: y)
+            
+        case "swipe":
+            guard let x1 = params["x1"] as? Double, let y1 = params["y1"] as? Double,
+                  let x2 = params["x2"] as? Double, let y2 = params["y2"] as? Double else {
+                throw MCPError.invalidParams("x1,y1,x2,y2 required")
+            }
+            return ControlAgentTools.shared.swipe(x1: x1, y1: y1, x2: x2, y2: y2, duration: 0.3)
+            
+        case "type":
+            guard let text = params["text"] as? String else {
+                throw MCPError.invalidParams("text required")
+            }
+            return ControlAgentTools.shared.type(text: text)
+            
+        case "key":
+            guard let key = params["key"] as? String else {
+                throw MCPError.invalidParams("key required: home/back/enter")
+            }
+            return ControlAgentTools.shared.key(key)
+            
+        case "tap_text":
+            guard let text = params["text"] as? String else {
+                throw MCPError.invalidParams("text required")
+            }
+            return try ControlTapTextTool().invoke(["text": text])
+            
+        case "type_text":
+            guard let placeholder = params["placeholder"] as? String,
+                  let text = params["text"] as? String else {
+                throw MCPError.invalidParams("placeholder and text required")
+            }
+            return try ControlTypeTextTool().invoke(["placeholder": placeholder, "text": text])
+            
+        default:
+            throw MCPError.invalidParams("Unknown command: \(command). Available: inject/status/ui_tree/screenshot/tap/swipe/type/key/tap_text/type_text")
+        }
+    }
+}
