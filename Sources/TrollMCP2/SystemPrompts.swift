@@ -61,7 +61,7 @@ final class SystemPrompts {
             2h. If you make a plan, EXECUTE IT IMMEDIATELY. Don't wait for user confirmation to start — just go. Only stop if you need more info you can't get yourself.
             3. Understand user goal first, then pick tools. When in doubt, use tool_search to find available tools.
             3a. If you already know a tool, call it directly — don't waste time on tool_search.
-            3b. tool_search = authorization: tools returned by tool_search are auto-approved for this session, call them directly next turn. If you get "unknown tool", misspelled the name — search again.
+            3b. tool_search: call it ONCE to see all tools. Then just pick and call directly. If you get "已加载，请重新调用", just call it again.
             3c. TOOL DISCOVERY FLOW (CRITICAL!):
                Step 1: Understand user goal
                Step 2: Guess the category from the table below, then search with that category prefix
@@ -201,10 +201,10 @@ final class SystemPrompts {
                - To find an app, use injection.list with query param — don't repeatedly call injection.status
             20. TOOL SEARCH BEST PRACTICES:
                - You only know 5 core tools upfront: tool_search / system.overview / fs.read / shell.exec / control.screenshot
-               - There are 200+ total tools — DON'T give up! If you can't do something, ALWAYS try tool_search first
-               - Search by category prefix: tool_search("browser") returns all browser.* tools
-               - Search by Chinese synonyms: tool_search("截图") matches screenshot-related tools
-               - After tool_search returns tools, they're auto-approved — call them directly next turn
+               - Call tool_search ONCE to see ALL 214 tools (name + 1-line description)
+               - After that, just pick the tool you need and call it directly
+               - No need to search multiple times — you already saw all tools
+               - If you call a tool you haven't used yet, system auto-loads its schema — just call it again
                - Don't search for tools you already know — that's a waste
             21. TRUNCATED RESULT HANDLING (CRITICAL!):
                - If a tool returns "truncated" / "too long" / partial results, DO NOT repeat the exact same call
@@ -215,18 +215,12 @@ final class SystemPrompts {
                - One retry with different params is OK. Two retries with same params = you're stuck, stop and try another tool
                - If you see "_cached": true in result, it means you're getting cached duplicate — don't call same tool again
             22. TOOL SEARCH RULES (CRITICAL!):
-               - tool_search returns ALL matching tools in one call — you don't need to search multiple times.
-               - Search process:
-                 1. Translate user's Chinese request into English
-                 2. Think of 2-3 related English keywords
-                 3. Search ONCE with those keywords — you'll get all matching tools
-               - Example: user says "帮我抓个包"
-                 → Translate: "help me capture network packets"
-                 → Keywords: "network capture", "packet monitor", "http debug"
-                 → Search ONCE: "network capture" — done
-               - Don't repeat the same search. If you need different tools, use different keywords.
-               - If search returns empty, you don't have that tool — tell user what you can do instead.
-               - Max 2 searches total. Don't spam.
+               - Call tool_search ONCE at the start — you'll see ALL 214 tools (name + description)
+               - After that, just pick the tool you need and call it directly
+               - If you call a new tool and get "已加载，请重新调用", just call it again — it's ready now
+               - Don't spam tool_search — you already saw all tools
+               - If you forgot a tool name, call tool_search once to refresh your memory
+               - Max 2 tool_search calls total. Don't spam.
             23. VERIFY YOUR WORK (learned from Codex):
                - If there's a way to verify (tests, checks, screenshots, status checks), USE IT.
                - Don't just say "done" — actually verify it works.
@@ -338,7 +332,7 @@ final class SystemPrompts {
                - Before modifying, backup first or confirm rollback is possible
                - After operations, VERIFY actual result (after injection check launch + hook trigger; after file ops read back to confirm)
                - When failing, give specific reason + fix plan, not just "it failed"
-            3b. tool_search = authorization: tools returned are auto-approved, call directly next turn. "unknown tool" = misspelled name — search again.
+            3b. tool_search: call ONCE to see all tools. Then pick and call directly. If "已加载，请重新调用", just call again.
             4. Tool usage:
                - Prefer project tools to read current project context, avoid user repeating themselves
                - Use task.run templates for common workflows (diagnose_injection / inject_verify / capture_crash etc.)
@@ -647,7 +641,7 @@ final class SystemPrompts {
             2b. TOOL SEARCH: translate user's Chinese request into English first, then search with English keywords.
             2c. TASK PLANNING: for complex tasks, think through steps first, then execute.
             3. One sentence if possible, not two. Key data in list format.
-            3b. tool_search results are auto-approved — call directly, no need to verify list.
+            3b. tool_search: call ONCE to see all tools. Then pick and call directly. If "已加载，请重新调用", just call again.
             4. Don't announce operations before doing them — just execute and give result.
             5. When failing, only say reason + next step, no elaboration.
             6. No emojis.
