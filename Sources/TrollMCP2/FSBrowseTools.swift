@@ -93,7 +93,7 @@ private enum FSPolicy {
 final class FSTreeTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.tree",
-        summary: "Browse directory structure. Use for: see what's inside a folder, find files by browsing. Don't use for: read file content (use fs.read), find files by name (use fs.find). Example: user says '看看小红书 Documents 里有什么' → list directory tree.",
+        summary: "[DEPRECATED] Use shell.exec(ls /path) instead. Browse directory structure. Example: user says '看看这个目录里有什么' → shell.exec(\"ls /path/to/dir\").",
         parameters: [
             "bundle_id": "Target app bundle ID (browse app container)",
             "path": "Directory path (default: workspace root)",
@@ -729,7 +729,7 @@ final class FSWriteTool: MCPTool {
 final class FSEditTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.edit",
-        summary: "Edit/modify a text file (find and replace specific content). Use for: change text in a file, modify config, replace specific words. Don't use for: write whole new file (use fs.write), delete file (use fs.rm). Example: user says '把这个文件里的 localhost 改成 127.0.0.1' → find and replace.",
+        summary: "[DEPRECATED] Use shell.exec(sed -i 's/old/new/g' /path) instead. Edit/modify a text file (find and replace). Example: user says '把这个文件里的 localhost 改成 127.0.0.1' → shell.exec(\"sed -i 's/localhost/127.0.0.1/g' /path\").",
         parameters: [
             "path": "File path (or workspace-relative)",
             "bundle_id": "Target App bundle ID (to edit app container file)",
@@ -1254,7 +1254,7 @@ final class FSPropertyListTool: MCPTool {
 final class FSContainerTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.container",
-        summary: "Open/browse an app's data container directory. Use for: see what's inside an app's data folder, navigate app sandbox. Don't use for: read specific file (use fs.read with bundle_id), list workspace files (use fs.tree). Example: user says '小红书的 Documents 里有什么' → access container.",
+        summary: "[DEPRECATED] Use shell.exec(ls /var/mobile/Containers/Data/Application/xxx/) instead. Open/browse an app's data container directory. Example: user says '小红书的 Documents 里有什么' → shell.exec(\"ls /var/mobile/Containers/.../Documents/\").",
     verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
