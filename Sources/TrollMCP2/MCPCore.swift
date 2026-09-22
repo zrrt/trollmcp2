@@ -1323,11 +1323,14 @@ final class ToolSearchTool: MCPTool {
         //          避免 210 个工具太长导致 AI 陷入死循环
         var hits: [[String: String]]
         if ToolSearchTool.searchCount == 1 {
-            // v3.1.27: 第一次调用返回全部工具的完整描述（包括 Use for/Don't use for/Example）
-            // 这样 AI 知道每个工具怎么用，不会瞎试
+            // v3.1.28: 第一次调用返回全部工具，但只返回简短描述（第一句话）
+            // 不要完整的 Use for/Don't use for/Example，太长了 AI 看不过来
             let allTools = ToolRegistry.shared.definitions
             hits = allTools.map { def in
-                return ["name": def.name, "summary": def.summary]
+                // 只取 summary 的第一句话（去掉 Use for/Don't use for）
+                let shortDesc = def.summary.components(separatedBy: ". Use for:").first ?? def.summary
+                let trimmed = shortDesc.count > 60 ? String(shortDesc.prefix(60)) + "..." : shortDesc
+                return ["name": def.name, "summary": trimmed]
             }
             // 第一次调用自动授权全部工具，AI 可以直接调用
             for def in allTools {

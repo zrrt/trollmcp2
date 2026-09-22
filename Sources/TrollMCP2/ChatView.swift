@@ -1382,8 +1382,12 @@ struct MessageBubble: View {
                     .foregroundColor(.secondary)
                     .padding(8)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(.tertiarySystemBackground))
+                    .background(Color(.systemBackground))
                     .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Color(.separator), lineWidth: 0.5)
+                    )
 
                 // v3.1.6: 工具结果里的文件 → 可点击卡片
                 let files = FilePathExtractor.extractFiles(from: message.content)
