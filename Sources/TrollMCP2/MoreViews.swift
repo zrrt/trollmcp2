@@ -895,9 +895,8 @@ struct DeveloperInstructionsView: View {
                         }
                         .padding(.vertical, 4)
                         .contentShape(Rectangle())
-                        .onTapGesture {
-                            editing = DevInstrEditorPayload(name: item.name, content: item.content)
-                        }
+                        // v3.1.10: 去掉外层 onTapGesture——会吃掉按钮的点击事件
+                        // 点开关按钮直接 toggle，点其他地方用 contextMenu 编辑
                         .contextMenu {
                             Button(action: { copyItem(item) }) {
                                 Label("复制内容", systemImage: "doc.on.doc")
