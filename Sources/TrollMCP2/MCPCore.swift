@@ -354,11 +354,10 @@ public final class ToolRegistry: ObservableObject {
     /// 未显式设置的工具按此白名单决定默认启用；用户显式开/关过的仍以用户为准。
     private static let defaultEnabledTools: Set<String> = [
         "tool_search",   // v2.9.16：渐进式披露元工具，必须始终可用
-        "ping", "device.info", "device.probe", "workspace.info",
-        "artifact.read_text", "artifact.write_text", "artifact.list",
-        "artifact.find",   // v2.9.33/34：递归查找下载产物（与 coreToolNames 保持一致，否则报"未加载"）
+        "ping", "device.probe",
         "web.search", "web.fetch", "knowledge.search",
-        // v3.1.32: 大部分 fs.* 工具已被 shell 代替，只保留 2 个
+        // v3.1.33: 大部分工具已被 shell 代替，只保留 shell 做不到的
+        // 已删：device.info（df/free/uname） / workspace.info（pwd） / artifact.*（ls/cat/find）
         // shell 做不到的：fs.zip（解压） / fs.image_info（图片信息）
         "fs.zip", "fs.image_info",
         "github.account_status", "github.trigger_build", "github.fetch_runs", "github.download_artifact",
