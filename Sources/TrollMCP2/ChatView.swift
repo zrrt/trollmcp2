@@ -1291,16 +1291,31 @@ struct MessageBubble: View {
 
     private var toolBubble: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // 📝 1. 思考过程（独立气泡，可折叠）
+            // 📝 1. 思考过程（独立橙色气泡）
             if let thinking = message.thinking, !thinking.isEmpty {
                 thinkingMiniBubble(thinking)
             }
 
-            // 🔧 2. 工具调用（独立气泡，一行）
-            toolCallMiniBubble
+            // 🔧✅ 2. 工具调用 + 工具结果（同一个灰色气泡）
+            VStack(alignment: .leading, spacing: 6) {
+                // 工具调用（蓝色文字，只显示工具名）
+                HStack(spacing: 6) {
+                    Image(systemName: "wrench.and.screwdriver")
+                        .font(.system(size: 12))
+                        .foregroundColor(.blue)
+                    Text("调用工具：\(message.toolName ?? "")")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.blue)
+                    Spacer()
+                }
 
-            // ✅ 3. 工具结果（独立气泡，可折叠）
-            toolResultMiniBubble
+                // 工具结果（可折叠）
+                toolResultMiniBubble
+            }
+            .padding(10)
+            .background(Color(.tertiarySystemBackground))
+            .cornerRadius(10)
         }
     }
 
