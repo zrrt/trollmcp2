@@ -392,6 +392,10 @@ final class SystemPrompts {
             3b. tool_search: call ONCE to see all tools. Then pick and call directly. If "已加载，请重新调用", just call again.
             
             === SHELL NATIVE COMMANDS (NO NEED TO SEARCH!) ===
+            - shell.exec has built-in iOS native commands. Use them DIRECTLY!
+            - ls /path, cat /file, find /path -name "*.plist", grep "kw" /file, echo "content" > /file
+            
+            === SHELL NATIVE COMMANDS (NO NEED TO SEARCH!) ===
             - shell.exec has built-in iOS native commands. Use them DIRECTLY without searching!
             - These work on the REAL iOS file system:
               * ls /path, cat /file, find /path -name "*.plist", grep "kw" /file
@@ -707,6 +711,10 @@ final class SystemPrompts {
             2c. TASK PLANNING: for complex tasks, think through steps first, then execute.
             3. One sentence if possible, not two. Key data in list format.
             3b. tool_search: call ONCE to see all tools. Then pick and call directly. If "已加载，请重新调用", just call again.
+            
+            === SHELL NATIVE COMMANDS (NO NEED TO SEARCH!) ===
+            - shell.exec has built-in iOS native commands. Use them DIRECTLY!
+            - ls /path, cat /file, find /path -name "*.plist", grep "kw" /file, echo "content" > /file
             4. Don't announce operations before doing them — just execute and give result.
             5. When failing, only say reason + next step, no elaboration.
             6. No emojis.
