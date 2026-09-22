@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import Darwin
+import CommonCrypto
 
 /// 终端会话管理（单例，v3.0.93: 已废弃 - iSH 引擎自己管理 cwd，这个类是死代码）
 final class ShellSession {
@@ -186,6 +187,55 @@ final class ShellExecTool: MCPTool {
         if trimmed.hasPrefix("wc ") {
             let result = ShellExecTool.runIOSWc(trimmed)
             AuditLog.shared.log("shell.exec (ios wc)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
+        // 17. md5sum / sha256sum 命令——iOS 原生实现（计算哈希）
+        if trimmed.hasPrefix("md5sum ") || trimmed.hasPrefix("sha256sum ") {
+            let result = ShellExecTool.runIOSHash(trimmed)
+            AuditLog.shared.log("shell.exec (ios hash)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
+        // 18. diff 命令——iOS 原生实现（比较两个文件）
+        if trimmed.hasPrefix("diff ") {
+            let result = ShellExecTool.runIOSDiff(trimmed)
+            AuditLog.shared.log("shell.exec (ios diff)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
+        // 19. hexdump 命令——iOS 原生实现（二进制十六进制）
+        if trimmed.hasPrefix("hexdump ") || trimmed.hasPrefix("xxd ") {
+            let result = ShellExecTool.runIOSHexdump(trimmed)
+            AuditLog.shared.log("shell.exec (ios hexdump)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
+        // 20. curl -O / wget 命令——iOS 原生实现（下载文件）
+        if trimmed.hasPrefix("curl ") || trimmed.hasPrefix("wget ") {
+            let result = ShellExecTool.runIOSDownload(trimmed)
+            AuditLog.shared.log("shell.exec (ios download)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
+        // 21. plutil 命令——iOS 原生实现（读 plist）
+        if trimmed.hasPrefix("plutil ") {
+            let result = ShellExecTool.runIOSPlutil(trimmed)
+            AuditLog.shared.log("shell.exec (ios plutil)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
+        // 22. sqlite3 命令——iOS 原生实现（查询 SQLite）
+        if trimmed.hasPrefix("sqlite3 ") {
+            let result = ShellExecTool.runIOSSqlite(trimmed)
+            AuditLog.shared.log("shell.exec (ios sqlite)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
+        // 23. unzip 命令——iOS 原生实现（解压 zip）
+        if trimmed.hasPrefix("unzip ") {
+            let result = ShellExecTool.runIOSUnzip(trimmed)
+            AuditLog.shared.log("shell.exec (ios unzip)", detail: String(trimmed.prefix(100)))
             return result
         }
         
@@ -810,6 +860,203 @@ final class ShellExecTool: MCPTool {
             ]
         } catch {
             return ["command": command, "exit_code": 1, "stdout": "wc failed: \(error.localizedDescription)", "ios_native": true]
+        }
+    }
+    
+    /// v3.1.32: iOS 原生 md5sum / sha256sum 命令——计算文件哈希
+    private static func runIOSHash(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        
+        guard parts.count >= 2 else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: md5sum <file> 或 sha256sum <file>", "ios_native": true]
+        }
+        
+        let filePath = (parts[1] as NSString).expandingTildeInPath
+        
+        guard fm.fileExists(atPath: filePath) else {
+            return ["command": command, "exit_code": 1, "stdout": "\(parts[0]): \(filePath): No such file or directory", "ios_native": true]
+        }
+        
+        do {
+            let data = try Data(contentsOf: URL(fileURLWithPath: filePath))
+            var hash = ""
+            
+            if parts[0] == "md5sum" {
+                var md5 = [UInt8](repeating: 0, count: Int(CC_MD5_DIGEST_LENGTH))
+                data.withUnsafeBytes { bytes in
+                    CC_MD5(bytes.baseAddress, CC_LONG(data.count), &md5)
+                }
+                hash = md5.map { String(format: "%02x", $0) }.joined()
+            } else {
+                var sha256 = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
+                data.withUnsafeBytes { bytes in
+                    CC_SHA256(bytes.baseAddress, CC_LONG(data.count), &sha256)
+                }
+                hash = sha256.map { String(format: "%02x", $0) }.joined()
+            }
+            
+            return [
+                "command": command,
+                "exit_code": 0,
+                "stdout": "\(hash)  \(filePath)",
+                "ios_native": true
+            ]
+        } catch {
+            return ["command": command, "exit_code": 1, "stdout": "hash failed: \(error.localizedDescription)", "ios_native": true]
+        }
+    }
+    
+    /// v3.1.32: iOS 原生 diff 命令——比较两个文件
+    private static func runIOSDiff(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        
+        guard parts.count >= 3 else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: diff <file1> <file2>", "ios_native": true]
+        }
+        
+        let file1 = (parts[1] as NSString).expandingTildeInPath
+        let file2 = (parts[2] as NSString).expandingTildeInPath
+        
+        do {
+            let content1 = try String(contentsOfFile: file1, encoding: .utf8)
+            let content2 = try String(contentsOfFile: file2, encoding: .utf8)
+            let lines1 = content1.components(separatedBy: .newlines)
+            let lines2 = content2.components(separatedBy: .newlines)
+            
+            var diffs: [String] = []
+            let maxLines = max(lines1.count, lines2.count)
+            
+            for i in 0..<maxLines {
+                let line1 = i < lines1.count ? lines1[i] : "<EOF>"
+                let line2 = i < lines2.count ? lines2[i] : "<EOF>"
+                if line1 != line2 {
+                    diffs.append("Line \(i+1):")
+                    diffs.append("< \(line1)")
+                    diffs.append("> \(line2)")
+                }
+            }
+            
+            if diffs.isEmpty {
+                return ["command": command, "exit_code": 0, "stdout": "Files are identical", "ios_native": true]
+            } else {
+                return ["command": command, "exit_code": 1, "stdout": diffs.joined(separator: "\n"), "ios_native": true]
+            }
+        } catch {
+            return ["command": command, "exit_code": 1, "stdout": "diff failed: \(error.localizedDescription)", "ios_native": true]
+        }
+    }
+    
+    /// v3.1.32: iOS 原生 hexdump 命令——二进制十六进制查看
+    private static func runIOSHexdump(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        
+        guard parts.count >= 2 else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: hexdump -C <file>", "ios_native": true]
+        }
+        
+        var offset = 0
+        var length = 256
+        var filePath = ""
+        
+        for i in 1..<parts.count {
+            if parts[i] == "-s", i + 1 < parts.count {
+                offset = Int(parts[i+1]) ?? 0
+            } else if parts[i] == "-n", i + 1 < parts.count {
+                length = Int(parts[i+1]) ?? 256
+            } else if !parts[i].hasPrefix("-") {
+                filePath = parts[i]
+            }
+        }
+        
+        guard !filePath.isEmpty else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: hexdump -C <file>", "ios_native": true]
+        }
+        
+        let path = (filePath as NSString).expandingTildeInPath
+        
+        do {
+            let data = try Data(contentsOf: URL(fileURLWithPath: path))
+            let start = min(offset, data.count)
+            let end = min(start + length, data.count)
+            let subdata = data[start..<end]
+            
+            var lines: [String] = []
+            subdata.withUnsafeBytes { bytes in
+                let ptr = bytes.bindMemory(to: UInt8.self).baseAddress!
+                for i in stride(from: 0, to: subdata.count, by: 16) {
+                    let addr = String(format: "%08x", start + i)
+                    var hex = ""
+                    var ascii = ""
+                    for j in 0..<16 {
+                        if i + j < subdata.count {
+                            let b = ptr[i + j]
+                            hex += String(format: "%02x ", b)
+                            ascii += (b >= 32 && b < 127) ? String(UnicodeScalar(b)) : "."
+                        } else {
+                            hex += "   "
+                            ascii += " "
+                        }
+                    }
+                    lines.append("\(addr)  \(hex) |\(ascii)|")
+                }
+            }
+            
+            return [
+                "command": command,
+                "exit_code": 0,
+                "stdout": lines.joined(separator: "\n"),
+                "ios_native": true
+            ]
+        } catch {
+            return ["command": command, "exit_code": 1, "stdout": "hexdump failed: \(error.localizedDescription)", "ios_native": true]
+        }
+    }
+    
+    /// v3.1.32: iOS 原生 curl 命令——下载文件（同步）
+    private static func runIOSDownload(_ command: String) -> [String: Any] {
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        
+        guard parts.count >= 2 else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: curl -O <url> 或 wget <url>", "ios_native": true]
+        }
+        
+        var urlString = ""
+        var outputPath = ""
+        
+        for i in 1..<parts.count {
+            if parts[i] == "-O", i + 1 < parts.count {
+                urlString = parts[i+1]
+            } else if parts[i].hasPrefix("http") {
+                urlString = parts[i]
+            } else if parts[i] == "-o", i + 1 < parts.count {
+                outputPath = parts[i+1]
+            }
+        }
+        
+        guard !urlString.isEmpty, let url = URL(string: urlString) else {
+            return ["command": command, "exit_code": 1, "stdout": "Invalid URL", "ios_native": true]
+        }
+        
+        // 默认下载到 workspace/downloads/
+        if outputPath.isEmpty {
+            let filename = url.lastPathComponent
+            outputPath = NSHomeDirectory() + "/Documents/downloads/" + filename
+        }
+        
+        do {
+            let data = try Data(contentsOf: url)
+            try data.write(to: URL(fileURLWithPath: outputPath))
+            return [
+                "command": command,
+                "exit_code": 0,
+                "stdout": "Downloaded: \(urlString) → \(outputPath) (\(data.count) bytes)",
+                "ios_native": true
+            ]
+        } catch {
+            return ["command": command, "exit_code": 1, "stdout": "Download failed: \(error.localizedDescription)", "ios_native": true]
         }
     }
     
