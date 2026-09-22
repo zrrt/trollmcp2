@@ -29,6 +29,67 @@ final class DebugDumpConversationsTool: MCPTool {
     }
 }
 
+/// v3.1.26：调试工具——导出单个对话的完整消息列表
+/// 用途：远程调试 AI 行为，看 AI 是怎么思考和调用工具的
+final class DebugDumpConversationTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "debug.dump_conversation",
+        summary: "Debug: export full messages of one conversation. Use for: debug AI behavior, see how AI thinks and calls tools. Don't use for: list all conversations (use debug.dump_conversations), send a message (use chat.send). Example: user says '看看刚才的对话记录' → dump conversation messages.",
+        parameters: ["title": "Conversation title to export (e.g. '您好')", "limit": "Max messages to return (default: 50, max: 200)"], verified: true, category: "debug")
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let title = params["title"] as? String, !title.isEmpty else {
+            throw MCPError.invalidParams("title required")
+        }
+        let limit = max(1, min((params["limit"] as? Int) ?? 50, 200))
+        let convs = ConversationStore.shared.conversations
+        guard let conv = convs.first(where: { $0.title == title }) else {
+            throw MCPError.failed("conversation not found: \(title)")
+        }
+        let messages = Array(conv.messages.suffix(limit))
+        return [
+            "title": conv.title,
+            "totalMessages": conv.messages.count,
+            "returnedMessages": messages.count,
+            "messages": messages.map { msg -> [String: Any] in
+                [
+                    "role": msg.role,
+                    "content": msg.content,
+                    "timestamp": msg.timestamp.timeIntervalSince1970,
+                    "isError": msg.isError
+                ]
+            }
+        ]
+    }
+}
+
+/// v3.1.26：聊天工具——发送消息到聊天窗口
+/// 用途：远程测试 AI，发消息 → 读取回复 → 看 AI 是怎么调用工具的
+final class ChatSendTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "chat.send",
+        summary: "Send a message to the chat window. Use for: remote test AI behavior, send a message and see how AI responds. Don't use for: read chat history (use debug.dump_conversation), search web (use web.search). Example: user says '帮我测试一下，发个消息给 AI' → send chat message.",
+        parameters: ["message": "Message text to send", "conversationTitle": "Optional: create new conversation with this title"], verified: true, category: "debug")
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let message = params["message"] as? String, !message.isEmpty else {
+            throw MCPError.invalidParams("message required")
+        }
+        guard let config = ModelStore.shared.defaultConfig else {
+            throw MCPError.failed("no default model config")
+        }
+        // 异步发送，不阻塞工具调用
+        DispatchQueue.main.async {
+            ConversationStore.shared.send(message, using: config)
+        }
+        return [
+            "sent": true,
+            "message": message,
+            "note": "Message sent. Use debug.dump_conversation to read AI's reply."
+        ]
+    }
+}
+
 /// v2.9.297：调试工具——导出网络日志（最近100条请求/降级/错误记录），排查AI不回消息
 final class DebugDumpNetworkLogTool: MCPTool {
     let definition = ToolDefinition(
