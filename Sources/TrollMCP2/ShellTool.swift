@@ -410,8 +410,9 @@ final class ShellExecTool: MCPTool {
         let fm = FileManager.default
         
         // 解析命令：echo "内容" > /path/to/file
-        // 或者 echo "内容" >> /path/to/file
-        let pattern = #"^echo\s+'(.*)'\s+>>?\s+(.*)$"#
+        // 或者 echo '内容' >> /path/to/file
+        // 支持单引号和双引号
+        let pattern = #"^echo\s+['\"](.*)['\"]\s+>>?\s+(.*)$"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else {
             return [
                 "command": command,
