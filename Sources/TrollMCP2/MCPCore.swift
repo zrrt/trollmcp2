@@ -23,8 +23,10 @@ public struct ToolDefinition {
     public let requiresJailbreak: Bool
     /// v3.1.1：是否仅在 TrollStore 环境下可用（true = 需要 TrollStore）
     public let requiresTrollStore: Bool
+    /// v3.1.26：是否仅远程终端可用（true = 内置 AI 看不到，只在远程 API 可用）
+    public let remoteOnly: Bool
 
-    public init(name: String, summary: String, parameters: [String: String] = [:], returns: [String: String] = [:], verified: Bool = false, category: String = "misc", uiSummary: String = "", minIOSMajor: Int? = nil, maxIOSMajor: Int? = nil, requiresJailbreak: Bool = false, requiresTrollStore: Bool = false) {
+    public init(name: String, summary: String, parameters: [String: String] = [:], returns: [String: String] = [:], verified: Bool = false, category: String = "misc", uiSummary: String = "", minIOSMajor: Int? = nil, maxIOSMajor: Int? = nil, requiresJailbreak: Bool = false, requiresTrollStore: Bool = false, remoteOnly: Bool = false) {
         self.name = name
         self.summary = summary
         self.parameters = parameters
@@ -36,6 +38,7 @@ public struct ToolDefinition {
         self.maxIOSMajor = maxIOSMajor
         self.requiresJailbreak = requiresJailbreak
         self.requiresTrollStore = requiresTrollStore
+        self.remoteOnly = remoteOnly
     }
 
     /// UI 显示用：优先 uiSummary（中文），否则 fallback 到 summary
@@ -447,7 +450,8 @@ public final class ToolRegistry: ObservableObject {
     }
 
     public var enabledDefinitions: [ToolDefinition] {
-        definitions.filter { isEnabled(name: $0.name) }
+        // v3.1.26: 过滤掉 remoteOnly 工具——内置 AI 看不到，只在远程 API 可用
+        definitions.filter { isEnabled(name: $0.name) && !$0.remoteOnly }
     }
 
     /// v2.9.1：生成给 OpenAI API 用的工具 schema，同时建立 apiName → 原名映射，
@@ -1268,6 +1272,8 @@ public final class ToolRegistry: ObservableObject {
         register(DebugDumpConversationTool())
         register(ChatSendTool())
         register(ChatReplyTool())
+        register(ModelListTool())
+        register(ModelSwitchTool())
         register(DebugDumpModelConfigsTool())
         register(DebugDumpNetworkLogTool())
         register(MacroRecordTool())

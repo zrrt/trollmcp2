@@ -35,7 +35,7 @@ final class DebugDumpConversationTool: MCPTool {
     let definition = ToolDefinition(
         name: "debug.dump_conversation",
         summary: "Debug: export full messages of one conversation. Use for: debug AI behavior, see how AI thinks and calls tools. Don't use for: list all conversations (use debug.dump_conversations), send a message (use chat.send). Example: user says '看看刚才的对话记录' → dump conversation messages.",
-        parameters: ["title": "Conversation title to export (e.g. '您好')", "limit": "Max messages to return (default: 50, max: 200)"], verified: true, category: "debug")
+        parameters: ["title": "Conversation title to export (e.g. '您好')", "limit": "Max messages to return (default: 50, max: 200)"], verified: true, category: "debug", remoteOnly: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let title = params["title"] as? String, !title.isEmpty else {
@@ -69,7 +69,7 @@ final class ChatSendTool: MCPTool {
     let definition = ToolDefinition(
         name: "chat.send",
         summary: "Send a message to the chat window. Use for: remote test AI behavior, send a message and see how AI responds. Don't use for: read chat history (use debug.dump_conversation), search web (use web.search). Example: user says '帮我测试一下，发个消息给 AI' → send chat message.",
-        parameters: ["message": "Message text to send", "conversationTitle": "Optional: create new conversation with this title"], verified: true, category: "debug")
+        parameters: ["message": "Message text to send", "conversationTitle": "Optional: create new conversation with this title"], verified: true, category: "debug", remoteOnly: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let message = params["message"] as? String, !message.isEmpty else {
@@ -96,7 +96,7 @@ final class ChatReplyTool: MCPTool {
     let definition = ToolDefinition(
         name: "chat.reply",
         summary: "Simulate AI reply to chat. Use for: test chat UI without calling real model API. Don't use for: send user message (use chat.send), dump conversation (use debug.dump_conversation). Example: user says '帮我测试一下聊天界面，模拟 AI 回复' → chat.reply.",
-        parameters: ["message": "AI reply text", "role": "Message role (assistant / tool / system, default: assistant)"], verified: true, category: "debug")
+        parameters: ["message": "AI reply text", "role": "Message role (assistant / tool / system, default: assistant)"], verified: true, category: "debug", remoteOnly: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let message = params["message"] as? String, !message.isEmpty else {
@@ -113,6 +113,56 @@ final class ChatReplyTool: MCPTool {
             "role": role,
             "message": message,
             "note": "Reply added to chat. Use debug.dump_conversation to verify."
+        ]
+    }
+}
+
+/// v3.1.26：模型工具——列出所有模型配置
+final class ModelListTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "model.list",
+        summary: "List all AI model configurations. Use for: see what models are available, debug model switching. Don't use for: change model (use model.switch), dump debug info (use debug.dump_model_configs). Example: user says '有哪些模型可以选' → list models.",
+        parameters: [:], verified: true, category: "debug", remoteOnly: true)
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        let configs = ModelStore.shared.configs.map { cfg -> [String: Any] in
+            [
+                "id": cfg.id.uuidString,
+                "name": cfg.name,
+                "provider": cfg.provider,
+                "model": cfg.model,
+                "isDefault": cfg.isDefault
+            ]
+        }
+        return [
+            "total": configs.count,
+            "defaultModel": ModelStore.shared.defaultConfig?.name ?? "(无)",
+            "models": configs
+        ]
+    }
+}
+
+/// v3.1.26：模型工具——切换当前使用的模型
+final class ModelSwitchTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "model.switch",
+        summary: "Switch current AI model. Use for: test different models, switch to a faster/smaller model. Don't use for: list models (use model.list), edit model settings (use settings). Example: user says '切换到 DeepSeek 模型' → switch model.",
+        parameters: ["name": "Model name to switch to (e.g. 'DeepSeek V4')"], verified: true, category: "debug", remoteOnly: true)
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let name = params["name"] as? String, !name.isEmpty else {
+            throw MCPError.invalidParams("name required")
+        }
+        guard let config = ModelStore.shared.configs.first(where: { $0.name == name }) else {
+            throw MCPError.failed("model not found: \(name)")
+        }
+        ModelStore.shared.markUsed(config.id.uuidString)
+        return [
+            "switched": true,
+            "name": config.name,
+            "model": config.model,
+            "provider": config.provider,
+            "note": "Model switched. New messages will use this model."
         ]
     }
 }
