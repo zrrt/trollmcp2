@@ -1316,63 +1316,77 @@ final class ToolSearchTool: MCPTool {
         let limit = (params["limit"] as? NSNumber)?.intValue ?? 0
         ToolSearchTool.searchCount += 1
         
-        // v3.1.20: 第一次调用 tool_search 时，返回全部工具名+一句话介绍
-        // AI 一次看完全部，不用反复搜
-        // v3.1.24: 改成返回全部工具（不管什么模式），不是只返回 enabledDefinitions
-        // v3.1.25: 第一次调用只返回简短描述（第一句话），不返回完整 Use for/Don't use for
-        //          避免 210 个工具太长导致 AI 陷入死循环
         var hits: [[String: String]]
+        var isCategoryList = false
+        
         if ToolSearchTool.searchCount == 1 {
-            // v3.1.28: 第一次调用返回全部工具，但只返回简短描述（第一句话）
-            // 不要完整的 Use for/Don't use for/Example，太长了 AI 看不过来
+            // v3.1.29: 第一次调用返回分类列表（文件夹式）
+            // 像文件夹一样，AI 先选分类，再看该分类下的工具
+            // 这样每次只显示几十个工具，小模型也能处理
             let allTools = ToolRegistry.shared.definitions
-            hits = allTools.map { def in
-                // 只取 summary 的第一句话（去掉 Use for/Don't use for）
+            // 按 category 分组
+            var categoryMap: [String: Int] = [:]
+            for def in allTools {
+                categoryMap[def.category, default: 0] += 1
+            }
+            // 返回分类列表
+            hits = categoryMap.map { cat, count in
+                return ["name": "📁 \(cat)", "summary": "\(count) 个工具，搜索 '\(cat)' 查看详情"]
+            }
+            // 按工具数量排序
+            hits.sort { ($0["summary"] ?? "").count > ($1["summary"] ?? "").count }
+            isCategoryList = true
+            // 第一次调用自动授权全部工具
+            for def in allTools {
+                ToolRegistry.shared.approveForSession(def.name)
+            }
+        } else if !query.isEmpty,
+                  let matchedCat = ToolRegistry.shared.definitions.first(where: { def in
+                      def.category.lowercased() == query.lowercased()
+                  })?.category {
+            // v3.1.29: 如果 AI 传的是分类名，返回该分类下的所有工具
+            let catTools = ToolRegistry.shared.definitions.filter { $0.category == matchedCat }
+            hits = catTools.map { def in
                 let shortDesc = def.summary.components(separatedBy: ". Use for:").first ?? def.summary
                 let trimmed = shortDesc.count > 60 ? String(shortDesc.prefix(60)) + "..." : shortDesc
                 return ["name": def.name, "summary": trimmed]
             }
-            // 第一次调用自动授权全部工具，AI 可以直接调用
-            for def in allTools {
+            // 授权该分类下的所有工具
+            for def in catTools {
                 ToolRegistry.shared.approveForSession(def.name)
             }
         } else {
-            // 之后：按关键词搜索，返回完整描述
+            // 按关键词搜索
             hits = ToolRegistry.shared.searchTools(query: query, limit: limit)
         }
-        // v3.1.9: 不自动授权全部搜到的工具——按需加载，AI 实际调用时才授权
-        // 这样只加载要用的那个工具的完整 schema，不加载全部
-        // for h in hits {
-        //     guard let n = h["name"], !n.isEmpty else { continue }
-        //     ToolRegistry.shared.approveForSession(n)
-        // }
-        // v2.9.167：按用户示例最紧凑形态——无 hint/无 query、authorized 保留（明确可直调）、
-        // summary 改 desc 短摘要（30 字足够 AI 判断用途）、_noMessage 省顶层 message。
-        // 单次搜索比 v2.9.165 再省 ~40 token，且信息不减。
-        // v3.0.95：加 hint 明确告诉 AI "这些工具你现在就可以调用了"
+        
         let totalTools = ToolRegistry.shared.toolCount
         let approvedCount = ToolRegistry.shared.approvedToolNames().count
         var hint = "✅ These tools are now authorized and ready to call directly."
-        hint += "\n🔍 Search #\(ToolSearchTool.searchCount) | 📊 Total: \(totalTools) tools | \(approvedCount) approved | \(totalTools - approvedCount) remaining."
-        if ToolSearchTool.searchCount == 1 {
-            hint += "\n💡 This is ALL tools. You can call any of them directly. No need to search again unless you forgot the tool name."
+        hint += "\n🔍 Search #\(ToolSearchTool.searchCount) | 📊 Total: \(totalTools) tools | \(approvedCount) approved"
+        
+        if isCategoryList {
+            hint += "\n📁 This is the CATEGORY LIST. Each folder = one category of tools."
+            hint += "\n💡 To see tools in a category, search for the category name (e.g. 'filesystem', 'browser', 'app_control')."
+        } else if ToolSearchTool.searchCount == 2, !query.isEmpty {
+            hint += "\n💡 You selected the '\(query)' category. You can call these tools directly."
         }
-        if ToolSearchTool.searchCount >= 3 {
-            hint += "\n⚠️ You've searched \(ToolSearchTool.searchCount) times. Stop searching and use what you have. If you can't find the right tool, tell the user what you can do."
+        
+        if ToolSearchTool.searchCount >= 4 {
+            hint += "\n⚠️ Stop searching. Use what you have or tell the user what you can do."
         }
+        
         if hits.isEmpty {
-            hint += "\n⚠️ No new tools found for '\(query)'."
+            hint += "\n⚠️ No tools found for '\(query)'."
         }
-        // v3.1.20: 第一次调用显示全部工具，之后只显示前 5 个
-        let showCount = (ToolSearchTool.searchCount == 1) ? hits.count : min(5, hits.count)
-        for h in hits.prefix(showCount) {
+        
+        // 显示所有结果（分类列表或分类下的工具）
+        for h in hits {
             if let n = h["name"], let s = h["summary"] {
                 hint += "\n  - \(n): \(s)"
             }
         }
-        if hits.count > showCount {
-            hint += "\n  ... and \(hits.count - showCount) more"
-        }
+        
         return [
             "_noMessage": true,
             "total": hits.count,
@@ -1381,7 +1395,6 @@ final class ToolSearchTool: MCPTool {
             "tools": hits.map { h -> [String: String] in
                 var d = h
                 if let s = d["summary"] {
-                    // v3.1.22: 去掉截断，返回完整描述，AI 能准确理解工具用途
                     d["desc"] = s
                     d.removeValue(forKey: "summary")
                 }
