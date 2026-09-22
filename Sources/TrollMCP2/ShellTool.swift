@@ -279,7 +279,7 @@ final class ShellExecTool: MCPTool {
         let fm = FileManager.default
         let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
         
-        guard parts.count >= 3, parts[1] == "." || parts[1].hasPrefix("/") else {
+        guard parts.count >= 3, searchPath == "." || searchPath.hasPrefix("/") else {
             return [
                 "command": command,
                 "exit_code": 1,
@@ -288,7 +288,7 @@ final class ShellExecTool: MCPTool {
             ]
         }
         
-        let searchPath = parts[1]
+        let searchPath = (parts[1] as NSString).expandingTildeInPath
         var namePattern = ""
         
         // 解析 -name 参数
