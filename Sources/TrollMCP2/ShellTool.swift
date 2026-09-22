@@ -84,6 +84,34 @@ final class ShellExecTool: MCPTool {
             return result
         }
         
+        // 2. cat 命令——iOS 原生实现（读文件）
+        if trimmed.hasPrefix("cat ") {
+            let result = ShellExecTool.runIOSCat(trimmed)
+            AuditLog.shared.log("shell.exec (ios cat)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
+        // 3. find 命令——iOS 原生实现（找文件）
+        if trimmed.hasPrefix("find ") {
+            let result = ShellExecTool.runIOSFind(trimmed)
+            AuditLog.shared.log("shell.exec (ios find)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
+        // 4. grep 命令——iOS 原生实现（搜文本）
+        if trimmed.hasPrefix("grep ") {
+            let result = ShellExecTool.runIOSGrep(trimmed)
+            AuditLog.shared.log("shell.exec (ios grep)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
+        // 5. 写文件命令（echo > / >>）——iOS 原生实现
+        if trimmed.range(of: #"^echo\s+.*>\s+"#, options: .regularExpression) != nil {
+            let result = ShellExecTool.runIOSWrite(trimmed)
+            AuditLog.shared.log("shell.exec (ios write)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
         // v3.0.41：iSH 为唯一引擎（ios_system 已删除）。初始化失败直接报错，不再回退。
         let (output, exitCode, timedOut) = ISHEngine.exec(command, timeout: timeout)
         
@@ -196,6 +224,239 @@ final class ShellExecTool: MCPTool {
                 "cwd": resolvedPath,
                 "ios_native": true,
                 "hint": "iOS 原生 ls"
+            ]
+        }
+    }
+    
+    /// v3.1.32: iOS 原生 cat 命令——读文件内容
+    private static func runIOSCat(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        
+        guard parts.count >= 2 else {
+            return [
+                "command": command,
+                "exit_code": 1,
+                "stdout": "cat: missing file operand",
+                "ios_native": true
+            ]
+        }
+        
+        let path = (parts[1] as NSString).expandingTildeInPath
+        
+        guard fm.fileExists(atPath: path) else {
+            return [
+                "command": command,
+                "exit_code": 1,
+                "stdout": "cat: \(path): No such file or directory",
+                "ios_native": true
+            ]
+        }
+        
+        do {
+            let content = try String(contentsOfFile: path, encoding: .utf8)
+            // 限制输出长度，防止太长
+            let truncated = content.count > 5000 ? String(content.prefix(5000)) + "\n... (输出太长，已截断，共 \(content.count) 字符)" : content
+            return [
+                "command": command,
+                "exit_code": 0,
+                "stdout": truncated,
+                "ios_native": true,
+                "hint": "iOS 原生 cat：直接读 iOS 文件"
+            ]
+        } catch {
+            return [
+                "command": command,
+                "exit_code": 1,
+                "stdout": "cat: \(path): \(error.localizedDescription)",
+                "ios_native": true
+            ]
+        }
+    }
+    
+    /// v3.1.32: iOS 原生 find 命令——找文件
+    private static func runIOSFind(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        
+        guard parts.count >= 3, parts[1] == "." || parts[1].hasPrefix("/") else {
+            return [
+                "command": command,
+                "exit_code": 1,
+                "stdout": "Usage: find <path> -name '<pattern>'",
+                "ios_native": true
+            ]
+        }
+        
+        let searchPath = parts[1]
+        var namePattern = ""
+        
+        // 解析 -name 参数
+        for i in 2..<parts.count {
+            if parts[i] == "-name", i + 1 < parts.count {
+                namePattern = parts[i+1].trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+            }
+        }
+        
+        guard !namePattern.isEmpty else {
+            return [
+                "command": command,
+                "exit_code": 1,
+                "stdout": "Usage: find <path> -name '<pattern>'",
+                "ios_native": true
+            ]
+        }
+        
+        var results: [String] = []
+        
+        func findRecursive(dir: String, depth: Int) {
+            guard depth < 5 else { return } // 限制深度，防止无限递归
+            do {
+                let items = try fm.contentsOfDirectory(atPath: dir)
+                for item in items {
+                    let fullPath = dir + "/" + item
+                    // 匹配文件名
+                    if item.range(of: namePattern.replacingOccurrences(of: "*", with: ".*"), options: .regularExpression) != nil {
+                        results.append(fullPath)
+                    }
+                    // 递归子目录
+                    var isDir: ObjCBool = false
+                    fm.fileExists(atPath: fullPath, isDirectory: &isDir)
+                    if isDir.boolValue {
+                        findRecursive(dir: fullPath, depth: depth + 1)
+                    }
+                }
+            } catch {}
+        }
+        
+        findRecursive(dir: searchPath, depth: 0)
+        
+        // 限制结果数量
+        let truncated = results.count > 100 ? Array(results.prefix(100)) + ["... (共找到 \(results.count) 个，已截断)"] : results
+        
+        return [
+            "command": command,
+            "exit_code": 0,
+            "stdout": truncated.joined(separator: "\n"),
+            "ios_native": true,
+            "hint": "iOS 原生 find：直接在 iOS 文件系统找文件"
+        ]
+    }
+    
+    /// v3.1.32: iOS 原生 grep 命令——搜文本
+    private static func runIOSGrep(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        
+        guard parts.count >= 3 else {
+            return [
+                "command": command,
+                "exit_code": 1,
+                "stdout": "Usage: grep '<pattern>' <file>",
+                "ios_native": true
+            ]
+        }
+        
+        let pattern = parts[1].trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+        let filePath = parts[2]
+        
+        guard fm.fileExists(atPath: filePath) else {
+            return [
+                "command": command,
+                "exit_code": 1,
+                "stdout": "grep: \(filePath): No such file or directory",
+                "ios_native": true
+            ]
+        }
+        
+        do {
+            let content = try String(contentsOfFile: filePath, encoding: .utf8)
+            let lines = content.components(separatedBy: .newlines)
+            var matches: [String] = []
+            for line in lines {
+                if line.range(of: pattern, options: .caseInsensitive) != nil {
+                    matches.append(line)
+                }
+            }
+            let truncated = matches.count > 50 ? Array(matches.prefix(50)) + ["... (共 \(matches.count) 行匹配，已截断)"] : matches
+            return [
+                "command": command,
+                "exit_code": 0,
+                "stdout": truncated.joined(separator: "\n"),
+                "ios_native": true,
+                "hint": "iOS 原生 grep：直接在 iOS 文件里搜文本"
+            ]
+        } catch {
+            return [
+                "command": command,
+                "exit_code": 1,
+                "stdout": "grep: \(filePath): \(error.localizedDescription)",
+                "ios_native": true
+            ]
+        }
+    }
+    
+    /// v3.1.32: iOS 原生写文件命令（echo > / >>）
+    private static func runIOSWrite(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        
+        // 解析命令：echo "内容" > /path/to/file
+        // 或者 echo "内容" >> /path/to/file
+        let pattern = #"^echo\s+'(.*)'\s+>>?\s+(.*)$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return [
+                "command": command,
+                "exit_code": 1,
+                "stdout": "Usage: echo '内容' > /path/to/file",
+                "ios_native": true
+            ]
+        }
+        
+        let range = NSRange(command.startIndex..., in: command)
+        guard let match = regex.firstMatch(in: command, range: range) else {
+            return [
+                "command": command,
+                "exit_code": 1,
+                "stdout": "Usage: echo '内容' > /path/to/file",
+                "ios_native": true
+            ]
+        }
+        
+        let contentRange = Range(match.range(at: 1), in: command)!
+        let pathRange = Range(match.range(at: 2), in: command)!
+        let content = String(command[contentRange])
+        let filePath = String(command[pathRange])
+        
+        // 判断是 > 还是 >>
+        let isAppend = command.contains(">>")
+        
+        do {
+            if isAppend {
+                // 追加
+                if fm.fileExists(atPath: filePath) {
+                    let existing = try String(contentsOfFile: filePath, encoding: .utf8)
+                    let newContent = existing + "\n" + content
+                    try newContent.write(toFile: filePath, atomically: true, encoding: .utf8)
+                } else {
+                    try content.write(toFile: filePath, atomically: true, encoding: .utf8)
+                }
+            } else {
+                // 覆盖
+                try content.write(toFile: filePath, atomically: true, encoding: .utf8)
+            }
+            return [
+                "command": command,
+                "exit_code": 0,
+                "stdout": isAppend ? "Appended to \(filePath)" : "Written to \(filePath)",
+                "ios_native": true,
+                "hint": "iOS 原生写文件"
+            ]
+        } catch {
+            return [
+                "command": command,
+                "exit_code": 1,
+                "stdout": "Write failed: \(error.localizedDescription)",
+                "ios_native": true
             ]
         }
     }
