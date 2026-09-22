@@ -1267,6 +1267,7 @@ public final class ToolRegistry: ObservableObject {
         register(DebugDumpConversationsTool())
         register(DebugDumpConversationTool())
         register(ChatSendTool())
+        register(ChatReplyTool())
         register(DebugDumpModelConfigsTool())
         register(DebugDumpNetworkLogTool())
         register(MacroRecordTool())

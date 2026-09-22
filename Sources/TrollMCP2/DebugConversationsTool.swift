@@ -90,6 +90,33 @@ final class ChatSendTool: MCPTool {
     }
 }
 
+/// v3.1.26：聊天工具——代替模型 API，直接回复消息
+/// 用途：调试聊天界面 UI，不用真的调用云端模型
+final class ChatReplyTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "chat.reply",
+        summary: "Simulate AI reply to chat. Use for: test chat UI without calling real model API. Don't use for: send user message (use chat.send), dump conversation (use debug.dump_conversation). Example: user says '帮我测试一下聊天界面，模拟 AI 回复' → chat.reply.",
+        parameters: ["message": "AI reply text", "role": "Message role (assistant / tool / system, default: assistant)"], verified: true, category: "debug")
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let message = params["message"] as? String, !message.isEmpty else {
+            throw MCPError.invalidParams("message required")
+        }
+        let role = params["role"] as? String ?? "assistant"
+        // 异步添加消息，不阻塞工具调用
+        DispatchQueue.main.async {
+            let msg = ChatMessage(role: role, content: message)
+            ConversationStore.shared.appendToCurrent(msg)
+        }
+        return [
+            "added": true,
+            "role": role,
+            "message": message,
+            "note": "Reply added to chat. Use debug.dump_conversation to verify."
+        ]
+    }
+}
+
 /// v2.9.297：调试工具——导出网络日志（最近100条请求/降级/错误记录），排查AI不回消息
 final class DebugDumpNetworkLogTool: MCPTool {
     let definition = ToolDefinition(
