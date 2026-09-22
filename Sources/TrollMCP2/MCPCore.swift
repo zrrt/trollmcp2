@@ -1229,22 +1229,26 @@ public final class ToolRegistry: ObservableObject {
         register(ToolSearchTool())   // v2.9.16：渐进式披露元工具
         register(ClipboardReadTool())   // v2.9.108：剪贴板读取（ios-mcp 借鉴）
         register(ClipboardWriteTool())  // v2.9.108：剪贴板写入（ios-mcp 借鉴）
-        register(FSTreeTool())      // v2.9.111：Filza 式目录浏览
-        register(FSReadTool())      // v2.9.111：文件读取（文本/plist/SQLite/二进制识别）
-        register(FSHexdumpTool())   // v2.9.111：二进制十六进制查看
-        register(FSZipTool())       // v2.9.112：ZIP/IPA 归档浏览与条目读取
-        register(FSSQLTool())       // v2.9.112：SQLite 只读查询（Filza SQLite3 编辑器）
-        register(FSGrepTool())      // v2.9.112：目录文本关键词搜索
-        register(FSWriteTool())     // v2.9.113：写文件（带 .bak 备份）
-        register(FSEditTool())      // v2.9.113：行级/片段编辑（带 .bak 备份）
-        register(FSDiffTool())      // v2.9.113：文件对比（文本 diff / 二进制哈希）
-        register(FSHashTool())      // v2.9.113：文件哈希与元数据
-        register(FSFindTool())      // v2.9.113：文件名搜索
-        register(FSDownloadTool())  // v2.9.113：下载到工作区
-        register(FSPropertyListTool()) // v2.9.115：plist 键值读写（Filza 属性表编辑器）
-        register(FSContainerTool())    // v2.9.115：App 容器路径四件套
-        register(FSCrashTool())        // v2.9.115：崩溃日志解析
-        register(FSImageInfoTool())    // v2.9.115：图片元数据
+        // v3.1.31: 大部分 fs.* 工具已移除，改用 shell.exec
+        // 原因：这些操作 shell 都能做（cat/echo/grep/find 等），不需要专门的工具
+        // 保留的：fs.zip / fs.sql / fs.plist / fs.container / fs.crash / fs.image_info
+        // 移除的：fs.tree / fs.read / fs.hexdump / fs.grep / fs.write / fs.edit / fs.diff / fs.hash / fs.find / fs.download
+        // register(FSTreeTool())
+        // register(FSReadTool())
+        // register(FSHexdumpTool())
+        register(FSZipTool())       // v2.9.112：ZIP/IPA 归档浏览与条目读取（shell 做不了）
+        register(FSSQLTool())       // v2.9.112：SQLite 只读查询（shell 做不了，iOS 没 sqlite3）
+        // register(FSGrepTool())
+        // register(FSWriteTool())
+        // register(FSEditTool())
+        // register(FSDiffTool())
+        // register(FSHashTool())
+        // register(FSFindTool())
+        // register(FSDownloadTool())
+        register(FSPropertyListTool()) // v2.9.115：plist 键值读写（shell 做不了，iOS 没 plutil）
+        register(FSContainerTool())    // v2.9.115：App 容器路径四件套（shell 做不了，沙盒限制）
+        register(FSCrashTool())        // v2.9.115：崩溃日志解析（shell 做不了，需要分析逻辑）
+        register(FSImageInfoTool())    // v2.9.115：图片元数据（shell 做不了，iOS 没 sips）
 
         // v2.9.139：AI 控制任意 App（HID 触摸注入 + 进度横幅 + 控制会话）
         register(UITapTool())
