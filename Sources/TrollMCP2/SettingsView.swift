@@ -230,13 +230,9 @@ struct SettingsView: View {
                          icon: "terminal.fill", color: .tmCyan,
                          destination: AnyView(RemoteTerminalView())),
             SettingsItem(title: "Coruna 安全盾",
-                         subtitle: "检测恶意网站 · 拦截 Coruna 漏洞利用",
+                         subtitle: "检测恶意网站 · 拦截利用 · Web 注入",
                          icon: "shield.lefthalf.filled", color: .green,
                          destination: AnyView(CorunaShieldView())),
-            SettingsItem(title: "Coruna Web 注入",
-                         subtitle: "网页端漏洞利用 · 一键注入 dylib 到任意 App",
-                         icon: "bolt.shield.fill", color: .tmIndigo,
-                         destination: AnyView(CorunaInjectView())),
         ]))
 
         // 关于

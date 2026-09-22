@@ -17,41 +17,39 @@ struct CorunaInjectView: View {
     @State private var showWarning = false
 
     var body: some View {
-        CompatNav {
-            ScrollView {
-                VStack(spacing: 16) {
-                    if !isDeviceCompatible {
-                        compatibilityWarning
-                    }
-                    statusCard
-                    configurationSection
-                    chainInfoSection
-                    actionButtons
+        ScrollView {
+            VStack(spacing: 16) {
+                if !isDeviceCompatible {
+                    compatibilityWarning
                 }
-                .padding()
+                statusCard
+                configurationSection
+                chainInfoSection
+                actionButtons
             }
-            .navigationTitle("Coruna Web 注入")
-            .navigationBarTitleDisplayMode(.inline)
-            .onAppear {
-                isDeviceCompatible = CorunaWebInjector.isCompatible
-                loadApps()
-                loadDylibs()
-            }
-            .sheet(isPresented: $showAppPicker) {
-                AppPickerSheet(apps: availableApps, selectedApp: $selectedApp)
-            }
-            .sheet(isPresented: $showDylibPicker) {
-                DylibPickerSheet(dylibs: availableDylibs, selectedDylib: $selectedDylib)
-            }
-            .sheet(isPresented: $showWebView) {
-                CorunaExploitWebView(injector: injector)
-            }
-            .alert("注意", isPresented: $showWarning) {
-                Button("继续", role: .destructive) { startInjection() }
-                Button("取消", role: .cancel) {}
-            } message: {
-                Text("此功能将利用 Coruna 漏洞链获取内核权限并注入 dylib 到 \(selectedApp?.name ?? "目标 App")。\n\n仅用于安全研究目的。")
-            }
+            .padding()
+        }
+        .navigationTitle("Coruna Web 注入")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            isDeviceCompatible = CorunaWebInjector.isCompatible
+            loadApps()
+            loadDylibs()
+        }
+        .sheet(isPresented: $showAppPicker) {
+            AppPickerSheet(apps: availableApps, selectedApp: $selectedApp)
+        }
+        .sheet(isPresented: $showDylibPicker) {
+            DylibPickerSheet(dylibs: availableDylibs, selectedDylib: $selectedDylib)
+        }
+        .sheet(isPresented: $showWebView) {
+            CorunaExploitWebView(injector: injector)
+        }
+        .alert("注意", isPresented: $showWarning) {
+            Button("继续", role: .destructive) { startInjection() }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("此功能将利用 Coruna 漏洞链获取内核权限并注入 dylib 到 \(selectedApp?.name ?? "目标 App")。\n\n仅用于安全研究目的。")
         }
     }
 

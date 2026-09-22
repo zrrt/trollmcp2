@@ -128,6 +128,43 @@ struct CorunaShieldView: View {
                         .padding(.horizontal)
                     }
                     
+                    // Web 注入工具入口
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Web 注入工具")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                            .padding(.horizontal)
+
+                        NavigationLink(destination: CorunaInjectView()) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "bolt.shield.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.tmIndigo)
+                                    .frame(width: 40)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("网页端漏洞利用")
+                                        .font(.body)
+                                        .foregroundColor(.primary)
+                                    Text("一键注入 dylib 到任意 App")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color(.systemBackground))
+                            .cornerRadius(12)
+                            .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                            .padding(.horizontal)
+                        }
+                    }
+
                     // 底部
                     Text("基于 Google Threat Intelligence IOCs")
                         .font(.caption)
