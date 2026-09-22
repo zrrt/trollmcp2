@@ -1030,13 +1030,10 @@ public final class ToolRegistry: ObservableObject {
         register(ControlKeyTool())
         register(WorkspaceInfoTool())
         register(ToolHealthTool())   // v2.9.128：工具健康度自查
-        // v2.9.128：清理中心（对齐 Fuck 工具箱清理能力 + AI 清理亮点）
-        register(CleanupScanTool())
-        register(CleanupExecuteTool())
-        register(CleanupAiTool())
-        // v2.9.128：系统级清理（Fuck 工具箱系统清理页能力，AI 可调用）
-        register(SystemCleanupScanTool())
-        register(SystemCleanupExecuteTool())
+        // v3.1.33: 清理工具已删（用 shell 代替）
+        // 已删：CleanupScanTool / CleanupExecuteTool / CleanupAiTool
+        // 已删：SystemCleanupScanTool / SystemCleanupExecuteTool
+        // 代替成：shell.exec("du -sh ...") / shell.exec("rm -rf ...")
 
         // M2 助理记忆（原版命名）
         register(AssistantMemorySetTool())
