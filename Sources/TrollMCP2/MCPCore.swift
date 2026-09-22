@@ -1229,26 +1229,25 @@ public final class ToolRegistry: ObservableObject {
         register(ToolSearchTool())   // v2.9.16：渐进式披露元工具
         register(ClipboardReadTool())   // v2.9.108：剪贴板读取（ios-mcp 借鉴）
         register(ClipboardWriteTool())  // v2.9.108：剪贴板写入（ios-mcp 借鉴）
-        // v3.1.31: 大部分 fs.* 工具已移除，改用 shell.exec
-        // 原因：这些操作 shell 都能做（cat/echo/grep/find 等），不需要专门的工具
-        // 保留的：fs.zip / fs.sql / fs.plist / fs.container / fs.crash / fs.image_info
-        // 移除的：fs.tree / fs.read / fs.hexdump / fs.grep / fs.write / fs.edit / fs.diff / fs.hash / fs.find / fs.download
-        // register(FSTreeTool())
-        // register(FSReadTool())
-        // register(FSHexdumpTool())
-        register(FSZipTool())       // v2.9.112：ZIP/IPA 归档浏览与条目读取（shell 做不了）
-        register(FSSQLTool())       // v2.9.112：SQLite 只读查询（shell 做不了，iOS 没 sqlite3）
-        // register(FSGrepTool())
-        // register(FSWriteTool())
-        // register(FSEditTool())
-        // register(FSDiffTool())
-        // register(FSHashTool())
-        // register(FSFindTool())
-        // register(FSDownloadTool())
-        register(FSPropertyListTool()) // v2.9.115：plist 键值读写（shell 做不了，iOS 没 plutil）
-        register(FSContainerTool())    // v2.9.115：App 容器路径四件套（shell 做不了，沙盒限制）
-        register(FSCrashTool())        // v2.9.115：崩溃日志解析（shell 做不了，需要分析逻辑）
-        register(FSImageInfoTool())    // v2.9.115：图片元数据（shell 做不了，iOS 没 sips）
+        // v3.1.31: 刚才想删 fs.* 工具改用 shell，结果发现 shell 是 Alpine Linux 环境
+        // 根本访问不到 iOS 文件系统！所以又加回来了
+        // 保留所有 fs.* 工具，shell 只能在 Alpine 里跑，访问不到 iOS
+        register(FSTreeTool())
+        register(FSReadTool())
+        register(FSHexdumpTool())
+        register(FSZipTool())
+        register(FSSQLTool())
+        register(FSGrepTool())
+        register(FSWriteTool())
+        register(FSEditTool())
+        register(FSDiffTool())
+        register(FSHashTool())
+        register(FSFindTool())
+        register(FSDownloadTool())
+        register(FSPropertyListTool())
+        register(FSContainerTool())
+        register(FSCrashTool())
+        register(FSImageInfoTool())
 
         // v2.9.139：AI 控制任意 App（HID 触摸注入 + 进度横幅 + 控制会话）
         register(UITapTool())

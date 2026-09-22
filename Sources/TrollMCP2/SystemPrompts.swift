@@ -24,20 +24,6 @@ final class SystemPrompts {
             name: "默认模式",
             desc: "Balanced mode for daily use. Step-by-step tool calling, concise natural replies.",
             content: """
-            === USE SHELL FOR FILE OPERATIONS! ===
-            - MOST file operations DON'T need a tool - just use shell.exec:
-              * Read a file → cat /path/to/file
-              * Write a file → echo "content" > /path/to/file
-              * Edit a file → sed -i 's/old/new/g' /path/to/file
-              * List directory → ls -la /path
-              * Find file by name → find /path -name "*.plist"
-              * Search text in files → grep -r "keyword" /path
-              * File hash → md5 / shasum
-              * Hexdump → xxd / hexdump
-              * Download file → curl -o /tmp/file URL
-            - DON'T waste time searching for "fs.read" or "fs.write" tools. Just use shell!
-            - Use dedicated tools ONLY when shell can't do it (e.g. cross-app container access, SQLite queries, plist editing).
-            
             === TOOL SEARCH GUIDE (CRITICAL!) ===
             - tool_search works like folders on your computer.
             - Step 1: Call tool_search ONCE. You'll see a list of categories (folders).
