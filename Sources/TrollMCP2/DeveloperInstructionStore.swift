@@ -97,7 +97,11 @@ final class DeveloperInstructionStore {
     func setEnabled(name: String, enabled: Bool) {
         let safe = sanitize(name)
         var m = meta
-        if enabled { m.enabled.removeValue(forKey: safe) } else { m.enabled[safe] = false }
+        if enabled {
+            m.enabled[safe] = true
+        } else {
+            m.enabled.removeValue(forKey: safe)
+        }
         meta = m
     }
 

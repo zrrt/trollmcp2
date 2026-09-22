@@ -266,10 +266,6 @@ struct ChatView: View {
                     showToast("已复制，请在微信粘贴发送")
                 }
             }
-            Button("复制到巨魔") {
-                UIPasteboard.general.string = shareText
-                showToast("已复制，请在巨魔粘贴")
-            }
             Button("取消", role: .cancel) {}
         } message: {
             Text("选择分享方式")

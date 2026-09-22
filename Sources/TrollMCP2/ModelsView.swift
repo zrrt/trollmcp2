@@ -942,7 +942,15 @@ struct UsageStatsView: View {
                     Button("完成") { presentationMode.wrappedValue.dismiss() }
                 }
             }
-            .onAppear { records = UsageRecorder.shared.records }
+            .onAppear {
+                // 后台线程读取，避免主线程卡死
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let result = UsageRecorder.shared.records
+                    DispatchQueue.main.async {
+                        records = result
+                    }
+                }
+            }
         }
     }
 

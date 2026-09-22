@@ -32,7 +32,10 @@ struct MacroView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(L10n.t("ui_177", "关闭")) { ui.macroPresented = false }
+                    Button(L10n.t("ui_177", "关闭")) {
+                        pm.wrappedValue.dismiss()
+                        ui.macroPresented = false
+                    }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: { refresh() }) {

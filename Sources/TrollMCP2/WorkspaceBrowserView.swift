@@ -19,6 +19,7 @@ struct WorkspaceBrowserView: View {
     @State private var showShare = false
     @State private var shareURL: URL?
     @State private var sharePath: String = ""
+    @State private var documentController: UIDocumentInteractionController?
     @State private var confirmDelete: FileItem?
     @State private var showNewFolder = false
     @State private var newFolderName = ""
@@ -244,11 +245,13 @@ struct WorkspaceBrowserView: View {
                 toast = "已复制路径"
             }
             Button("用其他 App 打开") {
-                // 用 UIActivityViewController 打开文件（文件分享比文本分享稳定一些）
-                let vc = UIActivityViewController(activityItems: [URL(fileURLWithPath: sharePath)], applicationActivities: nil)
-                if let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first?.windows.first {
+                // 用 UIDocumentInteractionController 代替 UIActivityViewController（侧载更稳定）
+                let url = URL(fileURLWithPath: sharePath)
+                documentController = UIDocumentInteractionController(url: url)
+                if let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first?.windows.first,
+                   let rootVC = window.rootViewController {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                        window.rootViewController?.present(vc, animated: true)
+                        documentController?.presentOpenInMenu(from: CGRect(x: rootVC.view.bounds.midX, y: rootVC.view.bounds.midY, width: 0, height: 0), in: rootVC.view, animated: true)
                     }
                 }
             }
