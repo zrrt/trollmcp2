@@ -1316,6 +1316,16 @@ struct MessageBubble: View {
                     .padding(8)
                     .background(Color(.tertiarySystemBackground))
                     .cornerRadius(8)
+
+                // v3.1.6: 工具结果里的文件 → 可点击卡片，点了直接 QuickLook 预览
+                let files = FilePathExtractor.extractFiles(from: message.content)
+                if !files.isEmpty {
+                    VStack(spacing: 6) {
+                        ForEach(files, id: \.self) { url in
+                            FileCardRow(url: url)
+                        }
+                    }
+                }
             }
         }
         .padding(.horizontal, 14)
@@ -1326,6 +1336,79 @@ struct MessageBubble: View {
             RoundedRectangle(cornerRadius: 14)
                 .strokeBorder(isSelected ? Color.blue : Color.clear, lineWidth: 2)
         )
+    }
+}
+
+// v3.1.6: 聊天里的文件卡片 —— 点了直接 QuickLook 预览
+struct FileCardRow: View {
+    let url: URL
+    @State private var showPreview = false
+
+    private var fileName: String { url.lastPathComponent }
+    private var ext: String { (fileName as NSString).pathExtension.lowercased() }
+    private var isImage: Bool { ["png","jpg","jpeg","gif","webp","heic"].contains(ext) }
+
+    private var iconName: String {
+        if isImage { return "photo" }
+        switch ext {
+        case "ipa","tipa": return "shippingbox"
+        case "deb","zip","tar","gz": return "archivebox"
+        case "dylib","framework": return "hammer"
+        case "plist","json": return "doc.text"
+        case "pdf": return "doc.richtext"
+        case "swift","h","m","c","cpp": return "chevron.left.slash.chevron.right"
+        default: return "doc"
+        }
+    }
+
+    private var sizeText: String {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let size = attrs[.size] as? Int64 else { return "" }
+        if size > 1024*1024 { return String(format: "%.1f MB", Double(size)/1024/1024) }
+        if size > 1024 { return String(format: "%.0f KB", Double(size)/1024) }
+        return "\(size) B"
+    }
+
+    var body: some View {
+        Button(action: { showPreview = true }) {
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.tmCyan.opacity(0.12))
+                        .frame(width: 36, height: 36)
+                    Image(systemName: iconName)
+                        .font(.system(size: 16))
+                        .foregroundColor(.tmCyan)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(fileName)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Text(sizeText)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Image(systemName: "eye")
+                    .font(.caption)
+                    .foregroundColor(.tmCyan)
+            }
+            .padding(10)
+            .background(Color(.tertiarySystemBackground))
+            .cornerRadius(10)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .contextMenu {
+            Button(action: { SharePresenter.present([url]) }) {
+                Label("分享", systemImage: "square.and.arrow.up")
+            }
+        }
+        .sheet(isPresented: $showPreview) {
+            FilePreviewView(urls: [url])
+        }
     }
 }
 
