@@ -161,6 +161,34 @@ final class ShellExecTool: MCPTool {
             return result
         }
         
+        // 13. pwd 命令——iOS 原生实现（显示当前目录）
+        if trimmed == "pwd" {
+            let result = ShellExecTool.runIOSPwd(trimmed)
+            AuditLog.shared.log("shell.exec (ios pwd)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
+        // 14. cd 命令——iOS 原生实现（切换目录）
+        if trimmed.hasPrefix("cd ") || trimmed == "cd" {
+            let result = ShellExecTool.runIOSCd(trimmed)
+            AuditLog.shared.log("shell.exec (ios cd)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
+        // 15. touch 命令——iOS 原生实现（创建空文件）
+        if trimmed.hasPrefix("touch ") {
+            let result = ShellExecTool.runIOSTouch(trimmed)
+            AuditLog.shared.log("shell.exec (ios touch)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
+        // 16. wc 命令——iOS 原生实现（统计行数/字数）
+        if trimmed.hasPrefix("wc ") {
+            let result = ShellExecTool.runIOSWc(trimmed)
+            AuditLog.shared.log("shell.exec (ios wc)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
         // v3.0.41：iSH 为唯一引擎（ios_system 已删除）。初始化失败直接报错，不再回退。
         let (output, exitCode, timedOut) = ISHEngine.exec(command, timeout: timeout)
         
@@ -704,6 +732,84 @@ final class ShellExecTool: MCPTool {
             return ["command": command, "exit_code": 0, "stdout": "Replaced '\(oldStr)' with '\(newStr)' in \(filePath)", "ios_native": true]
         } catch {
             return ["command": command, "exit_code": 1, "stdout": "sed failed: \(error.localizedDescription)", "ios_native": true]
+        }
+    }
+    
+    /// v3.1.32: iOS 原生 pwd 命令——显示当前目录
+    private static func runIOSPwd(_ command: String) -> [String: Any] {
+        // 用工作区目录作为默认 pwd
+        let pwd = NSHomeDirectory() + "/Documents"
+        return [
+            "command": command,
+            "exit_code": 0,
+            "stdout": pwd,
+            "ios_native": true,
+            "hint": "iOS 原生 pwd"
+        ]
+    }
+    
+    /// v3.1.32: iOS 原生 cd 命令——切换目录（iOS 原生版本只记录，不真正切换）
+    private static func runIOSCd(_ command: String) -> [String: Any] {
+        // iOS 原生版本不真正切换目录，只是提示
+        // 因为每个命令都是独立的，没有持久的 cwd
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        let path = parts.count >= 2 ? parts[1] : "~"
+        return [
+            "command": command,
+            "exit_code": 0,
+            "stdout": "Note: iOS 原生命令使用绝对路径，cd 不影响。当前目录: \(path)",
+            "ios_native": true,
+            "hint": "iOS 原生 cd：请直接使用绝对路径"
+        ]
+    }
+    
+    /// v3.1.32: iOS 原生 touch 命令——创建空文件
+    private static func runIOSTouch(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        
+        guard parts.count >= 2 else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: touch <file>", "ios_native": true]
+        }
+        
+        let path = (parts[1] as NSString).expandingTildeInPath
+        
+        fm.createFile(atPath: path, contents: nil, attributes: nil)
+        
+        return [
+            "command": command,
+            "exit_code": 0,
+            "stdout": "Created empty file: \(path)",
+            "ios_native": true
+        ]
+    }
+    
+    /// v3.1.32: iOS 原生 wc 命令——统计行数/字数
+    private static func runIOSWc(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        
+        guard parts.count >= 2 else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: wc <file>", "ios_native": true]
+        }
+        
+        let filePath = (parts[parts.count - 1] as NSString).expandingTildeInPath
+        
+        do {
+            let content = try String(contentsOfFile: filePath, encoding: .utf8)
+            let lines = content.components(separatedBy: .newlines).count
+            let words = content.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.count
+            let chars = content.count
+            
+            return [
+                "command": command,
+                "exit_code": 0,
+                "stdout": "\(lines) \(words) \(chars) \(filePath)",
+                "ios_native": true,
+                "hint": "格式: 行数 单词数 字符数"
+            ]
+        } catch {
+            return ["command": command, "exit_code": 1, "stdout": "wc failed: \(error.localizedDescription)", "ios_native": true]
         }
     }
     
