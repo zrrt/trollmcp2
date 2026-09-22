@@ -1300,13 +1300,15 @@ struct MessageBubble: View {
 
             // 🔧✅ 2. 工具调用 + 工具结果（同一个灰色大气泡）
             VStack(alignment: .leading, spacing: 6) {
-                // 工具调用（浅蓝色小气泡，显示工具名 + 参数）
+                        // 工具调用（浅蓝色小气泡，显示工具名 + 命令摘要）
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Image(systemName: "wrench.and.screwdriver")
                             .font(.system(size: 12))
                             .foregroundColor(.blue)
-                        Text("调用工具：\(message.toolName ?? "")")
+                        // 显示工具名 + 命令前 60 个字符，一眼就知道在干嘛
+                        let displayArgs = (message.toolArgs ?? "").prefix(60)
+                        Text("调用工具：\(message.toolName ?? "") \(displayArgs)")
                             .font(.caption)
                             .fontWeight(.medium)
                             .foregroundColor(.blue)
