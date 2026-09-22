@@ -123,7 +123,7 @@ final class DeveloperInstructionStore {
         for url in files.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
             guard url.pathExtension.lowercased() == "md" else { continue }
             let name = url.deletingPathExtension().lastPathComponent
-            guard m.enabled[name] ?? true else { continue }
+            guard m.enabled[name] ?? false else { continue }
             if let content = try? String(contentsOf: url, encoding: .utf8), !content.isEmpty {
                 contents.append(content)
             }
