@@ -604,8 +604,8 @@ public final class ToolRegistry: ObservableObject {
 
         for (_, tool) in tools {
             let def = tool.definition
-            // v3.1.8: 跳过已授权的工具，但常驻核心工具除外（AI 需要能搜到才知道有）
-            if isSessionApproved(def.name) && !isCore(def.name) { continue }
+            // v3.1.9: 不跳过任何工具——全部返回，AI 一次看完全部
+            // 只按 iOS 版本和越狱环境过滤
 
             // v3.1.1：iOS 版本过滤
             if let minV = def.minIOSMajor, iosMajor < minV { continue }
@@ -676,15 +676,13 @@ public final class ToolRegistry: ObservableObject {
             if score > 0 { hits.append((def.name, def.summary, score)) }
         }
         hits.sort { $0.score > $1.score }
-        // v3.1.8: 不带重复——已授权过的工具不再返回，但常驻核心工具除外
-        // （常驻工具一开始就加载了，AI 搜不到就以为没有，必须能搜到）
-        let approved = sessionApproved
-        let freshHits = hits.filter { !approved.contains($0.name) || isCore($0.name) }
-        // v3.1.7: limit=0 表示返回全部匹配的工具，不限制数量
+        // v3.1.9: 返回全部可调用工具——AI 一次看完全部，不用反复搜
+        // 只按 iOS 版本和越狱环境过滤，不过滤已授权的
+        // limit=0 表示返回全部可调用工具
         if limit <= 0 {
-            return freshHits.map { ["name": $0.name, "summary": $0.summary] }
+            return hits.map { ["name": $0.0, "summary": $0.1] }
         }
-        return freshHits.prefix(limit).map { ["name": $0.name, "summary": $0.summary] }
+        return hits.prefix(limit).map { ["name": $0.0, "summary": $0.1] }
     }
 
     /// v2.9.16：返回单个工具的完整 OpenAI function schema（供 tool_search 命中后动态注入下一轮）
