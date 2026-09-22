@@ -21,6 +21,14 @@ struct CleanupCenterView: View {
         )
         .navigationTitle("清理中心")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                NavigationLink(destination: SystemCleanupView()) {
+                    Image(systemName: "externaldrive.badge.wifi")
+                        .font(.subheadline)
+                }
+            }
+        }
         .sheet(isPresented: $showCleanup) {
             if let app = selected {
                 
