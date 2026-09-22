@@ -177,7 +177,7 @@ final class FSTreeTool: MCPTool {
 final class FSReadTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.read",
-        summary: "Read a file's content. Use for: read text/plist/json files, inspect file contents. Don't use for: list directory (use fs.tree), search file content (use fs.grep). Example: user says '读一下这个 config.plist 文件' → read file.",
+        summary: "[DEPRECATED] Use shell.exec(cat /path/to/file) instead. Read a file's content. Example: user says '读一下这个文件' → shell.exec(\"cat /path/to/file\").",
         parameters: [
             "path": "File path to read",
             "bundle_id": "Target app bundle ID (optional, for app container)",
@@ -595,7 +595,7 @@ final class FSSQLTool: MCPTool {
 final class FSGrepTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.grep",
-        summary: "Search for text/keyword inside files (grep). Use for: find which files contain a certain string, search app data for keywords. Don't use for: find files by name (use fs.find), read single file (use fs.read). Example: user says '小红书哪个文件存了token' → grep for 'token' in app container.",
+        summary: "[DEPRECATED] Use shell.exec(grep 'keyword' /path/to/file) instead. Search for text/keyword inside files. Example: user says '哪个文件里有 token' → shell.exec(\"grep 'token' /path/to/file\").",
         parameters: [
             "dir": "Directory to search (default: workspace root)",
             "bundle_id": "Search inside this app's container (instead of dir)",
@@ -676,7 +676,7 @@ final class FSGrepTool: MCPTool {
 final class FSWriteTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.write",
-        summary: "Write/create a file. Use for: create new files, modify file content. Don't use for: read files (use fs.read), delete files (use fs.rm), edit specific part (use fs.edit). Warning: overwrites existing file! Example: user says '写一个 config.plist 文件' → write file.",
+        summary: "[DEPRECATED] Use shell.exec(echo 'content' > /path/to/file) instead. Write/create a file. Example: user says '写一个配置文件' → shell.exec(\"echo '内容' > /path/to/file\").",
         parameters: [
             "path": "File path (absolute or workspace relative)",
             "bundle_id": "Target app bundle ID (optional, writes to app container)",
@@ -968,7 +968,7 @@ final class FSHashTool: MCPTool {
 final class FSFindTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.find",
-        summary: "Find files by filename. Use for: locate a specific file by name, search for plist/db/log files. Don't use for: search file contents (use fs.grep), browse directory (use fs.tree). Example: user says '小红书的 plist 文件在哪' → find files named 'plist' in app container.",
+        summary: "[DEPRECATED] Use shell.exec(find /path -name '*.plist') instead. Find files by filename. Example: user says '找所有 plist 文件' → shell.exec(\"find ~/Documents -name '*.plist'\").",
         parameters: [
             "dir": "Directory to search (default: workspace root)",
             "bundle_id": "Search inside this app's container (instead of dir)",
