@@ -1007,9 +1007,10 @@ struct QuickTabButton: View {
                     .font(.system(size: 11, weight: .semibold))
                 Text(label)
                     .font(.caption)
+                    .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
+            .frame(height: 32)
             .background(Color(.secondarySystemBackground))
             .foregroundColor(.secondary)
             .cornerRadius(10)
