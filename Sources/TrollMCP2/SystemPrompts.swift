@@ -234,6 +234,13 @@ final class SystemPrompts {
             24. ERROR HANDLING (learned from Cursor):
                - If a tool call fails, read the error message carefully and understand WHY.
                - Don't just retry the same thing. Think about what went wrong and adjust.
+               - ERROR RECOVERY FLOW:
+                 1. Read error message — look for `reason` and `next_step` hints
+                 2. If parameter error → fix the parameter and retry
+                 3. If tool not found → search tool_search again with different keywords
+                 4. If permission error → check device.probe / injection.status
+                 5. Max 2 retries per tool. If still failing, switch to a different tool.
+                 6. If no tool can do the job → use tool.load_dylib to write a custom one.
                - If you edit a file and it fails, READ the file again before trying again — user might have changed it.
             25. SECURITY & SAFETY (learned from Claude Code):
                - Security is the default, not an optional mode.
