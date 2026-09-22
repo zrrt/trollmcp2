@@ -116,6 +116,8 @@ final class DeveloperInstructionStore {
 
     /// 所有启用指令的合并内容（注入 AI 请求用）。无启用返回 nil。
     func defaultInjectionContent() -> String? {
+        // 临时调试：直接返回 nil，看看 AI 还会不会提到破甲指令
+        return nil
         let m = meta
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else { return nil }
