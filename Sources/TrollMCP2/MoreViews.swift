@@ -7,6 +7,11 @@ struct AuditLogView: View {
     @State private var showExportAlert = false
     @State private var tab = 0
     @State private var fileLogText = ""
+    @State private var sortOrder: SortOrder = .newest
+    @State private var sortBy: SortBy = .time
+
+    enum SortBy { case time, status, elapsed, category }
+    enum SortOrder { case newest, oldest }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,6 +35,7 @@ struct AuditLogView: View {
             .padding(.bottom, 4)
 
             if tab == 0 {
+                sortBar
                 callLogList
             } else if tab == 1 {
                 healthView
@@ -57,10 +63,77 @@ struct AuditLogView: View {
         }
     }
 
+    // MARK: 排序栏
+    private var sortBar: some View {
+        HStack(spacing: 8) {
+            Menu {
+                Button("按时间排序") { sortBy = .time }
+                Button("按状态排序") { sortBy = .status }
+                Button("按耗时排序") { sortBy = .elapsed }
+                Button("按类别排序") { sortBy = .category }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.up.arrow.down.circle")
+                    Text(sortByTitle).font(.caption)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color(.secondarySystemBackground))
+                .cornerRadius(8)
+            }
+
+            Button {
+                sortOrder = sortOrder == .newest ? .oldest : .newest
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: sortOrder == .newest ? "clock.fill" : "clock.arrow.circlepath")
+                    Text(sortOrder == .newest ? "最新" : "最早").font(.caption)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color(.secondarySystemBackground))
+                .cornerRadius(8)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 4)
+    }
+
+    private var sortByTitle: String {
+        switch sortBy {
+        case .time: return "时间"
+        case .status: return "状态"
+        case .elapsed: return "耗时"
+        case .category: return "类别"
+        }
+    }
+
+    private var sortedEntries: [Entry] {
+        var result = log.entries
+        switch sortBy {
+        case .time:
+            result.sort { $0.timestamp < $1.timestamp }
+        case .status:
+            result.sort { ($0.status?.rawValue ?? "zzz") < ($1.status?.rawValue ?? "zzz") }
+        case .elapsed:
+            result.sort { ($0.elapsedMs ?? 0) < ($1.elapsedMs ?? 0) }
+        case .category:
+            result.sort { $0.category < $1.category }
+        }
+        if sortOrder == .newest, sortBy == .time {
+            result.reverse()
+        } else if sortOrder == .newest, sortBy == .elapsed {
+            result.reverse()
+        }
+        return result
+    }
+
     // MARK: Tab1 调用记录（原列表 + errorCode 徽标）
     private var callLogList: some View {
         List {
-            if log.entries.isEmpty {
+            if sortedEntries.isEmpty {
                 Section {
                     HStack {
                         Spacer()
@@ -77,7 +150,7 @@ struct AuditLogView: View {
                     }
                 }
             } else {
-                ForEach(log.entries) { entry in
+                ForEach(sortedEntries) { entry in
                     if let status = entry.status {
                         Section {
                             HStack(spacing: 12) {

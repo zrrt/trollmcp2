@@ -7,6 +7,7 @@ import SwiftUI
 struct NetworkDebugView: View {
     @ObservedObject private var log = NetworkLog.shared
     @ObservedObject private var models = ModelStore.shared
+    @State private var newestFirst = true
 
     private func levelName(_ level: Int) -> String {
         switch level {
@@ -93,7 +94,22 @@ struct NetworkDebugView: View {
             }
 
             // 最近请求日志
-            CardSectionHeader(icon: "clock.arrow.circlepath", title: "最近请求日志")
+            HStack {
+                CardSectionHeader(icon: "clock.arrow.circlepath", title: "最近请求日志", color: .orange)
+                Spacer()
+                Button {
+                    newestFirst.toggle()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: newestFirst ? "clock.fill" : "clock.arrow.circlepath")
+                        Text(newestFirst ? "最新" : "最早").font(.caption)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(6)
+                }
+            }
             CardBox {
                 VStack(alignment: .leading, spacing: 6) {
                     if log.entries.isEmpty {
@@ -101,9 +117,8 @@ struct NetworkDebugView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-                    // v2.9.149：entries 在 main.async 里 insert(at:0)，
-                    // ForEach(indices) 会因 index 位移崩溃，改 enumerated 安全写法
-                    ForEach(Array(log.entries.enumerated()), id: \.offset) { _, line in
+                    let displayed = newestFirst ? log.entries : Array(log.entries.reversed())
+                    ForEach(Array(displayed.enumerated()), id: \.offset) { _, line in
                         Text(line)
                             .font(.system(.caption2, design: .monospaced))
                             .foregroundColor(line.contains("失败") ? .red : .secondary)
