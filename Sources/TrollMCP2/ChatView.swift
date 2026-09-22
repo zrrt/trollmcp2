@@ -1407,7 +1407,7 @@ struct FileCardRow: View {
             }
         }
         .sheet(isPresented: $showPreview) {
-            FilePreviewView(urls: [url])
+            QLFilePreview(urls: [url])
         }
     }
 }

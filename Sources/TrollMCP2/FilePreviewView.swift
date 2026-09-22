@@ -4,9 +4,8 @@ import QuickLook
 
 /// v3.1.6: 聊天文件预览 —— QLPreviewController 的 SwiftUI 包装
 /// 用户在聊天里点文件卡片 → 直接打开系统 QuickLook 预览（图片/ipa/tipa/文本/plist 等）
-struct FilePreviewView: UIViewControllerRepresentable {
+struct QLFilePreview: UIViewControllerRepresentable {
     let urls: [URL]
-    @Environment(\.presentationMode) private var presentationMode
 
     func makeUIViewController(context: Context) -> QLPreviewController {
         let vc = QLPreviewController()
@@ -19,8 +18,8 @@ struct FilePreviewView: UIViewControllerRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     class Coordinator: NSObject, QLPreviewControllerDataSource {
-        let parent: FilePreviewView
-        init(_ parent: FilePreviewView) { self.parent = parent }
+        let parent: QLFilePreview
+        init(_ parent: QLFilePreview) { self.parent = parent }
 
         func numberOfPreviewItems(in controller: QLPreviewController) -> Int {
             parent.urls.filter { FileManager.default.fileExists(atPath: $0.path) }.count
@@ -64,7 +63,7 @@ enum FilePathExtractor {
             guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
             let range = NSRange(text.startIndex..., in: text)
             regex.enumerateMatches(in: text, range: range) { match, _, _ in
-                guard let r = Range(match.range, in: text) else { return }
+                guard let match = match, let r = Range(match.range, in: text) else { return }
                 var path = String(text[r])
                 // 去掉尾部标点
                 while let last = path.last, "。，；：,.;:)）]】".contains(last) {
