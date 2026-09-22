@@ -176,10 +176,16 @@ struct AboutAuthorView: View {
     private var thankRows: [(String, String, String)] {
         [
             ("📦", "TrollStore", "(opa334)"),
-            ("💉", "TrollFools", "(Lessica)"),
+            ("💉", "TrollFools / ElleKit", "(Lessica / rootless)"),
             ("⚙️", "Theos", "toolchain"),
-            ("🔐", "ldid / insert_dylib / optool / ct_bypass", "injection"),
-            ("🤖", "GitHub Actions", "cloud build"),
+            ("🔐", "ldid / insert_dylib / optool", "sign & inject"),
+            ("🛡️", "ct_bypass / Shadow", "iOS 17+ bypass"),
+            ("🔍", "class-dump / otool / Frida", "reverse engineering"),
+            ("🎮", "H5GG / GameGuardian", "game memory"),
+            ("📝", "RSKGrowingTextView", "chat input"),
+            ("📦", "ZIPFoundation", "zip archive"),
+            ("🐧", "iSH (ARM64)", "Linux emulation"),
+            ("☁️", "GitHub Actions", "cloud build"),
             ("🙏", L10n.t("about_thanks_all"), "")
         ]
     }
