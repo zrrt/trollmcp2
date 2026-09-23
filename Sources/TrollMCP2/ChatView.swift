@@ -1392,13 +1392,6 @@ struct MessageBubble: View {
                             .foregroundColor(.blue)
                         Spacer()
                     }
-                    // 参数摘要（紫色，特殊颜色标注）
-                    if let args = message.toolArgs, !args.isEmpty {
-                        Text(args)
-                            .font(.caption2)
-                            .foregroundColor(.purple)
-                            .padding(.leading, 22)
-                    }
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
@@ -1463,10 +1456,11 @@ struct MessageBubble: View {
             if expanded {
                 Text(message.content)
                     .font(.system(.caption, design: .monospaced))
-                    .foregroundColor(.secondary)
+                    // v3.1.74：工具结果背景日/夜都改纯黑（用户要求），文字改白色保证黑底可读
+                    .foregroundColor(.white)
                     .padding(8)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(.secondarySystemBackground))
+                    .background(Color.black)
                     .cornerRadius(8)
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
