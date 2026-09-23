@@ -12,25 +12,47 @@ struct VpnCaptureView: View {
 
     var body: some View {
         List {
-            Section(header: SettingSectionHeader(title: "状态")) {
-                row("VPN", vpnStatusText)
-                row("本地代理", localProxyOn ? "运行中" : "已停止")
-                row("根证书", caExists ? "已生成" : "未生成")
-                row("抓包记录", "\(logFiles.count) 个文件")
+            // 状态概览卡片（两行四块）
+            Section {
+                VStack(spacing: 12) {
+                    HStack(spacing: 12) {
+                        statusCard("VPN", vpnStatusText, icon: "network", color: vpnColor)
+                        statusCard("本地代理", localProxyOn ? "运行中" : "已停止",
+                                   icon: "antenna.radiowaves.left.and.right",
+                                   color: localProxyOn ? .orange : .gray)
+                    }
+                    HStack(spacing: 12) {
+                        statusCard("根证书", caExists ? "已生成" : "未生成",
+                                   icon: "checkmark.shield.fill",
+                                   color: caExists ? .green : .gray)
+                        statusCard("抓包记录", "\(logFiles.count) 个文件",
+                                   icon: "doc.text.fill",
+                                   color: logFiles.isEmpty ? .gray : .blue)
+                    }
+                }
+                .padding(.vertical, 4)
             }
+            .listRowBackground(Color.clear)
 
+            // 操作
             Section(header: SettingSectionHeader(title: "操作")) {
-                Button("连接抓包 VPN") { connectVpn() }
+                actionRow("连接抓包 VPN", icon: "network", color: .blue) { connectVpn() }
                     .disabled(vpnStatusText == "connected")
-                Button("断开 VPN") { VpnManager.shared.stopVpn(); refresh() }
-                Button("生成证书（mobileconfig）") { shareCert() }
-                Button(localProxyOn ? "停止本地代理" : "启动本地代理") { toggleLocalProxy() }
+                actionRow("断开 VPN", icon: "stop.circle.fill", color: .red) {
+                    VpnManager.shared.stopVpn(); refresh()
+                }
+                actionRow("生成证书（mobileconfig）", icon: "lock.shield.fill", color: .green) { shareCert() }
+                actionRow(localProxyOn ? "停止本地代理" : "启动本地代理",
+                          icon: "antenna.radiowaves.left.and.right", color: .orange) { toggleLocalProxy() }
             }
 
+            // 使用步骤
             Section(header: SettingSectionHeader(title: "使用步骤")) {
-                Text("① 生成证书 → 自动用 Safari 打开 → 点「允许」下载描述文件\n② 设置 → 已下载描述文件 → 安装\n③ 设置 → 通用 → 关于本机 → 证书信任设置 → 打开完全信任\n④ 连接 VPN（或本地代理 + WiFi 手动代理 127.0.0.1:18180）\n⑤ 正常使用目标 App，日志写入 Workspace/network_capture/mitm/")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                stepRow(1, "生成证书", "自动用 Safari 打开下载描述文件")
+                stepRow(2, "安装", "设置 → 已下载描述文件 → 安装")
+                stepRow(3, "信任", "通用 → 证书信任设置 → 打开完全信任")
+                stepRow(4, "连接", "VPN，或本地代理 + WiFi 手动代理 127.0.0.1:18180")
+                stepRow(5, "使用", "正常用目标 App，日志写入 Workspace/network_capture/mitm/")
             }
 
             if !notice.isEmpty {
@@ -41,14 +63,20 @@ struct VpnCaptureView: View {
                 }
             }
 
+            // 最近日志
             Section(header: SettingSectionHeader(title: "最近日志")) {
                 if logFiles.isEmpty {
                     Text("暂无")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 } else {
-                    ForEach(logFiles.prefix(10), id: \.self) { f in
-                        Text(f).font(.caption2)
+                    ForEach(logFiles.prefix(8), id: \.self) { f in
+                        HStack(spacing: 8) {
+                            Image(systemName: "doc.plaintext")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(f).font(.caption2).foregroundColor(.secondary)
+                        }
                     }
                 }
             }
@@ -58,11 +86,78 @@ struct VpnCaptureView: View {
         .onAppear { refresh() }
     }
 
-    private func row(_ k: String, _ v: String) -> some View {
-        HStack {
-            Text(k).foregroundColor(.primary)
-            Spacer()
-            Text(v).font(.subheadline).foregroundColor(.secondary)
+    // MARK: - 状态卡片 / 操作行 / 步骤行
+
+    private func statusCard(_ title: String, _ value: String, icon: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(color)
+                Text(title)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Text(value)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(color.opacity(0.12))
+        )
+    }
+
+    private func actionRow(_ title: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(color.opacity(0.15))
+                        .frame(width: 30, height: 30)
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(color)
+                }
+                Text(title)
+                    .foregroundColor(.primary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private func stepRow(_ n: Int, _ title: String, _ desc: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text("\(n)")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.white)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(Color.tmCyan))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline)
+                    .foregroundColor(.primary)
+                Text(desc)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var vpnColor: Color {
+        switch vpnStatusText {
+        case "connected": return .green
+        case "connecting": return .orange
+        default: return .gray
         }
     }
 

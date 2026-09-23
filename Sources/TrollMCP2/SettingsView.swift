@@ -90,40 +90,21 @@ struct SettingsView: View {
                          destination: AnyView(ModelsView())),
             SettingsItem(title: L10n.t("row_sys_prompts"),
                          subtitle: SystemPrompts.shared.selected.name,
-                         icon: "text.book.closed.fill", color: .tmCyan,
+                         icon: "text.book.closed.fill", color: .purple,
                          destination: AnyView(SystemPromptsView()))
         ]))
 
-        // 控制（远程控制/控制中心/操作宏 + 开发者模式开关）
-        var controlItems: [SettingsItem] = [
-            SettingsItem(title: L10n.t("row_remote"),
-                         subtitle: L10n.t("row_remote_sub"),
-                         icon: "cursorarrow.click.2", color: .tmCyan,
-                         destination: AnyView(RemoteControlView())),
-            // v2.9.144：AI 控制中心 + 操作宏（从聊天框移入设置，退出设置页后全屏弹出）
-            SettingsItem(title: L10n.t("ui_172"),
-                         subtitle: "计划 · 分色日志 · 现场截图 · 操作宏",
-                         icon: "target", color: .tmCyan,
-                         action: {
-                             presentationMode.wrappedValue.dismiss()
-                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                                 AppUIState.shared.controlPresented = true
-                             }
-                         })
-        ]
-        // v2.9.72：开发者模式开关（固定显示，控制下方"开发者"分组）
-        controlItems.append(SettingsItem(
-            title: L10n.t("row_dev_mode"),
-            subtitle: developerMode ? "显示全部高级选项" : "开启后显示开发者选项",
-            icon: "hammer.circle.fill",
-            color: developerMode ? .tmCyan : .gray,
-            isOn: { developerMode },
-            onToggle: { on in
-                developerMode = on
-                UserDefaults.standard.set(on, forKey: "developer_mode")
-            }
-        ))
-        groups.append(SettingsGroup(header: L10n.t("sec_control"), items: controlItems))
+        // 网络与抓包（v3.3.1：独立分组，不依赖开发者模式——普通用户也能直接看到抓包入口）
+        groups.append(SettingsGroup(header: "网络与抓包", items: [
+            SettingsItem(title: "抓包 VPN",
+                         subtitle: "MITM 代理 · 证书 · 抓小红书/抖音等自研栈",
+                         icon: "antenna.radiowaves.left.and.right", color: .tmCyan,
+                         destination: AnyView(VpnCaptureView())),
+            SettingsItem(title: L10n.t("row_netlog"),
+                         subtitle: NetworkLog.lastCompatNote ?? "中转站自适应降级记录",
+                         icon: "network", color: .orange,
+                         destination: AnyView(NetworkDebugView()))
+        ]))
 
         // 线上编译
         groups.append(SettingsGroup(header: L10n.t("sec_build"), items: [
@@ -137,6 +118,37 @@ struct SettingsView: View {
                          destination: AnyView(DownloadsView()))
         ]))
 
+        // 控制（远程控制/控制中心/操作宏 + 开发者模式开关）
+        var controlItems: [SettingsItem] = [
+            SettingsItem(title: L10n.t("row_remote"),
+                         subtitle: L10n.t("row_remote_sub"),
+                         icon: "cursorarrow.click.2", color: .blue,
+                         destination: AnyView(RemoteControlView())),
+            // v2.9.144：AI 控制中心 + 操作宏（从聊天框移入设置，退出设置页后全屏弹出）
+            SettingsItem(title: L10n.t("ui_172"),
+                         subtitle: "计划 · 分色日志 · 现场截图 · 操作宏",
+                         icon: "target", color: .indigo,
+                         action: {
+                             presentationMode.wrappedValue.dismiss()
+                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                 AppUIState.shared.controlPresented = true
+                             }
+                         })
+        ]
+        // v2.9.72：开发者模式开关（固定显示，控制下方"开发者"分组）
+        controlItems.append(SettingsItem(
+            title: L10n.t("row_dev_mode"),
+            subtitle: developerMode ? "显示全部高级选项" : "开启后显示开发者选项",
+            icon: "hammer.circle.fill",
+            color: developerMode ? .green : .gray,
+            isOn: { developerMode },
+            onToggle: { on in
+                developerMode = on
+                UserDefaults.standard.set(on, forKey: "developer_mode")
+            }
+        ))
+        groups.append(SettingsGroup(header: L10n.t("sec_control"), items: controlItems))
+
         // 开发者
         if developerMode {
             var devItems: [SettingsItem] = [
@@ -147,36 +159,31 @@ struct SettingsView: View {
                              onToggle: { TaskNotify.shared.enabled = $0 }),
                 SettingsItem(title: L10n.t("row_icon_theme"),
                              subtitle: "巨魔蓝 · 蓝紫 · 浅白 · 深青",
-                             icon: "app.badge.fill", color: .tmCyan,
+                             icon: "app.badge.fill", color: .purple,
                              destination: AnyView(IconThemeView())),
                 SettingsItem(title: L10n.t("row_device_fake"),
                              subtitle: "伪装机型 · 注入生效",
-                             icon: "iphone.gen3.radiowaves.left.and.right", color: .tmCyan,
+                             icon: "iphone.gen3.radiowaves.left.and.right", color: .pink,
                              destination: AnyView(FakeDeviceView())),
                 SettingsItem(title: L10n.t("row_dev_instructions"),
                              subtitle: devInstructionsSubtitle(),
                              icon: "doc.text.magnifyingglass", color: .orange,
                              destination: AnyView(DeveloperInstructionsView())),
-                // v3.3.0：MITM 抓包 VPN/代理（系统级抓包，覆盖自研栈 App）
-                SettingsItem(title: "抓包 VPN",
-                             subtitle: "MITM 代理 · 证书 · 抓小红书/抖音等自研栈",
-                             icon: "antenna.radiowaves.left.and.right", color: .tmCyan,
-                             destination: AnyView(VpnCaptureView())),
                 SettingsItem(title: L10n.t("row_tool_policy"),
                              subtitle: "工具权限 · 系统权限 · 自动化",
                              icon: "lock.shield.fill", color: .green,
                              destination: AnyView(ToolPermissionPoliciesView())),
                 SettingsItem(title: L10n.t("row_transcripts"),
                              subtitle: "完整对话存档",
-                             icon: "text.book.closed.fill", color: .tmCyan,
+                             icon: "text.book.closed.fill", color: .tmBrown,
                              destination: AnyView(ConversationTranscriptView())),
                 SettingsItem(title: "远程访问",
                              subtitle: "SSH 连接远程服务器 · 远程终端被控制",
-                             icon: "terminal.fill", color: .tmCyan,
+                             icon: "terminal.fill", color: .teal,
                              destination: AnyView(RemoteAccessView())),
                 SettingsItem(title: L10n.t("row_browser"),
                              subtitle: "悬浮窗 · AI 可控制 · 蓝框高亮",
-                             icon: "globe.asia.australia.fill", color: .tmCyan,
+                             icon: "globe.asia.australia.fill", color: .cyan,
                              action: {
                                  presentationMode.wrappedValue.dismiss()
                                  DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
@@ -185,11 +192,11 @@ struct SettingsView: View {
                              }),
                 SettingsItem(title: L10n.t("row_agents"),
                              subtitle: "隔离指令 · 工作流",
-                             icon: "person.3.fill", color: .pink,
+                             icon: "person.3.fill", color: .indigo,
                              destination: AnyView(AgentsAndSkillsView())),
                 SettingsItem(title: L10n.t("row_kb"),
                              subtitle: "文件导入 · 来源检索",
-                             icon: "books.vertical.fill", color: .tmBrown,
+                             icon: "books.vertical.fill", color: .brown,
                              destination: AnyView(KnowledgeBaseView()))
             ]
             groups.append(SettingsGroup(header: L10n.t("sec_dev"), items: devItems))
@@ -207,7 +214,7 @@ struct SettingsView: View {
                          destination: AnyView(WorkspaceBrowserView())),
             SettingsItem(title: "清理中心",
                          subtitle: "缓存 · 钥匙串 · 广告符 · 数据容器 · 系统清理",
-                         icon: "sparkles.rectangle.stack", color: .tmCyan,
+                         icon: "sparkles.rectangle.stack", color: .orange,
                          destination: AnyView(CleanupCenterView())),
             SettingsItem(title: "Coruna 安全盾",
                          subtitle: "检测恶意网站 · 拦截利用 · Web 注入",
@@ -224,22 +231,18 @@ struct SettingsView: View {
                          destination: AnyView(AboutAuthorView())),
             SettingsItem(title: L10n.t("row_lang"),
                          subtitle: LanguageManager.shared.language.displayName,
-                         icon: "globe", color: .tmCyan,
+                         icon: "globe", color: .purple,
                          action: { showLanguagePicker = true }),
-            SettingsItem(title: L10n.t("row_netlog"),
-                         subtitle: NetworkLog.lastCompatNote ?? "中转站自适应降级记录",
-                         icon: "network", color: .orange,
-                         destination: AnyView(NetworkDebugView())),
             SettingsItem(title: L10n.t("version"),
                          subtitle: ver, icon: "number.circle.fill", color: .gray,
                          destination: nil),
             SettingsItem(title: L10n.t("row_crash"),
                          subtitle: "\(CrashCatcher.list().count) 条闪退记录",
-                         icon: "exclamationmark.triangle.fill", color: .orange,
+                         icon: "exclamationmark.triangle.fill", color: .red,
                          destination: AnyView(CrashLogView())),
             SettingsItem(title: L10n.t("row_check_update"),
                          subtitle: updateSubtitle(),
-                         icon: "arrow.triangle.2.circlepath.circle.fill", color: .tmCyan,
+                         icon: "arrow.triangle.2.circlepath.circle.fill", color: .green,
                          action: {
                              UpdateManager.shared.checkForUpdate(currentVersion: ver)
                          })
