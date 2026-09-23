@@ -206,20 +206,6 @@ final class ContainerDeleteTool: MCPTool {
 
 // MARK: - 原版缺失工具：automation.*
 
-final class AutomationCancelTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.cancel", summary: "Cancel/delete a scheduled automation task permanently. Use for: stop and remove a task, don't want it to run anymore. Don't use for: temporarily disable (use automation.stop), list tasks (use automation.list). Example: user says '把那个定时任务删了' → cancel automation.",
-        parameters: ["name": "Task name or ID to cancel/delete"], verified: true, category: "device")
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
-        let store = AutomationStore.shared
-        guard let task = store.tasks.first(where: { $0.name == name || $0.id.uuidString == name }) else {
-            throw MCPError.failed("task not found: \(name)")
-        }
-        store.remove(task)
-        AuditLog.shared.log("automation.cancel", detail: name)
-        return ["cancelled": true, "name": name]
-    }
-}
 
 final class AutomationHistoryTool: MCPTool {
     let definition = ToolDefinition(name: "automation.history", summary: "Show history of past automation task runs. Use for: see what tasks ran before, review execution logs. Don't use for: list current tasks (use automation.list), run task now (use automation.run_now). Example: user says '之前跑过哪些任务' → show automation history.")

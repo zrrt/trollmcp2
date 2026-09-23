@@ -208,32 +208,6 @@ enum AppCacheScanner {
 
 // MARK: - 启动 App
 
-final class AppOpenTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "apps.open",
-        summary: "Launch/open an app on the iPhone. Use for: open app by bundle ID. Don't use for: restart app (use app.restart), inject dylib (use injection.enable). Example: user says '打开小红书' → open com.xingin.discover.",
-    verified: true, category: "app_control")
-
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let bid = params["bundle_id"] as? String else {
-            throw MCPError.invalidParams("bundle_id required")
-        }
-        guard let app = AppCatalog.find(bid) else {
-            throw MCPError.failed("app not found: \(bid)")
-        }
-
-        var opened = false
-        if let url = URL(string: "\(bid)://") {
-            opened = openURLSync(url)
-        }
-        if !opened {
-            opened = LSAppWorkspaceOpen(bundleId: bid)
-        }
-
-        AuditLog.shared.log("apps.open", detail: bid)
-        return ["bundle_id": bid, "opened": opened, "name": app.name]
-    }
-}
 
 // MARK: - 启动并输入（依赖注入代理，这里做状态上报）
 
@@ -331,32 +305,6 @@ final class AppOpenAndInputTool: MCPTool {
 
 // MARK: - 微信消息准备
 
-final class WeChatPrepareMessageTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "wechat.prepare_message",
-        summary: "Prepare a WeChat message (copy to clipboard + open WeChat). Use for: send a WeChat message quickly, pre-fill text. Don't use for: just copy text (use clipboard tools), launch WeChat (use apps.open). Example: user says '帮我发微信给朋友说你好' → prepare message.",
-        parameters: [
-            "text": "Message text to send",
-            "recipient": "Optional: recipient name"
-        ], verified: true, category: "app_control")
-
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let text = params["text"] as? String else {
-            throw MCPError.invalidParams("text required")
-        }
-        UIThreadBridge.paste(text)
-        let recipient = params["recipient"] as? String ?? ""
-        var opened = false
-        if !recipient.isEmpty, let url = URL(string: "weixin://dl/chat?\(recipient.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")") {
-            opened = openURLSync(url)
-        }
-        if !opened, let url = URL(string: "weixin://") {
-            opened = openURLSync(url)
-        }
-        AuditLog.shared.log("wechat.prepare_message", detail: "len=\(text.count)")
-        return ["copied": true, "opened_wechat": opened, "text_length": text.count]
-    }
-}
 
 // MARK: - LSApplicationWorkspace 启动
 
