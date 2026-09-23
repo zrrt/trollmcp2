@@ -1070,8 +1070,8 @@ public final class ToolRegistry: ObservableObject {
         // v2.9.90：高级工具组（类探测/配置化 Hook/设备伪装）
         register(ProbeInspectTool())
         register(HookApplyTool())
-        register(DeviceFakeTool())
-        register(DeviceRestoreTool())
+        // v3.1.55: 删旧的 device 工具（已合并到 DeviceExecTool）
+        // 已删：DeviceFakeTool / DeviceRestoreTool
         // v2.9.95：设备指纹 / 容器 / entitlements（对齐 Fuck 工具箱 + 绿盾式）
         register(AppEntitlementsTool())
         register(KeychainWipeTool())
@@ -1169,15 +1169,13 @@ public final class ToolRegistry: ObservableObject {
         // v2.9.132：失败边界一条龙——注入健康检查 + 启动失败判因
         register(InjectionVerifyTool())
         register(AppDiagnoseTool())
-        register(BrowserNavigateTool())
+        // v3.1.55: 删 BrowserNavigateTool（已合并到 BrowserExecTool）
 
         // M6 编译模式 + 模型配置 + 工作区输出（原版命名）
         register(BuildRunnerTokenTool())
         register(ProjectGenerateTweakTool())
-        register(ModelConfigTool())
-        register(ModelUpdateTool())
-        register(ModelAuthenticationTool())
-        register(ModelSelectedProfileIDTool())
+        // v3.1.55: 删旧的 model 工具（已合并到 ModelExecTool）
+        // 已删：ModelConfigTool / ModelUpdateTool / ModelAuthenticationTool / ModelSelectedProfileIDTool
         register(WorkspaceOutputBookmarkTool())
         register(WorkspaceOutputNameTool())
 
@@ -1221,15 +1219,9 @@ public final class ToolRegistry: ObservableObject {
         register(FSImageInfoTool())
 
         // v2.9.139：AI 控制任意 App（HID 触摸注入 + 进度横幅 + 控制会话）
-        register(UITapTool())
-        register(UISwipeTool())
-        register(UILongPressTool())
-        register(UIClipboardTool())
-        register(UIScreenshotTool())
-        register(ProgressNotifyTool())
-        register(ControlBeginTool())
-        register(ControlUpdateTool())
-        register(ControlFinishTool())
+        // v3.1.55: 删旧的 control 工具（已合并到 ControlExecTool）
+        // 已删：UITapTool / UISwipeTool / UILongPressTool / UIClipboardTool / UIScreenshotTool
+        // 已删：ProgressNotifyTool / ControlBeginTool / ControlUpdateTool / ControlFinishTool
         // v2.9.139：启动带参数 + 定位模拟
         register(AppLaunchOptionsTool())
         // v3.1.51: location 大工具 + 子命令（合并 4 个 location.* 工具）
@@ -1252,8 +1244,8 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.49: 删旧的 6 个 model.* 工具（已合并到 model 大工具）
         // 已删：ModelConfigTool / ModelUpdateTool / ModelAuthenticationTool
         // 已删：ModelSelectedProfileIDTool / ModelListTool / ModelSwitchTool
-        register(DebugDumpModelConfigsTool())
-        register(DebugDumpNetworkLogTool())
+        // v3.1.55: 删旧的 debug 工具（已合并到 DebugExecTool）
+        // 已删：DebugDumpModelConfigsTool / DebugDumpNetworkLogTool
         // v3.1.48: macro 大工具 + 子命令（合并 6 个 macro.* 工具）
         register(MacroExecTool())
         // v3.1.48: 删旧的 6 个 macro.* 工具（已合并到 macro 大工具）
