@@ -530,8 +530,8 @@ final class ControlExecTool: MCPTool {
             "key": "Key name: home/back/enter — REQUIRED for key",
             "placeholder": "Field placeholder (for type_text)"
         ],
-        prerequisites: ["inject ControlAgent into target App and launch it (control inject) before UI control", "take control screenshot to confirm coordinates before tap/swipe"],
-        verified: true, category: "ui_control")
+        verified: true, category: "ui_control",
+        prerequisites: ["inject ControlAgent into target App and launch it (control inject) before UI control", "take control screenshot to confirm coordinates before tap/swipe"])
     
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let command = params["command"] as? String else {
