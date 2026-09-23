@@ -519,7 +519,7 @@ final class InjectionStatusTool: MCPTool {
         if let bid = params["bundle_id"] as? String, !bid.isEmpty {
             return InjectionManager.shared.status(for: bid)
         }
-        InjectionManager.shared.status()
+        return InjectionManager.shared.status()
     }
 }
 
