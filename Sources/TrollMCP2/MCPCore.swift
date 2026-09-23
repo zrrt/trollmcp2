@@ -1243,8 +1243,11 @@ public final class ToolRegistry: ObservableObject {
         register(DebugDumpConversationTool())
         register(ChatSendTool())
         register(ChatReplyTool())
-        register(ModelListTool())
-        register(ModelSwitchTool())
+        // v3.1.49: model 大工具 + 子命令（合并 6 个 model.* 工具）
+        register(ModelExecTool())
+        // v3.1.49: 删旧的 6 个 model.* 工具（已合并到 model 大工具）
+        // 已删：ModelConfigTool / ModelUpdateTool / ModelAuthenticationTool
+        // 已删：ModelSelectedProfileIDTool / ModelListTool / ModelSwitchTool
         register(DebugDumpModelConfigsTool())
         register(DebugDumpNetworkLogTool())
         // v3.1.48: macro 大工具 + 子命令（合并 6 个 macro.* 工具）
