@@ -396,9 +396,9 @@ final class ArtifactExecTool: MCPTool {
 final class DeviceExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "device",
-        summary: "Manage device info and spoofing (info/probe/fake/restore). Use subcommand to specify action. Use for: get device info, spoof device identity. Don't use for: app management (use app.*), injection (use inject.*). Example: info → device info; fake → device fake. Subcommands: info / probe / fake / restore.",
+        summary: "Manage device info and spoofing (info/probe/fake/restore/advertising/idfv/snapshot/new_device). Use subcommand to specify action. Use for: get device info, spoof device identity, get advertising ID / IDFV, device snapshot, one-click new device. Don't use for: app management (use app.*), injection (use inject.*). Example: info → device info; fake → device fake; snapshot → device snapshot. Subcommands: info / probe / fake / restore / advertising / idfv / snapshot / new_device.",
         parameters: [
-            "command": "Subcommand: info / probe / fake / restore"
+            "command": "Subcommand: info / probe / fake / restore / advertising / idfv / snapshot / new_device"
         ],
         verified: true, category: "device")
     
@@ -421,9 +421,21 @@ final class DeviceExecTool: MCPTool {
             
         case "restore":
             return try DeviceRestoreTool().invoke([:])
-            
+
+        case "advertising":
+            return try AdvertisingTool().invoke([:])
+
+        case "idfv":
+            return try IdfvTool().invoke([:])
+
+        case "snapshot":
+            return try DeviceSnapshotTool().invoke([:])
+
+        case "new_device":
+            return try NewDeviceTool().invoke([:])
+
         default:
-            throw MCPError.invalidParams("Unknown command: \(command). Available: info/probe/fake/restore")
+            throw MCPError.invalidParams("Unknown command: \(command). Available: info/probe/fake/restore/advertising/idfv/snapshot/new_device")
         }
     }
 }

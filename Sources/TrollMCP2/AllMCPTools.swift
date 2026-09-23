@@ -1273,9 +1273,9 @@ final class InjectionExecTool: MCPTool {
 final class AutomationExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "automation",
-        summary: "Manage automation/scheduled tasks (run/list/stop/status). Use subcommand to specify action. Use for: schedule tasks, run/stop automation. Don't use for: one-off reminders (use reminder.*). Example: run → automation run name:task1; list → automation list; stop → automation stop name:task1. Subcommands: run / list / jobs / stop / status / history / set_enabled.",
+        summary: "Manage automation/scheduled tasks (run/list/stop/status/cron_fire). Use subcommand to specify action. Use for: schedule tasks, run/stop automation, fire cron task. Don't use for: one-off reminders (use reminder.*). Example: run → automation run name:task1; list → automation list; stop → automation stop name:task1; cron_fire → automation cron_fire name:task1. Subcommands: run / list / jobs / stop / status / history / set_enabled / cron_fire.",
         parameters: [
-            "command": "Subcommand: run / list / jobs / stop / status / history / set_enabled",
+            "command": "Subcommand: run / list / jobs / stop / status / history / set_enabled / cron_fire",
             "name": "Task name or ID",
             "enabled": "Enable/disable (for set_enabled)"
         ],
@@ -1309,9 +1309,15 @@ final class AutomationExecTool: MCPTool {
             
         case "status":
             return try AutomationStatusTool().invoke([:])
-            
+
+        case "cron_fire":
+            guard let name = params["name"] as? String else {
+                throw MCPError.invalidParams("name required")
+            }
+            return try CronFireTool().invoke(["name": name])
+
         default:
-            throw MCPError.invalidParams("Unknown command: \(command). Available: run/list/jobs/stop/status/history/set_enabled")
+            throw MCPError.invalidParams("Unknown command: \(command). Available: run/list/jobs/stop/status/history/set_enabled/cron_fire")
         }
     }
 }

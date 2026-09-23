@@ -151,11 +151,11 @@ final class ProjectContext: ObservableObject {
 final class ProjectTool: MCPTool {
     let definition = ToolDefinition(
         name: "project",
-        summary: "Manage project context. Use for: switch between projects (different target apps/dylibs), save project state. Don't use for: run task template (use task.run), list tools (use tool_search). Example: user says '切换到小红书项目' → select project.",
+        summary: "Manage project context (current/list/create/select/delete/history/generate_tweak). Use for: switch between projects (different target apps/dylibs), save project state, generate tweak template. Don't use for: run task template (use task.run), list tools (use tool_search). Example: user says '切换到小红书项目' → select project; user says '创建一个新的 tweak 项目' → generate_tweak.",
         parameters: [
-            "action": "current | list | create | select | delete | history",
-            "name": "Project name (for create/select)",
-            "bundle_id": "Target app bundle ID (for create)",
+            "action": "current | list | create | select | delete | history | generate_tweak",
+            "name": "Project name (for create/select/generate_tweak)",
+            "bundle_id": "Target app bundle ID (for create/generate_tweak)",
             "app_name": "Target app name (for create)",
             "dylib_path": "Dylib path (for create/update)",
             "project_id": "Project id (for select/delete/history)"
@@ -232,6 +232,9 @@ final class ProjectTool: MCPTool {
                 ]},
                 "count": history.count
             ]
+
+        case "generate_tweak":
+            return try ProjectGenerateTweakTool().invoke(params)
 
         default:
             return ["error": "unknown action: \(action)"]
