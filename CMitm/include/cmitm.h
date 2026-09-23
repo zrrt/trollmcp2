@@ -13,6 +13,11 @@ extern "C" {
  */
 int mitm_ca_init(const char *cert_dir);
 
+/* mitm_ca_export_der: 把根证书导出为 DER 文件（cert_dir/ca.der）。
+ * 用于 mobileconfig 打包（SecCertificateCreateWithData / PayloadContent 只认 DER）。
+ * 返回 0 成功。 */
+int mitm_ca_export_der(const char *cert_dir);
+
 /* mitm_sign_host: 用根 CA 为 host 签发叶子证书（ECDSA-SHA256, 含 SAN）。
  * 输出 DER 格式叶子证书 + PKCS8 叶子私钥，调用方用 mitm_free 释放。返回 0 成功。 */
 int mitm_sign_host(const char *host,

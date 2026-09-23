@@ -92,11 +92,12 @@ final class VpnManager {
             if !ok { return nil }
             MitmProxy.shared.stop()
         }
-        let certPath = MitmProxy.shared.certDir + "/ca.pem"
-        guard let pem = try? String(contentsOfFile: certPath, encoding: .utf8) else { return nil }
-        guard let pemData = pem.data(using: .utf8) else { return nil }
-        guard let cert = SecCertificateCreateWithData(nil, pemData as CFData) else { return nil }
-        let der = SecCertificateCopyData(cert) as Data
+        // iOS 只认 DER：优先读 ca.der；老 CA 没有 der 就现场导出
+        let derPath = MitmProxy.shared.certDir + "/ca.der"
+        if !FileManager.default.fileExists(atPath: derPath) {
+            guard mitm_ca_export_der(MitmProxy.shared.certDir) == 0 else { return nil }
+        }
+        guard let der = try? Data(contentsOf: URL(fileURLWithPath: derPath)) else { return nil }
         let b64 = der.base64EncodedString()
 
         let certPayload: [String: Any] = [
@@ -106,7 +107,7 @@ final class VpnManager {
             "PayloadUUID": UUID().uuidString,
             "PayloadDisplayName": "TrollAgent MITM CA",
             "PayloadContent": b64,
-            "PayloadCertificateFileName": "TrollAgentCA.pem"
+            "PayloadCertificateFileName": "TrollAgentCA.der"
         ]
         let profile: [String: Any] = [
             "PayloadType": "Configuration",

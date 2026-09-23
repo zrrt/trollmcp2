@@ -58,9 +58,10 @@ static X509 *make_ca(EVP_PKEY *key) {
 }
 
 static int save_ca(const char *dir) {
-    char cert_path[1024], key_path[1024];
+    char cert_path[1024], key_path[1024], der_path[1024];
     snprintf(cert_path, sizeof(cert_path), "%s/%s", dir, CA_FILE);
     snprintf(key_path, sizeof(key_path), "%s/%s", dir, CA_KEY_FILE);
+    snprintf(der_path, sizeof(der_path), "%s/ca.der", dir);
     FILE *fc = fopen(cert_path, "wb");
     if (!fc) return -1;
     PEM_write_X509(fc, g_ca_cert);
@@ -69,6 +70,14 @@ static int save_ca(const char *dir) {
     if (!fk) return -1;
     PEM_write_PrivateKey(fk, g_ca_key, NULL, NULL, 0, NULL, NULL);
     fclose(fk);
+    // 同时导出 DER（iOS SecCertificateCreateWithData / mobileconfig PayloadContent 只认 DER）
+    unsigned char *der = NULL;
+    int dlen = i2d_X509(g_ca_cert, &der);
+    if (dlen > 0 && der) {
+        FILE *fd = fopen(der_path, "wb");
+        if (fd) { fwrite(der, 1, (size_t)dlen, fd); fclose(fd); }
+        OPENSSL_free(der);
+    }
     return 0;
 }
 
@@ -97,6 +106,25 @@ int mitm_ca_init(const char *cert_dir) {
     if (save_ca(cert_dir) != 0) return -1;
     g_ca_loaded = 1;
     return 0;
+}
+
+/* 把已加载/生成的根证书导出为 DER 文件（ca.der）。供 mobileconfig 打包用。 */
+int mitm_ca_export_der(const char *cert_dir) {
+    if (!g_ca_cert) {
+        if (load_ca(cert_dir) != 0) return -1;
+        g_ca_loaded = 1;
+    }
+    char der_path[1024];
+    snprintf(der_path, sizeof(der_path), "%s/ca.der", cert_dir);
+    unsigned char *der = NULL;
+    int dlen = i2d_X509(g_ca_cert, &der);
+    if (dlen <= 0 || !der) return -1;
+    FILE *fd = fopen(der_path, "wb");
+    if (!fd) { OPENSSL_free(der); return -1; }
+    size_t w = fwrite(der, 1, (size_t)dlen, fd);
+    fclose(fd);
+    OPENSSL_free(der);
+    return w == (size_t)dlen ? 0 : -1;
 }
 
 static int is_ip(const char *host) {
