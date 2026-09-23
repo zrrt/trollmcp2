@@ -414,3 +414,55 @@ final class DeviceExecTool: MCPTool {
         }
     }
 }
+
+// MARK: - v3.1.41: container 大工具 + 子命令（合并 3 个 container.* 工具）
+
+final class ContainerExecTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "container",
+        summary: "Manage app data container (refresh/write/delete). Use subcommand to specify action. Use for: read/write/delete files in app container. Don't use for: workspace files (use artifact.*), system files (use shell.exec). Example: write → container write bundle_id:com.xxx path:Documents/xxx.txt text:hello. Subcommands: refresh / write / delete.",
+        parameters: [
+            "command": "Subcommand: refresh / write / delete",
+            "bundle_id": "App bundle ID",
+            "path": "File path (for write/delete)",
+            "text": "Text to write (for write)"
+        ],
+        verified: true, category: "fs")
+    
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let command = params["command"] as? String else {
+            throw MCPError.invalidParams("command required")
+        }
+        
+        AuditLog.shared.log("container", detail: command)
+        
+        switch command {
+        case "refresh":
+            return try RefreshContainerTool().invoke([:])
+            
+        case "write":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            guard let path = params["path"] as? String else {
+                throw MCPError.invalidParams("path required")
+            }
+            guard let text = params["text"] as? String else {
+                throw MCPError.invalidParams("text required")
+            }
+            return try ContainerWriteTextTool().invoke(["bundle_id": bundleId, "path": path, "text": text])
+            
+        case "delete":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            guard let path = params["path"] as? String else {
+                throw MCPError.invalidParams("path required")
+            }
+            return try ContainerDeleteTool().invoke(["bundle_id": bundleId, "path": path])
+            
+        default:
+            throw MCPError.invalidParams("Unknown command: \(command). Available: refresh/write/delete")
+        }
+    }
+}

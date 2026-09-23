@@ -1074,9 +1074,10 @@ public final class ToolRegistry: ObservableObject {
         register(KeychainWipeTool())
         register(AdvertisingTool())
         register(IdfvTool())
-        register(RefreshContainerTool())
-        register(ContainerWriteTextTool())
-        register(ContainerDeleteTool())
+        // v3.1.41: container 大工具 + 子命令（合并 3 个 container.* 工具）
+        register(ContainerExecTool())
+        // v3.1.41: 删旧的 3 个 container.* 工具（已合并到 container 大工具）
+        // 已删：RefreshContainerTool / ContainerWriteTextTool / ContainerDeleteTool
         // v2.9.99：一键新机（绿盾式组合）
         register(NewDeviceTool())
         // v2.9.100：AI 分析引擎
