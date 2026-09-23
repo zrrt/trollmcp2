@@ -124,7 +124,7 @@ enum FailureKind {
         if m.contains("not found") || m.contains("不存在") || m.contains("未找到")
             || m.contains("参数") || m.contains("invalid") || m.contains("bundle") {
             return ("PARAM_INVALID", "参数",
-                    "检查参数（bundle_id / 路径 / 名称）是否正确后重试")
+                    "check param name/value against the tool description (bundle_id / path / name) and retry; missing required params are listed in the error message with usage example")
         }
         // 4) 工具自身：缺组件 / 执行失败 / 超时
         if m.contains("未内置") || m.contains("missing") || m.contains("超时")

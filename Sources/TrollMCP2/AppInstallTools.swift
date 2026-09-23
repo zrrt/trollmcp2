@@ -12,10 +12,20 @@ final class AppInstallTool: MCPTool {
         parameters: ["ipa_path": "Absolute path to IPA file on device (required)"], verified: true, category: "app_control", prerequisites: ["IPA 文件已存在于设备且 ipa_path 路径有效（先用 shell.exec ls 确认）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["ipa_path"] as? String, !path.isEmpty else {
-            throw MCPError.invalidParams("app.install 需要 ipa_path 参数")
+            // v3.2.0：英文报错 + 用法示例 + 自动列出工作区现有 .ipa（AI 拿路径直接填，不再瞎试参数名）
+            let ws = NSHomeDirectory() + "/Documents/Workspace"
+            let found = (try? FileManager.default.contentsOfDirectory(atPath: ws))?
+                .filter { $0.hasSuffix(".ipa") }
+                .map { "\(ws)/\($0)" } ?? []
+            var msg = "app.install requires 'ipa_path' (absolute path to a .ipa file). Usage: app.install ipa_path:/path/to/app.ipa"
+            if !found.isEmpty {
+                msg += " Available .ipa files: " + found.joined(separator: ", ")
+            }
+            throw MCPError.invalidParams(msg)
         }
         guard FileManager.default.fileExists(atPath: path) else {
-            return ["ok": false, "error": "文件不存在: \(path)"]
+            // v3.2.0：英文报错——文件不存在时给出排查方向
+            return ["ok": false, "error": "file not found: \(path). Check path with shell.exec ls first; list workspace with shell.exec ls \(NSHomeDirectory())/Documents/Workspace"]
         }
         let im = InjectionManager.shared
         // v2.9.273：trollstorehelper 在 TrollStore.app bundle 内（TrollStore 源码 TSUtil.m
