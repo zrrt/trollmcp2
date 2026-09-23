@@ -35,6 +35,8 @@ struct mitm_ssl *mitm_tls_connect(int fd, const char *host);
 /* 读/写：返回字节数；<=0 表示错误或关闭（0=EOF） */
 int mitm_read(struct mitm_ssl *s, char *buf, int n);
 int mitm_write(struct mitm_ssl *s, const char *buf, int n);
+/* 尽力半关闭（发送 close_notify，通知对端本方向结束；之后仍可读） */
+void mitm_shutdown(struct mitm_ssl *s);
 void mitm_close(struct mitm_ssl *s);
 
 #ifdef __cplusplus
