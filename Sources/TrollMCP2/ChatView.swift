@@ -16,7 +16,10 @@ struct ChatView: View {
     @AppStorage("chat_think_enabled") private var thinkEnabled = true
     @State private var keyboardHeight: CGFloat = 0   // v2.9.234：键盘高度(消息列表跟随上移)
     @State private var attachmentSheet: AttachmentSheet?
-    @State private var showFileImporter = false  // v3.1.66：文件选择改用 .fileImporter（不再嵌 sheet 弹 UIDocumentPicker，嵌套呈现会打不开）
+    // v3.1.67：文件选择改用 UIKit UIDocumentPickerViewController（asCopy: true）从顶层 VC present——
+    // .fileImporter 在真机 iPhone 上有已知 bug（Apple 论坛 775056：选择器打不开/无法交互/回调不触发），
+    // UIKit 方案真机稳定。标记位 + sheet onDismiss 触发，保证面板完全关闭后再 present（不再猜时间延迟）。
+    @State private var pendingFilePick = false
     @State private var showModelPicker = false  // v2.9.36：聊天框切换上游模型
 
     // v2.9.9：多模态图片（data URL）。选择相册图片后转 base64 暂存，发送时随消息传给模型
@@ -116,7 +119,15 @@ struct ChatView: View {
         }
         .navigationViewStyle(.stack)
         // v2.9.31：授权弹窗已整体移除（工具搜索即自动授权，无弹窗）。
-        .sheet(item: $attachmentSheet) { sheet in
+        .sheet(item: $attachmentSheet, onDismiss: {
+            // v3.1.67：面板完全关闭后再触发文件选择（UIKit 从顶层 VC present，真机稳定）
+            if pendingFilePick {
+                pendingFilePick = false
+                Self.presentDocumentPicker { urls in
+                    handlePickedFiles(urls)
+                }
+            }
+        }) { sheet in
             switch sheet {
             case .panel:
                 // v2.9.35：传已选数量，面板右上角显示"已选 N"（对齐老 MCP）
@@ -124,16 +135,14 @@ struct ChatView: View {
                 if #available(iOS 16.0, *) {
                     AttachmentPanelView(onPick: { pick in
                         // v2.9.39：浏览器入口直接开悬浮窗（不占 sheet）
-                        // v3.1.66：文件入口不再通过 attachmentSheet 弹嵌套 sheet（UIDocumentPicker 嵌 sheet 会打不开），
-                        // 改为关闭面板后触发 .fileImporter（SwiftUI 原生，呈现层级正确）
+                        // v3.1.67：文件入口不再用 .fileImporter（真机有 bug），改记 pendingFilePick，
+                        // 由 sheet onDismiss 在面板完全关闭后触发 UIKit 文档选择器
                         if pick == .browser {
                             self.attachmentSheet = nil
                             FloatingBrowser.shared.show()
                         } else if pick == .documentPicker {
+                            self.pendingFilePick = true
                             self.attachmentSheet = nil
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                                self.showFileImporter = true
-                            }
                         } else {
                             self.attachmentSheet = pick
                         }
@@ -145,10 +154,8 @@ struct ChatView: View {
                             self.attachmentSheet = nil
                             FloatingBrowser.shared.show()
                         } else if pick == .documentPicker {
+                            self.pendingFilePick = true
                             self.attachmentSheet = nil
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                                self.showFileImporter = true
-                            }
                         } else {
                             self.attachmentSheet = pick
                         }
@@ -201,44 +208,9 @@ struct ChatView: View {
                     }
                 }
             case .documentPicker:
-                // v3.1.66：文件选择已改用 .fileImporter（面板 onPick 里触发 showFileImporter），
-                // 不再在这里弹嵌套 sheet 的 DocumentPickerView——嵌套呈现 UIDocumentPicker 会打不开
+                // v3.1.67：文件选择已改用 UIKit UIDocumentPickerViewController（见 onDismiss + presentDocumentPicker），
+                // .fileImporter 在真机 iPhone 有已知 bug，弃用
                 EmptyView()
-            }
-        }
-        // v3.1.66：文件选择改用 SwiftUI 原生 .fileImporter（修复"聊天界面选择文件打不开"——
-        // 之前用 sheet 嵌套 UIDocumentPickerViewController，文档选择器是独立进程，
-        // 嵌套呈现时经常白屏/无法交互；.fileImporter 由系统处理呈现层级，稳定可用）
-        .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
-            switch result {
-            case .success(let urls):
-                // v2.9.10：文件选择 → 附件预览
-                for u in urls {
-                    let att = PendingAttachment(
-                        kind: .file,
-                        displayName: u.lastPathComponent,
-                        dataURL: nil,
-                        thumbnail: nil,
-                        bundleId: nil,
-                        fileURL: u
-                    )
-                    // v3.1.66：选完立即复制到工作区 uploads/（复用发送时的 saveAttachmentToWorkspace），
-                    // 避免 fileImporter 关闭后临时 URL 失效；复制失败仍保留原 URL，发送时再兜底重试
-                    if let saved = Self.saveAttachmentToWorkspace(att) {
-                        self.pendingAttachments.append(PendingAttachment(
-                            kind: .file,
-                            displayName: u.lastPathComponent,
-                            dataURL: nil,
-                            thumbnail: nil,
-                            bundleId: nil,
-                            fileURL: URL(fileURLWithPath: saved)
-                        ))
-                    } else {
-                        self.pendingAttachments.append(att)
-                    }
-                }
-            case .failure(let error):
-                print("File importer failed: \(error.localizedDescription)")
             }
         }
         // v2.9.36：聊天框切换上游模型（点"当前模型"弹出，老 MCP 风格半屏）
@@ -907,6 +879,66 @@ struct ChatView: View {
         return UIImage(contentsOfFile: p) ?? UIImage(contentsOfFile: (path as NSString).appendingPathComponent(last + ".png"))
     }
 
+    // MARK: - v3.1.67：UIKit 文档选择器（真机稳定方案，替代 .fileImporter）
+
+    /// 从顶层 VC present UIDocumentPickerViewController（asCopy: true）。
+    /// - 真机 iPhone 上 .fileImporter 有已知 bug（Apple 论坛 775056：选择器打不开/无法交互/回调不触发），
+    ///   UIKit 方案在真机完全正常（最早版本能打开文件就是用的 UIKit 方案）。
+    /// - asCopy: true 让系统把所选文件复制进 App 沙盒，返回的 URL 直接可读、不会失效，
+    ///   无需 startAccessingSecurityScopedResource，也彻底绕开"临时 URL 失效"问题。
+    static func presentDocumentPicker(onPick: @escaping ([URL]) -> Void) {
+        guard let top = Self.topViewController() else { return }
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.item], asCopy: true)
+        picker.allowsMultipleSelection = true
+        picker.modalPresentationStyle = .formSheet
+        // coordinator 必须被强引用，否则 delegate 回调不触发
+        let coordinator = DocumentPickerCoordinator(onPick: onPick)
+        picker.delegate = coordinator
+        objc_setAssociatedObject(picker, &DocumentPickerCoordinator.assocKey, coordinator, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        top.present(picker, animated: true)
+    }
+
+    /// 找到当前最顶层的 UIViewController（绕开 SwiftUI sheet 层级问题，直接往 key window 上 present）
+    private static func topViewController() -> UIViewController? {
+        var vc: UIViewController?
+        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = scene.windows.first(where: { $0.isKeyWindow }) {
+            vc = window.rootViewController
+        } else if let window = UIApplication.shared.windows.first(where: { $0.isKeyWindow }) {
+            vc = window.rootViewController
+        }
+        while let presented = vc?.presentedViewController {
+            vc = presented
+        }
+        return vc
+    }
+
+    /// 选择完成：复制到工作区 uploads/（asCopy 已复制进沙盒，这里再落到 uploads 统一管理 + 防重名）
+    private func handlePickedFiles(_ urls: [URL]) {
+        for u in urls {
+            let att = PendingAttachment(
+                kind: .file,
+                displayName: u.lastPathComponent,
+                dataURL: nil,
+                thumbnail: nil,
+                bundleId: nil,
+                fileURL: u
+            )
+            if let saved = Self.saveAttachmentToWorkspace(att) {
+                self.pendingAttachments.append(PendingAttachment(
+                    kind: .file,
+                    displayName: u.lastPathComponent,
+                    dataURL: nil,
+                    thumbnail: nil,
+                    bundleId: nil,
+                    fileURL: URL(fileURLWithPath: saved)
+                ))
+            } else {
+                self.pendingAttachments.append(att)
+            }
+        }
+    }
+
     // MARK: - 多选 / 复制 / 分享（v2.9.2）
 
     private func enterSelection() {
@@ -1371,8 +1403,8 @@ struct MessageBubble: View {
             }
             .padding(10)
             // v3.1.66：修复"工具气泡浅色模式不显示"——tertiarySystemBackground 在浅色模式≈纯白，
-            // 与聊天背景融为一体；改用 systemGray5（浅色=浅灰/深色=深灰，两种模式都有区分度）
-            .background(Color(.systemGray5))
+            // 与聊天背景融为一体；改用 secondarySystemBackground（与 AI 回复气泡同色，浅色=浅灰白/深色=深灰）
+            .background(Color(.secondarySystemBackground))
             .cornerRadius(10)
         }
     }
@@ -1427,7 +1459,7 @@ struct MessageBubble: View {
                     .foregroundColor(.secondary)
                     .padding(8)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(.systemBackground))
+                    .background(Color(.secondarySystemBackground))
                     .cornerRadius(8)
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
@@ -1721,5 +1753,24 @@ struct ChatInputTextView: UIViewRepresentable {
             parent.text = textView.text
             parent.height = textView.intrinsicContentSize.height
         }
+    }
+}
+
+// MARK: - v3.1.67：UIKit 文档选择器 delegate（真机稳定，替代 .fileImporter）
+
+final class DocumentPickerCoordinator: NSObject, UIDocumentPickerDelegate {
+    static var assocKey = "DocumentPickerCoordinatorKey"
+    let onPick: ([URL]) -> Void
+
+    init(onPick: @escaping ([URL]) -> Void) {
+        self.onPick = onPick
+    }
+
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        onPick(urls)
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        // 用户取消，无操作
     }
 }
