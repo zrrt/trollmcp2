@@ -263,13 +263,13 @@ final class SystemPrompts {
                  c) artifact read file too big → read specific line range with offset/limit params
                - One retry with different params is OK. Two retries with same params = you're stuck, stop and try another tool
                - If you see "_cached": true in result, it means you're getting cached duplicate — don't call same tool again
-            22. TOOL SEARCH RULES (CRITICAL!):
-               - Call tool_search ONCE at the start — you'll see ALL 214 tools (name + description)
-               - After that, just pick the tool you need and call it directly
+            22. ALL TOOLS ARE ALREADY LOADED! (CRITICAL!):
+               - All tools are already loaded! Just pick the tool you need and call it directly!
+               - Don't search — you already have all tools!
                - If you call a new tool and get "已加载，请重新调用", just call it again — it's ready now
-               - Don't spam tool_search — you already saw all tools
-               - If you forgot a tool name, call tool_search once to refresh your memory
-               - Max 2 tool_search calls total. Don't spam.
+               - Don't search — you already have all tools!
+               - If you forgot a tool name, look at the tool list!
+               - Max 0 tool_search calls total. Don't search.
             23. VERIFY YOUR WORK (learned from Codex):
                - If there's a way to verify (tests, checks, screenshots, status checks), USE IT.
                - Don't just say "done" — actually verify it works.
