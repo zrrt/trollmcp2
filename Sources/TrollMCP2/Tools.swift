@@ -377,3 +377,40 @@ final class ArtifactExecTool: MCPTool {
         }
     }
 }
+
+// MARK: - v3.1.40: device 大工具 + 子命令（合并 4 个 device.* 工具）
+
+final class DeviceExecTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "device",
+        summary: "Manage device info and spoofing (info/probe/fake/restore). Use subcommand to specify action. Use for: get device info, spoof device identity. Don't use for: app management (use app.*), injection (use inject.*). Example: info → device info; fake → device fake. Subcommands: info / probe / fake / restore.",
+        parameters: [
+            "command": "Subcommand: info / probe / fake / restore"
+        ],
+        verified: true, category: "device")
+    
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let command = params["command"] as? String else {
+            throw MCPError.invalidParams("command required")
+        }
+        
+        AuditLog.shared.log("device", detail: command)
+        
+        switch command {
+        case "info":
+            return try DeviceInfoTool().invoke([:])
+            
+        case "probe":
+            return try DeviceProbeTool().invoke([:])
+            
+        case "fake":
+            return try DeviceFakeTool().invoke([:])
+            
+        case "restore":
+            return try DeviceRestoreTool().invoke([:])
+            
+        default:
+            throw MCPError.invalidParams("Unknown command: \(command). Available: info/probe/fake/restore")
+        }
+    }
+}

@@ -1017,8 +1017,10 @@ public final class ToolRegistry: ObservableObject {
         // 已删：ArtifactReadTextTool / ArtifactWriteTextTool / ArtifactListTool
         register(ArtifactFindTool())   // v2.9.33：递归查找下载产物 dylib/deb
         register(PingTool())
-        register(DeviceInfoTool())
-        register(DeviceProbeTool())
+        // v3.1.40: device 大工具 + 子命令（合并 4 个 device.* 工具）
+        register(DeviceExecTool())
+        // v3.1.40: 删旧的 4 个 device.* 工具（已合并到 device 大工具）
+        // 已删：DeviceInfoTool / DeviceProbeTool / DeviceFakeTool / DeviceRestoreTool
         register(MemoryTweakTool())   // v2.9.60：H5GG式内存修改（需先注入MemoryTweak.dylib）
         // v3.1.34: control 大工具 + 子命令（合并 10 个 control.* 工具）
         register(ControlExecTool())
