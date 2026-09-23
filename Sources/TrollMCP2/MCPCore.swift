@@ -1195,8 +1195,9 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.50: 删旧的 4 个 knowledge.* 工具（已合并到 knowledge 大工具）
         // 已删：KnowledgeImportTextTool / KnowledgeImportFileTool
         // 已删：KnowledgeSearchTool / KnowledgeDeleteTool
-        register(PhoneCallTool())
-        register(PhoneScheduleCallTool())
+        register(PhoneExecTool())   // v3.1.61: 电话大工具（合并 call/schedule_call）
+        // v3.1.61: 删旧的电话工具（已合并到 PhoneExecTool）
+        // 已删：PhoneCallTool / PhoneScheduleCallTool
         register(SkillsSetEnabledTool())
         register(SkillsListTool())    // v2.9.17：技能可被 AI 发现
         register(SkillsReadTool())    // v2.9.17：技能可被 AI 读取
