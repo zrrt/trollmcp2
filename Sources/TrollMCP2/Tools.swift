@@ -207,7 +207,7 @@ final class DeviceProbeTool: MCPTool {
 final class MemoryTweakTool: MCPTool {
     let definition = ToolDefinition(
         name: "memory",
-        summary: "Game memory modification (like GameGuardian/H5GG). Use for: modify game values like coins, HP, lives, scores. Don't use for: read app files (use fs.read), network capture (use network.capture). Prerequisite: inject MemoryTweak.dylib into target game first. Workflow: 1) search for current value, 2) change value in game, 3) refine search, 4) write new value. Example: user says '改金币' → search coin count in game memory.",
+        summary: "Game memory modification (like GameGuardian/H5GG). Use for: modify game values like coins, HP, lives, scores. Don't use for: read app files (use shell.exec cat), network capture (use network.capture). Prerequisite: inject MemoryTweak.dylib into target game first. Workflow: 1) search for current value, 2) change value in game, 3) refine search, 4) write new value. Example: user says '改金币' → search coin count in game memory.",
         parameters: [
             "action": "search (first scan) / refine (filter results) / write (set new value) / freeze (lock value) / unfreeze / status / frozen (list locked values)",
             "value": "Value to search/write/freeze. e.g. 1000 coins, 50 HP",
@@ -338,7 +338,7 @@ final class ClipboardWriteTool: MCPTool {
 final class ArtifactExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact",
-        summary: "Manage workspace files (read/write/list/output_name/output_bookmark). Use subcommand to specify action. Use for: read/write/list files in workspace, set output name. Don't use for: read app container files (use fs.*), system files (use shell.exec). Example: read → artifact read filename:report.txt; list → artifact list. Subcommands: read / write / list / output_name_get / output_name_set / output_bookmark.",
+        summary: "Manage workspace files (read/write/list/output_name/output_bookmark). Use subcommand to specify action. Use for: read/write/list files in workspace, set output name. Don't use for: read app container files (use shell.exec cat), system files (use shell.exec). Example: read → artifact read filename:report.txt; list → artifact list. Subcommands: read / write / list / output_name_get / output_name_set / output_bookmark.",
         parameters: [
             "command": "Subcommand: read / write / list / output_name_get / output_name_set / output_bookmark",
             "filename": "File name (for read/write)",
@@ -534,8 +534,8 @@ final class DiagnoseExecTool: MCPTool {
 
 final class MemoryExecTool: MCPTool {
     let definition = ToolDefinition(
-        name: "memory",
-        summary: "Manage assistant memory (set/list/delete). Use subcommand to specify action. Use for: save/list/delete memory notes. Don't use for: game memory modification (use memory game). Example: set → memory set key:user name value:xxx; list → memory list. Subcommands: set / list / delete.",
+        name: "assistant_memory",
+        summary: "Manage assistant memory (set/list/delete). Use subcommand to specify action. Use for: save/list/delete memory notes. Don't use for: game memory modification (use memory action:search). Example: set → assistant_memory set key:user name value:xxx; list → assistant_memory list. Subcommands: set / list / delete.",
         parameters: [
             "command": "Subcommand: set / list / delete",
             "key": "Memory key (for set/delete)",
@@ -548,7 +548,7 @@ final class MemoryExecTool: MCPTool {
             throw MCPError.invalidParams("command required")
         }
         
-        AuditLog.shared.log("memory", detail: command)
+        AuditLog.shared.log("assistant_memory", detail: command)
         
         switch command {
         case "set":
@@ -769,7 +769,7 @@ final class ModelExecTool: MCPTool {
 final class KnowledgeExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "knowledge",
-        summary: "Manage knowledge base (import_text/import_file/search/delete). Use subcommand to specify action. Use for: save/search/delete knowledge entries. Don't use for: chat memory (use memory.*). Example: search → knowledge search query:xxx; import_text → knowledge import_text text:xxx. Subcommands: import_text / import_file / search / delete.",
+        summary: "Manage knowledge base (import_text/import_file/search/delete). Use subcommand to specify action. Use for: save/search/delete knowledge entries. Don't use for: chat memory (use memory set/list). Example: search → knowledge search query:xxx; import_text → knowledge import_text text:xxx. Subcommands: import_text / import_file / search / delete.",
         parameters: [
             "command": "Subcommand: import_text / import_file / search / delete",
             "text": "Text to import (for import_text)",

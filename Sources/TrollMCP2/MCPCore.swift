@@ -349,22 +349,14 @@ public final class ToolRegistry: ObservableObject {
     }
 
     /// v2.9.15：聊天默认工具白名单。
-    /// 根因：80+ 工具全量进 schema 导致每次请求载荷巨大，中转/gpt-5.6 处理极慢甚至超时。
-    /// 未显式设置的工具按此白名单决定默认启用；用户显式开/关过的仍以用户为准。
+    /// v3.1.66：工具已精简为 22 个大工具，全部默认启用（shell.exec / app / inject / control 等），
+    /// 新装用户开箱即用；用户手动开/关过的仍以显式状态为准。
     private static let defaultEnabledTools: Set<String> = [
-        "ping", "device.probe",
-        "web.search", "web.fetch", "knowledge.search",
-        // v3.1.33: 大部分工具已被 shell 代替，只保留 shell 做不到的
-        // 已删：device.info（df/free/uname） / workspace.info（pwd） / artifact.*（ls/cat/find）
-        // 已删：github.*（curl 调 API）
-        // shell 做不到的：fs.zip（解压） / fs.image_info（图片信息）
-        "fs.zip", "fs.image_info",
-        "model.config", "model.authentication", "model.selected_profile_id",
-        "skills.list", "skills.read",   // v2.9.17：技能发现/读取
-        "gateway.status", "injection.status", "injection.list", "injection.inspect",   // 查询类
-        "build.environment",
-        // v2.9.37：内置浏览器（AI 控制入口，搜索即用）
-        "browser.status", "browser.snapshot", "browser.click", "browser.type", "browser.eval", "browser.navigate"
+        // v3.1.66：全量注册工具默认启用
+        "artifact", "device", "memory", "assistant_memory", "verify", "container",
+        "ssh", "diagnose", "knowledge", "location", "macro", "app", "control",
+        "inject", "automation", "network.capture", "server", "project", "browser",
+        "shell.exec", "reminder", "rescue"
     ]
 
     /// v2.9.31：常驻核心工具名集合（UI 用只读访问）
@@ -473,7 +465,9 @@ public final class ToolRegistry: ObservableObject {
                     "parameters": [
                         "type": "object",
                         "properties": props,
-                        "required": [String](def.parameters.keys)
+                        // v3.1.66：required 只保留子命令选择器（第一个参数 command/action），
+                        // 其余参数按子命令按需提供——全部标 required 会让 AI 被迫填无关参数。
+                        "required": [String](def.parameters.keys.prefix(1))
                     ]
                 ]
             ])
@@ -691,7 +685,8 @@ public final class ToolRegistry: ObservableObject {
                 "parameters": [
                     "type": "object",
                     "properties": props,
-                    "required": [String](def.parameters.keys)
+                    // v3.1.66：同 enabledOpenAIToolSchema，只保留子命令选择器为 required
+                    "required": [String](def.parameters.keys.prefix(1))
                 ]
             ]
         ]

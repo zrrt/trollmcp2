@@ -208,7 +208,7 @@ final class RescueCleanupTool: MCPTool {
 final class RescueExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "rescue",
-        summary: "Emergency recovery for injected apps (scan/recover/cleanup). Use subcommand to specify action. Use for: fix broken injections, clean up orphan backups. Don't use for: normal injection (use inject.enable). Example: scan → rescue scan; recover_all → rescue recover_all. Subcommands: scan / recover_all / cleanup.",
+        summary: "Emergency recovery for injected apps (scan/recover/cleanup). Use subcommand to specify action. Use for: fix broken injections, clean up orphan backups. Don't use for: normal injection (use inject command:enable). Example: scan → rescue scan; recover_all → rescue recover_all. Subcommands: scan / recover_all / cleanup.",
         parameters: [
             "command": "Subcommand: scan / recover_all / cleanup",
             "bundle_id": "App bundle ID (optional)"
