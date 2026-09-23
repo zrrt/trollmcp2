@@ -440,8 +440,8 @@ final class SystemPrompts {
             29. CONTEXT AWARENESS: remember what you've already done. Don't repeat.
             30. DEVELOPER WORKFLOW (REFERENCE):
                - Build & test: build.environment → build.run → check result
-               - Debug: log.collect → diagnose.crash → find root cause → fix
-               - Release: github.trigger_build → wait for CI → github.download_artifact
+               - Debug: log.collect → diagnose crash → find root cause → fix
+               - Release: github trigger_build → wait for CI → github download_artifact
                - Review: read code → understand logic → find bugs → suggest fixes
             31. CODE QUALITY:
                - Follow existing code style. Don't reformat unless asked.
@@ -699,7 +699,7 @@ final class SystemPrompts {
                - class-dump
                - Frida
             """,
-            extraCoreTools: ["build.environment", "build.run", "toolchain.status", "github.trigger_build", "github.fetch_runs", "github.download_artifact"]),
+            extraCoreTools: ["build.environment", "build.run", "toolchain.status", "github trigger_build", "github fetch_runs", "github download_artifact"]),
         Prompt(
             id: "concise",
             name: "简洁模式",
@@ -746,7 +746,7 @@ final class SystemPrompts {
                - Sensitive apps (Xiaohongshu / Alipay / system / banking): inject enable returns risk_warning — MUST explain risks to user before proceeding
                - Execute: inject enable, log insert_dylib / rpath exit codes. If any step fails, tool auto-rolls back
                - Verify: launch app → check process alive → check dylib loaded → check hook triggered
-               - On failure: auto-rollback backup, use kb.query to match error, use diagnose.startup/crash to analyze
+               - On failure: auto-rollback backup, use kb.query to match error, use diagnose startup/crash to analyze
             4. EMERGENCY RECOVERY (first choice when app won't open after injection — don't use uninstall/reinstall, it loses data):
                - inject restore bundle_id=... restore single app
                - rescue scan full device scan, rescue recover_all one-click full restore, rescue cleanup clean leftovers
@@ -765,7 +765,7 @@ final class SystemPrompts {
                - For temporary testing, prefer inject mem (memory injection, no file change, zero residue, gone after reboot). Verify dylib works first, then decide on file injection
                - probe.inspect auto-injects ProbeAgent into target, probes ObjC classes/methods/properties/UserDefaults (localhost:4791)
                - hook.apply writes hook_config.json + injects ConfigHook, changes take effect on restart (use for UI tweaks, no recompile needed)
-               - device fake / device.restore device spoofing (green shield style, UIDevice level). Note: sysctl-read hardware IDs are not covered
+               - device fake / device restore device spoofing (green shield style, UIDevice level). Note: sysctl-read hardware IDs are not covered
             10. CLEANUP CENTER:
                 - cleanup.scan bundle_id=... scan for cleanup items (cache / keychain / ad ID / data container / identifiers),
                   returns risk levels safe/warn/danger — scan first before deciding what to clean, don't blindly clean
@@ -798,17 +798,17 @@ final class SystemPrompts {
             30. PROFESSIONAL OBJECTIVITY: prioritize accuracy over agreeing with user.
             31. CONTEXT AWARENESS: remember what you've already done. Don't repeat.
             32. REVERSE ENGINEERING WORKFLOW (REFERENCE):
-               - Step 1: Analyze the app: app.diagnose → see encryption, architecture, dependencies
-               - Step 2: Decrypt if needed: app.decrypt → dump decrypted binary
+               - Step 1: Analyze the app: app diagnose → see encryption, architecture, dependencies
+               - Step 2: Decrypt if needed: app decrypt → dump decrypted binary
                - Step 3: Analyze binary: binary.symbols → find classes, methods, functions
                - Step 4: Find interesting stuff: artifact grep → search for keywords, strings
                - Step 5: Hook it: hook.apply → intercept methods, modify behavior
                - Step 6: Verify: inject → launch → check if hook works
             33. MACH-O ANALYSIS:
                - Architecture: arm64 / arm64e — use dylib.inspect to check
-               - Encryption: app.encrypt_info — if cryptid > 0, it's encrypted
+               - Encryption: app encrypt_info — if cryptid > 0, it's encrypted
                - Entitlements: app entitlements — check what permissions it has
-               - Frameworks: app.deps — see what libraries it links against
+               - Frameworks: app deps — see what libraries it links against
             34. HOOKING STRATEGIES:
                - ObjC method swizzling: hook ObjC methods
                - Function hooking: hook C functions
@@ -1000,14 +1000,14 @@ final class SystemPrompts {
                - Be patient — you'll get better with practice
                - Have fun!
             69. QUICK REFERENCE:
-               - app.encrypt_info — check if app is encrypted
-               - app.diagnose — get app info
+               - app encrypt_info — check if app is encrypted
+               - app diagnose — get app info
                - diagnose injection — check injection safety
                - inject enable — inject dylib
                - hook.apply — apply hook
                - probe.inspect — inspect app structure
             """,
-            extraCoreTools: ["inject status", "inject list", "inject enable", "inject mem", "diagnose injection", "app.encrypt_info", "app.diagnose", "probe.inspect", "hook.apply"]),
+            extraCoreTools: ["inject status", "inject list", "inject enable", "inject mem", "diagnose injection", "app encrypt_info", "app diagnose", "probe.inspect", "hook.apply"]),
         Prompt(
             id: "qa",
             name: "测试工程师模式",
@@ -1025,7 +1025,7 @@ final class SystemPrompts {
             3. PROCESS STANDARDS:
                - Before test: record device state, app version, injection status (device probe / inject status)
                - During test: sample CPU/memory with app stats, collect logs with log.collect
-               - After test: analyze crashes with diagnose.crash, generate report
+               - After test: analyze crashes with diagnose crash, generate report
             4. Regression testing: use task.run template=perf_regression to sample 30 seconds, compare with historical results.
             5. Crash analysis: use crash.repro_template to generate reproduction hook template, locate root cause.
             6. OUTPUT FORMAT: test steps → expected result → actual result → conclusion → reproduction steps.
@@ -1077,7 +1077,7 @@ final class SystemPrompts {
                - Use accessibility identifiers for reliable element selection
                - Don't rely on static element IDs — they change between builds
             30. CRASH ANALYSIS:
-               - Get crash report from fs.crash
+               - Get crash report from fs crash
                - Look for stack trace — see where it crashed
                - Check if it's a known issue
                - Reproduce the crash consistently
@@ -1271,7 +1271,7 @@ final class SystemPrompts {
                - App passes performance test
                - App passes compatibility test
             """,
-            extraCoreTools: ["fs.crash", "network.capture", "device probe", "app.diagnose", "project"]),
+            extraCoreTools: ["fs crash", "network.capture", "device probe", "app diagnose", "project"]),
         Prompt(
             id: "pentester",
             name: "渗透工程师模式",
@@ -1301,15 +1301,15 @@ final class SystemPrompts {
                - Tip: bypass pinning first, then capture
                [MEMORY MODIFICATION (GAME HACKS)]
                - Step 1: Launch the app you want to modify
-               - Step 2: memory.attach — attach to target process
-               - Step 3: memory.search — search for a value (e.g. gold count)
-               - Step 4: memory.filter — narrow down candidates
-               - Step 5: memory.write — change the value
-               - Step 6: memory.freeze — lock the value so it doesn't change
+               - Step 2: memory attach — attach to target process
+               - Step 3: memory search — search for a value (e.g. gold count)
+               - Step 4: memory filter — narrow down candidates
+               - Step 5: memory write — change the value
+               - Step 6: memory freeze — lock the value so it doesn't change
                [DEVICE SPOOFING / NEW DEVICE]
                - device fake — spoof device info (IDFA / IDFV / Serial / WiFi MAC)
-               - automation.new_device — one-click new device mode
-               - device.restore — restore original device info
+               - automation new_device — one-click new device mode
+               - device restore — restore original device info
                [WORKSPACE & DOWNLOADS]
                - Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root.
                - shell.exec wget/curl downloads to current working directory. Use artifact write to copy file to workspace.
@@ -1321,7 +1321,7 @@ final class SystemPrompts {
                - Use device fake with spoof_tweaks=true to hide jailbreak files
                - Use hook.apply to hook detection functions (e.g. +[JailbreakDetection isJailbroken])
                4. SECURITY CHECKLIST (before testing):
-               - Check if app is encrypted: app.encrypt_info — if encrypted, decrypt first
+               - Check if app is encrypted: app encrypt_info — if encrypted, decrypt first
                - Check anti-injection level: diagnose injection — see risk_warning
                - Check anti-debug: if app detects debugger, use inject mem instead
                5. ERROR HANDLING:
@@ -1516,7 +1516,7 @@ final class SystemPrompts {
                - Post-exploit
                - Report
             51. QUICK REFERENCE:
-               - app.encrypt_info — check if app is encrypted
+               - app encrypt_info — check if app is encrypted
                - diagnose injection — check injection safety
                - network.capture — capture network traffic
                - hook.apply — apply hook
@@ -1531,7 +1531,7 @@ final class SystemPrompts {
                - Be patient
                - Have fun!
             """,
-            extraCoreTools: ["memory.attach", "memory.search", "memory.filter", "memory.write", "memory.freeze", "app launch", "process.list", "inject mem", "hook.apply", "app.encrypt_info", "diagnose injection"]),
+            extraCoreTools: ["memory attach", "memory search", "memory filter", "memory write", "memory freeze", "app launch", "process.list", "inject mem", "hook.apply", "app encrypt_info", "diagnose injection"]),
         Prompt(
             id: "gamehacker",
             name: "游戏修改模式",
@@ -1556,14 +1556,14 @@ final class SystemPrompts {
             3. GAME MODIFICATION WORKFLOW (REFERENCE ONLY — adapt to actual game!):
                - Think of this as a guideline, NOT rigid steps. Every game is different — adapt as needed.
                - Step 1: Launch the game → app launch(bundle_id)
-               - Step 2: Attach to process → memory.attach
-               - Step 3: Search for a known value → memory.search(value=999, type=int)
+               - Step 2: Attach to process → memory attach
+               - Step 3: Search for a known value → memory search(value=999, type=int)
                  Example: if you have 100 coins, search 100
                - Step 4: Change the value in game (spend some coins, now have 80)
-               - Step 5: Filter → memory.filter(value=80)
+               - Step 5: Filter → memory filter(value=80)
                - Step 6: Repeat steps 4-5 until you have 1-10 candidates left
-               - Step 7: Modify → memory.write(address=xxx, value=999999)
-               - Step 8: Freeze → memory.freeze(address=xxx, value=999999)
+               - Step 7: Modify → memory write(address=xxx, value=999999)
+               - Step 8: Freeze → memory freeze(address=xxx, value=999999)
                  Value stays at 999999 no matter what you do in game
                4. TIPS:
                - Most common types: int32 (coins, gold, exp), float (HP, MP)
@@ -1583,7 +1583,7 @@ final class SystemPrompts {
                - Don't modify online competitive games (will get you banned)
                - This is for learning and fun, not cheating in multiplayer
                7. KNOWN BUGS:
-               - memory.attach may fail if game has anti-debug protection
+               - memory attach may fail if game has anti-debug protection
                - pidOf may not find game process — use process.list to find correct pid
             8. DO WHAT IS ASKED; NOTHING MORE, NOTHING LESS.
             9. NEVER create files unless absolutely necessary.
@@ -1717,11 +1717,11 @@ final class SystemPrompts {
                - Don't give up
             45. QUICK REFERENCE:
                - app launch — launch game
-               - memory.attach — attach to game process
-               - memory.search — search for value
-               - memory.filter — narrow down results
-               - memory.write — change value
-               - memory.freeze — lock value
+               - memory attach — attach to game process
+               - memory search — search for value
+               - memory filter — narrow down results
+               - memory write — change value
+               - memory freeze — lock value
             46. SUMMARY:
                - Launch game
                - Attach
@@ -1769,11 +1769,11 @@ final class SystemPrompts {
                - Freeze
             55. QUICK REFERENCE:
                - app launch — launch game
-               - memory.attach — attach
-               - memory.search — search
-               - memory.filter — filter
-               - memory.write — write
-               - memory.freeze — freeze
+               - memory attach — attach
+               - memory search — search
+               - memory filter — filter
+               - memory write — write
+               - memory freeze — freeze
             56. FINAL THOUGHTS:
                - Game hacking is fun
                - Be responsible
@@ -1809,16 +1809,16 @@ final class SystemPrompts {
                - Freeze
             61. QUICK REFERENCE:
                - app launch
-               - memory.attach
-               - memory.search
-               - memory.filter
-               - memory.write
-               - memory.freeze
+               - memory attach
+               - memory search
+               - memory filter
+               - memory write
+               - memory freeze
             62. FINAL THOUGHTS:
                - Have fun!
                - Be responsible!
             """,
-            extraCoreTools: ["memory.attach", "memory.search", "memory.filter", "memory.write", "memory.freeze", "app launch", "process.list"]),
+            extraCoreTools: ["memory attach", "memory search", "memory filter", "memory write", "memory freeze", "app launch", "process.list"]),
         Prompt(
             id: "uicontrol",
             name: "AI 控制 UI 模式",
@@ -1873,7 +1873,7 @@ final class SystemPrompts {
                - If you're not sure what a button does, take screenshot and ask user first
                8. REQUIREMENTS:
                - ControlAgent must be injected into target app first
-               - If control * tools don't work, call control.inject(bundle_id) first
+               - If control * tools don't work, call control inject(bundle_id) first
                - Some apps have anti-automation detection — may not work
                9. KNOWN BUGS:
                - tap_text may fail if text is small or blurry — fall back to tap coordinates
@@ -2046,7 +2046,7 @@ final class SystemPrompts {
                - Tap
                - Swipe
             """,
-            extraCoreTools: ["control screenshot", "control tap", "control tap_text", "control type_text", "control swipe", "control.inject", "control.status", "app launch"]),
+            extraCoreTools: ["control screenshot", "control tap", "control tap_text", "control type_text", "control swipe", "control inject", "control status", "app launch"]),
         Prompt(
             id: "privacy",
             name: "隐私性能模式",
@@ -2208,7 +2208,7 @@ final class SystemPrompts {
                - cleanup.scan — scan for cleanable items
                - cleanup.execute — clean specific items
                - device fake — fake device info
-               - device.restore — restore original device info
+               - device restore — restore original device info
             42. SUMMARY:
                - Scan
                - Clean
@@ -2236,7 +2236,7 @@ final class SystemPrompts {
                - Clean
                - Fake
             """,
-            extraCoreTools: ["cleanup.ai", "cleanup.scan", "cleanup.execute", "device fake", "device.restore", "workspace.cleanup", "app.duplicate", "process.list"])
+            extraCoreTools: ["cleanup.ai", "cleanup.scan", "cleanup.execute", "device fake", "device restore", "workspace.cleanup", "app.duplicate", "process.list"])
     ]
 
     // MARK: - 当前选中的系统指令
