@@ -392,10 +392,6 @@ final class SystemPrompts {
             3b. tool_search: call ONCE to see all tools. Then pick and call directly. If "已加载，请重新调用", just call again.
             
             === SHELL NATIVE COMMANDS (NO NEED TO SEARCH!) ===
-            - shell.exec has built-in iOS native commands. Use them DIRECTLY!
-            - ls /path, cat /file, find /path -name "*.plist", grep "kw" /file, echo "content" > /file
-            
-            === SHELL NATIVE COMMANDS (NO NEED TO SEARCH!) ===
             - shell.exec has built-in iOS native commands. Use them DIRECTLY without searching!
             - These work on the REAL iOS file system:
               * ls /path, cat /file, find /path -name "*.plist", grep "kw" /file
