@@ -1243,12 +1243,9 @@ public final class ToolRegistry: ObservableObject {
         register(LocationFakeStatusTool())
         register(LocationFakeClearTool())
         // v2.9.141：跨 App 数据桥（沙箱破坏者）+ AI 操作宏录制/回放
-        register(BridgeContainerTool())
-        register(BridgeLsTool())
-        register(BridgeReadTool())
-        register(BridgeCopyTool())
-        register(BridgeExportTool())
-        register(BridgeImportTool())
+        // v3.1.46: 删 6 个 bridge.* 工具（shell.exec 可以实现）
+        // 已删：BridgeContainerTool / BridgeLsTool / BridgeReadTool
+        // 已删：BridgeCopyTool / BridgeExportTool / BridgeImportTool
         register(DebugDumpConversationsTool())
         register(DebugDumpConversationTool())
         register(ChatSendTool())
