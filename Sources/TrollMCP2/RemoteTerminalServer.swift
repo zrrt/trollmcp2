@@ -224,8 +224,41 @@ final class RemoteTerminalServer {
             // v2.9.258: 文件下载端点——AI 远程调试拉取截图/日志/ipa/文本
             // 白名单目录：工作区(Documents/Workspace)、文档(Documents)、临时
             handleFile(client, req)
+        case ("GET", "/api/conversations"):
+            // v3.1.77：远程终端专用会话列表——走 ConversationStore（App 内读 UserDefaults），
+            // 避免外部 shell 读 plist 导致 App 闪退（用户实测：每次远程读会话都闪退）
+            handleConversations(client, req)
+        case ("GET", "/api/conversation"):
+            // v3.1.77：远程终端专用单会话完整导出（含 thinking/toolName/toolArgs），同走 App 内读取
+            handleConversation(client, req)
         default:
             sendResponse(client, status: 404, body: json(["ok": false, "error": "no_route"]))
+        }
+    }
+
+    /// v3.1.77：会话列表（远程终端专用）
+    private func handleConversations(_ client: Int32, _ req: HTTPRequest) {
+        let limit = Int(req.query["limit"] ?? "10") ?? 10
+        do {
+            let r = try DebugDumpConversationsTool().invoke(["limit": limit])
+            sendResponse(client, status: 200, body: json(["ok": true, "tool": "debug.dump_conversations", "result": r]))
+        } catch {
+            sendResponse(client, status: 200, body: json(["ok": false, "error": "\(error)"]))
+        }
+    }
+
+    /// v3.1.77：单会话完整导出（远程终端专用）
+    private func handleConversation(_ client: Int32, _ req: HTTPRequest) {
+        guard let title = req.query["title"], !title.isEmpty else {
+            sendResponse(client, status: 400, body: json(["ok": false, "error": "title_required", "hint": "?title=<会话标题>"]))
+            return
+        }
+        let limit = Int(req.query["limit"] ?? "50") ?? 50
+        do {
+            let r = try DebugDumpConversationTool().invoke(["title": title, "limit": limit])
+            sendResponse(client, status: 200, body: json(["ok": true, "tool": "debug.dump_conversation", "result": r]))
+        } catch {
+            sendResponse(client, status: 200, body: json(["ok": false, "error": "\(error)"]))
         }
     }
 
