@@ -1035,9 +1035,10 @@ public final class ToolRegistry: ObservableObject {
         // 代替成：shell.exec("du -sh ...") / shell.exec("rm -rf ...")
 
         // M2 助理记忆（原版命名）
-        register(AssistantMemorySetTool())
-        register(AssistantMemoryListTool())
-        register(AssistantMemoryDeleteTool())
+        // v3.1.43: memory 大工具 + 子命令（合并 3 个 assistant.memory.* 工具）
+        register(MemoryExecTool())
+        // v3.1.43: 删旧的 3 个 assistant.memory.* 工具（已合并到 memory 大工具）
+        // 已删：AssistantMemorySetTool / AssistantMemoryListTool / AssistantMemoryDeleteTool
 
         // M2 应用与设备
         // v3.1.37: 删旧的 4 个 app.* 工具（已合并到 app 大工具）

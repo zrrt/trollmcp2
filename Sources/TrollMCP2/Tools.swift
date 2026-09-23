@@ -504,3 +504,48 @@ final class DiagnoseExecTool: MCPTool {
         }
     }
 }
+
+// MARK: - v3.1.43: memory 大工具 + 子命令（合并 3 个 assistant.memory.* 工具）
+
+final class MemoryExecTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "memory",
+        summary: "Manage assistant memory (set/list/delete). Use subcommand to specify action. Use for: save/list/delete memory notes. Don't use for: game memory modification (use memory game). Example: set → memory set key:user name value:xxx; list → memory list. Subcommands: set / list / delete.",
+        parameters: [
+            "command": "Subcommand: set / list / delete",
+            "key": "Memory key (for set/delete)",
+            "value": "Memory value (for set)"
+        ],
+        verified: true, category: "knowledge")
+    
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let command = params["command"] as? String else {
+            throw MCPError.invalidParams("command required")
+        }
+        
+        AuditLog.shared.log("memory", detail: command)
+        
+        switch command {
+        case "set":
+            guard let key = params["key"] as? String else {
+                throw MCPError.invalidParams("key required")
+            }
+            guard let value = params["value"] as? String else {
+                throw MCPError.invalidParams("value required")
+            }
+            return try AssistantMemorySetTool().invoke(["key": key, "value": value])
+            
+        case "list":
+            return try AssistantMemoryListTool().invoke([:])
+            
+        case "delete":
+            guard let key = params["key"] as? String else {
+                throw MCPError.invalidParams("key required")
+            }
+            return try AssistantMemoryDeleteTool().invoke(["key": key])
+            
+        default:
+            throw MCPError.invalidParams("Unknown command: \(command). Available: set/list/delete")
+        }
+    }
+}
