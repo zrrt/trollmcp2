@@ -1132,14 +1132,11 @@ public final class ToolRegistry: ObservableObject {
         // register(GatewayCronRunTool())
         // register(GatewayCronCancelTool())
         register(CronFireTool())
-        register(AutomationRunNowTool())
-        register(AutomationListTool())
-        register(AutomationJobsTool())
-        register(AutomationStopTool())
-        // register(AutomationCancelTool())  // 合并到 automation.stop，重复
-        register(AutomationHistoryTool())
-        register(AutomationSetEnabledTool())
-        register(AutomationStatusTool())
+        // v3.1.35: automation 大工具 + 子命令（合并 7 个 automation.* 工具）
+        register(AutomationExecTool())
+        // v3.1.35: 删旧的 7 个 automation.* 工具（已合并到 automation 大工具）
+        // 已删：AutomationRunNowTool / AutomationListTool / AutomationJobsTool
+        // 已删：AutomationStopTool / AutomationHistoryTool / AutomationSetEnabledTool / AutomationStatusTool
 
         // M5 系统能力
         register(ContactsSearchTool())

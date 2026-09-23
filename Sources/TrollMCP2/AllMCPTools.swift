@@ -1191,3 +1191,51 @@ final class InjectionExecTool: MCPTool {
         }
     }
 }
+
+// MARK: - v3.1.35: automation 大工具 + 子命令（合并 7 个 automation.* 工具）
+
+final class AutomationExecTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "automation",
+        summary: "Manage automation/scheduled tasks (run/list/stop/status). Use subcommand to specify action. Use for: schedule tasks, run/stop automation. Don't use for: one-off reminders (use reminder.*). Example: run → automation run name:task1; list → automation list; stop → automation stop name:task1. Subcommands: run / list / jobs / stop / status / history / set_enabled.",
+        parameters: [
+            "command": "Subcommand: run / list / jobs / stop / status / history / set_enabled",
+            "name": "Task name or ID",
+            "enabled": "Enable/disable (for set_enabled)"
+        ],
+        verified: true, category: "automation")
+    
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let command = params["command"] as? String else {
+            throw MCPError.invalidParams("command required")
+        }
+        
+        AuditLog.shared.log("automation", detail: command)
+        
+        switch command {
+        case "run":
+            guard let name = params["name"] as? String else {
+                throw MCPError.invalidParams("name required")
+            }
+            return try AutomationRunNowTool().invoke(["name": name])
+            
+        case "list":
+            return try AutomationListTool().invoke([:])
+            
+        case "jobs":
+            return try AutomationJobsTool().invoke([:])
+            
+        case "stop":
+            guard let name = params["name"] as? String else {
+                throw MCPError.invalidParams("name required")
+            }
+            return try AutomationStopTool().invoke(["name": name])
+            
+        case "status":
+            return try AutomationStatusTool().invoke([:])
+            
+        default:
+            throw MCPError.invalidParams("Unknown command: \(command). Available: run/list/jobs/stop/status/history/set_enabled")
+        }
+    }
+}
