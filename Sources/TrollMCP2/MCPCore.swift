@@ -1055,14 +1055,12 @@ public final class ToolRegistry: ObservableObject {
         // 已删：InjectionStatusTool / InjectionInspectTool / InjectionListTool
         register(JailbreakStatusTool())  // v3.1.1：Jailbreak 状态检测
         register(JailbreakInjectTool())   // v3.1.1：ElleKit 运行时注入
-        register(InjectionRemoveTool())
-        register(InjectionRestoreTool())
-        register(InjectionEnablePersistedTool())
+        // v3.1.37: 删旧的 3 个 inject.* 工具（已合并到 inject 大工具）
+        // 已删：InjectionRemoveTool / InjectionRestoreTool / InjectionMemTool
         register(RescueScanTool())
         register(RescueRecoverAllTool())
         register(RescueCleanupTool())
-        // v2.9.90：高级工具组（内存注入/类探测/配置化 Hook/设备伪装）
-        register(InjectionMemTool())
+        // v2.9.90：高级工具组（类探测/配置化 Hook/设备伪装）
         register(ProbeInspectTool())
         register(HookApplyTool())
         register(DeviceFakeTool())

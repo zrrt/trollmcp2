@@ -1129,7 +1129,7 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
 final class InjectionExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "inject",
-        summary: "Manage dylib injection (enable/disable/status/list/inspect). Use subcommand to specify action. Use for: inject/remove dylib into apps, check injection status. Don't use for: launch app (use app launch), UI control (use control). Example: enable → inject enable bundle_id:com.xxx; status → inject status; list → inject list query:小红书. Subcommands: enable / disable / static / enable_persisted / status / inspect / list.",
+        summary: "Manage dylib injection (enable/disable/status/list/remove/restore/mem). Use subcommand to specify action. Use for: inject/remove dylib into apps, check injection status. Don't use for: launch app (use app launch), UI control (use control). Example: enable → inject enable bundle_id:com.xxx; status → inject status; list → inject list query:小红书. Subcommands: enable / disable / static / enable_persisted / status / inspect / list / remove / restore / mem.",
         parameters: [
             "command": "Subcommand: enable / disable / static / enable_persisted / status / inspect / list",
             "bundle_id": "App bundle ID",
@@ -1186,8 +1186,26 @@ final class InjectionExecTool: MCPTool {
             if let query = params["query"] as? String { p["query"] = query }
             return try InjectionListTool().invoke(p)
             
+        case "remove":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try InjectionRemoveTool().invoke(["bundle_id": bundleId])
+            
+        case "restore":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try InjectionRestoreTool().invoke(["bundle_id": bundleId])
+            
+        case "mem":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try InjectionMemTool().invoke(["bundle_id": bundleId])
+            
         default:
-            throw MCPError.invalidParams("Unknown command: \(command). Available: enable/disable/static/enable_persisted/status/inspect/list")
+            throw MCPError.invalidParams("Unknown command: \(command). Available: enable/disable/static/enable_persisted/status/inspect/list/remove/restore/mem")
         }
     }
 }
