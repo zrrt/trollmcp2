@@ -1173,7 +1173,7 @@ final class InjectionExecTool: MCPTool {
             return try InjectionEnablePersistedTool().invoke(["bundle_id": bundleId])
             
         case "status":
-            return InjectionStatusTool().invoke([:])
+            return try InjectionStatusTool().invoke([:])
             
         case "inspect":
             guard let bundleId = params["bundle_id"] as? String else {
