@@ -12,7 +12,8 @@ public final class MitmProxy {
 
     private var listenFD: Int32 = -1
     private var runningFlag = false
-    private let queue = DispatchQueue(label: "mitm.proxy", qos: .default)
+    // 并发队列：acceptLoop 与每个连接处理互不阻塞（串行队列会在 handleConnection 的 group.wait 处卡死 accept）
+    private let queue = DispatchQueue(label: "mitm.proxy", qos: .default, attributes: .concurrent)
 
     public private(set) var port: UInt16 = 18180
     public let certDir: String
