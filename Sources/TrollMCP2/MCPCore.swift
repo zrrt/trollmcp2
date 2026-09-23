@@ -1028,7 +1028,8 @@ public final class ToolRegistry: ObservableObject {
         // 已删：ControlInjectTool / ControlStatusTool / ControlUITreeTool / ControlScreenshotTool
         // 已删：ControlTapTool / ControlSwipeTool / ControlTypeTool / ControlKeyTool
         // v3.1.46: 删 WorkspaceInfoTool（shell.exec 可以实现：shell.exec("pwd")）
-        register(ToolHealthTool())   // v2.9.128：工具健康度自查
+        // 已删：ToolHealthTool（用 shell.exec 代替）
+        // register(ToolHealthTool())   // v2.9.128：工具健康度自查
         // v3.1.33: 清理工具已删（用 shell 代替）
         // 已删：CleanupScanTool / CleanupExecuteTool / CleanupAiTool
         // 已删：SystemCleanupScanTool / SystemCleanupExecuteTool
@@ -1046,9 +1047,10 @@ public final class ToolRegistry: ObservableObject {
 
         // v3.0.90：系统概览工具（AI 全局视角目录）
         // v3.1.64: 删 SystemOverviewTool（用 shell.exec("uname -a") / shell.exec("df -h") / shell.exec("free") 代替）
-        register(SystemLessonsTool())  // v3.0.90：AI 经验教训库
-        register(TaskProgressTool())   // v3.0.90：任务进度跟踪
-        register(VerifyInjectTool())   // v3.0.90：结果验证
+        // 已删：SystemLessonsTool / TaskProgressTool / VerifyInjectTool（用 shell.exec 代替）
+        // register(SystemLessonsTool())  // v3.0.90：AI 经验教训库
+        // register(TaskProgressTool())   // v3.0.90：任务进度跟踪
+        // register(VerifyInjectTool())   // v3.0.90：结果验证
         // v3.1.44: verify 大工具 + 子命令（合并 2 个 verify.* 工具）
         register(VerifyExecTool())
         // v3.1.44: 删旧的 2 个 verify.* 工具（已合并到 verify 大工具）
@@ -1059,8 +1061,9 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.34: 删旧的 7 个 injection.* 工具（已合并到 inject 大工具）
         // 已删：InjectionEnableTool / InjectionDisableTool / InjectionStaticTool
         // 已删：InjectionStatusTool / InjectionInspectTool / InjectionListTool
-        register(JailbreakStatusTool())  // v3.1.1：Jailbreak 状态检测
-        register(JailbreakInjectTool())   // v3.1.1：ElleKit 运行时注入
+        // 已删：JailbreakStatusTool / JailbreakInjectTool（用 shell.exec 代替）
+        // register(JailbreakStatusTool())  // v3.1.1：Jailbreak 状态检测
+        // register(JailbreakInjectTool())   // v3.1.1：ElleKit 运行时注入
         // v3.1.37: 删旧的 3 个 inject.* 工具（已合并到 inject 大工具）
         // 已删：InjectionRemoveTool / InjectionRestoreTool / InjectionMemTool
         // v3.1.38: rescue 大工具 + 子命令（合并 3 个 rescue.* 工具）
@@ -1146,7 +1149,8 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.57: 删旧的提醒事项工具（已合并到 ReminderExecTool）
         // 已删：ReminderCreateTool / ReminderScheduleTool / ReminderScheduleRecurring
         // v3.1.61: 删 LocationGetTool（已合并到 LocationExecTool：location get）
-        register(NotificationSendTool())
+        // 已删：NotificationSendTool（用 shell.exec 代替）
+        // register(NotificationSendTool())
         // v3.1.64: 删 ScanQRTool（AI 是文字对话，不能扫码）
         // v3.1.33: 删 ProcessListTool（用 shell ps 代替）
         register(ShellExecTool())   // v3.0.28：内置终端，执行 shell 命令
@@ -1197,11 +1201,13 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.61: 删旧的电话工具（已合并到 PhoneExecTool）
         // 已删：PhoneCallTool / PhoneScheduleCallTool
         // v3.1.64: 删 SkillsSetEnabledTool（用 shell.exec 修改配置文件代替）
-        register(SkillsListTool())    // v2.9.17：技能可被 AI 发现
-        register(SkillsReadTool())    // v2.9.17：技能可被 AI 读取
+        // 已删：SkillsListTool / SkillsReadTool（用 shell.exec 代替）
+        // register(SkillsListTool())    // v2.9.17：技能可被 AI 发现
+        // register(SkillsReadTool())    // v2.9.17：技能可被 AI 读取
         register(ToolSearchTool())   // v2.9.16：渐进式披露元工具
-        register(ClipboardReadTool())   // v2.9.108：剪贴板读取（ios-mcp 借鉴）
-        register(ClipboardWriteTool())  // v2.9.108：剪贴板写入（ios-mcp 借鉴）
+        // 已删：ClipboardReadTool / ClipboardWriteTool（用 shell.exec 代替）
+        // register(ClipboardReadTool())   // v2.9.108：剪贴板读取（ios-mcp 借鉴）
+        // register(ClipboardWriteTool())  // v2.9.108：剪贴板写入（ios-mcp 借鉴）
         // v3.1.31: 之前 shell 是 Alpine，访问不到 iOS 文件系统，所以 fs.* 工具加回来了
         // v3.1.46: 现在 shell.exec 已经做了 iOS 原生命令，可以访问 iOS 文件系统了！
         // 删掉 12 个 fs.* 工具（shell.exec 可以实现）
@@ -1226,7 +1232,8 @@ public final class ToolRegistry: ObservableObject {
         // 已删：BridgeContainerTool / BridgeLsTool / BridgeReadTool
         // 已删：BridgeCopyTool / BridgeExportTool / BridgeImportTool
         // v3.1.53: debug 大工具 + 子命令（合并 4 个 debug.* 工具）
-        register(DebugExecTool())
+        // 已删：DebugExecTool（用 shell.exec 代替）
+        // register(DebugExecTool())
         // v3.1.53: 删旧的 4 个 debug.* 工具（已合并到 debug 大工具）
         // 已删：DebugDumpConversationsTool / DebugDumpConversationTool
         // 已删：DebugDumpModelConfigsTool / DebugDumpNetworkLogTool
@@ -1254,7 +1261,8 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.60: 删 ToolLoadDylibTool（已合并到 inject 大工具：inject load_dylib）
         // v3.0.72：语义化 UI 操作 + OCR
         // v3.1.62: 删 ControlTapTextTool / ControlTypeTextTool（已合并到 ControlExecTool）
-        register(OCRImageTool())
+        // 已删：OCRImageTool（用 shell.exec 代替）
+        // register(OCRImageTool())
 
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
     }
