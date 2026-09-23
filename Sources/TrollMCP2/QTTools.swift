@@ -11,7 +11,7 @@
 final class IPAInspectTool: MCPTool {
     let definition = ToolDefinition(
         name: "ipa.inspect",
-        summary: "Inspect an IPA or installed app: architecture, signature, entitlements, dylib dependencies, Info.plist. Use for: analyze an IPA file, check app details before injection. Don't use for: inject dylib (use injection.enable), list installed apps (use injection.list). Example: user says '这个 IPA 是什么架构' → inspect IPA.",
+        summary: "Inspect an IPA or installed app: architecture, signature, entitlements, dylib dependencies, Info.plist. Use for: analyze an IPA file, check app details before injection. Don't use for: inject dylib (use inject command:enable), list installed apps (use inject command:list). Example: user says '这个 IPA 是什么架构' → inspect IPA.",
         parameters: [
             "path": "IPA file path or App Bundle path (required)",
             "detail": "basic (quick overview) or full (all dependencies + entitlements)"
@@ -143,7 +143,7 @@ final class IPAInspectTool: MCPTool {
 final class DylibInspectTool: MCPTool {
     let definition = ToolDefinition(
         name: "dylib.inspect",
-        summary: "Inspect a dylib file (architecture, signature, dependencies). Use for: check if a dylib is compatible before injecting. Don't use for: inject dylib (use injection.enable), inspect IPA (use ipa.inspect). Example: user says '这个 dylib 能用吗' → inspect dylib.",
+        summary: "Inspect a dylib file (architecture, signature, dependencies). Use for: check if a dylib is compatible before injecting. Don't use for: inject dylib (use inject command:enable), inspect IPA (use ipa.inspect). Example: user says '这个 dylib 能用吗' → inspect dylib.",
         parameters: [
             "path": "Dylib file path (required)"
         ], verified: true, category: "analysis")
@@ -240,7 +240,7 @@ private func machOArch(_ path: String) -> String {
 final class InjectionDiagnoseTool: MCPTool {
     let definition = ToolDefinition(
         name: "injection.diagnose",
-        summary: "Diagnose why injection failed (troubleshoot). Use for: injection didn't work, find out why (app crashed, dylib not loaded, etc.). Don't use for: actually inject (use injection.enable), check status (use injection.status). Example: user says '小红书注入失败了，为什么' → diagnose injection failure.",
+        summary: "Diagnose why injection failed (troubleshoot). Use for: injection didn't work, find out why (app crashed, dylib not loaded, etc.). Don't use for: actually inject (use inject command:enable), check status (use inject command:status). Example: user says '小红书注入失败了，为什么' → diagnose injection failure.",
         parameters: [
             "bundle_id": "Target App bundle ID (required)",
             "dylib_path": "Dylib path to check (optional, check existing injected)"
@@ -260,7 +260,7 @@ final class InjectionDiagnoseTool: MCPTool {
         // 1. 检查目标 App 是否存在
         let apps = AppCatalog.list()
         guard let target = apps.first(where: { $0.bundleId == bundleId }) else {
-            return ["error": "未找到 App: \(bundleId)", "hint": "用 injection.list 搜索目标 App"]
+            return ["error": "未找到 App: \(bundleId)", "hint": "用 inject command:list 搜索目标 App"]
         }
         diagnosis["app_name"] = target.name
         diagnosis["bundle_path"] = target.path
@@ -496,10 +496,10 @@ final class LogCollectTool: MCPTool {
 final class NetworkCaptureTool: MCPTool {
     let definition = ToolDefinition(
         name: "network.capture",
-        summary: "HTTP/HTTPS packet capture (抓包). Use for: see what network requests an app makes, analyze API calls, inspect request/response headers, debug app networking. Don't use for: browse web pages (use browser navigate), read local files (use shell.exec cat). Workflow: 1) inject NetworkTweak into app, 2) use the app normally, 3) query captured requests. Example: user says '抓包小红书的请求' → start capture on com.xingin.discover.",
+        summary: "HTTP/HTTPS packet capture (抓包). Use for: see what network requests an app makes, analyze API calls, inspect request/response headers, debug app networking. Don't use for: browse web pages (use browser navigate), read local files (use shell.exec cat). Workflow: 1) inject NetworkTweak into app, 2) use the app normally, 3) query captured requests. Example: user says '抓包小红书的请求' → network.capture action:start bundle_id:com.xingin.discover. REQUIRED PARAMS: start→bundle_id; others optional. action: status / start / stop / requests / analyze.",
         parameters: [
-            "action": "Action: status / start / stop / requests / analyze",
-            "bundle_id": "Target App bundle_id (required for start). e.g. com.xingin.discover",
+            "action": "Action (default status): status / start / stop / requests / analyze",
+            "bundle_id": "Target App bundle_id — REQUIRED for start. e.g. com.xingin.discover",
             "limit": "Max requests to show (default 50)"
         ],
         verified: true, category: "diagnose")
@@ -525,14 +525,14 @@ final class NetworkCaptureTool: MCPTool {
 
         case "start":
             guard !bundleId.isEmpty else {
-                return ["error": "bundle_id required for start"]
+                return ["error": "bundle_id required for start. Usage: network.capture action:start bundle_id:com.xingin.discover"]
             }
             // 检查 NetworkTweak.dylib 是否内置
             let tweakPath = Bundle.main.path(forResource: "NetworkTweak", ofType: "dylib", inDirectory: "tweaks")
             guard let tweakPath = tweakPath, FileManager.default.fileExists(atPath: tweakPath) else {
                 return [
                     "error": "NetworkTweak.dylib 未内置",
-                    "hint": "将在后续版本添加；当前可先用 injection.enable 注入其他抓包 dylib"
+                    "hint": "将在后续版本添加；当前可先用 inject command:enable 注入其他抓包 dylib"
                 ]
             }
             // v2.9.116：注入前查加密 + 注入后自检
@@ -548,7 +548,7 @@ final class NetworkCaptureTool: MCPTool {
             let injected = (result["injected"] as? Bool) ?? false
             if !injected {
                 return ["action": "start", "bundle_id": bundleId, "injection_result": false,
-                        "error": "NetworkTweak 注入未生效（自动回滚可参考 injection.disable）",
+                        "error": "NetworkTweak 注入未生效（自动回滚可参考 inject command:disable）",
                         "next_step": "检查 app.encrypt_info（加密需砸壳）→ app.status 确认进程存活 → 重试"]
             }
             return [
@@ -562,7 +562,7 @@ final class NetworkCaptureTool: MCPTool {
         case "stop":
             return [
                 "action": "stop",
-                "hint": "停止抓包：用 injection.disable 移除 NetworkTweak.dylib，或直接杀目标 App 进程"
+                "hint": "停止抓包：用 inject command:disable 移除 NetworkTweak.dylib，或直接杀目标 App 进程"
             ]
 
         case "requests":

@@ -338,12 +338,12 @@ final class ClipboardWriteTool: MCPTool {
 final class ArtifactExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact",
-        summary: "Manage workspace files (read/write/list/output_name/output_bookmark). Use subcommand to specify action. Use for: read/write/list files in workspace, set output name. Don't use for: read app container files (use shell.exec cat), system files (use shell.exec). Example: read → artifact read filename:report.txt; list → artifact list. Subcommands: read / write / list / output_name_get / output_name_set / output_bookmark.",
+        summary: "Manage workspace files (read/write/list/output_name/output_bookmark). Use subcommand to specify action. Use for: read/write/list files in workspace, set output name. Don't use for: read app container files (use shell.exec cat), system files (use shell.exec). Example: read → artifact read filename:report.txt; list → artifact list. Subcommands: read / write / list / output_name_get / output_name_set / output_bookmark. REQUIRED PARAMS per subcommand: read→filename; write→filename+text; output_name_set→name; others→none.",
         parameters: [
-            "command": "Subcommand: read / write / list / output_name_get / output_name_set / output_bookmark",
-            "filename": "File name (for read/write)",
-            "text": "Text to write (for write)",
-            "name": "Output name (for output_name_set)"
+            "command": "Subcommand (required): read / write / list / output_name_get / output_name_set / output_bookmark",
+            "filename": "File name — REQUIRED for read/write",
+            "text": "Text to write — REQUIRED for write",
+            "name": "Output name — REQUIRED for output_name_set"
         ],
         verified: true, category: "fs")
     
@@ -357,16 +357,16 @@ final class ArtifactExecTool: MCPTool {
         switch command {
         case "read":
             guard let filename = params["filename"] as? String else {
-                throw MCPError.invalidParams("filename required")
+                throw MCPError.invalidParams("filename required. Usage: artifact read filename:report.txt")
             }
             return try ArtifactReadTextTool().invoke(["filename": filename])
             
         case "write":
             guard let filename = params["filename"] as? String else {
-                throw MCPError.invalidParams("filename required")
+                throw MCPError.invalidParams("filename required. Usage: artifact write filename:notes.txt text:'内容'")
             }
             guard let text = params["text"] as? String else {
-                throw MCPError.invalidParams("text required")
+                throw MCPError.invalidParams("text required. Usage: artifact write filename:notes.txt text:'内容'")
             }
             return try ArtifactWriteTextTool().invoke(["filename": filename, "text": text])
             
@@ -378,7 +378,7 @@ final class ArtifactExecTool: MCPTool {
 
         case "output_name_set":
             guard let name = params["name"] as? String else {
-                throw MCPError.invalidParams("name required")
+                throw MCPError.invalidParams("name required. Usage: artifact output_name_set name:我的输出名")
             }
             return try WorkspaceOutputNameTool().invoke(["name": name])
 
@@ -445,12 +445,12 @@ final class DeviceExecTool: MCPTool {
 final class ContainerExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "container",
-        summary: "Manage app data container (refresh/write/delete). Use subcommand to specify action. Use for: read/write/delete files in app container. Don't use for: workspace files (use artifact.*), system files (use shell.exec). Example: write → container write bundle_id:com.xxx path:Documents/xxx.txt text:hello. Subcommands: refresh / write / delete.",
+        summary: "Manage app data container (refresh/write/delete). Use subcommand to specify action. Use for: read/write/delete files in app container. Don't use for: workspace files (use artifact.*), system files (use shell.exec). Example: write → container write bundle_id:com.xxx path:Documents/xxx.txt text:hello. Subcommands: refresh / write / delete. REQUIRED PARAMS per subcommand: write→bundle_id+path+text; delete→bundle_id+path; refresh→none.",
         parameters: [
-            "command": "Subcommand: refresh / write / delete",
-            "bundle_id": "App bundle ID",
-            "path": "File path (for write/delete)",
-            "text": "Text to write (for write)"
+            "command": "Subcommand (required): refresh / write / delete",
+            "bundle_id": "App bundle ID — REQUIRED for write/delete",
+            "path": "File path — REQUIRED for write/delete",
+            "text": "Text to write — REQUIRED for write"
         ],
         verified: true, category: "fs")
     
@@ -467,22 +467,22 @@ final class ContainerExecTool: MCPTool {
             
         case "write":
             guard let bundleId = params["bundle_id"] as? String else {
-                throw MCPError.invalidParams("bundle_id required")
+                throw MCPError.invalidParams("bundle_id required. Usage: container write bundle_id:com.xxx path:Documents/a.txt text:内容")
             }
             guard let path = params["path"] as? String else {
-                throw MCPError.invalidParams("path required")
+                throw MCPError.invalidParams("path required. Usage: container write bundle_id:com.xxx path:Documents/a.txt text:内容")
             }
             guard let text = params["text"] as? String else {
-                throw MCPError.invalidParams("text required")
+                throw MCPError.invalidParams("text required. Usage: container write bundle_id:com.xxx path:Documents/a.txt text:内容")
             }
             return try ContainerWriteTextTool().invoke(["bundle_id": bundleId, "path": path, "text": text])
             
         case "delete":
             guard let bundleId = params["bundle_id"] as? String else {
-                throw MCPError.invalidParams("bundle_id required")
+                throw MCPError.invalidParams("bundle_id required. Usage: container delete bundle_id:com.xxx path:Documents/a.txt")
             }
             guard let path = params["path"] as? String else {
-                throw MCPError.invalidParams("path required")
+                throw MCPError.invalidParams("path required. Usage: container delete bundle_id:com.xxx path:Documents/a.txt")
             }
             return try ContainerDeleteTool().invoke(["bundle_id": bundleId, "path": path])
             

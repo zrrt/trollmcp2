@@ -516,14 +516,18 @@ final class ControlTypeTextTool: MCPTool {
 final class ControlExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "control",
-        summary: "Control target app UI (tap/type/swipe/screenshot/key). Use subcommand to specify action. Use for: UI automation, controlling app screen. Don't use for: shell commands (use shell.exec), browser control (use browser.*). Example: tap → control tap x:100 y:200; screenshot → control screenshot; type text → control type text:'hello'; tap by text → control tap_text text:'登录'; press home → control key key:home. Subcommands: inject / status / ui_tree / screenshot / tap / swipe / type / key / tap_text / type_text.",
+        summary: "Control target app UI (tap/type/swipe/screenshot/key). Use subcommand to specify action. Use for: UI automation, controlling app screen. Don't use for: shell commands (use shell.exec), browser control (use browser.*). Example: tap → control tap x:100 y:200; screenshot → control screenshot; type text → control type text:'hello'; tap by text → control tap_text text:'登录'; press home → control key key:home. Subcommands: inject / status / ui_tree / screenshot / tap / swipe / type / key / tap_text / type_text. REQUIRED PARAMS per subcommand: tap→x(Number)+y(Number); swipe→x1,y1,x2,y2(Number); type→text; tap_text→text; key→key(home/back/enter); inject→bundle_id; others→none.",
         parameters: [
-            "command": "Subcommand: inject / status / ui_tree / screenshot / tap / swipe / type / key / tap_text / type_text",
-            "bundle_id": "App bundle ID (for inject)",
-            "x": "X coordinate (for tap)",
-            "y": "Y coordinate (for tap)",
-            "text": "Text (for type / tap_text)",
-            "key": "Key name: home/back/enter (for key)",
+            "command": "Subcommand (required): inject / status / ui_tree / screenshot / tap / swipe / type / key / tap_text / type_text",
+            "bundle_id": "App bundle ID — REQUIRED for inject only",
+            "x": "X coordinate Number — REQUIRED for tap",
+            "y": "Y coordinate Number — REQUIRED for tap",
+            "x1": "Start X Number — REQUIRED for swipe",
+            "y1": "Start Y Number — REQUIRED for swipe",
+            "x2": "End X Number — REQUIRED for swipe",
+            "y2": "End Y Number — REQUIRED for swipe",
+            "text": "Text string — REQUIRED for type / tap_text",
+            "key": "Key name: home/back/enter — REQUIRED for key",
             "placeholder": "Field placeholder (for type_text)"
         ],
         verified: true, category: "ui_control")
@@ -553,32 +557,32 @@ final class ControlExecTool: MCPTool {
             
         case "tap":
             guard let x = params["x"] as? Double, let y = params["y"] as? Double else {
-                throw MCPError.invalidParams("x and y required")
+                throw MCPError.invalidParams("x and y required. Usage: control tap x:100 y:200 (both Numbers)")
             }
             return ControlAgentTools.shared.tap(x: x, y: y)
             
         case "swipe":
             guard let x1 = params["x1"] as? Double, let y1 = params["y1"] as? Double,
                   let x2 = params["x2"] as? Double, let y2 = params["y2"] as? Double else {
-                throw MCPError.invalidParams("x1,y1,x2,y2 required")
+                throw MCPError.invalidParams("x1,y1,x2,y2 required. Usage: control swipe x1:100 y1:200 x2:300 y2:400 (all Numbers)")
             }
             return ControlAgentTools.shared.swipe(x1: x1, y1: y1, x2: x2, y2: y2, duration: 0.3)
             
         case "type":
             guard let text = params["text"] as? String else {
-                throw MCPError.invalidParams("text required")
+                throw MCPError.invalidParams("text required. Usage: control type text:'hello'")
             }
             return ControlAgentTools.shared.type(text: text)
             
         case "key":
             guard let key = params["key"] as? String else {
-                throw MCPError.invalidParams("key required: home/back/enter")
+                throw MCPError.invalidParams("key required. Usage: control key key:home (home/back/enter)")
             }
             return ControlAgentTools.shared.key(key)
             
         case "tap_text":
             guard let text = params["text"] as? String else {
-                throw MCPError.invalidParams("text required")
+                throw MCPError.invalidParams("text required. Usage: control tap_text text:'登录'")
             }
             return try ControlTapTextTool().invoke(["text": text])
             
