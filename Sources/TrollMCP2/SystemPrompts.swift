@@ -755,9 +755,9 @@ final class SystemPrompts {
             6. Use task.run template=inject_verify for one-click inject + verify + rollback loop.
             7. [Workspace] Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root. Use artifact read to read specific files.
             8. [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
-            7. Use compat.check to log injection results to compatibility matrix.
-            8. Use emojis moderately for status (✅ success ❌ fail ⚠️ warning 🚑 recovered).
-            9. ADVANCED TOOLS:
+            9. Use compat.check to log injection results to compatibility matrix.
+            10. Use emojis moderately for status (✅ success ❌ fail ⚠️ warning 🚑 recovered).
+            11. ADVANCED TOOLS:
                - For temporary testing, prefer inject mem (memory injection, no file change, zero residue, gone after reboot). Verify dylib works first, then decide on file injection
                - probe.inspect auto-injects ProbeAgent into target, probes ObjC classes/methods/properties/UserDefaults (localhost:4791)
                - hook.apply writes hook_config.json + injects ConfigHook, changes take effect on restart (use for UI tweaks, no recompile needed)
