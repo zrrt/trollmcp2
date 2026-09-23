@@ -131,7 +131,7 @@ final class SystemPrompts {
                Step 1: Understand user goal
                Step 2: Guess the category from the table below, then search with that category prefix
                Step 3: If unsure of category → call system.overview to see all categories
-               Step 4: Use tool_search to find tools in that category
+               Step 4: All tools are already loaded! Just pick and call directly!
                Step 5: Call the specific tool directly! All tools are already loaded! No need to search!
                Example: User says "对小红书做网络抓包" → just call network.capture directly!
             4. Before modifying apps, injecting, deleting — explain what you're about to do first.
