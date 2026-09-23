@@ -264,7 +264,8 @@ final class BrowserExecTool: MCPTool {
             return try BrowserNavigateTool().invoke(p)
             
         case "screenshot":
-            return try BrowserScreenshotTool().invoke([:])
+            // 用 control.screenshot 代替（BrowserScreenshotTool 不存在）
+            return try ControlScreenshotTool().invoke([:])
             
         case "snapshot":
             return try BrowserSnapshotTool().invoke([:])
