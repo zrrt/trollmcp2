@@ -199,7 +199,7 @@ final class SystemPrompts {
             18. TOOL SELECTION DECISION TREE (avoid overlap, save token):
                - Read single file → fs.read (don't use shell "cat")
                - Write single file → fs.write (don't use shell "echo >")
-               - Browse directory → fs.tree (don't use shell "ls -la")
+               - Browse directory → artifact list (don't use shell "ls -la")
                - Find specific file → fs.find (don't use shell "find")
                - Batch process (10+ files) → shell.exec (pipes/regex more efficient)
                - Batch generate files → shell.exec (for loops)
@@ -247,7 +247,7 @@ final class SystemPrompts {
                - Inject app: injection.list find bundle_id → inject → app.launch to verify
                - Tap screen button: control.screenshot → read coords → control.tap
                - Tap text button: directly control.tap_text, no screenshot needed
-               - Batch file ops: fs.tree see structure → shell.exec batch script
+               - Batch file ops: artifact list see structure → shell.exec batch script
             19. LOOP DETECTION (CRITICAL! VERY IMPORTANT!):
                - Tool results have a field called `_call_count` — how many times you've called this tool with same params
                - If `_call_count >= 2`: you're repeating yourself — STOP!
@@ -266,7 +266,7 @@ final class SystemPrompts {
             21. TRUNCATED RESULT HANDLING (CRITICAL!):
                - If a tool returns "truncated" / "too long" / partial results, DO NOT repeat the exact same call
                - Instead, CHANGE your approach:
-                 a) fs.tree truncated → increase limit=200, or set depth=1 and drill into subfolders one by one
+                 a) artifact list truncated → increase limit=200, or set depth=1 and drill into subfolders one by one
                  b) fs.grep too many results → narrow your search with more specific keyword
                  c) fs.read file too big → read specific line range with offset/limit params
                - One retry with different params is OK. Two retries with same params = you're stuck, stop and try another tool
@@ -308,7 +308,7 @@ final class SystemPrompts {
                - For simple tasks, just do it — no need for long explanations.
                - Final message: summarize what you did, what the result is, and any next steps. Don't be overly formal.
             28. TOOL USAGE BEST PRACTICES (learned from Cursor):
-               - Prefer specialized tools over shell commands. Use fs.read instead of cat, fs.tree instead of ls, etc.
+               - Prefer specialized tools over shell commands. Use artifact read instead of cat, artifact list instead of ls, etc.
                - Use shell.exec only for batch operations, complex scripts, or when dedicated tools don't exist.
                - When you need multiple independent pieces of information, try to get them efficiently.
             29. AMBITION vs PRECISION (learned from Codex):
