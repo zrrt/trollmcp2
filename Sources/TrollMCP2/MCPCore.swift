@@ -1087,8 +1087,10 @@ public final class ToolRegistry: ObservableObject {
         register(AiAnalyzeTool())
 
         // v2.9.68：SSH 远程连接 + 应用解密
-        register(SSHTool())
-        register(SCPTool())
+        // v3.1.45: ssh 大工具 + 子命令（合并 2 个 ssh.* 工具）
+        register(SshExecTool())
+        // v3.1.45: 删旧的 2 个 ssh.* 工具（已合并到 ssh 大工具）
+        // 已删：SSHTool / SCPTool
         register(AppDecryptTool())
         register(AppReplaceDecryptedTool())
         register(AppEncryptInfoTool())

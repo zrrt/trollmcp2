@@ -588,3 +588,46 @@ final class VerifyExecTool: MCPTool {
         }
     }
 }
+
+// MARK: - v3.1.45: ssh 大工具 + 子命令（合并 2 个 ssh.* 工具）
+
+final class SshExecTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "ssh",
+        summary: "SSH remote connection (exec/scp). Use subcommand to specify action. Use for: run commands on remote server, transfer files. Don't use for: local shell (use shell.exec). Example: exec → ssh exec command:ls -la; scp → ssh scp local:xxx remote:/xxx. Subcommands: exec / scp.",
+        parameters: [
+            "command": "Subcommand: exec / scp",
+            "cmd": "Command to run (for exec)",
+            "local": "Local file path (for scp)",
+            "remote": "Remote file path (for scp)"
+        ],
+        verified: true, category: "system")
+    
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let command = params["command"] as? String else {
+            throw MCPError.invalidParams("command required")
+        }
+        
+        AuditLog.shared.log("ssh", detail: command)
+        
+        switch command {
+        case "exec":
+            guard let cmd = params["cmd"] as? String else {
+                throw MCPError.invalidParams("cmd required")
+            }
+            return try SSHTool().invoke(["command": cmd])
+            
+        case "scp":
+            guard let local = params["local"] as? String else {
+                throw MCPError.invalidParams("local required")
+            }
+            guard let remote = params["remote"] as? String else {
+                throw MCPError.invalidParams("remote required")
+            }
+            return try SCPTool().invoke(["local": local, "remote": remote])
+            
+        default:
+            throw MCPError.invalidParams("Unknown command: \(command). Available: exec/scp")
+        }
+    }
+}
