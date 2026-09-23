@@ -1107,9 +1107,10 @@ public final class ToolRegistry: ObservableObject {
         // v2.9.71：自动诊断 + 本地 HTTP 服务
         register(DiagnoseStartupTool())
         // v3.1.33: 删 DiagnoseCrashTool（用 shell cat 代替）
-        register(ServerStartTool())
-        register(ServerStopTool())
-        register(ServerStatusTool())
+        // v3.1.36: server 大工具 + 子命令（合并 3 个 server.* 工具）
+        register(ServerExecTool())
+        // v3.1.36: 删旧的 3 个 server.* 工具（已合并到 server 大工具）
+        // 已删：ServerStartTool / ServerStopTool / ServerStatusTool
 
         // v2.9.72：知识库 + 清理 + 符号 + 插件 + 兼容矩阵 + 崩溃复现
         register(KnowledgeBaseTool())

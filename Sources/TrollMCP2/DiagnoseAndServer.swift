@@ -440,3 +440,40 @@ final class ServerStatusTool: MCPTool {
         ]
     }
 }
+
+// MARK: - v3.1.36: server 大工具 + 子命令（合并 3 个 server.* 工具）
+
+final class ServerExecTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "server",
+        summary: "Manage local HTTP server (start/stop/status). Use subcommand to specify action. Use for: start/stop localhost API server. Don't use for: network capture (use network.capture). Example: start → server start port:8080; status → server status. Subcommands: start / stop / status.",
+        parameters: [
+            "command": "Subcommand: start / stop / status",
+            "port": "Port number (for start)"
+        ],
+        verified: true, category: "system")
+    
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let command = params["command"] as? String else {
+            throw MCPError.invalidParams("command required")
+        }
+        
+        AuditLog.shared.log("server", detail: command)
+        
+        switch command {
+        case "start":
+            var p: [String: Any] = [:]
+            if let port = params["port"] as? Int { p["port"] = port }
+            return try ServerStartTool().invoke(p)
+            
+        case "stop":
+            return try ServerStopTool().invoke([:])
+            
+        case "status":
+            return try ServerStatusTool().invoke([:])
+            
+        default:
+            throw MCPError.invalidParams("Unknown command: \(command). Available: start/stop/status")
+        }
+    }
+}
