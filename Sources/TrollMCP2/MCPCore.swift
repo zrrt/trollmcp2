@@ -1146,7 +1146,9 @@ public final class ToolRegistry: ObservableObject {
 
         // M5 系统能力
         register(ContactsSearchTool())
-        register(CalendarListTool())
+        register(CalendarExecTool())   // v3.1.57: 日历大工具（合并 list/create）
+        // v3.1.57: 删旧的日历工具（已合并到 CalendarExecTool）
+        // 已删：CalendarListTool / CalendarCreateEventTool
         register(ReminderCreateTool())
         register(LocationGetTool())
         register(NotificationSendTool())
@@ -1189,7 +1191,7 @@ public final class ToolRegistry: ObservableObject {
         // 已删：GitHubFetchRunsTool / GitHubDownloadArtifactTool / GitHubExecTool
 
         // M7 补齐缺失设备端工具
-        register(CalendarCreateEventTool())
+        // v3.1.57: 删 CalendarCreateEventTool（已合并到 CalendarExecTool）
         register(ReminderScheduleTool())
         register(ReminderScheduleRecurringTool())
         register(DeviceSnapshotTool())
