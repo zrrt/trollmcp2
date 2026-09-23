@@ -549,3 +549,42 @@ final class MemoryExecTool: MCPTool {
         }
     }
 }
+
+// MARK: - v3.1.44: verify 大工具 + 子命令（合并 2 个 verify.* 工具）
+
+final class VerifyExecTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "verify",
+        summary: "Verify file/app status (file/app_running). Use subcommand to specify action. Use for: verify file exists, check if app is running. Don't use for: read file (use artifact read), launch app (use app launch). Example: file → verify file path:/var/mobile/xxx; app_running → verify app_running bundle_id:com.xxx. Subcommands: file / app_running.",
+        parameters: [
+            "command": "Subcommand: file / app_running",
+            "path": "File path (for file)",
+            "bundle_id": "App bundle ID (for app_running)"
+        ],
+        verified: true, category: "system")
+    
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let command = params["command"] as? String else {
+            throw MCPError.invalidParams("command required")
+        }
+        
+        AuditLog.shared.log("verify", detail: command)
+        
+        switch command {
+        case "file":
+            guard let path = params["path"] as? String else {
+                throw MCPError.invalidParams("path required")
+            }
+            return try VerifyFileTool().invoke(["path": path])
+            
+        case "app_running":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try VerifyAppRunningTool().invoke(["bundle_id": bundleId])
+            
+        default:
+            throw MCPError.invalidParams("Unknown command: \(command). Available: file/app_running")
+        }
+    }
+}

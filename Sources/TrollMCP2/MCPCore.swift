@@ -1049,8 +1049,10 @@ public final class ToolRegistry: ObservableObject {
         register(SystemLessonsTool())  // v3.0.90：AI 经验教训库
         register(TaskProgressTool())   // v3.0.90：任务进度跟踪
         register(VerifyInjectTool())   // v3.0.90：结果验证
-        register(VerifyFileTool())
-        register(VerifyAppRunningTool())
+        // v3.1.44: verify 大工具 + 子命令（合并 2 个 verify.* 工具）
+        register(VerifyExecTool())
+        // v3.1.44: 删旧的 2 个 verify.* 工具（已合并到 verify 大工具）
+        // 已删：VerifyFileTool / VerifyAppRunningTool
 
         // v3.1.34: inject 大工具 + 子命令（合并 7 个 injection.* 工具）
         register(InjectionExecTool())
