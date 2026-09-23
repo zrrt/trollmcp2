@@ -1276,7 +1276,7 @@ final class ShellExecTool: MCPTool {
             }
         }
         
-        let out: String
+        var out: String
         if filesOnly {
             out = matchedFiles.joined(separator: "\n")
         } else if countOnly {
