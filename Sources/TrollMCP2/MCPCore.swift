@@ -1231,8 +1231,9 @@ public final class ToolRegistry: ObservableObject {
         // 已删：DebugDumpConversationsTool / DebugDumpConversationTool
         // 已删：DebugDumpModelConfigsTool / DebugDumpNetworkLogTool
         // v3.1.58: Chat 工具（测试用，不是给用户用的！）
-        register(ChatSendTool())
-        register(ChatReplyTool())
+        // 已删：ChatSendTool / ChatReplyTool（测试用，不挂进去！）
+        // register(ChatSendTool())
+        // register(ChatReplyTool())
         // v3.1.49: model 大工具 + 子命令（合并 6 个 model.* 工具）
         // v3.1.64: 删 ModelExecTool（是测试用的）
         // v3.1.49: 删旧的 6 个 model.* 工具（已合并到 model 大工具）
