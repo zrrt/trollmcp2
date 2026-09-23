@@ -1304,8 +1304,10 @@ final class ToolSearchTool: MCPTool {
         } else if !query.isEmpty {
             // 按关键词搜索
             hits = ToolRegistry.shared.searchTools(query: query, limit: limit)
-            for def in ToolRegistry.shared.searchTools(query: query, limit: limit) {
-                ToolRegistry.shared.approveForSession(def.name)
+            for hit in hits {
+                if let name = hit["name"] {
+                    ToolRegistry.shared.approveForSession(name)
+                }
             }
         } else {
             // 按关键词搜索
