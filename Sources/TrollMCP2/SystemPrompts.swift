@@ -186,7 +186,7 @@ final class SystemPrompts {
                - Rules: tool names must start with custom. or user. (e.g. custom.parse_json)
                - What you CAN write: custom file parsers, data formatters, text processors, analysis tools
                - What you CANNOT write: shell/exec/root/inject/download/delete dangerous operations
-               - After writing, auto-register — next tool_search will find it
+               - After writing, auto-register — it's already loaded!
                - Goal: get smarter over time, build your own tool library
             18. TOOL SELECTION DECISION TREE (avoid overlap, save token):
                - Read single file → artifact read (don't use shell "cat")
