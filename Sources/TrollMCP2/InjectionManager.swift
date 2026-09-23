@@ -1812,6 +1812,29 @@ final class InjectionManager {
         ]
     }
 
+    /// v3.1.71：单查指定 App 的注入态（inject status bundle_id:xxx）。
+    /// AI 实测反馈：inject status 只按已注入列表返回，未注入的目标 App 不会单列，需先 enable 才出现。
+    func status(for bundleId: String) -> [String: Any] {
+        guard let app = AppCatalog.list().first(where: { $0.bundleId == bundleId }) else {
+            return ["bundle_id": bundleId, "injected": false,
+                    "hint": "未在已安装列表找到该 bundle_id（用 inject list 确认拼写）"]
+        }
+        let modified = collectModifiedMachOs(app)
+        let assets = injectedAssets(in: app)
+        let injected = !modified.isEmpty || !assets.isEmpty
+        return [
+            "bundle_id": app.bundleId,
+            "name": app.name,
+            "injected": injected,
+            "modified_binaries": modified,
+            "injected_dylibs": assets,
+            "hasBackup": !modified.isEmpty,
+            "hint": injected
+                ? "已注入；用 inject inspect bundle_id:\(bundleId) 看加载明细"
+                : "未注入；需要时用 inject command:enable bundle_id:\(bundleId)"
+        ]
+    }
+
     // MARK: - v3.1.1：越狱状态检测 + ElleKit 运行时注入
     /// Detect jailbreak status (Relaxin/RootHide/Dopamine) and ElleKit availability
     func jailbreakStatus() -> [String: Any] {

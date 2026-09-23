@@ -462,7 +462,10 @@ func sys_proc_pidpath(_ pid: Int32, _ buffer: UnsafeMutablePointer<CChar>?, _ bu
 
 /// v2.9.184：libproc 枚举进程，按可执行文件路径前缀匹配（xxx.app 目录）。
 /// 纯 C API，TrollStore 无 shell 环境可用；非越狱可能受进程可见性限制，实测确认。
+/// v3.1.71：路径归一化——libproc 返回真实路径 /private/var/...，而 AppCatalog 记录可能是
+/// /var/...（软链），前缀匹配会失败（AI 实测 app.status 与 encrypt_info 打架的根因之一）。
 func findPidByExecutable(bundlePath: String) -> Int32 {
+    let normBundle = normalizeIOPath(bundlePath)
     var pids = [pid_t](repeating: 0, count: 2048)
     let count = sys_proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
     guard count > 0 else { return 0 }
@@ -476,13 +479,24 @@ func findPidByExecutable(bundlePath: String) -> Int32 {
             // 此前误把 NotificationServiceExtension 当主进程（真机实测 pid 11718 假阳性，
             // 导致 app.start 误报启动成功、app.decrypt 拿扩展进程 task 读镜像表全空）
             if path.contains(".appex") { continue }
-            // 可执行文件在 .app 目录内，路径以 bundlePath 开头即命中
-            if path.hasPrefix(bundlePath) {
+            // 可执行文件在 .app 目录内，路径以 bundlePath 开头即命中（归一化后比较）
+            if normalizeIOPath(path).hasPrefix(normBundle) {
                 return pid
             }
         }
     }
     return 0
+}
+
+/// v3.1.71：/var ↔ /private/var 软链归一（/var/xxx → /private/var/xxx；反之还原）
+func normalizeIOPath(_ p: String) -> String {
+    if p.hasPrefix("/private/var/") {
+        return "/var" + String(p.dropFirst("/private/var".count))
+    }
+    if p.hasPrefix("/var/") {
+        return "/private" + p
+    }
+    return p
 }
 
 func findPid(by bundleId: String) -> Int32 {
@@ -495,11 +509,32 @@ func findPid(by bundleId: String) -> Int32 {
         // 用 .app 目录前缀再试一次
         let pid2 = findPidByExecutable(bundlePath: entry.path)
         if pid2 > 0 { return pid2 }
+        // v3.1.71：libproc 命中失败时先按可执行名精确匹配（ps 输出 comm 列）
+        let pid3 = findPidByPsName(entry.execName)
+        if pid3 > 0 { return pid3 }
     }
     // 兜底：旧 ps 方式（无 shell 环境会失败，保留仅作兼容）
-    let (_, output) = InjectionManager.shared.spawnRoot("/bin/ps", args: ["-ax"])
+    // v3.1.71：改用 spawnRootDetailed（30s 超时）——spawnRoot 无超时在慢设备上
+    // 可能拿不到 ps 输出导致漏报（真机实测 app.status 与 app.encrypt_info 打架）
+    let output = InjectionManager.shared.spawnRootDetailed("/bin/ps", args: ["-ax"], timeout: 30).stdout
     for line in output.components(separatedBy: .newlines) {
         if line.contains(bundleId) || line.contains(bundleId.replacingOccurrences(of: ".", with: "")) {
+            let parts = line.trimmingCharacters(in: .whitespaces).components(separatedBy: .whitespaces)
+            if let pidStr = parts.first, let pid = Int32(pidStr) {
+                return pid
+            }
+        }
+    }
+    return 0
+}
+
+/// v3.1.71：按进程名（comm 列）匹配 pid——app.status 与 encrypt_info 打架的补丁：
+/// libproc 匹配可执行路径失败时，ps 里 comm 列（可执行文件名）仍可命中。
+func findPidByPsName(_ execName: String) -> Int32 {
+    guard !execName.isEmpty else { return 0 }
+    let output = InjectionManager.shared.spawnRootDetailed("/bin/ps", args: ["-ax"], timeout: 30).stdout
+    for line in output.components(separatedBy: .newlines) {
+        if line.contains(execName) {
             let parts = line.trimmingCharacters(in: .whitespaces).components(separatedBy: .whitespaces)
             if let pidStr = parts.first, let pid = Int32(pidStr) {
                 return pid

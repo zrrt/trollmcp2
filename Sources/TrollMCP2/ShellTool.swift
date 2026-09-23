@@ -36,7 +36,7 @@ enum ShellDiag {
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "Run a shell command (terminal/command line/sh). Has 36 iOS native commands that work DIRECTLY on the REAL iOS system: file ops (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/curl/plutil/sqlite3/unzip) + system info (df/free/uname/uptime/hostname/ps/top/kill) + network (ifconfig/netstat/nslookup). Plus full Alpine Linux (iSH engine) for advanced scripting. Supports pipes/semicolons/redirection (e.g. 'ls /var/mobile | head -5', 'cat a.txt; echo done', 'echo hi > f.txt') via iOS-native pipeline executor. Run 'env' to probe current execution environment. Use for: file operations, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*). Example: 'read file' → cat /path; 'disk space' → df; 'processes' → ps; 'download' → curl -O url.",
+        summary: "Run a shell command (terminal/command line). iOS 原生模式（默认）：36 个原生命令直通真实 iOS 系统——文件操作 (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/curl/plutil/sqlite3/unzip) + 系统信息 (df/free/uname/uptime/hostname/ps/top/kill) + 网络 (ifconfig/netstat/nslookup)。支持管道/分号/重定向/&&/||（例：'ls /var/mobile | head -5'、'cat a.txt; echo done'、'echo hi > f.txt'），支持 VAR=value 赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr。限制：iOS 原生模式不支持 for/while/case/heredoc/多行脚本（写复杂脚本或装包请 env:alpine 走 Alpine Linux 全功能 shell，如 env:alpine 下可 python/curl/tar/apk add）。'env' 可探测当前执行环境。Use for: file operations, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*). Example: 'read file' → cat /path; 'disk space' → df; 'processes' → ps; 'download' → curl -O url; 'complex script' → env:alpine + 命令.",
         parameters: [
             "command": "Shell command to execute (required)",
             "timeout": "Timeout seconds (default 30, max 120)",
@@ -134,9 +134,11 @@ final class ShellExecTool: MCPTool {
         // v3.1.33: shell 语法识别——含管道/分号/重定向/逻辑符的命令不再裸前缀匹配（iOS 原生朴素分词会把 | ; 当参数），
         // 统一走 iOS 原生管道执行器：首段 iOS 原生执行 + Swift 过滤器 + 顺序拼接。
         // 这修复了"同一命令有时跑 iOS 有时跑 Alpine、结果随机"的病根。
-        if ShellExecTool.containsShellSyntax(trimmed) {
-            let result = ShellExecTool.runIOSPipeline(trimmed)
-            AuditLog.shared.log("shell.exec (ios pipeline)", detail: String(trimmed.prefix(100)))
+        // v3.1.71：先做变量展开（P=/xxx 赋值 + $P 引用），否则 "$P" 被当字面路径报 No such file（AI 实测）
+        let expanded = ShellExecTool.expandVars(trimmed)
+        if ShellExecTool.containsShellSyntax(expanded) {
+            let result = ShellExecTool.runIOSPipeline(expanded)
+            AuditLog.shared.log("shell.exec (ios pipeline)", detail: String(expanded.prefix(100)))
             return result
         }
         
@@ -500,9 +502,56 @@ final class ShellExecTool: MCPTool {
         return segments
     }
     
+    /// v3.1.71：iOS 原生模式的变量展开预处理。
+    /// 收集段首 VAR=value 赋值（去引号），把后续命令中的 $VAR / ${VAR} 替换为实际值。
+    /// 赋值段转成 echo（无输出、exit 0），保持链式语义。解决"$P 变量拼路径报 No such file"（AI 实测）。
+    static func expandVars(_ command: String) -> String {
+        let segments = splitShellSegments(command)
+        guard segments.count > 1 || command.contains("=") else { return command }
+        var vars: [String: String] = [:]
+        var out: [String] = []
+        for (cmd, sep) in segments {
+            let t = cmd.trimmingCharacters(in: .whitespaces)
+            if t.contains("=") {
+                let eqIndex = t.firstIndex(of: "=")!
+                let name = String(t[..<eqIndex]).trimmingCharacters(in: .whitespaces)
+                // 只认纯标识符的赋值（A-Za-z0-9_），避免把命令参数里的 = 误判
+                if !name.isEmpty && name.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" }) {
+                    var value = String(t[t.index(after: eqIndex)...]).trimmingCharacters(in: .whitespaces)
+                    // 去引号（"..." / '...'）
+                    if value.count >= 2,
+                       (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
+                       (value.hasPrefix("'") && value.hasSuffix("'")) {
+                        value = String(value.dropFirst().dropLast())
+                    }
+                    vars[name] = value
+                    out.append("echo")
+                    out.append(sep)
+                    continue
+                }
+            }
+            var replaced = t
+            for (name, value) in vars {
+                replaced = replaced.replacingOccurrences(of: "${\(name)}", with: value)
+                replaced = replaced.replacingOccurrences(of: "$\(name)", with: value)
+            }
+            out.append(replaced)
+            out.append(sep)
+        }
+        var joined = ""
+        for i in stride(from: 0, to: out.count, by: 2) {
+            joined += out[i]
+            if i + 1 < out.count, !out[i + 1].isEmpty {
+                joined += " \(out[i + 1]) "
+            } else if i + 2 < out.count {
+                joined += " "
+            }
+        }
+        return joined
+    }
+
     /// 提取命令首词（跳过引号），用于判断是否 iOS 原生命令
-    private static func firstWord(_ segment: String) -> String {
-        let t = segment.trimmingCharacters(in: .whitespaces)
+    private static func firstWord(_ segment: String) -> String {        let t = segment.trimmingCharacters(in: .whitespaces)
         guard !t.isEmpty else { return "" }
         var word = ""
         for c in t {

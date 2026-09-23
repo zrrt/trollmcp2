@@ -515,6 +515,10 @@ final class InjectionEnablePersistedTool: MCPTool {
 final class InjectionStatusTool: MCPTool {
     let definition = ToolDefinition(name: "injection.status", summary: "Show which apps are already injected (have dylib loaded). Use for: check if an app is already injected, see overall injection stats. Don't use for: find a specific app's bundle_id (use injection.list), inject into app (use injection.enable). Example: user says '小红书注入了吗' → check status of com.xingin.discover.", verified: true, category: "injection")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        // v3.1.71：支持 bundle_id 单查该 App 注入态；不带参数时返回全量（兼容旧行为）
+        if let bid = params["bundle_id"] as? String, !bid.isEmpty {
+            return InjectionManager.shared.status(for: bid)
+        }
         InjectionManager.shared.status()
     }
 }
@@ -1195,7 +1199,10 @@ final class InjectionExecTool: MCPTool {
             return try InjectionEnablePersistedTool().invoke(["bundle_id": bundleId])
             
         case "status":
-            return try InjectionStatusTool().invoke([:])
+            // v3.1.71：支持 bundle_id 单查（AI 反馈：只回全量列表、未注入目标不单列）
+            var p: [String: Any] = [:]
+            if let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty { p["bundle_id"] = bundleId }
+            return try InjectionStatusTool().invoke(p)
             
         case "inspect":
             guard let bundleId = params["bundle_id"] as? String else {

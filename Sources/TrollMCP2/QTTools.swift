@@ -511,6 +511,9 @@ final class NetworkCaptureTool: MCPTool {
 
         let captureDir = NSHomeDirectory().appending("/Documents/Workspace/network_capture")
         try? FileManager.default.createDirectory(atPath: captureDir, withIntermediateDirectories: true)
+        // v3.1.71：抓包会话标记——start 成功写入、stop 删除，用于区分"没开抓包"vs"开了没流量"
+        let activeMarker = captureDir.appending("/active_session.txt")
+        _ = activeMarker
 
         switch action {
         case "status":
@@ -551,6 +554,8 @@ final class NetworkCaptureTool: MCPTool {
                         "error": "NetworkTweak 注入未生效（自动回滚可参考 inject command:disable）",
                         "next_step": "检查 app.encrypt_info（加密需砸壳）→ app.status 确认进程存活 → 重试"]
             }
+            // v3.1.71：注入成功——写抓包会话标记（requests 查询靠它区分"未开始"vs"开了没流量"）
+            try? "\(Date().timeIntervalSince1970) \(bundleId)".write(toFile: activeMarker, atomically: true, encoding: .utf8)
             return [
                 "action": "start",
                 "bundle_id": bundleId,
@@ -560,6 +565,8 @@ final class NetworkCaptureTool: MCPTool {
             ]
 
         case "stop":
+            // v3.1.71：停止——删除会话标记
+            try? FileManager.default.removeItem(atPath: activeMarker)
             return [
                 "action": "stop",
                 "hint": "停止抓包：用 inject command:disable 移除 NetworkTweak.dylib，或直接杀目标 App 进程"
@@ -583,9 +590,15 @@ final class NetworkCaptureTool: MCPTool {
                 "returned": limited.count,
                 "requests": limited
             ]
+            // v3.1.71：区分"没开抓包"vs"开了没流量"（AI 实测：未 start 时平静返回 0 条，误以为工具坏）
             if allRequests.isEmpty {
-                out["no_requests_reason"] = "0 条请求可能原因：目标 App 未重启 / 未产生 HTTP 流量 / 走 QUIC 或私有协议 / TLS 加密（NSURLSession hook 不到）"
-                out["next_step"] = "确认 App 已重启并实际产生网络流量；仍为 0 说明需 TLS hook 或协议层方案，非抓包工具故障"
+                let hasSession = FileManager.default.fileExists(atPath: activeMarker)
+                if !hasSession {
+                    out["warning"] = "尚未开始抓包：请先 network.capture action:start bundle_id:<目标App>，重启该 App 产生流量后再查"
+                } else {
+                    out["no_requests_reason"] = "已 start 但 0 条请求可能原因：目标 App 未重启 / 未产生 HTTP 流量 / 走 QUIC 或私有协议 / TLS 加密（NSURLSession hook 不到）"
+                    out["next_step"] = "确认 App 已重启并实际产生网络流量；仍为 0 说明需 TLS hook 或协议层方案，非抓包工具故障"
+                }
             }
             return out
 

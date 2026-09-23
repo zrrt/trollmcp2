@@ -133,6 +133,14 @@ final class AutoContextExtractor: ObservableObject {
 
     /// 提取操作类型（用户想做什么）
     func extractAction(from text: String) -> String? {
+        // v3.1.71：查询/状态语境不记为 action（AI 实测：用户查"抓包状态"被误注入 "Last action: 抓包"，
+        // 导致上下文推断错误）。只有明确的祈使/发起意图才记录。
+        let queryContexts = ["状态", "查看", "检查", "查询", "看看", "看下", "看一下", "多少",
+                             "是否", "能不能", "在不在", "有没有", "有吗", "吗", "?", "？",
+                             "什么情况", "结果", "报错", "失败", "成功"]
+        if queryContexts.contains(where: { text.contains($0) }) {
+            return nil
+        }
         let actions = [
             "分析": "分析 App 结构",
             "抓包": "网络抓包分析",
