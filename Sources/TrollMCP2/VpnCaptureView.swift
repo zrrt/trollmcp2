@@ -28,7 +28,7 @@ struct VpnCaptureView: View {
             }
 
             Section(header: SettingSectionHeader(title: "使用步骤")) {
-                Text("① 生成证书 → 用「文件」App 打开安装描述文件\n② 设置 → 通用 → 关于本机 → 证书信任设置 → 打开完全信任\n③ 连接 VPN（或本地代理 + WiFi 手动代理 127.0.0.1:18180）\n④ 正常使用目标 App，日志写入 Workspace/network_capture/mitm/")
+                Text("① 生成证书 → 自动用 Safari 打开 → 点「允许」下载描述文件\n② 设置 → 已下载描述文件 → 安装\n③ 设置 → 通用 → 关于本机 → 证书信任设置 → 打开完全信任\n④ 连接 VPN（或本地代理 + WiFi 手动代理 127.0.0.1:18180）\n⑤ 正常使用目标 App，日志写入 Workspace/network_capture/mitm/")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -106,13 +106,18 @@ struct VpnCaptureView: View {
             notice = "证书生成失败"
             return
         }
-        notice = "证书已生成：\(path)\n用「文件」App 打开该文件安装，然后到 证书信任设置 开启完全信任"
         refresh()
-        // 弹出系统分享
-        if let root = UIApplication.shared.windows.first?.rootViewController {
-            let url = URL(fileURLWithPath: path)
-            let av = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-            root.present(av, animated: true)
+        // v3.3.1：用 Safari 打开本地 HTTP 下载 —— 触发系统标准"下载配置描述文件"确认框，
+        // 比"存储到文件再打开"更稳（无沙箱环境下文件 App 打开 profile 不弹安装）。
+        let dir = (path as NSString).deletingLastPathComponent
+        _ = LocalHttpServer.shared.start(rootDir: dir)
+        let url = URL(string: "http://127.0.0.1:18080/TrollAgentCA.mobileconfig")!
+        UIApplication.shared.open(url, options: [:]) { ok in
+            if !ok {
+                notice = "打开 Safari 失败，请手动用「文件」App 打开：\(path)"
+            } else {
+                notice = "已在 Safari 打开下载页\n① 点「允许」下载描述文件\n② 到 设置 → 已下载描述文件 → 安装\n③ 设置 → 通用 → 关于本机 → 证书信任设置 → 打开完全信任"
+            }
         }
     }
 }

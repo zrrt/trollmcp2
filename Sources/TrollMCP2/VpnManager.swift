@@ -131,4 +131,7 @@ final class VpnManager {
 
     /// 抓包记录目录
     var mitmLogDir: String { MitmProxy.shared.logDir }
+
+    /// 根证书目录（含 ca.pem / ca.der / mobileconfig）
+    var certDir: String { MitmProxy.shared.certDir }
 }
