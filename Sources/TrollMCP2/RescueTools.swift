@@ -202,3 +202,42 @@ final class RescueCleanupTool: MCPTool {
         ]
     }
 }
+
+// MARK: - v3.1.38: rescue 大工具 + 子命令（合并 3 个 rescue.* 工具）
+
+final class RescueExecTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "rescue",
+        summary: "Emergency recovery for injected apps (scan/recover/cleanup). Use subcommand to specify action. Use for: fix broken injections, clean up orphan backups. Don't use for: normal injection (use inject.enable). Example: scan → rescue scan; recover_all → rescue recover_all. Subcommands: scan / recover_all / cleanup.",
+        parameters: [
+            "command": "Subcommand: scan / recover_all / cleanup",
+            "bundle_id": "App bundle ID (optional)"
+        ],
+        verified: true, category: "cleanup")
+    
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let command = params["command"] as? String else {
+            throw MCPError.invalidParams("command required")
+        }
+        
+        AuditLog.shared.log("rescue", detail: command)
+        
+        switch command {
+        case "scan":
+            var p: [String: Any] = [:]
+            if let bid = params["bundle_id"] as? String { p["bundle_id"] = bid }
+            return try RescueScanTool().invoke(p)
+            
+        case "recover_all":
+            return try RescueRecoverAllTool().invoke([:])
+            
+        case "cleanup":
+            var p: [String: Any] = [:]
+            if let bid = params["bundle_id"] as? String { p["bundle_id"] = bid }
+            return try RescueCleanupTool().invoke(p)
+            
+        default:
+            throw MCPError.invalidParams("Unknown command: \(command). Available: scan/recover_all/cleanup")
+        }
+    }
+}
