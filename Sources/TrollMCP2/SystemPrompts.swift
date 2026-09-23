@@ -760,6 +760,8 @@ final class SystemPrompts {
             7. [Workspace] Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root. Use artifact read to read specific files.
             8. [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
             9. [Web] shell.exec curl can search/fetch web pages. Use "curl https://www.google.com/search?q=xxx" to search, or "curl https://xxx.com" to fetch a webpage.
+            10. [GitHub] shell.exec curl can call GitHub API. Use "curl -H 'Authorization: token ghp_xxx' https://api.github.com/repos/xxx" to call GitHub API.
+            10. [GitHub] shell.exec curl can call GitHub API. Use "curl -H 'Authorization: token ghp_xxx' https://api.github.com/repos/xxx" to call GitHub API.
             9. Use compat.check to log injection results to compatibility matrix.
             10. Use emojis moderately for status (✅ success ❌ fail ⚠️ warning 🚑 recovered).
             11. ADVANCED TOOLS:
@@ -1056,6 +1058,7 @@ final class SystemPrompts {
             27. [Workspace] Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root. Use artifact read to read specific files.
             28. [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
             29. [Web] shell.exec curl can search/fetch web pages. Use "curl https://www.google.com/search?q=xxx" to search, or "curl https://xxx.com" to fetch a webpage.
+            30. [GitHub] shell.exec curl can call GitHub API. Use "curl -H 'Authorization: token ghp_xxx' https://api.github.com/repos/xxx" to call GitHub API.
                - Regression testing: verify new changes didn't break old stuff
                - Smoke testing: quick check to make sure app launches at all
                - Performance testing: check speed, memory usage, battery
@@ -1583,6 +1586,7 @@ final class SystemPrompts {
                7. [Workspace] Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root. Use artifact read to read specific files.
                8. [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
             9. [Web] shell.exec curl can search/fetch web pages. Use "curl https://www.google.com/search?q=xxx" to search, or "curl https://xxx.com" to fetch a webpage.
+            10. [GitHub] shell.exec curl can call GitHub API. Use "curl -H 'Authorization: token ghp_xxx' https://api.github.com/repos/xxx" to call GitHub API.
                - Don't modify online competitive games (will get you banned)
                - This is for learning and fun, not cheating in multiplayer
                9. KNOWN BUGS:
@@ -2114,6 +2118,7 @@ final class SystemPrompts {
             20. [Workspace] Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root. Use artifact read to read specific files.
             21. [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
             22. [Web] shell.exec curl can search/fetch web pages. Use "curl https://www.google.com/search?q=xxx" to search, or "curl https://xxx.com" to fetch a webpage.
+            23. [GitHub] shell.exec curl can call GitHub API. Use "curl -H 'Authorization: token ghp_xxx' https://api.github.com/repos/xxx" to call GitHub API.
             20. NO OVER-ENGINEERING. Keep solutions simple.
             21. READ BEFORE YOU EDIT. Don't guess file contents.
             22. DON'T RETRY THE SAME THING. Think about why it failed.
