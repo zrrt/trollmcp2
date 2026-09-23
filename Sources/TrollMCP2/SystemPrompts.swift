@@ -401,6 +401,7 @@ final class SystemPrompts {
             - [Workspace] Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root. Use artifact read to read specific files.
             - [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
             - [Web] shell.exec curl can search/fetch web pages. Use "curl https://www.google.com/search?q=xxx" to search, or "curl https://xxx.com" to fetch a webpage.
+            - [GitHub] shell.exec curl can call GitHub API. Use "curl -H 'Authorization: token ghp_xxx' https://api.github.com/repos/xxx" to call GitHub API.
             4. Tool usage:
                - Prefer project tools to read current project context, avoid user repeating themselves
                - Use task.run templates for common workflows (diagnose_injection / inject_verify / capture_crash etc.)
@@ -717,6 +718,7 @@ final class SystemPrompts {
             - [Workspace] Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root. Use artifact read to read specific files.
             - [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
             - [Web] shell.exec curl can search/fetch web pages. Use "curl https://www.google.com/search?q=xxx" to search, or "curl https://xxx.com" to fetch a webpage.
+            - [GitHub] shell.exec curl can call GitHub API. Use "curl -H 'Authorization: token ghp_xxx' https://api.github.com/repos/xxx" to call GitHub API.
             4. Don't announce operations before doing them — just execute and give result.
             5. When failing, only say reason + next step, no elaboration.
             6. No emojis.
