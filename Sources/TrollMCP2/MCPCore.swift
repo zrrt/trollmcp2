@@ -1146,7 +1146,7 @@ public final class ToolRegistry: ObservableObject {
         register(ReminderExecTool())   // v3.1.57: 提醒事项大工具（合并 create/schedule/recurring）
         // v3.1.57: 删旧的提醒事项工具（已合并到 ReminderExecTool）
         // 已删：ReminderCreateTool / ReminderScheduleTool / ReminderScheduleRecurring
-        register(LocationGetTool())
+        // v3.1.61: 删 LocationGetTool（已合并到 LocationExecTool：location get）
         register(NotificationSendTool())
         register(ScanQRTool())
         // v3.1.33: 删 ProcessListTool（用 shell ps 代替）
