@@ -1,9 +1,9 @@
 import Foundation
 import UIKit
 
-// MARK: - GitHub 线上编译工具（v2.9.9）
+// MARK: - GitHub 线上编译工具 (v2.9.9）
 // 让 AI 感知 App 内 GitHub 账号登录状态，并可触发线上编译、查进度、下载产物到本地工作区。
-// 账号/仓库配置与 GitHubAccountStore（UI 层）共享同一份 UserDefaults 持久化。
+// 账号/仓库配置与 GitHubAccountStore (UI 层）共享同一份 UserDefaults 持久化。
 
 private enum GHStoreKeys {
     static let owner = "trollmcp2.github_repo_owner"
@@ -15,7 +15,7 @@ private enum GHStoreKeys {
     static let clientID = "trollmcp2.github_client_id"
 }
 
-/// 轻量读取 GitHub 账号配置（不依赖 UI 层 ObservableObject，可在工具线程安全读取）
+/// 轻量读取 GitHub 账号配置 (不依赖 UI 层 ObservableObject，可在工具线程安全读取）
 private struct GHConfig {
     static var repoOwner: String { UserDefaults.standard.string(forKey: GHStoreKeys.owner) ?? "zrrt" }
     static var repoName: String { UserDefaults.standard.string(forKey: GHStoreKeys.repo) ?? "trollmcp2" }
@@ -24,7 +24,7 @@ private struct GHConfig {
     static var clientID: String { UserDefaults.standard.string(forKey: GHStoreKeys.clientID) ?? "Ov23li890n3hM15edlcw" }
     static var apiBase: String { "https://api.github.com" }
 
-    /// 当前激活账号 token（与 UI 层同源）
+    /// 当前激活账号 token (与 UI 层同源）
     static var activeToken: String? {
         let active = UserDefaults.standard.string(forKey: GHStoreKeys.active)
         guard let data = UserDefaults.standard.data(forKey: GHStoreKeys.accounts),
@@ -77,7 +77,7 @@ private enum GHAPI {
     }
 }
 
-/// 查看 GitHub 账号登录状态 + 最近编译 run（AI 感知）
+/// 查看 GitHub 账号登录状态 + 最近编译 run (AI 感知）
 final class GitHubAccountStatusTool: MCPTool {
     let definition = ToolDefinition(
         name: "github.account_status",
@@ -95,7 +95,7 @@ final class GitHubAccountStatusTool: MCPTool {
             "workflow": GHConfig.workflowId,
             "branch": GHConfig.branch,
         ]
-        // 尝试拉最近 run（有 token 才拉）
+        // 尝试拉最近 run (有 token 才拉）
         if let token = GHConfig.activeToken {
             let (code, json, _) = GHAPI.get("\(GHConfig.apiBase)/repos/\(owner)/\(repo)/actions/runs?per_page=5&event=workflow_dispatch", token: token)
             if code == 200, let arr = json?["workflow_runs"] as? [[String: Any]] {
@@ -110,22 +110,22 @@ final class GitHubAccountStatusTool: MCPTool {
                 }
             } else {
                 out["http_status"] = code
-                out["runs_error"] = "无法读取编译记录（HTTP \(code)），请确认 token 权限"
+                out["runs_error"] = "cannot read build runs (HTTP \(code)), check token permission"
             }
         }
         return out
     }
 }
 
-/// 触发线上编译（build-trollmcp2 或 build-tweak）
+/// 触发线上编译 (build-trollmcp2 或 build-tweak）
 final class GitHubTriggerBuildTool: MCPTool {
     let definition = ToolDefinition(
         name: "github.trigger_build",
-        summary: "Trigger GitHub Actions CI build (compile TrollAgent IPA or tweak). Use for: build new version of TrollAgent, compile a tweak dylib. Don't use for: run local shell commands (use shell.exec), download files (use fs tools). Prerequisite: GitHub account must be logged in. Example: user says '编译新版本' → trigger build-trollmcp2.yml workflow.",
+        summary: "Trigger GitHub Actions CI build (compile TrollAgent IPA or tweak). Use for: build new version of TrollAgent, compile a tweak dylib. Don't use for: run local shell commands (use shell.exec), download files (use fs tools). Prerequisite: GitHub account must be logged in. Example: user says 'build new version' → trigger build-trollmcp2.yml workflow.",
         parameters: ["workflow": "Workflow file: build-trollmcp2.yml (default, build IPA) or build-tweak.yml (build tweak dylib)", "tweak": "Only for tweak builds: tweak project name (e.g. CompileProbe / ProbeAgent)", "ref": "Git branch to build (default main)"], verified: true, category: "build")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let token = GHConfig.activeToken else {
-            throw MCPError.failed("未登录 GitHub，请先在设置-GitHub 账号中登录")
+            throw MCPError.failed("not logged in to GitHub, log in first in Settings - GitHub Account")
         }
         let owner = GHConfig.repoOwner
         let repo = GHConfig.repoName
@@ -139,9 +139,9 @@ final class GitHubTriggerBuildTool: MCPTool {
             "\(GHConfig.apiBase)/repos/\(owner)/\(repo)/actions/workflows/\(workflow)/dispatches",
             token: token, body: body)
         if code == 204 {
-            return ["triggered": true, "workflow": workflow, "ref": ref, "note": "已触发，等待几秒后用 github.fetch_runs 查询进度"]
+            return ["triggered": true, "workflow": workflow, "ref": ref, "note": "triggered, wait a few seconds then check progress with github.fetch_runs"]
         }
-        return ["triggered": false, "http_status": code, "message": (json?["message"] as? String) ?? "触发失败"]
+        return ["triggered": false, "http_status": code, "message": (json?["message"] as? String) ?? "trigger failed"]
     }
 }
 
@@ -153,14 +153,14 @@ final class GitHubFetchRunsTool: MCPTool {
         parameters: ["limit": "Max results (default 5)"], verified: true, category: "build")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let token = GHConfig.activeToken else {
-            throw MCPError.failed("未登录 GitHub")
+            throw MCPError.failed("not logged in to GitHub")
         }
         let limit = params["limit"] as? Int ?? 5
         let owner = GHConfig.repoOwner
         let repo = GHConfig.repoName
         let (code, json, _) = GHAPI.get("\(GHConfig.apiBase)/repos/\(owner)/\(repo)/actions/runs?per_page=\(limit)&event=workflow_dispatch", token: token)
         guard code == 200, let arr = json?["workflow_runs"] as? [[String: Any]] else {
-            return ["http_status": code, "error": (json?["message"] as? String) ?? "查询失败"]
+            return ["http_status": code, "error": (json?["message"] as? String) ?? "query failed"]
         }
         return ["runs": arr.map { d -> [String: Any] in
             [
@@ -173,15 +173,15 @@ final class GitHubFetchRunsTool: MCPTool {
     }
 }
 
-/// 下载最近成功编译的 artifact 到本地工作区（注入测试闭环的关键）
+/// 下载最近OK编译的 artifact 到本地工作区 (注入测试闭环的关键）
 final class GitHubDownloadArtifactTool: MCPTool {
     let definition = ToolDefinition(
         name: "github.download_artifact",
-        summary: "Download CI build artifact from GitHub Actions. Use for: download the built IPA/dylib after CI finishes. Don't use for: trigger CI build (use github.trigger_build), check build status (use github.account_status). Example: user says '下载刚才编译出来的 IPA' → download artifact.",
+        summary: "Download CI build artifact from GitHub Actions. Use for: download the built IPA/dylib after CI finishes. Don't use for: trigger CI build (use github.trigger_build), check build status (use github.account_status). Example: user says 'download the IPA just built' → download artifact.",
         parameters: ["run_id": "Specific run ID (optional, uses latest successful)", "artifact_name": "Artifact name (optional, auto-detects)"], verified: true, category: "build")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let token = GHConfig.activeToken else {
-            throw MCPError.failed("未登录 GitHub")
+            throw MCPError.failed("not logged in to GitHub")
         }
         let owner = GHConfig.repoOwner
         let repo = GHConfig.repoName
@@ -191,19 +191,19 @@ final class GitHubDownloadArtifactTool: MCPTool {
         if runID == nil {
             let (rc, rj, _) = GHAPI.get("\(GHConfig.apiBase)/repos/\(owner)/\(repo)/actions/runs?per_page=10&event=workflow_dispatch", token: token)
             guard rc == 200, let arr = rj?["workflow_runs"] as? [[String: Any]] else {
-                return ["downloaded": false, "error": "无法读取 run 列表 (HTTP \(rc))"]
+                return ["downloaded": false, "error": "cannot read run list (HTTP \(rc))"]
             }
             guard let latest = arr.first(where: { ($0["conclusion"] as? String) == "success" }) else {
-                return ["downloaded": false, "error": "最近没有成功的编译 run"]
+                return ["downloaded": false, "error": "no recent successful build run"]
             }
             runID = latest["id"] as? Int
         }
-        guard let rid = runID else { throw MCPError.failed("无法确定 run id") }
+        guard let rid = runID else { throw MCPError.failed("cannot determine run id") }
 
         // 2. 查该 run 的 artifacts
         let (ac, aj, _) = GHAPI.get("\(GHConfig.apiBase)/repos/\(owner)/\(repo)/actions/runs/\(rid)/artifacts", token: token)
         guard ac == 200, let arts = aj?["artifacts"] as? [[String: Any]], let first = arts.first else {
-            return ["downloaded": false, "error": "该 run 没有 artifact (HTTP \(ac))"]
+            return ["downloaded": false, "error": "this run has no artifact (HTTP \(ac))"]
         }
         let artID = first["id"] as? Int ?? 0
         let artName = (params["artifact_name"] as? String) ?? (first["name"] as? String ?? "artifact")
@@ -212,7 +212,7 @@ final class GitHubDownloadArtifactTool: MCPTool {
         var data: Data?
         var status = 0
         guard let url = URL(string: "\(GHConfig.apiBase)/repos/\(owner)/\(repo)/actions/artifacts/\(artID)/zip") else {
-            throw MCPError.failed("无效 URL")
+            throw MCPError.failed("invalid URL")
         }
         var req = URLRequest(url: url, timeoutInterval: 60)
         setHTTPMethod("GET", on: &req)
@@ -226,7 +226,7 @@ final class GitHubDownloadArtifactTool: MCPTool {
         _ = sem.wait(timeout: .now() + 65)
 
         guard status == 200, let zipData = data else {
-            return ["downloaded": false, "error": "下载失败 (HTTP \(status))，artifact 可能过期或已删除"]
+            return ["downloaded": false, "error": "download failed (HTTP \(status), artifact may be expired or deleted"]
         }
 
         // 4. 写入工作区 downloads 并解压
@@ -260,7 +260,7 @@ final class GitHubDownloadArtifactTool: MCPTool {
             "entries": entries,
             "dylibs": dylibs,
             "debs": debs,
-            "note": "产物已解压到上述目录。找到 .dylib 后可配合 injection.enable 注入到目标 App；.deb 内含 tweak 打包。",
+            "note": "artifacts extracted to the directory above. Use .dylib with injection.enable into target App; .deb contains tweak package.",
         ]
     }
 }

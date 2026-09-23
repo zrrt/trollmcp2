@@ -1,10 +1,10 @@
 import Foundation
 import UIKit
 
-/// v2.9.180：远程诊断与指令通道（云端 AI → 后台 → 真机）
+/// v2.9.180：远程诊断与指令通道 (云端 AI → 后台 → 真机）
 ///
 /// 真机每 4 秒轮询后台 /api/commands/next，取到指令就在本地执行工具并回传结果
-/// （含字符数/行数，供云端精确审计工具输出 token 大小）。
+///  (含字符数/行数，供云端精确审计工具输出 token 大小）。
 /// 同时负责：安装信息上报、崩溃日志自动上报。
 ///
 /// 安全设计：只允许执行"只读诊断白名单"里的工具，其余一律拒绝——
@@ -32,7 +32,7 @@ public final class RemoteAgent: ObservableObject {
         static let reportedVer = "remote_agent_reported_version"
     }
 
-    /// 远程可执行的只读诊断白名单（其余工具一律拒绝）
+    /// 远程可执行的只读诊断白名单 (其余工具一律拒绝）
     private static let safeTools: Set<String> = [
         "ping", "device.info", "device.probe", "workspace.info",
         "artifact.list", "artifact.read_text", "artifact.find",
@@ -161,7 +161,7 @@ public final class RemoteAgent: ObservableObject {
 
     // MARK: - 上报
 
-    /// 启动时上报安装/设备信息（同版本只报一次，避免每次启动都刷）
+    /// 启动时上报安装/设备信息 (同版本只报一次，避免每次启动都刷）
     public func reportInstallIfNeeded() {
         guard let base = baseURL(), !token.isEmpty else { return }
         let ver = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "?"
@@ -179,7 +179,7 @@ public final class RemoteAgent: ObservableObject {
         post(path: "api/report/install", body: body, then: nil)
     }
 
-    /// 崩溃日志自动上报（CrashCatcher 写入后调用）
+    /// 崩溃日志自动上报 (CrashCatcher 写入后调用）
     public func reportCrash(sig: String, content: String) {
         guard let base = baseURL(), !token.isEmpty else { return }
         let ver = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "?"
@@ -216,7 +216,7 @@ public final class RemoteAgent: ObservableObject {
             let firstLine = content.split(separator: "\n").first.map(String.init) ?? f
             group.enter()
             reportCrash(sig: "\(f): \(firstLine)", content: content)
-            // post 是异步的，这里直接标记已上报（失败就丢，不阻塞启动）
+            // post 是异步的，这里直接标记已上报 (failed就丢，不阻塞启动）
             done.append(f)
             group.leave()
         }
@@ -228,25 +228,25 @@ public final class RemoteAgent: ObservableObject {
 
     /// 测试连接：请求一次 /api/stats
     public func testConnection(completion: @escaping (Bool, String) -> Void) {
-        guard let base = baseURL() else { completion(false, "服务器地址无效"); return }
+        guard let base = baseURL() else { completion(false, "invalid server address"); return }
         var comps = URLComponents(url: base.appendingPathComponent("api/stats"), resolvingAgainstBaseURL: false)
         comps?.queryItems = [URLQueryItem(name: "token", value: token)]
-        guard let url = comps?.string.flatMap({ URL(string: $0) }) else { completion(false, "URL 无效"); return }
+        guard let url = comps?.string.flatMap({ URL(string: $0) }) else { completion(false, "invalid URL"); return }
         var req = URLRequest(url: url)
         setTimeoutInterval(10, on: &req)
         URLSession.shared.dataTask(with: req) { data, _, err in
             if let err = err {
-                completion(false, "连接失败: \(err.localizedDescription)")
+                completion(false, "connection failed: \(err.localizedDescription)")
                 return
             }
             guard let data, let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   obj["ok"] as? Bool == true,
                   let d = obj["data"] as? [String: Any] else {
-                completion(false, "token 错误或接口异常")
+                completion(false, "token error or API exception")
                 return
             }
             let installs = d["installs"] as? Int ?? 0
-            completion(true, "连接成功，后台已有 \(installs) 条安装记录")
+            completion(true, "connection OK, \(installs) install records in background")
         }.resume()
     }
 

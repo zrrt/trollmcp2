@@ -2,7 +2,7 @@
 import UIKit
 import Security
 
-// MARK: - 设备环境自检（"检测手机"核心层）
+// MARK: - 设备环境自检 ("检测手机"核心层）
 
 /// 在 iPhone 上自检运行环境：TrollStore/TrollFools 是否可用、task_for_pid 与
 /// App 容器任意读写权限是否生效、内置注入二进制可否执行、amfid 绕过是否推断生效。
@@ -17,7 +17,7 @@ final class DeviceProbe: ObservableObject {
         let label: String
         let passed: Bool
         let detail: String
-        let infoOnly: Bool  // v2.9.66：信息提醒项，不显示 ✔/✘，只显示 ℹ️，不影响整体就绪状态
+        let infoOnly: Bool  // v2.9.66：信息提醒项，不显示 ✔/✘，只显示 ℹ️，不影响整体ready状态
     }
 
     struct Report {
@@ -49,7 +49,7 @@ final class DeviceProbe: ObservableObject {
 
     @Published var lastReport: Report?
 
-    // MARK: Mach 调用（避免 import mach 类型，直接用 UInt32 别名）
+    // MARK: Mach 调用 (避免 import mach 类型，直接用 UInt32 别名）
 
     @_silgen_name("task_for_pid")
     public func tm_task_for_pid(_ task: UInt32, _ pid: Int32, _ target_task: UnsafeMutablePointer<UInt32>) -> Int32
@@ -76,12 +76,12 @@ final class DeviceProbe: ObservableObject {
         let containerWrite = testContainerWrite()
         let injectionBinaries = testInjectionBinaries()
         // v2.9.155：amfid 推断不再依赖 task_for_pid——注入是静态方式
-        // （insert_dylib 改 Mach-O 加载命令 + ct_bypass 重签名），TrollStore 非越狱
-        // 环境拿不到其他进程端口是常态，task_for_pid 失败不代表注入不可用。
+        //  (insert_dylib 改 Mach-O 加载命令 + ct_bypass 重签名），TrollStore 非越狱
+        // 环境拿不到其他进程端口是常态，task_for_pid failed不代表注入不可用。
         let amfidBypassInferred = !injectionBinaries.isEmpty && injectionBinaries.values.allSatisfy { $0 } && containerWrite
 
-        // v2.9.153：Entitlements 检测改用 SecTask 直接读自身代码签名（最可靠），
-        // 行为测试（bundleWrite/root spawn）只作交叉验证。entitlements 是安装时写入的，
+        // v2.9.153：Entitlements 检测改用 SecTask 直接读自身代码签名 (最可靠），
+        // 行为测试 (bundleWrite/root spawn）只作交叉验证。entitlements 是安装时写入的，
         // 因此反映的是"安装时 TrollStore 开关状态"；开启开关后必须卸载重装才生效。
         let ent = snapshotEntitlements()
         let bundleWriteOK = testBundleWrite()
@@ -89,41 +89,41 @@ final class DeviceProbe: ObservableObject {
         let spawnIsRoot = (rootDiag["is_root"] as? Bool) ?? false
         let entDetail: String
         if ent.noSandbox {
-            var parts: [String] = ["已生效（签名含 no-sandbox）"]
+            var parts: [String] = ["active (signature has no-sandbox)"]
             parts.append(ent.summary)
-            if bundleWriteOK { parts.append("Bundle 写入实测通过") }
+            if bundleWriteOK { parts.append("Bundle write verified") }
             if spawnIsRoot { parts.append("persona spawn uid=0") }
             entDetail = parts.joined(separator: "\n")
         } else {
-            var parts: [String] = ["未检测到 no-sandbox（沙盒未解除）"]
+            var parts: [String] = ["未检测到 no-sandbox (沙盒未解除)"]
             parts.append(ent.summary)
-            if bundleWriteOK { parts.append("Bundle 写入实测通过") }
+            if bundleWriteOK { parts.append("Bundle write verified") }
             if spawnIsRoot { parts.append("persona spawn uid=0") }
-            parts.append("注入功能需要在 TrollStore 设置中开启「编辑 Entitlements」，然后卸载重装本 App（覆盖安装不会重新应用权限）。")
+            parts.append("注入功能需要在 TrollStore 设置中开启「编辑 Entitlements」，然后卸载重装本 App (覆盖安装不会重新应用权限)。")
             entDetail = parts.joined(separator: "\n")
         }
         let entitlementsOK = ent.noSandbox || bundleWriteOK || spawnIsRoot  // 内部记录用，不影响 ready 和 UI 显示
 
         var checks: [Check] = []
-        // v3.0.2: 去掉 TrollStore 已安装 / Entitlements 权限 / TrollFools 已安装 三个检测（包已是 tipa，检测无意义）
+        // v3.0.2: 去掉 TrollStore 已安装 / Entitlements 权限 / TrollFools 已安装 三个检测 (包已是 tipa，检测无意义）
         let tfpDetail: String
         if taskForPid {
             tfpDetail = "实测可获取其他进程端口，进程级操作可用"
         } else if ent.taskForPidAllow {
             // v2.9.156：签名已授予 task_for_pid-allow → 绿勾；实测被拦是 TrollStore
-            // 非越狱常态（不影响静态注入），如实写进说明
+            // 非越狱常态 (不影响静态注入），如实写进说明
             tfpDetail = "签名含 task_for_pid-allow；TrollStore 非越狱环境实测进程端口获取被系统拦截，不影响静态注入，进程级内存操作受限"
         } else {
             tfpDetail = "无 task_for_pid-allow，进程级操作受限"
         }
         checks.append(Check(label: "task_for_pid 权限", passed: ent.taskForPidAllow || taskForPid, detail: tfpDetail, infoOnly: false))
-        checks.append(Check(label: "App 容器任意读写", passed: containerWrite, detail: containerWrite ? "AppDataContainers 权限生效，可写任意 App 沙盒" : "无法写入其他 App 容器（缺 entitlement）", infoOnly: false))
+        checks.append(Check(label: "App 容器任意读写", passed: containerWrite, detail: containerWrite ? "AppDataContainers 权限生效，可写任意 App 沙盒" : "无法写入其他 App 容器 (缺 entitlement)", infoOnly: false))
         for (name, ok) in injectionBinaries.sorted(by: { $0.key < $1.key }) {
             checks.append(Check(label: "注入二进制 \(name)", passed: ok, detail: ok ? "已捆绑且可执行" : "缺失或不可执行", infoOnly: false))
         }
-        checks.append(Check(label: "amfid 绕过（推断）", passed: amfidBypassInferred, detail: amfidBypassInferred ? "ct_bypass 重签名 + 注入工具 + 容器读写 均就绪，dylib 注入链路可工作" : "条件不足，unsigned dylib 可能无法加载", infoOnly: false))
+        checks.append(Check(label: "amfid 绕过 (推断)", passed: amfidBypassInferred, detail: amfidBypassInferred ? "ct_bypass 重签名 + 注入工具 + 容器读写 均ready，dylib 注入链路可工作" : "条件不足，unsigned dylib 可能无法加载", infoOnly: false))
 
-        // v2.9.156：ready 不再依赖 taskForPid——静态注入（insert_dylib+ct_bypass 重签名）
+        // v2.9.156：ready 不再依赖 taskForPid——静态injected (insert_dylib+ct_bypass 重签名）
         // 与进程端口无关；TrollStore 非越狱拿不到其他进程端口是常态，不应导致"环境异常"
         let ready = trollStore && amfidBypassInferred
 
@@ -171,7 +171,7 @@ final class DeviceProbe: ObservableObject {
         if FileManager.default.fileExists(atPath: "/var/jb") { return true }
         if FileManager.default.fileExists(atPath: "/private/preboot/jb") { return true }
         if AppCatalog.list().contains(where: { $0.bundleId == "com.opa334.TrollStore" }) { return true }
-        // v2.9.159：AppCatalog 兜底——直接扫容器目录找 TrollStore.app（不依赖枚举结果）
+        // v2.9.159：AppCatalog 兜底——直接扫容器目录找 TrollStore.app (不依赖枚举结果）
         for root in ["/var/containers/Bundle/Application", "/private/var/containers/Bundle/Application"] {
             if let dirs = try? FileManager.default.contentsOfDirectory(atPath: root),
                dirs.contains(where: { $0.localizedCaseInsensitiveContains("TrollStore") }) {
@@ -182,7 +182,7 @@ final class DeviceProbe: ObservableObject {
     }
 
     private func detectTrollFools() -> Bool {
-        // 已知 bundle id 全集（含源码常量 wiki.qaq.TrollFools —— 官方 release 真实 identifier）
+        // 已知 bundle id 全集 (含源码常量 wiki.qaq.TrollFools —— 官方 release 真实 identifier）
         let ids = [
             "wiki.qaq.TrollFools",
             "com.iomsec.TrollFools",
@@ -192,13 +192,13 @@ final class DeviceProbe: ObservableObject {
         ]
         let apps = AppCatalog.list()
         if apps.contains(where: { ids.contains($0.bundleId) }) { return true }
-        // 兜底：按名字/路径模糊匹配（TrollFools / TrollFools.app）
+        // 兜底：按名字/路径模糊匹配 (TrollFools / TrollFools.app）
         if apps.contains(where: {
             $0.bundleId.localizedCaseInsensitiveContains("trollfools") ||
             $0.name.localizedCaseInsensitiveContains("trollfools") ||
             $0.path.localizedCaseInsensitiveContains("TrollFools.app")
         }) { return true }
-        // v2.9.159：AppCatalog 兜底——直接扫容器目录找 TrollFools.app（不依赖枚举结果）
+        // v2.9.159：AppCatalog 兜底——直接扫容器目录找 TrollFools.app (不依赖枚举结果）
         for root in ["/var/containers/Bundle/Application", "/private/var/containers/Bundle/Application"] {
             if let dirs = try? FileManager.default.contentsOfDirectory(atPath: root),
                dirs.contains(where: { $0.localizedCaseInsensitiveContains("TrollFools") }) {
@@ -210,7 +210,7 @@ final class DeviceProbe: ObservableObject {
 
     // v2.9.154：真实测 task_for_pid-allow。
     // 153 用 pid=1(launchd)——但 TrollStore 是非越狱环境，拿特权进程端口会被系统拒绝
-    // （用户反馈"amfid 不生效"）。注入实际场景是拿"普通 App 进程"端口，
+    //  (用户反馈"amfid 不生效"）。注入实际场景是拿"普通 App 进程"端口，
     // 因此 spawn 一个用户级子进程(/usr/bin/true)来实测——与注入任意 App 完全等价。
     private func testTaskForPid() -> Bool {
         var pid: pid_t = 0
@@ -228,21 +228,21 @@ final class DeviceProbe: ObservableObject {
         return kr == 0
     }
 
-    // v2.9.153b：SecTask 是私有 API（公共 SDK 不导出），用 @_silgen_name 直接声明符号
+    // v2.9.153b：SecTask 是私有 API (公total SDK 不导出），用 @_silgen_name 直接声明符号
     @_silgen_name("SecTaskCreateFromSelf")
     private func secTaskCreateFromSelf(_ allocator: CFAllocator?) -> CFTypeRef?
 
     @_silgen_name("SecTaskCopyValueForEntitlement")
     private func secTaskCopyValueForEntitlement(_ task: CFTypeRef, _ entitlement: CFString, _ error: UnsafeMutablePointer<Unmanaged<CFError>?>?) -> CFTypeRef?
 
-    /// v2.9.153：读取本进程代码签名里的 entitlements（最可靠——直接读签名，不靠行为推断）
+    /// v2.9.153：读取本进程代码签名里的 entitlements (最可靠——直接读签名，不靠行为推断）
     private func readOwnEntitlement(_ key: String) -> Bool {
         guard let task = secTaskCreateFromSelf(nil) else { return false }
         guard let v = secTaskCopyValueForEntitlement(task, key as CFString, nil) else { return false }
         return CFGetTypeID(v) == CFBooleanGetTypeID() && CFBooleanGetValue(v as! CFBoolean)
     }
 
-    /// 一次性读全关键 entitlements（返回是否 no-sandbox 等）
+    /// 一次性读全关键 entitlements (返回是否 no-sandbox 等）
     struct EntitlementSnapshot {
         let noSandbox: Bool
         let platformApplication: Bool
@@ -282,12 +282,12 @@ final class DeviceProbe: ObservableObject {
     }
 
     // v2.9.65：实际写其他 App Bundle 目录检测 root 权限。
-    // Bundle 目录（/private/var/containers/Bundle/Application/...）只有 root 能写，
+    // Bundle 目录 (/private/var/containers/Bundle/Application/...）只有 root 能写，
     // 能写就证明 persona spawn + no-sandbox + container-manager 等 entitlements 完整生效。
     // 这是注入操作的真正前提，比执行外部命令更可靠。
     private func testBundleWrite() -> Bool {
         let apps = AppCatalog.list()
-        // 优先选系统 App（bundle 路径稳定，不会因用户操作而变化），但系统 App 可能不可写
+        // 优先选系统 App (bundle 路径稳定，不会因用户操作而变化），但系统 App 可能不可写
         // 选第一个非自身的 App 即可
         guard let other = apps.first(where: { $0.bundleId != Bundle.main.bundleIdentifier && !$0.path.isEmpty }) else { return false }
         let probe = URL(fileURLWithPath: other.path).appendingPathComponent(".trollagent_probe_\(UUID().uuidString)")
@@ -379,7 +379,7 @@ final class DeviceProbe: ObservableObject {
                 return (formatBytes(total), formatBytes(free))
             }
         } catch {}
-        return ("未知", "未知")
+        return ("unknown", "unknown")
     }
 
     static func memoryTotal() -> String {

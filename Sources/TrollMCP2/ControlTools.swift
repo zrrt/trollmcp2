@@ -1,7 +1,7 @@
 import Foundation
 
 // v2.9.75：ControlAgent 通用 UI 控制工具
-// 注入 ControlAgent.dylib 到任意 App 后，通过 localhost HTTP 控制目标 App UI
+// injected ControlAgent.dylib 到任意 App 后，通过 localhost HTTP 控制目标 App UI
 // 端口固定 4789，API: /status /ui_tree /screenshot /tap /swipe /type /key
 
 final class ControlAgentTools {
@@ -48,7 +48,7 @@ final class ControlAgentTools {
         return json
     }
 
-    // MARK: - 注入 ControlAgent.dylib
+    // MARK: - injected ControlAgent.dylib
 
     func inject(bundleId: String, target: String? = nil, skipProbe: Bool = false) -> [String: Any] {
         // 找到内置的 ControlAgent.dylib
@@ -57,7 +57,7 @@ final class ControlAgentTools {
             // 尝试工作区路径
             let workspacePath = "\(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].path)/Workspace/tweaks/ControlAgent.dylib"
             guard FileManager.default.fileExists(atPath: workspacePath) else {
-                return ["error": "ControlAgent.dylib 未内置，请先编译并放入 Resources/tweaks/", "hint": "线上编译 build-tweak workflow"]
+                return ["error": "ControlAgent.dylib not bundled, compile it into Resources/tweaks/ first", "hint": "use the build-tweak workflow to compile online"]
             }
             return doInject(bundleId: bundleId, dylibPath: workspacePath, target: target, skipProbe: skipProbe)
         }
@@ -66,8 +66,8 @@ final class ControlAgentTools {
 
     private func doInject(bundleId: String, dylibPath: String, target: String? = nil, skipProbe: Bool = false) -> [String: Any] {
         do {
-            // v2.9.260：控制代理必须注入主二进制（启动必加载）——懒加载 framework 实测
-            // ControlAgent constructor 不执行、4789 不监听（小红书 AppsFlyerLib 实锤）。
+            // v2.9.260：控制代理必须注入主二进制 (启动必加载）——懒加载 framework 实测
+            // ControlAgent constructor 不执行、4789 不监听 (小红书 AppsFlyerLib 实锤）。
             // 主二进制加密的 load commands 不加密，insert_dylib+伪签+ct_bypass 可改。
             let result = try InjectionManager.shared.enable(
                 bundleId: bundleId,
@@ -77,7 +77,7 @@ final class ControlAgentTools {
                 skipProbe: skipProbe,
                 allowMain: true
             )
-            // v2.9.109：注入成功自动开启真后台保活（目标 App + TrollAgent 自身），
+            // v2.9.109：注入OK自动开启真后台保活 (目标 App + TrollAgent 自身），
             // 防止目标 App 切后台被系统挂起导致 4789 断连
             postKeepAliveNotification(true)
             BackgroundKeepAlive.shared.start()
@@ -87,17 +87,17 @@ final class ControlAgentTools {
                 "dylib": dylibPath,
                 "detail": result,
                 "keepalive": true,
-                "next_step": "启动目标 App 后调用 control.status 确认连接，然后用 control.ui_tree / control.tap 等控制；真后台保活已开启，目标 App 切后台不挂起"
+                "next_step": "after launching target App call control.status to confirm connection, then use control.ui_tree / control.tap etc.; real background keep-alive is on, target App won't suspend in background"
             ]
         } catch {
             // v2.9.189：用 \(error) 而非 localizedDescription——纯 Swift Error 的
-            // localizedDescription 会被 NSError bridge 抹成"未能完成操作。"，真实原因丢失
-            return ["error": "注入失败: \(error)", "bundle_id": bundleId]
+            // localizedDescription 会被 NSError bridge 抹成"未能done操作。"，真实原因丢失
+            return ["error": "injection failed: \(error)", "bundle_id": bundleId]
         }
     }
 
     // MARK: - 状态检查
-    // v2.9.128：自动重试（ControlAgent 服务器在 App 启动后 ~1.5s 才监听 4789，
+    // v2.9.128：自动重试 (ControlAgent 服务器在 App 启动后 ~1.5s 才监听 4789，
     // 刚注入/刚启动立刻查会连接拒绝）——status 最多试 4 次，间隔 0.6s
 
     func status(retries: Int = 4) -> [String: Any] {
@@ -118,13 +118,13 @@ final class ControlAgentTools {
         return [
             "connected": false,
             "error": lastErr ?? "HTTP \(lastCode)",
-            "hint": "确认：1. ControlAgent.dylib 已注入 2. 目标 App 正在运行 3. 注入后已重启目标 App（服务器在启动后约 1.5s 就绪）"
+            "hint": "confirm: 1. ControlAgent.dylib injected 2. target App running 3. target App restarted after injection (server ready ~1.5s after launch)"
         ]
     }
 
     // MARK: - v2.9.186 进程内砸壳
     // 调 ControlAgent /decrypt：目标进程内遍历 dyld 镜像，从内存读已解密段写副本
-    // 绕开 TrollStore 无 task_for_pid 的限制。返回各镜像解密结果（output 为容器内副本路径）。
+    // 绕开 TrollStore 无 task_for_pid 的限制。返回各镜像解密结果 (output 为容器内副本路径）。
 
     func decrypt() -> [String: Any] {
         var lastErr: String? = nil
@@ -142,12 +142,12 @@ final class ControlAgentTools {
         return [
             "connected": false,
             "error": lastErr ?? "decrypt endpoint unreachable",
-            "hint": "确认 ControlAgent 已注入且目标 App 正在运行（服务器启动后约 1.5s 就绪）"
+            "hint": "confirm ControlAgent injected and target App running (server ready ~1.5s after launch)"
         ]
     }
 
     // MARK: - UI 树
-    // v2.9.128：服务器刚就绪时首帧可能超时，轻量重试 2 次
+    // v2.9.128：服务器刚ready时首帧可能超时，轻量重试 2 次
 
     func uiTree() -> [String: Any] {
         var lastErr: String? = nil
@@ -162,7 +162,7 @@ final class ControlAgentTools {
             lastErr = error; lastCode = code
             Thread.sleep(forTimeInterval: 0.5)
         }
-        return ["error": lastErr ?? "HTTP \(lastCode)", "hint": "确认目标 App 正在运行且 ControlAgent 已注入并重启"]
+        return ["error": lastErr ?? "HTTP \(lastCode)", "hint": "confirm target App running and ControlAgent injected and restarted"]
     }
 
     // MARK: - 截图
@@ -191,14 +191,14 @@ final class ControlAgentTools {
                     }
                 }
             }
-            // v3.0.65：同时返回 base64（AI 直接看图，不用读文件）
+            // v3.0.65：同时返回 base64 (AI 直接看图，不用读文件）
             let base64 = data.base64EncodedString()
             return [
                 "screenshot": true,
                 "path": path.path,
                 "size": data.count,
                 "base64": base64,
-                "hint": "base64 字段直接看图；path 是文件路径备用"
+                "hint": "base64 field is the image; path is the file path fallback"
             ]
         }
         return ["error": error ?? "HTTP \(code)"]
@@ -252,7 +252,7 @@ final class ControlAgentTools {
 final class ControlInjectTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.inject",
-        summary: "Inject ControlAgent into an app to enable UI control (tap/swipe/type/screenshot). Use for: start controlling an app's UI, before using other control.* tools. Don't use for: inject other dylibs (use injection.enable), memory injection (use injection.mem). Example: user says '我要控制小红书' → inject ControlAgent first.",
+        summary: "Inject ControlAgent into an app to enable UI control (tap/swipe/type/screenshot). Use for: start controlling an app's UI, before using other control.* tools. Don't use for: inject other dylibs (use injection.enable), memory injection (use injection.mem). Example: user says 'I want to control 小红书' → inject ControlAgent first.",
         parameters: [
             "bundle_id": "Target App bundle ID (required)",
             "target": "Specific framework to inject (optional, auto)",
@@ -273,7 +273,7 @@ final class ControlInjectTool: MCPTool {
 final class ControlStatusTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.status",
-        summary: "Check if ControlAgent is running in the target app. Use for: verify injection worked, see if UI control is available. Don't use for: inject ControlAgent (use control.inject), take screenshot (use control.screenshot). Example: user says '小红书注入成功了吗' → check control status.",
+        summary: "Check if ControlAgent is running in the target app. Use for: verify injection worked, see if UI control is available. Don't use for: inject ControlAgent (use control.inject), take screenshot (use control.screenshot). Example: user says 'did 小红书 injection succeed' → check control status.",
         parameters: [:],
         verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -284,7 +284,7 @@ final class ControlStatusTool: MCPTool {
 final class ControlUITreeTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.ui_tree",
-        summary: "PREREQUISITE: call control.inject first. Dump the app's UI element tree (all buttons, text fields, frames). Use for: find exact UI elements to tap, understand app layout. Don't use for: just take screenshot (use control.screenshot, simpler), tap by text (use control.tap_text). Example: user says '小红书页面上有什么按钮' → dump UI tree.",
+        summary: "PREREQUISITE: call control.inject first. Dump the app's UI element tree (all buttons, text fields, frames). Use for: find exact UI elements to tap, understand app layout. Don't use for: just take screenshot (use control.screenshot, simpler), tap by text (use control.tap_text). Example: user says 'what buttons are on the 小红书 page' → dump UI tree.",
         parameters: [:],
         verified: true, category: "ui_control")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -347,7 +347,7 @@ final class ControlSwipeTool: MCPTool {
 final class ControlTypeTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.type",
-        summary: "PREREQUISITE: call control.inject first. Type text into the currently focused input field. Use for: type into already focused field. Don't use for: find field by label and type (use control.type_text), tap button (use control.tap). Example: user says '输入这段文字' → type into focused field.",
+        summary: "PREREQUISITE: call control.inject first. Type text into the currently focused input field. Use for: type into already focused field. Don't use for: find field by label and type (use control.type_text), tap button (use control.tap). Example: user says 'type this text' → type into focused field.",
         parameters: ["text": "Text to type into the input field (required)"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -362,7 +362,7 @@ final class ControlTypeTool: MCPTool {
 final class ControlKeyTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.key",
-        summary: "PREREQUISITE: call control.inject first. Simulate hardware button press (home/back/enter). Use for: go back to home screen, press back button, press enter. Don't use for: tap on screen (use control.tap), swipe gesture (use control.swipe). Example: user says '按 home 键回桌面' → press home key.",
+        summary: "PREREQUISITE: call control.inject first. Simulate hardware button press (home/back/enter). Use for: go back to home screen, press back button, press enter. Don't use for: tap on screen (use control.tap), swipe gesture (use control.swipe). Example: user says 'press home to go back' → press home key.",
         parameters: ["key": "Which key to press: home / back / enter (required)"],
         verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -374,7 +374,7 @@ final class ControlKeyTool: MCPTool {
     }
 }
 
-// MARK: - v3.0.72：control.tap_text — 语义化点击（传文字，自动找元素点）
+// MARK: - v3.0.72：control.tap_text — 语义化点击 (传文字，自动找元素点）
 
 final class ControlTapTextTool: MCPTool {
     let definition = ToolDefinition(
@@ -463,7 +463,7 @@ final class ControlTapTextTool: MCPTool {
     }
 }
 
-// MARK: - v3.0.72：control.type_text — 语义化输入（找到输入框，输入文字）
+// MARK: - v3.0.72：control.type_text — 语义化输入 (找到输入框，输入文字）
 
 final class ControlTypeTextTool: MCPTool {
     let definition = ToolDefinition(
@@ -485,7 +485,7 @@ final class ControlTypeTextTool: MCPTool {
         }
         let enter = (params["enter"] as? Bool) ?? false
 
-        // 1. 先点输入框（用 tap_text 找 placeholder）
+        // 1. 先点输入框 (用 tap_text 找 placeholder）
         let tapResult = try ControlTapTextTool().invoke(["text": placeholder])
 
         // 2. 等一下让键盘弹出来
@@ -511,12 +511,12 @@ final class ControlTypeTextTool: MCPTool {
     }
 }
 
-// MARK: - v3.1.34: control 大工具 + 子命令（合并 10 个 control.* 工具）
+// MARK: - v3.1.34: control 大工具 + 子命令 (合并 10 个 control.* 工具）
 
 final class ControlExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "control",
-        summary: "Control target app UI (tap/type/swipe/screenshot/key). Use subcommand to specify action. Use for: UI automation, controlling app screen. Don't use for: shell commands (use shell.exec), browser control (use browser.*). Example: tap → control tap x:100 y:200; screenshot → control screenshot; type text → control type text:'hello'; tap by text → control tap_text text:'登录'; press home → control key key:home. Subcommands: inject / status / ui_tree / screenshot / tap / swipe / type / key / tap_text / type_text. REQUIRED PARAMS per subcommand: tap→x(Number)+y(Number); swipe→x1,y1,x2,y2(Number); type→text; tap_text→text; key→key(home/back/enter); inject→bundle_id; others→none.",
+        summary: "Control target app UI (tap/type/swipe/screenshot/key). Use subcommand to specify action. Use for: UI automation, controlling app screen. Don't use for: shell commands (use shell.exec), browser control (use browser.*). Example: tap → control tap x:100 y:200; screenshot → control screenshot; type text → control type text:'hello'; tap by text → control tap_text text:'login'; press home → control key key:home. Subcommands: inject / status / ui_tree / screenshot / tap / swipe / type / key / tap_text / type_text. REQUIRED PARAMS per subcommand: tap→x(Number)+y(Number); swipe→x1,y1,x2,y2(Number); type→text; tap_text→text; key→key(home/back/enter); inject→bundle_id; others→none.",
         parameters: [
             "command": "Subcommand (required): inject / status / ui_tree / screenshot / tap / swipe / type / key / tap_text / type_text",
             "bundle_id": "App bundle ID — REQUIRED for inject only",
@@ -530,7 +530,7 @@ final class ControlExecTool: MCPTool {
             "key": "Key name: home/back/enter — REQUIRED for key",
             "placeholder": "Field placeholder (for type_text)"
         ],
-        prerequisites: ["UI 控制前必须先 control inject 注入 ControlAgent 到目标 App 并启动", "tap/swipe 前先 control screenshot 确认坐标"]
+        prerequisites: ["inject ControlAgent into target App and launch it (control inject) before UI control", "take control screenshot to confirm coordinates before tap/swipe"]
         verified: true, category: "ui_control")
     
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -583,7 +583,7 @@ final class ControlExecTool: MCPTool {
             
         case "tap_text":
             guard let text = params["text"] as? String else {
-                throw MCPError.invalidParams("text required. Usage: control tap_text text:'登录'")
+                throw MCPError.invalidParams("text required. Usage: control tap_text text:'login'")
             }
             return try ControlTapTextTool().invoke(["text": text])
             

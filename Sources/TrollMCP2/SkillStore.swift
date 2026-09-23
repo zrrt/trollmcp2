@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - 技能存储（v2.9.17）
+// MARK: - 技能存储 (v2.9.17）
 // 让技能从"只显示在列表里的摆设"变成"AI 可发现、可读取、可启用"的真实能力。
 // 存储位置：KnowledgeBase/skills.json
 // 启用状态：UserDefaults "trollmcp2.skills_enabled"
@@ -38,7 +38,7 @@ final class SkillStore {
             .appendingPathComponent("skills.json")
     }
 
-    /// 全部技能（含未启用的）
+    /// 全部技能 (含未启用的）
     var all: [SkillItem] {
         guard let data = try? Data(contentsOf: kbURL),
               let json = try? JSONSerialization.jsonObject(with: data) as? [[String: String]] else {
@@ -52,30 +52,30 @@ final class SkillStore {
         guard !FileManager.default.fileExists(atPath: kbURL.path) else { return }
         let builtins: [[String: String]] = [
             [
-                "name": "翻译润色",
-                "summary": "中英等多语言互译与文字润色，去掉生硬翻译腔，贴合目标语言习惯",
+                "name": "Translate & Polish",
+                "summary": "multilingual translation and text polishing between Chinese/English etc., removing stiff translationese to fit target language habits",
                 "instruction": "当用户要求翻译或润色文字时执行本技能：\n1. 先确认源语言与目标语言；\n2. 翻译时以自然、地道为目标，避免逐字直译和机翻腔；\n3. 涉及专业术语时保留原文并附注；\n4. 润色时保持原意，调整句式与用词，使其更通顺、更符合目标读者习惯。",
             ],
             [
-                "name": "代码审查",
-                "summary": "审查代码的安全、性能、可读性与逻辑正确性，输出问题清单",
+                "name": "Code Review",
+                "summary": "review code for security, performance, readability and logic correctness, output issue list",
                 "instruction": "当用户提供代码片段或要求审查时执行本技能：\n1. 先识别语言与用途；\n2. 按 安全漏洞(注入/XSS/越权)、性能、可读性、边界情况 四类检查；\n3. 每个问题给出 位置、风险等级、修复建议；\n4. 最后给出总体结论与优先级排序。",
             ],
             [
-                "name": "Tweak 开发助手",
-                "summary": "Theos Tweak 开发全流程指导：工程结构、Makefile、打包、GitHub Actions 线上编译",
+                "name": "Tweak Dev Assistant",
+                "summary": "Theos Tweak development full-flow guide: project structure, Makefile, packaging, GitHub Actions online build",
                 "instruction": "当用户涉及 Tweak 开发时执行本技能：\n1. 工程需包含 Makefile / Tweak.x / .plist；\n2. 提示 Theos 需 submodules: recursive 克隆，GitHub Actions 用 macos-14 runner + brew install ldid；\n3. 打包用 make clean package FINALPACKAGE=1；\n4. 产物为 .deb/.dylib，可用 TrollFools 注入测试。",
             ],
             [
                 "name": "客服回复",
-                "summary": "电商/独立站客户消息的礼貌得体回复，处理售前、物流、退换货、差评",
-                "instruction": "当用户要求撰写客户回复时执行本技能：\n1. 先判断场景（售前咨询/催发货/物流/退换货/差评）；\n2. 语气礼貌、专业、简洁，先共情再解决问题；\n3. 涉及退款/补偿给出清晰选项；\n4. 英文客服回复需自然口语化，避免生硬模板腔。",
+                "summary": "polite customer message replies for ecommerce/standalone sites, handling pre-sales, logistics, returns, bad reviews",
+                "instruction": "当用户要求撰写客户回复时执行本技能：\n1. 先判断场景 (售前咨询/催发货/物流/退换货/差评)；\n2. 语气礼貌、专业、简洁，先共情再解决问题；\n3. 涉及退款/补偿给出清晰选项；\n4. 英文客服回复需自然口语化，避免生硬模板腔。",
             ],
         ]
         save(builtins.map { SkillItem(dict: $0) })
     }
 
-    /// 写入全部技能（覆盖式）
+    /// 写入全部技能 (覆盖式）
     func save(_ items: [SkillItem]) {
         try? FileManager.default.createDirectory(
             at: kbURL.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -104,7 +104,7 @@ final class SkillStore {
         all.first { $0.name == name }
     }
 
-    /// 技能是否启用（默认启用；仅显式禁用才关）
+    /// 技能是否启用 (默认启用；仅显式禁用才关）
     func isEnabled(_ name: String) -> Bool {
         let dict = UserDefaults.standard.object(forKey: enabledKey) as? [String: Bool] ?? [:]
         if let v = dict[name] { return v }
@@ -123,15 +123,15 @@ final class SkillStore {
     }
 }
 
-// MARK: - AI 技能工具（模型可发现/读取/启用）
+// MARK: - AI 技能工具 (模型可发现/读取/启用）
 
-/// skills.list：列出已启用技能（名称+摘要），供模型判断何时使用
+/// skills.list：列出已启用技能 (名称+摘要），供模型判断何时使用
 final class SkillsListTool: MCPTool {
     // v2.9.42：检索式——query 按名称/摘要搜索，只返回命中项，不再全量塞技能
     let definition = ToolDefinition(
         name: "skills.list",
-        summary: "Search/list available skills (pre-built prompt templates). Use for: find a skill that matches user's task, see what skills exist. Don't use for: execute a skill (use skills.read to load it), disable/enable skills (use skills.set_enabled). Example: user says '有没有抓包的技能' → search '抓包' in skills.",
-        parameters: ["query": "Search keyword (skill name or description, optional). e.g. '抓包' / '注入' / '编译'"], verified: true, category: "skills")
+        summary: "Search/list available skills (pre-built prompt templates). Use for: find a skill that matches user's task, see what skills exist. Don't use for: execute a skill (use skills.read to load it), disable/enable skills (use skills.set_enabled). Example: user says 'is there a capture skill' → search '抓包' in skills.",
+        parameters: ["query": "Search keyword (skill name or description, optional). e.g. 'capture' / 'inject' / 'build'"], verified: true, category: "skills")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let all = SkillStore.shared.all.filter { SkillStore.shared.isEnabled($0.name) }
         let q = (params["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -149,8 +149,8 @@ final class SkillsListTool: MCPTool {
             "query": q,
             "skills": items.map { ["name": $0.name, "summary": $0.summary] },
             "hint": q.isEmpty
-                ? "共 \(all.count) 个技能，只返回前 20 条；请用 query 按名称/摘要搜索（如 query=\"注入\"），需要执行时用 skills.read 读完整指令"
-                : "命中 \(items.count) 个；需要执行时用 skills.read 读取该技能完整指令"
+                ? "total \(all.count) 个技能，只返回前 20 条；请用 query 按名称/摘要搜索 (如 query=\"注入\")，需要执行时用 skills.read 读完整指令"
+                : "matched \(items.count) 个；需要执行时用 skills.read 读取该技能完整指令"
         ]
     }
 }
@@ -159,14 +159,14 @@ final class SkillsListTool: MCPTool {
 final class SkillsReadTool: MCPTool {
     let definition = ToolDefinition(
         name: "skills.read",
-        summary: "Read the full instructions of a skill. Use for: load a skill's step-by-step guide to follow. Don't use for: search skills (use skills.list), enable/disable skills (use skills.set_enabled). Example: user says '读一下抓包技能的步骤' → read skill.",
+        summary: "Read the full instructions of a skill. Use for: load a skill's step-by-step guide to follow. Don't use for: search skills (use skills.list), enable/disable skills (use skills.set_enabled). Example: user says 'read the capture skill steps' → read skill.",
         parameters: ["name": "Skill name to read"], verified: true, category: "skills")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
             throw MCPError.invalidParams("name required")
         }
         guard let item = SkillStore.shared.item(named: name) else {
-            throw MCPError.invalidParams("技能不存在: \(name)")
+            throw MCPError.invalidParams("skill does not exist: \(name)")
         }
         return ["name": item.name, "summary": item.summary, "instruction": item.instruction]
     }

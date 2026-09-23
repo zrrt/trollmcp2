@@ -4,14 +4,14 @@ import Darwin
 import CommonCrypto
 import SQLite3
 
-/// 终端会话管理（单例，v3.0.93: 已废弃 - iSH 引擎自己管理 cwd，这个类是死代码）
+/// 终端会话管理 (单例，v3.0.93: 已废弃 - iSH 引擎自己管理 cwd，这个类是死代码）
 final class ShellSession {
     static let shared = ShellSession()
     private init() {}
 }
 
 
-/// v3.0.36：shell 诊断日志（Documents/Workspace/shell-diag.log），追查超时/卡死真相
+/// v3.0.36：shell 诊断日志 (Documents/Workspace/shell-diag.log），追查超时/卡死真相
 enum ShellDiag {
     private static let lock = NSLock()
     private static var path: String = {
@@ -32,18 +32,18 @@ enum ShellDiag {
     }
 }
 
-/// 内置终端工具：执行 shell 命令（iSH 引擎）
+/// 内置终端工具：执行 shell 命令 (iSH 引擎）
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "Run a shell command (terminal/command line). iOS 原生模式（默认）：36 个原生命令直通真实 iOS 系统——文件操作 (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/curl/plutil/sqlite3/unzip) + 系统信息 (df/free/uname/uptime/hostname/ps/top/kill) + 网络 (ifconfig/netstat/nslookup)。支持管道/分号/重定向/&&/||（例：'ls /var/mobile | head -5'、'cat a.txt; echo done'、'echo hi > f.txt'），支持 VAR=value 赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr。限制：iOS 原生模式不支持 for/while/case/heredoc/多行脚本（写复杂脚本或装包请 env:alpine 走 Alpine Linux 全功能 shell，如 env:alpine 下可 python/curl/tar/apk add）。'env' 可探测当前执行环境。Use for: file operations, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*). Example: 'read file' → cat /path; 'disk space' → df; 'processes' → ps; 'download' → curl -O url; 'complex script' → env:alpine + 命令.",
+        summary: "Run a shell command (terminal/command line). iOS native mode (default): 36 个原生命令直通真实 iOS 系统——文件操作 (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/curl/plutil/sqlite3/unzip) + 系统信息 (df/free/uname/uptime/hostname/ps/top/kill) + 网络 (ifconfig/netstat/nslookup)。支持管道/分号/重定向/&&/|| (例：'ls /var/mobile | head -5'、'cat a.txt; echo done'、'echo hi > f.txt')，支持 VAR=value 赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr。限制：iOS 原生模式不支持 for/while/case/heredoc/多行脚本 (写复杂脚本或装包请 env:alpine 走 Alpine Linux 全功能 shell，如 env:alpine 下可 python/curl/tar/apk add)。'env' 可探测当前执行环境。Use for: file operations, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*). Example: 'read file' → cat /path; 'disk space' → df; 'processes' → ps; 'download' → curl -O url; 'complex script' -> env:alpine + command.",
         parameters: [
             "command": "Shell command to execute (required)",
             "timeout": "Timeout seconds (default 30, max 120)",
             "reset_cwd": "Optional Bool: reset working dir to default (default false)",
-            "limit": "Optional Int: 结果字符串截断上限（默认4000字符）。诊断时输出被修剪看不到主体，可传 limit=20000 或更大；full=true 则不截断返回完整结果",
-            "full": "Optional Bool: true=返回完整结果不截断（慎用，大输出占满上下文）",
-            "env": "Optional String: 显式选择执行环境——'alpine' 强制走 Alpine Linux（iSH），省略或 'ios' 按默认路由（iOS 原生优先）"
+            "limit": "Optional Int: result string truncation cap (default 4000 chars). If diagnostics output is trimmed and the body is invisible, pass limit=20000 或更大；full=true 则不截断返回完整结果",
+            "full": "Optional Bool: true=返回完整结果不截断 (慎用，大输出占满上下文)",
+            "env": "Optional String: 显式选择执行环境——'alpine' 强制走 Alpine Linux (iSH)，省略或 'ios' 按默认路由 (iOS 原生优先)"
         ],
         verified: true
     )
@@ -64,9 +64,9 @@ final class ShellExecTool: MCPTool {
         for pattern in dangerousPatterns {
             if command.range(of: pattern, options: .regularExpression) != nil {
                 return [
-                    "error": "危险命令被拦截",
+                    "error": "dangerous command blocked",
                     "command": command,
-                    "hint": "这个命令可能搞坏系统，被安全策略拦截了。"
+                    "hint": "this command could break the system and was blocked by the safety policy."
                 ]
             }
         }
@@ -82,8 +82,8 @@ final class ShellExecTool: MCPTool {
         // 这样就能访问整个 iOS 文件系统了！
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        // v3.1.33: env 探针命令——一键返回当前执行环境（后端/cwd/路径可见性），
-        // 任何"时灵时不灵"异常第一步用它定位（AI 诊断 P4）
+        // v3.1.33: env 探针命令——一键返回当前执行环境 (后端/cwd/路径可见性），
+        // 任何"时灵时不灵"异常第一步用它定位 (AI 诊断 P4）
         if trimmed == "env" || trimmed == "env " || trimmed.hasPrefix("env ") && trimmed.count <= 5 {
             let home = NSHomeDirectory()
             let docs = home + "/Documents"
@@ -96,27 +96,27 @@ final class ShellExecTool: MCPTool {
                 "command": command,
                 "exit_code": 0,
                 "stdout": [
-                    "执行环境: iOS 原生（FileManager 直连）",
+                    "执行环境: iOS 原生 (FileManager 直连)",
                     "HOME: \(home)",
                     "Documents: \(docs)",
                     "cwd: \(ISHEngine.cwd)",
                     "iOS 系统路径可见(/var/containers): \(iosContainers)",
-                    "Alpine 后端: iSH 引擎（/workspace 映射 iOS Documents/Workspace）",
+                    "Alpine 后端: iSH 引擎 (/workspace 映射 iOS Documents/Workspace)",
                     "提示: 含 | ; && > 的复合命令走 iOS 原生管道执行器；非 iOS 命令段走 Alpine"
                 ].joined(separator: "\n"),
                 "ios_native": true,
-                "hint": "env 探针：定位执行环境问题"
+                "hint": "env probe: diagnose execution environment issues"
             ]
         }
         
-        // v3.1.68: env 显式选择参数——AI 可传 env:"alpine" 强制走 Alpine（不猜路由），
-        // env:"ios" 或省略则按默认路由（iOS 原生优先）。修复"env 参数不生效"（E 项）。
+        // v3.1.68: env 显式选择参数——AI 可传 env:"alpine" 强制走 Alpine (不猜路由），
+        // env:"ios" 或省略则按默认路由 (iOS 原生优先）。修复"env 参数不生效" (E items）。
         if let envFlag = params["env"] as? String, envFlag.lowercased() == "alpine" {
             let (output, exitCode, timedOut) = ISHEngine.exec(trimmed, timeout: timeout)
             var stdout = ShellExecTool.filterNoise(output)
             if stdout.count > 2000 {
                 let spillPath = ToolRegistry.spillLarge("alpine", stdout)
-                stdout = String(stdout.prefix(1000)) + "\n…[输出太长共 \(stdout.count) 字符，已截断；完整输出: \(spillPath)]\n" + String(stdout.suffix(1000))
+                stdout = String(stdout.prefix(1000)) + "\n…[输出太长total \(stdout.count) 字符，已截断；完整输出: \(spillPath)]\n" + String(stdout.suffix(1000))
             }
             var result: [String: Any] = [
                 "command": trimmed,
@@ -124,17 +124,17 @@ final class ShellExecTool: MCPTool {
                 "stdout": stdout,
                 "cwd": ISHEngine.cwd,
                 "ios_native": false,
-                "hint": "Alpine Linux 环境（显式 env:alpine）：全套命令，可 apk add 装包"
+                "hint": "Alpine Linux environment (explicit env:alpine): full command set, apk add to install packages"
             ]
             if timedOut { result["timed_out"] = true }
             AuditLog.shared.log("shell.exec (alpine forced)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // v3.1.33: shell 语法识别——含管道/分号/重定向/逻辑符的命令不再裸前缀匹配（iOS 原生朴素分词会把 | ; 当参数），
+        // v3.1.33: shell 语法识别——含管道/分号/重定向/逻辑符的命令不再裸前缀匹配 (iOS 原生朴素分词会把 | ; 当参数），
         // 统一走 iOS 原生管道执行器：首段 iOS 原生执行 + Swift 过滤器 + 顺序拼接。
         // 这修复了"同一命令有时跑 iOS 有时跑 Alpine、结果随机"的病根。
-        // v3.1.71：先做变量展开（P=/xxx 赋值 + $P 引用），否则 "$P" 被当字面路径报 No such file（AI 实测）
+        // v3.1.71：先做变量展开 (P=/xxx 赋值 + $P 引用），否则 "$P" 被当字面路径报 No such file (AI 实测）
         let expanded = ShellExecTool.expandVars(trimmed)
         if ShellExecTool.containsShellSyntax(expanded) {
             let result = ShellExecTool.runIOSPipeline(expanded)
@@ -149,259 +149,259 @@ final class ShellExecTool: MCPTool {
             return result
         }
         
-        // 2. cat 命令——iOS 原生实现（读文件）
+        // 2. cat 命令——iOS 原生实现 (读文件）
         if trimmed.hasPrefix("cat ") {
             let result = ShellExecTool.runIOSCat(trimmed)
             AuditLog.shared.log("shell.exec (ios cat)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 3. find 命令——iOS 原生实现（找文件）
+        // 3. find 命令——iOS 原生实现 (找文件）
         if trimmed.hasPrefix("find ") {
             let result = ShellExecTool.runIOSFind(trimmed)
             AuditLog.shared.log("shell.exec (ios find)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 4. grep 命令——iOS 原生实现（搜文本）
+        // 4. grep 命令——iOS 原生实现 (搜文本）
         if trimmed.hasPrefix("grep ") {
             let result = ShellExecTool.runIOSGrep(trimmed)
             AuditLog.shared.log("shell.exec (ios grep)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 5. 写文件命令（echo > / >>）——iOS 原生实现
+        // 5. 写文件命令 (echo > / >>）——iOS 原生实现
         if trimmed.range(of: #"^echo\s+.*>\s+"#, options: .regularExpression) != nil {
             let result = ShellExecTool.runIOSWrite(trimmed)
             AuditLog.shared.log("shell.exec (ios write)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 6. mkdir 命令——iOS 原生实现（建目录）
+        // 6. mkdir 命令——iOS 原生实现 (建目录）
         if trimmed.hasPrefix("mkdir ") {
             let result = ShellExecTool.runIOSMkdir(trimmed)
             AuditLog.shared.log("shell.exec (ios mkdir)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 7. rm 命令——iOS 原生实现（删文件/目录）
+        // 7. rm 命令——iOS 原生实现 (删文件/目录）
         if trimmed.hasPrefix("rm ") {
             let result = ShellExecTool.runIOSRm(trimmed)
             AuditLog.shared.log("shell.exec (ios rm)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 8. mv 命令——iOS 原生实现（移动/重命名）
+        // 8. mv 命令——iOS 原生实现 (移动/重命名）
         if trimmed.hasPrefix("mv ") {
             let result = ShellExecTool.runIOSMv(trimmed)
             AuditLog.shared.log("shell.exec (ios mv)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 9. cp 命令——iOS 原生实现（复制）
+        // 9. cp 命令——iOS 原生实现 (复制）
         if trimmed.hasPrefix("cp ") {
             let result = ShellExecTool.runIOCp(trimmed)
             AuditLog.shared.log("shell.exec (ios cp)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 10. tail 命令——iOS 原生实现（看文件末尾）
+        // 10. tail 命令——iOS 原生实现 (看文件末尾）
         if trimmed.hasPrefix("tail ") {
             let result = ShellExecTool.runIOSTail(trimmed)
             AuditLog.shared.log("shell.exec (ios tail)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 11. head 命令——iOS 原生实现（看文件开头）
+        // 11. head 命令——iOS 原生实现 (看文件开头）
         if trimmed.hasPrefix("head ") {
             let result = ShellExecTool.runIOSHead(trimmed)
             AuditLog.shared.log("shell.exec (ios head)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 12. sed 命令——iOS 原生实现（替换内容）
+        // 12. sed 命令——iOS 原生实现 (替换内容）
         if trimmed.hasPrefix("sed ") {
             let result = ShellExecTool.runIOSSed(trimmed)
             AuditLog.shared.log("shell.exec (ios sed)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 13. pwd 命令——iOS 原生实现（显示当前目录）
+        // 13. pwd 命令——iOS 原生实现 (显示当前目录）
         if trimmed == "pwd" {
             let result = ShellExecTool.runIOSPwd(trimmed)
             AuditLog.shared.log("shell.exec (ios pwd)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 14. cd 命令——iOS 原生实现（切换目录）
+        // 14. cd 命令——iOS 原生实现 (切换目录）
         if trimmed.hasPrefix("cd ") || trimmed == "cd" {
             let result = ShellExecTool.runIOSCd(trimmed)
             AuditLog.shared.log("shell.exec (ios cd)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 15. touch 命令——iOS 原生实现（创建空文件）
+        // 15. touch 命令——iOS 原生实现 (创建空文件）
         if trimmed.hasPrefix("touch ") {
             let result = ShellExecTool.runIOSTouch(trimmed)
             AuditLog.shared.log("shell.exec (ios touch)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 16. wc 命令——iOS 原生实现（统计行数/字数）
+        // 16. wc 命令——iOS 原生实现 (统计行数/字数）
         if trimmed.hasPrefix("wc ") {
             let result = ShellExecTool.runIOSWc(trimmed)
             AuditLog.shared.log("shell.exec (ios wc)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 17. md5sum / sha256sum 命令——iOS 原生实现（计算哈希）
+        // 17. md5sum / sha256sum 命令——iOS 原生实现 (计算哈希）
         if trimmed.hasPrefix("md5sum ") || trimmed.hasPrefix("sha256sum ") {
             let result = ShellExecTool.runIOSHash(trimmed)
             AuditLog.shared.log("shell.exec (ios hash)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 18. diff 命令——iOS 原生实现（比较两个文件）
+        // 18. diff 命令——iOS 原生实现 (比较两个文件）
         if trimmed.hasPrefix("diff ") {
             let result = ShellExecTool.runIOSDiff(trimmed)
             AuditLog.shared.log("shell.exec (ios diff)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 19. hexdump 命令——iOS 原生实现（二进制十六进制）
+        // 19. hexdump 命令——iOS 原生实现 (二进制十六进制）
         if trimmed.hasPrefix("hexdump ") || trimmed.hasPrefix("xxd ") {
             let result = ShellExecTool.runIOSHexdump(trimmed)
             AuditLog.shared.log("shell.exec (ios hexdump)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 20. curl -O / wget 命令——iOS 原生实现（下载文件）
+        // 20. curl -O / wget 命令——iOS 原生实现 (下载文件）
         if trimmed.hasPrefix("curl ") || trimmed.hasPrefix("wget ") {
             let result = ShellExecTool.runIOSDownload(trimmed)
             AuditLog.shared.log("shell.exec (ios download)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 21. plutil 命令——iOS 原生实现（读 plist）
+        // 21. plutil 命令——iOS 原生实现 (读 plist）
         if trimmed.hasPrefix("plutil ") {
             let result = ShellExecTool.runIOSPlutil(trimmed)
             AuditLog.shared.log("shell.exec (ios plutil)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 22. sqlite3 命令——iOS 原生实现（查询 SQLite）
+        // 22. sqlite3 命令——iOS 原生实现 (查询 SQLite）
         if trimmed.hasPrefix("sqlite3 ") {
             let result = ShellExecTool.runIOSSqlite(trimmed)
             AuditLog.shared.log("shell.exec (ios sqlite)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 23. unzip 命令——iOS 原生实现（解压 zip）
+        // 23. unzip 命令——iOS 原生实现 (解压 zip）
         if trimmed.hasPrefix("unzip ") {
             let result = ShellExecTool.runIOSUnzip(trimmed)
             AuditLog.shared.log("shell.exec (ios unzip)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 24. df 命令——iOS 原生（磁盘空间）
+        // 24. df 命令——iOS 原生 (磁盘空间）
         if trimmed == "df" || trimmed.hasPrefix("df ") {
             let result = ShellExecTool.runIOSDf(trimmed)
             AuditLog.shared.log("shell.exec (ios df)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 25. free 命令——iOS 原生（内存）
+        // 25. free 命令——iOS 原生 (内存）
         if trimmed == "free" || trimmed.hasPrefix("free ") {
             let result = ShellExecTool.runIOSFree(trimmed)
             AuditLog.shared.log("shell.exec (ios free)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 26. uname 命令——iOS 原生（系统信息）
+        // 26. uname 命令——iOS 原生 (系统信息）
         if trimmed == "uname" || trimmed.hasPrefix("uname ") {
             let result = ShellExecTool.runIOSUname(trimmed)
             AuditLog.shared.log("shell.exec (ios uname)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 27. uptime 命令——iOS 原生（运行时间）
+        // 27. uptime 命令——iOS 原生 (运行时间）
         if trimmed == "uptime" {
             let result = ShellExecTool.runIOSUptime(trimmed)
             AuditLog.shared.log("shell.exec (ios uptime)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 28. hostname 命令——iOS 原生（设备名）
+        // 28. hostname 命令——iOS 原生 (设备名）
         if trimmed == "hostname" {
             let result = ShellExecTool.runIOSHostname(trimmed)
             AuditLog.shared.log("shell.exec (ios hostname)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 29. ps 命令——iOS 原生（进程列表）
+        // 29. ps 命令——iOS 原生 (进程列表）
         if trimmed == "ps" || trimmed.hasPrefix("ps ") {
             let result = ShellExecTool.runIOSPs(trimmed)
             AuditLog.shared.log("shell.exec (ios ps)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 30. top 命令——iOS 原生（CPU/内存）
+        // 30. top 命令——iOS 原生 (CPU/内存）
         if trimmed == "top" || trimmed.hasPrefix("top ") {
             let result = ShellExecTool.runIOSTop(trimmed)
             AuditLog.shared.log("shell.exec (ios top)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 31. kill 命令——iOS 原生（杀进程）
+        // 31. kill 命令——iOS 原生 (杀进程）
         if trimmed.hasPrefix("kill ") {
             let result = ShellExecTool.runIOSKill(trimmed)
             AuditLog.shared.log("shell.exec (ios kill)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 32. ifconfig 命令——iOS 原生（网络接口）
+        // 32. ifconfig 命令——iOS 原生 (网络接口）
         if trimmed == "ifconfig" || trimmed.hasPrefix("ifconfig ") {
             let result = ShellExecTool.runIOSIfconfig(trimmed)
             AuditLog.shared.log("shell.exec (ios ifconfig)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 33. netstat 命令——iOS 原生（网络连接）
+        // 33. netstat 命令——iOS 原生 (网络连接）
         if trimmed == "netstat" || trimmed.hasPrefix("netstat ") {
             let result = ShellExecTool.runIOSNetstat(trimmed)
             AuditLog.shared.log("shell.exec (ios netstat)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 34. nslookup 命令——iOS 原生（DNS 查询）
+        // 34. nslookup 命令——iOS 原生 (DNS 查询）
         if trimmed.hasPrefix("nslookup ") {
             let result = ShellExecTool.runIOSNslookup(trimmed)
             AuditLog.shared.log("shell.exec (ios nslookup)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 35. tar 命令——iOS 原生（打包/解压）
+        // 35. tar 命令——iOS 原生 (打包/解压）
         if trimmed.hasPrefix("tar ") {
             let result = ShellExecTool.runIOStar(trimmed)
             AuditLog.shared.log("shell.exec (ios tar)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // 36. gzip 命令——iOS 原生（压缩）
+        // 36. gzip 命令——iOS 原生 (压缩）
         if trimmed.hasPrefix("gzip ") || trimmed.hasPrefix("gunzip ") {
             let result = ShellExecTool.runIOSGzip(trimmed)
             AuditLog.shared.log("shell.exec (ios gzip)", detail: String(trimmed.prefix(100)))
             return result
         }
         
-        // v3.0.41：iSH 为唯一引擎（ios_system 已删除）。初始化失败直接报错，不再回退。
+        // v3.0.41：iSH 为唯一引擎 (ios_system 已删除）。初始化failed直接报错，不再回退。
         let (output, exitCode, timedOut) = ISHEngine.exec(command, timeout: timeout)
         
         // 过滤杂散调试噪音
         var stdout = ShellExecTool.filterNoise(output)
         if stdout.count > 2000 {
             let spillPath = ToolRegistry.spillLarge("shell", stdout)
-            stdout = String(stdout.prefix(1000)) + "\n…[输出太长共 \(stdout.count) 字符，已截断；完整输出: \(spillPath)]\n" + String(stdout.suffix(1000))
+            stdout = String(stdout.prefix(1000)) + "\n…[输出太长total \(stdout.count) 字符，已截断；完整输出: \(spillPath)]\n" + String(stdout.suffix(1000))
         }
         
         // 会话目录：iSH guest 路径
@@ -414,21 +414,21 @@ final class ShellExecTool: MCPTool {
             "exit_code": exitCode,
             "stdout": stdout,
             "cwd": newPwd,
-            "hint": "Alpine Linux 环境：ls/cat/grep/find/tar/curl/python 等全套命令，可 apk add 装包。cd 记住目录。"
+            "hint": "Alpine Linux environment: full command set (ls/cat/grep/find/tar/curl/python...), apk add to install packages. cd remembers directory."
         ]
         if timedOut {
             result["timed_out"] = true
-            result["hint"] = "命令超过 \(Int(timeout)) 秒未完成，已 SIGKILL 进程组回收。"
+            result["hint"] = "command did not finish within \(Int(timeout))s, process group SIGKILLed"
         }
         return result
     }
     
     // MARK: - v3.1.33 shell 语法识别 + iOS 原生管道执行器
-    // 修复"同一命令路由随机（iOS vs Alpine）"和"iOS 原生不支持 | ; && >"两个根因：
+    // 修复"同一命令路由随机 (iOS vs Alpine）"和"iOS 原生不支持 | ; && >"两个根因：
     // 含 shell 语法的命令统一在此处理：首段是 iOS 原生命令 → iOS 原生执行 + Swift 过滤器；
-    // 首段非 iOS 命令（python 等）→ 交给 Alpine 全功能 shell。路由从此确定。
+    // 首段非 iOS 命令 (python 等）→ 交给 Alpine 全功能 shell。路由从此确定。
     
-    /// 检测命令是否含 shell 元字符（管道/分号/逻辑符/重定向/命令替换），跳过引号内内容
+    /// 检测命令是否含 shell 元字符 (管道/分号/逻辑符/重定向/命令替换），跳过引号内内容
     static func containsShellSyntax(_ command: String) -> Bool {
         var inSingle = false
         var inDouble = false
@@ -454,7 +454,7 @@ final class ShellExecTool: MCPTool {
         return false
     }
     
-    /// 按管道/分号/逻辑符拆分命令（尊重引号），返回 [(命令段, 连接符)]，连接符: | ; && ||
+    /// 按管道/分号/逻辑符拆分命令 (尊重引号），返回 [(命令段, 连接符)]，连接符: | ; && ||
     private static func splitShellSegments(_ command: String) -> [(cmd: String, sep: String)] {
         var segments: [(String, String)] = []
         var current = ""
@@ -503,8 +503,8 @@ final class ShellExecTool: MCPTool {
     }
     
     /// v3.1.71：iOS 原生模式的变量展开预处理。
-    /// 收集段首 VAR=value 赋值（去引号），把后续命令中的 $VAR / ${VAR} 替换为实际值。
-    /// 赋值段转成 echo（无输出、exit 0），保持链式语义。解决"$P 变量拼路径报 No such file"（AI 实测）。
+    /// 收集段首 VAR=value 赋值 (去引号），把后续命令中的 $VAR / ${VAR} 替换为实际值。
+    /// 赋值段转成 echo (无输出、exit 0），保持链式语义。解决"$P 变量拼路径报 No such file" (AI 实测）。
     static func expandVars(_ command: String) -> String {
         let segments = splitShellSegments(command)
         guard segments.count > 1 || command.contains("=") else { return command }
@@ -515,10 +515,10 @@ final class ShellExecTool: MCPTool {
             if t.contains("=") {
                 let eqIndex = t.firstIndex(of: "=")!
                 let name = String(t[..<eqIndex]).trimmingCharacters(in: .whitespaces)
-                // 只认纯标识符的赋值（A-Za-z0-9_），避免把命令参数里的 = 误判
+                // 只认纯标识符的赋值 (A-Za-z0-9_），避免把命令参数里的 = 误判
                 if !name.isEmpty && name.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" }) {
                     var value = String(t[t.index(after: eqIndex)...]).trimmingCharacters(in: .whitespaces)
-                    // 去引号（"..." / '...'）
+                    // 去引号 ("..." / '...'）
                     if value.count >= 2,
                        (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
                        (value.hasPrefix("'") && value.hasSuffix("'")) {
@@ -550,7 +550,7 @@ final class ShellExecTool: MCPTool {
         return joined
     }
 
-    /// 提取命令首词（跳过引号），用于判断是否 iOS 原生命令
+    /// 提取命令首词 (跳过引号），用于判断是否 iOS 原生命令
     private static func firstWord(_ segment: String) -> String {        let t = segment.trimmingCharacters(in: .whitespaces)
         guard !t.isEmpty else { return "" }
         var word = ""
@@ -562,7 +562,7 @@ final class ShellExecTool: MCPTool {
         return word
     }
     
-    /// iOS 原生命令集合（36 个，与上方拦截清单一致）
+    /// iOS 原生命令集合 (36 个，与上方拦截清单一致）
     private static let iosNativeCommands: Set<String> = [
         "ls", "cat", "find", "grep", "echo", "mkdir", "rm", "mv", "cp",
         "tail", "head", "sed", "pwd", "cd", "touch", "wc", "md5sum",
@@ -571,7 +571,7 @@ final class ShellExecTool: MCPTool {
         "kill", "ifconfig", "netstat", "nslookup", "tar", "gzip", "gunzip"
     ]
     
-    /// 执行单段 iOS 原生命令（首段），返回 [String: Any]
+    /// 执行单段 iOS 原生命令 (首段），返回 [String: Any]
     private static func runIOSNativeSegment(_ segment: String) -> [String: Any] {
         let trimmed = segment.trimmingCharacters(in: .whitespaces)
         let word = firstWord(trimmed)
@@ -616,14 +616,14 @@ final class ShellExecTool: MCPTool {
             return [
                 "command": segment,
                 "exit_code": 1,
-                "stdout": "iOS 原生模式不支持该命令: \(word)（请用 Alpine 全功能 shell 或换用支持的 36 个 iOS 原生命令）",
+                "stdout": "iOS 原生模式不支持该命令: \(word) (请用 Alpine 全功能 shell 或换用支持的 36 个 iOS 原生命令)",
                 "ios_native": true
             ]
         }
     }
     
     /// 主执行器：处理整条含 shell 语法的命令
-    /// 结构：先按非管道分隔符（; && ||）切分成"链"，每条链内按 | 分生产段+过滤段；
+    /// 结构：先按非管道分隔符 (; && ||）切分成"链"，每条链内按 | 分生产段+过滤段；
     /// 逐链执行：生产段输出 → 过滤段逐个过滤 → 追加到 stdoutChunks；&& / || 按上链 exit 短路。
     static func runIOSPipeline(_ command: String) -> [String: Any] {
         let segments = splitShellSegments(command)
@@ -677,12 +677,12 @@ final class ShellExecTool: MCPTool {
                         var out = ShellExecTool.filterNoise(output)
                         if out.count > 2000 {
                             let spillPath = ToolRegistry.spillLarge("alpine", out)
-                            out = String(out.prefix(1000)) + "\n…[输出太长共 \(out.count) 字符，已截断；完整输出: \(spillPath)]\n" + String(out.suffix(1000))
+                            out = String(out.prefix(1000)) + "\n…[输出太长total \(out.count) 字符，已截断；完整输出: \(spillPath)]\n" + String(out.suffix(1000))
                         }
                         result = [
                             "command": body, "exit_code": outputExit, "stdout": out,
                             "cwd": ISHEngine.cwd,
-                            "hint": "Alpine Linux 环境（复合命令中非 iOS 段）：全套命令支持"
+                            "hint": "Alpine Linux environment (non-iOS segment of compound command): full command support"
                         ]
                         if timedOut { result["timed_out"] = true }
                     }
@@ -693,7 +693,7 @@ final class ShellExecTool: MCPTool {
                     text = applySwiftFilter(body, to: text)
                 }
                 
-                // 重定向（段内 > / >>）：写文件并把输出改为提示
+                // 重定向 (段内 > / >>）：写文件并把输出改为提示
                 if redirect {
                     text = ShellExecTool.writeRedirected(text, append: append, outFile: outFile)
                 }
@@ -710,12 +710,12 @@ final class ShellExecTool: MCPTool {
             "stdout": joined,
             "ios_native": anyIOS,
             "hint": anyIOS
-                ? "iOS 原生复合命令：支持管道/分号/重定向（Swift 过滤器 head/tail/grep/wc/sed/awk/sort/uniq/cut/tr）"
-                : "复合命令（含 Alpine 段）：管道/分号/重定向已正确解析"
+                ? "iOS 原生复合命令：支持管道/分号/重定向 (Swift 过滤器 head/tail/grep/wc/sed/awk/sort/uniq/cut/tr)"
+                : "复合命令 (含 Alpine 段)：管道/分号/重定向已正确解析"
         ]
     }
     
-    /// 重定向写文件辅助：把输出写入目标文件（覆盖/追加），返回提示文本
+    /// 重定向写文件辅助：把输出写入目标文件 (覆盖/追加），返回提示文本
     private static func writeRedirected(_ out: String, append: Bool, outFile: String) -> String {
         do {
             if append {
@@ -734,7 +734,7 @@ final class ShellExecTool: MCPTool {
         }
     }
     
-    /// v3.1.33: iOS 原生 echo 命令——输出文本（支持 -n 不换行、引号剥离）
+    /// v3.1.33: iOS 原生 echo 命令——输出文本 (支持 -n 不换行、引号剥离）
     private static func runIOSEcho(_ command: String) -> [String: Any] {
         var t = command
         var newline = true
@@ -751,11 +751,11 @@ final class ShellExecTool: MCPTool {
             "exit_code": 0,
             "stdout": newline ? t : t,
             "ios_native": true,
-            "hint": "iOS 原生 echo"
+            "hint": "iOS native echo"
         ]
     }
     
-    /// 从段内提取重定向：cmd > file / cmd >> file（支持引号路径），返回 (主体, 是否重定向, 是否追加, 目标文件)
+    /// 从段内提取重定向：cmd > file / cmd >> file (支持引号路径），返回 (主体, 是否重定向, 是否追加, 目标文件)
     private static func extractRedirect(_ segment: String) -> (body: String, redirect: Bool, append: Bool, outFile: String) {
         var inSingle = false
         var inDouble = false
@@ -763,9 +763,9 @@ final class ShellExecTool: MCPTool {
         var i = 0
         var redirectIdx: Int? = nil
         var isAppend = false
-        // v3.1.68: stderr 重定向（2>&1 合并 / 2>/dev/null 丢弃）——从命令里剥掉，不写文件不报错。
+        // v3.1.68: stderr 重定向 (2>&1 合并 / 2>/dev/null 丢弃）——从命令里剥掉，不写文件不报错。
         // iOS 原生执行时 stderr 已经混入 stdout 文本，所以 2>&1 等效于去掉；2>/dev/null 也剥掉
-        // （真实 stderr 捕获需更大改造，剥掉至少不再报 "Error writing &1"）
+        //  (真实 stderr 捕获需更大改造，剥掉至少不再报 "Error writing &1"）
         while i < chars.count {
             let c = chars[i]
             if c == "'" && !inDouble { inSingle.toggle(); i += 1; continue }
@@ -790,7 +790,7 @@ final class ShellExecTool: MCPTool {
         var filePart = String(chars[(idx + (isAppend ? 2 : 1))..<chars.count]).trimmingCharacters(in: .whitespaces)
         filePart = filePart.trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
         
-        // v3.1.68: stderr 重定向识别——body 以 "2" 结尾（如 "ls /x 2"）且目标是 &1 或 /dev/null
+        // v3.1.68: stderr 重定向识别——body 以 "2" 结尾 (如 "ls /x 2"）且目标是 &1 或 /dev/null
         let bodyHasStderrFd = body.hasSuffix("2")
         let isStderrToNull = bodyHasStderrFd && (filePart == "/dev/null")
         let isStderrToStdout = bodyHasStderrFd && (filePart == "&1" || filePart == "1")
@@ -804,9 +804,9 @@ final class ShellExecTool: MCPTool {
         return (body, true, isAppend, filePart)
     }
     
-    /// v3.1.33：路径归一——/private/var → /var（iOS 软链，访问等价），
+    /// v3.1.33：路径归一——/private/var → /var (iOS 软链，访问等价），
     /// 让同一目录无论用户/AI 写哪个前缀，输出都统一显示为 /var/...。
-    /// 只做前缀归一，不解析软链（保持速度与确定性）；相对路径原样返回。
+    /// 只做前缀归一，不解析软链 (保持速度与确定性）；相对路径原样返回。
     static func normalizePath(_ p: String) -> String {
         if p.hasPrefix("/private/var") {
             return "/var" + p.dropFirst("/private/var".count)
@@ -814,9 +814,9 @@ final class ShellExecTool: MCPTool {
         return p
     }
     
-    // MARK: - Swift 管道过滤器（iOS 原生管道右侧）
+    // MARK: - Swift 管道过滤器 (iOS 原生管道右侧）
     
-    /// 对 stdout 应用过滤器命令（head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/cat），返回过滤后文本
+    /// 对 stdout 应用过滤器命令 (head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/cat），返回过滤后文本
     private static func applySwiftFilter(_ filterCmd: String, to input: String) -> String {
         let parts = filterCmd.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
         guard let word = parts.first else { return input }
@@ -862,7 +862,7 @@ final class ShellExecTool: MCPTool {
             }
             return result.joined(separator: " ")
         case "sed":
-            // 支持 sed 's/from/to/g'（简化）
+            // 支持 sed 's/from/to/g' (简化）
             if parts.count >= 2 {
                 let expr = parts[1].trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
                 if expr.hasPrefix("s") {
@@ -889,7 +889,7 @@ final class ShellExecTool: MCPTool {
             }
             return input
         case "awk":
-            // 支持 awk '{print $1}' / $NF / $0（简化）
+            // 支持 awk '{print $1}' / $NF / $0 (简化）
             if parts.count >= 2 {
                 let prog = parts[1].trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
                 if prog.contains("print") {
@@ -941,7 +941,7 @@ final class ShellExecTool: MCPTool {
             }
             return out.joined(separator: "\n")
         case "cut":
-            // cut -d' ' -f2 / cut -d: -f1 / cut -f1 / cut -c1-5（支持紧凑写法 -d: -f2）
+            // cut -d' ' -f2 / cut -d: -f1 / cut -f1 / cut -c1-5 (支持紧凑写法 -d: -f2）
             var delim: Character = "\t"
             var field = 0
             var chars: (Int, Int)? = nil
@@ -989,7 +989,7 @@ final class ShellExecTool: MCPTool {
         case "cat":
             return input
         default:
-            return "iOS 原生管道暂不支持过滤器: \(word)（可用 head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev）\n原输出:\n\(input)"
+            return "iOS 原生管道暂不支持过滤器: \(word) (可用 head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev)\n原输出:\n\(input)"
         }
     }
     
@@ -1030,7 +1030,7 @@ final class ShellExecTool: MCPTool {
                 "stdout": "ls: cannot access '\(path)': No such file or directory",
                 "cwd": NSHomeDirectory() + "/Documents",
                 "ios_native": true,
-                "hint": "iOS 原生 ls：直接访问 iOS 文件系统"
+                "hint": "iOS native ls: direct access to iOS filesystem"
             ]
         }
         
@@ -1040,7 +1040,7 @@ final class ShellExecTool: MCPTool {
             let sorted = items.sorted()
             
             if showLong {
-                // 长格式输出（简化版）
+                // 长格式输出 (简化版）
                 var lines: [String] = []
                 lines.append("total \(items.count)")
                 for item in sorted {
@@ -1058,11 +1058,11 @@ final class ShellExecTool: MCPTool {
                     "stdout": lines.joined(separator: "\n"),
                     "cwd": resolvedPath,
                     "ios_native": true,
-                    "hint": "iOS 原生 ls：直接访问 iOS 文件系统"
+                    "hint": "iOS native ls: direct access to iOS filesystem"
                 ]
             } else {
-                // 短格式输出：默认每条一行（\n）——管道统计(wc -l/head/grep)依赖换行；
-                // 历史版本用双空格连接导致 ls | wc -l 恒为 1（C1 根因，2026-09-23 修复）
+                // 短格式输出：默认每条一行 (\n）——管道统计(wc -l/head/grep)依赖换行；
+                // 历史版本用双空格连接导致 ls | wc -l 恒为 1 (C1 根因，2026-09-23 修复）
                 let visible = showAll ? sorted : sorted.filter { !$0.hasPrefix(".") }
                 return [
                     "command": command,
@@ -1070,7 +1070,7 @@ final class ShellExecTool: MCPTool {
                     "stdout": visible.joined(separator: "\n"),
                     "cwd": resolvedPath,
                     "ios_native": true,
-                    "hint": "iOS 原生 ls：每条一行输出（支持管道统计）；-l 长格式；-a 含隐藏"
+                    "hint": "iOS native ls: one entry per line (pipe-friendly); -l long format; -a include hidden"
                 ]
             }
         } catch {
@@ -1080,7 +1080,7 @@ final class ShellExecTool: MCPTool {
                 "stdout": "ls: cannot access '\(path)': \(error.localizedDescription)",
                 "cwd": resolvedPath,
                 "ios_native": true,
-                "hint": "iOS 原生 ls"
+                "hint": "iOS native ls"
             ]
         }
     }
@@ -1111,11 +1111,11 @@ final class ShellExecTool: MCPTool {
         
         do {
             let content = try String(contentsOfFile: path, encoding: .utf8)
-            // 限制输出长度，防止太长（v3.1.68：截断附精确 spill 路径，可 cat 全量）
+            // 限制输出长度，防止太长 (v3.1.68：截断附精确 spill 路径，可 cat 全量）
             let truncated: String
             if content.count > 5000 {
                 let spillPath = ToolRegistry.spillLarge("cat", content)
-                truncated = String(content.prefix(2500)) + "\n…[输出太长共 \(content.count) 字符，已截断；完整内容: \(spillPath)]…\n" + String(content.suffix(2500))
+                truncated = String(content.prefix(2500)) + "\n…[输出太长total \(content.count) 字符，已截断；完整内容: \(spillPath)]…\n" + String(content.suffix(2500))
             } else {
                 truncated = content
             }
@@ -1124,7 +1124,7 @@ final class ShellExecTool: MCPTool {
                 "exit_code": 0,
                 "stdout": truncated,
                 "ios_native": true,
-                "hint": "iOS 原生 cat：直接读 iOS 文件"
+                "hint": "iOS native cat: read iOS files directly"
             ]
         } catch {
             return [
@@ -1137,8 +1137,8 @@ final class ShellExecTool: MCPTool {
     }
     
     /// v3.1.32: iOS 原生 find 命令——找文件
-    /// v3.1.68: 支持 -iname（忽略大小写）与 -maxdepth N（任意参数顺序），
-    /// 修复"只认 find <path> -name '<pattern>'、参数顺序敏感"（AI 诊断 4，2026-09-23 实测确认）
+    /// v3.1.68: 支持 -iname (忽略大小写）与 -maxdepth N (任意参数顺序），
+    /// 修复"只认 find <path> -name '<pattern>'、参数顺序敏感" (AI 诊断 4，2026-09-23 实测确认）
     private static func runIOSFind(_ command: String) -> [String: Any] {
         let fm = FileManager.default
         let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
@@ -1222,7 +1222,7 @@ final class ShellExecTool: MCPTool {
                 let items = try fm.contentsOfDirectory(atPath: dir)
                 for item in items {
                     let fullPath = dir + "/" + item
-                    // 匹配文件名（-name 精确大小写；-iname 忽略大小写）
+                    // 匹配文件名 (-name 精确大小写；-iname 忽略大小写）
                     if item.range(of: nameRegex, options: compareOpts) != nil {
                         results.append(fullPath)
                     }
@@ -1238,7 +1238,7 @@ final class ShellExecTool: MCPTool {
         
         findRecursive(dir: resolvedPath, depth: 0)
         
-        // 限制结果数量（v3.1.68: 截断时把全量落盘 tool_spill/，附精确路径——AI 可 cat 全量）
+        // 限制结果数量 (v3.1.68: 截断时把全量落盘 tool_spill/，附精确路径——AI 可 cat 全量）
         var out: String
         if results.count > 100 {
             let spillPath = ToolRegistry.spillLarge("find", results.joined(separator: "\n"))
@@ -1252,13 +1252,13 @@ final class ShellExecTool: MCPTool {
             "exit_code": 0,
             "stdout": out,
             "ios_native": true,
-            "hint": "iOS 原生 find：直接在 iOS 文件系统找文件"
+            "hint": "iOS native find: search files directly on iOS filesystem"
         ]
     }
     
     /// v3.1.32: iOS 原生 grep 命令——搜文本
-    /// v3.1.68: 支持 flags（-i 忽略大小写 / -r 递归 / -l 只列文件名 / -c 计数 / -n 带行号 / -v 反选），
-    /// 修复"任何 flag 把模式当文件"（C3 根因，2026-09-23 实测确认）
+    /// v3.1.68: 支持 flags (-i 忽略大小写 / -r 递归 / -l 只列文件名 / -c 计数 / -n 带行号 / -v 反选），
+    /// 修复"任何 flag 把模式当文件" (C3 根因，2026-09-23 实测确认）
     private static func runIOSGrep(_ command: String) -> [String: Any] {
         let fm = FileManager.default
         let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
@@ -1292,7 +1292,7 @@ final class ShellExecTool: MCPTool {
         let pattern = positional[0].trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
         let targets = positional.dropFirst().map { ShellExecTool.normalizePath(($0 as NSString).expandingTildeInPath) }
         
-        // 收集要搜索的文件（支持 -r 递归目录）
+        // 收集要搜索的文件 (支持 -r 递归目录）
         var files: [String] = []
         for t in targets {
             var isDir: ObjCBool = false
@@ -1376,7 +1376,7 @@ final class ShellExecTool: MCPTool {
                 out = "0"
             }
         } else {
-            let truncated = matchedLines.count > 200 ? Array(matchedLines.prefix(200)) + ["... (共 \(totalCount) 行匹配，已截断)"] : matchedLines
+            let truncated = matchedLines.count > 200 ? Array(matchedLines.prefix(200)) + ["... (total \(totalCount) 行匹配，已截断)"] : matchedLines
             out = truncated.joined(separator: "\n")
         }
         return [
@@ -1384,11 +1384,11 @@ final class ShellExecTool: MCPTool {
             "exit_code": 0,
             "stdout": out,
             "ios_native": true,
-            "hint": "iOS 原生 grep：支持 -i(忽略大小写)/-r(递归)/-l(列文件名)/-c(计数)/-n(行号)/-v(反选)"
+            "hint": "iOS native grep: supports -i(ignore case)/-r(recursive)/-l(list filenames)/-c(count)/-n(line numbers)/-v(invert)"
         ]
     }
     
-    /// v3.1.32: iOS 原生写文件命令（echo > / >>）
+    /// v3.1.32: iOS native write file命令 (echo > / >>）
     private static func runIOSWrite(_ command: String) -> [String: Any] {
         let fm = FileManager.default
         
@@ -1442,7 +1442,7 @@ final class ShellExecTool: MCPTool {
                 "exit_code": 0,
                 "stdout": isAppend ? "Appended to \(filePath)" : "Written to \(filePath)",
                 "ios_native": true,
-                "hint": "iOS 原生写文件"
+                "hint": "iOS native write file"
             ]
         } catch {
             return [
@@ -1634,7 +1634,7 @@ final class ShellExecTool: MCPTool {
         }
     }
     
-    /// v3.1.32: iOS 原生 pwd 命令——显示当前目录
+    /// v3.1.32: iOS native pwd 命令——显示当前目录
     private static func runIOSPwd(_ command: String) -> [String: Any] {
         // 用工作区目录作为默认 pwd
         let pwd = NSHomeDirectory() + "/Documents"
@@ -1643,11 +1643,11 @@ final class ShellExecTool: MCPTool {
             "exit_code": 0,
             "stdout": pwd,
             "ios_native": true,
-            "hint": "iOS 原生 pwd"
+            "hint": "iOS native pwd"
         ]
     }
     
-    /// v3.1.32: iOS 原生 cd 命令——切换目录（iOS 原生版本只记录，不真正切换）
+    /// v3.1.32: iOS 原生 cd 命令——切换目录 (iOS 原生版本只记录，不真正切换）
     private static func runIOSCd(_ command: String) -> [String: Any] {
         // iOS 原生版本不真正切换目录，只是提示
         // 因为每个命令都是独立的，没有持久的 cwd
@@ -1658,7 +1658,7 @@ final class ShellExecTool: MCPTool {
             "exit_code": 0,
             "stdout": "Note: iOS 原生命令使用绝对路径，cd 不影响。当前目录: \(path)",
             "ios_native": true,
-            "hint": "iOS 原生 cd：请直接使用绝对路径"
+            "hint": "iOS native cd: use absolute paths"
         ]
     }
     
@@ -1703,7 +1703,7 @@ final class ShellExecTool: MCPTool {
                 "exit_code": 0,
                 "stdout": "\(lines) \(words) \(chars) \(filePath)",
                 "ios_native": true,
-                "hint": "格式: 行数 单词数 字符数"
+                "hint": "format: lines words chars"
             ]
         } catch {
             return ["command": command, "exit_code": 1, "stdout": "wc failed: \(error.localizedDescription)", "ios_native": true]
@@ -1859,7 +1859,7 @@ final class ShellExecTool: MCPTool {
         }
     }
     
-    /// v3.1.32: iOS 原生 curl 命令——下载文件（同步）
+    /// v3.1.32: iOS 原生 curl 命令——下载文件 (同步）
     private static func runIOSDownload(_ command: String) -> [String: Any] {
         let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
         
@@ -1959,7 +1959,7 @@ final class ShellExecTool: MCPTool {
         
         let query = String(command[command.index(after: firstQuote)..<lastQuote])
         
-        // 提取 db 路径（在第一个引号之前）
+        // 提取 db 路径 (在第一个引号之前）
         let beforeQuote = command[..<firstQuote].trimmingCharacters(in: .whitespaces)
         let parts = beforeQuote.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
         guard parts.count >= 2 else {
@@ -2055,12 +2055,12 @@ final class ShellExecTool: MCPTool {
             return ["command": command, "exit_code": 1, "stdout": "unzip: \(path): No such file", "ios_native": true]
         }
         
-        // 用 NSFileCoordinator 解压（iOS 原生支持）
+        // 用 NSFileCoordinator 解压 (iOS 原生支持）
         // 实际上 iOS 没有原生 unzip API，这里用快捷预览的方式
         // 先列出 zip 内容
         do {
             let data = try Data(contentsOf: URL(fileURLWithPath: path))
-            // 简单读取 zip 中央目录（简化版）
+            // 简单读取 zip 中央目录 (简化版）
             var output: [String] = ["Archive: \(path)"]
             output.append("  Length      Date    Time    Name")
             output.append("---------  ---------- -----   ----")
@@ -2076,7 +2076,7 @@ final class ShellExecTool: MCPTool {
                 "exit_code": 0,
                 "stdout": output.joined(separator: "\n"),
                 "ios_native": true,
-                "hint": "提示：完整解压用 fs.zip 工具，这里只显示列表"
+                "hint": "hint: use fs.zip for full extraction, this only lists contents"
             ]
         } catch {
             return ["command": command, "exit_code": 1, "stdout": "unzip failed: \(error.localizedDescription)", "ios_native": true]
@@ -2174,7 +2174,7 @@ final class ShellExecTool: MCPTool {
     }
     
     /// v3.1.33: iOS 原生 ps 命令——进程列表
-    /// v3.1.68: 真实进程表（sysctl KERN_PROC_ALL），替换此前假数据桩（AI 诊断 5："ps 是桩"属实）
+    /// v3.1.68: 真实进程表 (sysctl KERN_PROC_ALL），替换此前假数据桩 (AI 诊断 5："ps 是桩"属实）
     private static func runIOSPs(_ command: String) -> [String: Any] {
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0]
         var size = 0
@@ -2202,23 +2202,23 @@ final class ShellExecTool: MCPTool {
             lines.append(String(format: "%5d  %5d  %@", pid, ppid, comm))
         }
         if count > n {
-            lines.append("... (共 \(count) 个进程，显示前 \(n) 个)")
+            lines.append("... (total \(count) 个进程，显示前 \(n) 个)")
         }
         return [
             "command": command,
             "exit_code": 0,
             "stdout": lines.joined(separator: "\n"),
             "ios_native": true,
-            "hint": "iOS 原生 ps：真实进程表（sysctl），最多显示 200 条"
+            "hint": "iOS native ps: real process table (sysctl), max 200 entries"
         ]
     }
     
     /// v3.1.33: iOS 原生 top 命令——CPU/内存
-    /// v3.1.68: 进程数与 ps 一致（真实 sysctl），删除假头部数据
+    /// v3.1.68: 进程数与 ps 一致 (真实 sysctl），删除假头部数据
     private static func runIOSTop(_ command: String) -> [String: Any] {
         let psResult = runIOSPs("ps")
         let psOut = psResult["stdout"] as? String ?? ""
-        // 从 ps 输出提取真实进程总数（最后一行 "共 N 个" 或行数）
+        // 从 ps 输出提取真实进程总数 (最后一行 "total N 个" 或行数）
         var total = 0
         let psLines = psOut.components(separatedBy: "\n")
         if let lastLine = psLines.last, lastLine.contains("共"), let n = Int(lastLine.replacingOccurrences(of: "[^0-9]", with: "", options: .regularExpression)) {
@@ -2227,7 +2227,7 @@ final class ShellExecTool: MCPTool {
             total = max(psLines.count - 1, 0)
         }
         let header = "Processes: \(total) total (真实，sysctl)\n"
-        return ["command": command, "exit_code": 0, "stdout": header + psOut, "ios_native": true, "hint": "iOS 原生 top：进程来自真实 sysctl"]
+        return ["command": command, "exit_code": 0, "stdout": header + psOut, "ios_native": true, "hint": "iOS native top: processes from real sysctl"]
     }
     
     /// v3.1.33: iOS 原生 kill 命令——杀进程
@@ -2250,7 +2250,7 @@ final class ShellExecTool: MCPTool {
         }
     }
     
-    /// v3.1.33: iOS 原生 ifconfig 命令——网络接口（简化版）
+    /// v3.1.33: iOS 原生 ifconfig 命令——网络接口 (简化版）
     private static func runIOSIfconfig(_ command: String) -> [String: Any] {
         var output = """
         en0: flags=8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> mtu 1500
@@ -2265,7 +2265,7 @@ final class ShellExecTool: MCPTool {
         return ["command": command, "exit_code": 0, "stdout": output, "ios_native": true]
     }
     
-    /// v3.1.33: iOS 原生 netstat 命令——网络连接（简化版）
+    /// v3.1.33: iOS 原生 netstat 命令——网络连接 (简化版）
     private static func runIOSNetstat(_ command: String) -> [String: Any] {
         let output = """
         Active Internet connections
@@ -2313,7 +2313,7 @@ final class ShellExecTool: MCPTool {
         }
     }
     
-    /// v3.1.33: iOS 原生 tar 命令——打包/解压（简化版）
+    /// v3.1.33: iOS 原生 tar 命令——打包/解压 (简化版）
     private static func runIOStar(_ command: String) -> [String: Any] {
         let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
         guard parts.count >= 2 else {
@@ -2326,18 +2326,18 @@ final class ShellExecTool: MCPTool {
             "exit_code": 1,
             "stdout": "tar: 复杂压缩请用 fs.zip 工具，或 Alpine shell 的 tar",
             "ios_native": true,
-            "hint": "提示：iOS 原生 tar 不完整，建议用 Alpine shell"
+            "hint": "hint: iOS native tar is incomplete, use Alpine shell"
         ]
     }
     
-    /// v3.1.33: iOS 原生 gzip 命令——压缩（简化版）
+    /// v3.1.33: iOS 原生 gzip 命令——压缩 (简化版）
     private static func runIOSGzip(_ command: String) -> [String: Any] {
         return [
             "command": command,
             "exit_code": 1,
             "stdout": "gzip: 复杂压缩请用 fs.zip 工具，或 Alpine shell 的 gzip",
             "ios_native": true,
-            "hint": "提示：iOS 原生 gzip 不完整，建议用 Alpine shell"
+            "hint": "hint: iOS native gzip is incomplete, use Alpine shell"
         ]
     }
     

@@ -6,7 +6,7 @@ import Foundation
 final class SSHTool: MCPTool {
     let definition = ToolDefinition(
         name: "ssh.exec",
-        summary: "Run a shell command on a remote server via SSH. Use for: execute commands on your Linux server. Don't use for: run commands on iPhone shell (use shell.exec), browse web (use browser.navigate). Prerequisite: configure SSH in settings first. Example: user says '在服务器上跑一下这个命令' → ssh exec.",
+        summary: "Run a shell command on a remote server via SSH. Use for: execute commands on your Linux server. Don't use for: run commands on iPhone shell (use shell.exec), browse web (use browser.navigate). Prerequisite: configure SSH in settings first. Example: user says 'run this command on the server' → ssh exec.",
         parameters: [
             "command": "Shell command to run (required)",
             "timeout": "Timeout in seconds (default: 30)"
@@ -29,35 +29,35 @@ final class SSHTool: MCPTool {
 
         guard !host.isEmpty, !user.isEmpty else {
             return [
-                "error": "SSH 未配置",
-                "hint": "请在设置 → SSH 远程连接中配置 host、port、user、password 或私钥路径",
+                "error": "SSH not configured",
+                "hint": "configure host, port, user, password or private key path in Settings -> SSH Remote Connection",
                 "configured": false
             ]
         }
 
-        // 检查 ssh 客户端是否存在（iOS 系统没有 /usr/bin/ssh，必须包内自带）
+        // 检查 ssh 客户端是否存在 (iOS 系统没有 /usr/bin/ssh，必须包内自带）
         let sshPath = Bundle.main.path(forResource: "ssh", ofType: nil, inDirectory: "bin")
         guard let sshPath = sshPath, FileManager.default.fileExists(atPath: sshPath) else {
             return [
-                "error": "ssh 客户端未内置",
-                "hint": "iOS 系统没有 /usr/bin/ssh，本版本未打包 ssh 二进制。可先用 ssh.scp 传输文件，或等待后续版本内置 SSH 客户端；私钥认证同样依赖内置 ssh。",
+                "error": "ssh client not bundled",
+                "hint": "iOS has no /usr/bin/ssh and this version does not bundle the ssh binary. Use ssh.scp to transfer files for now, or wait for a later version with built-in SSH client; key auth also needs built-in ssh.",
                 "ssh_path": Bundle.main.path(forResource: "ssh", ofType: nil, inDirectory: "bin") ?? "(未打包)"
             ]
         }
 
-        // v2.9.87：密码认证需要 sshpass（iOS 无 /usr/bin/sshpass，需包内自带）；
-        // 之前读取了 password 但从未传给 ssh → 配置密码的会话必然失败。
+        // v2.9.87：密码认证需要 sshpass (iOS 无 /usr/bin/sshpass，需包内自带）；
+        // 之前读取了 password 但从未传给 ssh → 配置密码的会话必然failed。
         let usePassword = !password.isEmpty && keyPath.isEmpty
         if usePassword {
             let passPath = Bundle.main.path(forResource: "sshpass", ofType: nil, inDirectory: "bin")
             guard let passPath = passPath, FileManager.default.fileExists(atPath: passPath) else {
                 return [
-                    "error": "密码认证需要 sshpass，但未内置",
-                    "hint": "请改用私钥认证（设置中填写 ssh_key_path），或等待后续版本内置 sshpass。",
+                    "error": "password auth needs sshpass, which is not bundled",
+                    "hint": "switch to key auth (fill ssh_key_path in settings), or wait for a later version with built-in sshpass.",
                     "sshpass_present": false
                 ]
             }
-            // sshpass -p <password> ssh ...（密码经 argv 传递，不在命令行明文历史）
+            // sshpass -p <password> ssh ... (密码经 argv 传递，不在命令行明文历史）
             var passArgs: [String] = ["-p", password, sshPath]
             passArgs.append(contentsOf: sshArgs(user: user, host: host, port: port, keyPath: nil, command: command, timeout: timeout))
             let (exitCode, output) = InjectionManager.shared.spawnRoot(passPath, args: passArgs)
@@ -117,7 +117,7 @@ final class SSHTool: MCPTool {
 final class SCPTool: MCPTool {
     let definition = ToolDefinition(
         name: "ssh.scp",
-        summary: "Transfer files between iPhone and remote server via SCP. Use for: upload/download files to/from your Linux server. Don't use for: run commands on server (use ssh.exec), download from internet (use fs.download). Prerequisite: configure SSH in settings. Example: user says '把这个文件传到服务器上' → scp upload.",
+        summary: "Transfer files between iPhone and remote server via SCP. Use for: upload/download files to/from your Linux server. Don't use for: run commands on server (use ssh.exec), download from internet (use fs.download). Prerequisite: configure SSH in settings. Example: user says 'upload this file to the server' → scp upload.",
         parameters: [
             "direction": "upload (local to remote) or download (remote to local)",
             "local_path": "Local file path on iPhone",
@@ -138,12 +138,12 @@ final class SCPTool: MCPTool {
         let user = defaults.string(forKey: "ssh_user") ?? ""
 
         guard !host.isEmpty, !user.isEmpty else {
-            return ["error": "SSH 未配置", "configured": false]
+            return ["error": "SSH not configured", "configured": false]
         }
 
         let scpPath = Bundle.main.path(forResource: "scp", ofType: nil, inDirectory: "bin") ?? "/usr/bin/scp"
         guard FileManager.default.fileExists(atPath: scpPath) else {
-            return ["error": "scp 客户端未内置", "scp_path": scpPath]
+            return ["error": "scp client not bundled", "scp_path": scpPath]
         }
 
         var args: [String] = ["-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null"]

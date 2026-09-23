@@ -55,20 +55,20 @@ final class FailureKnowledgeBase {
         if count > 0 { return }
 
         let patterns: [(String, String, String, String)] = [
-            ("Operation not permitted", "权限", "TrollStore 未开启「编辑 Entitlements」，侧载 App 没有 root 写入权限", "在 TrollStore 开启「编辑 Entitlements」后卸载重装（覆盖安装不会重新应用）"),
+            ("Operation not permitted", "权限", "TrollStore 未开启「编辑 Entitlements」，侧载 App 没有 root 写入权限", "在 TrollStore 开启「编辑 Entitlements」后卸载重装 (覆盖安装不会重新应用)"),
             ("bin-setuid=0", "权限", "注入工具没有 setuid root 位", "确认 TrollStore 已给 bin/ 工具打 setuid，卸载重装 App"),
-            ("Failed to parse plist", "签名", "ldid 解析 entitlements plist 失败", "检查 entitlements 文件格式，或用 ct_bypass 重新签名"),
-            ("link edit information does not fill", "Mach-O", "install_name_tool 无法处理 __LINKEDIT 段", "非阻断错误，ct_bypass 已完成签名，注入仍可成功"),
+            ("Failed to parse plist", "签名", "ldid 解析 entitlements plist failed", "检查 entitlements 文件格式，或用 ct_bypass 重新签名"),
+            ("link edit information does not fill", "Mach-O", "install_name_tool 无法处理 __LINKEDIT 段", "非阻断错误，ct_bypass 已done签名，注入仍可OK"),
             ("Library not loaded", "依赖", "dylib 依赖的动态库不存在", "用 otool -L 检查依赖，确认所有依赖在目标设备上"),
             ("code signature invalid", "签名", "代码签名失效", "用 ldid -S 重新签名，或用 TrollStore 重装"),
             ("dyld: Symbol not found", "依赖", "dylib 引用了不存在的符号", "检查 dylib 编译时的 SDK 版本，确保与目标 iOS 兼容"),
             ("task_for_pid failed", "权限", "没有 task_for_pid-allow entitlement", "TrollStore 开启「编辑 Entitlements」后卸载重装"),
             ("cannot create regular file", "权限", "无法写入目标 App Bundle 目录", "确认目标 App 已关闭，root 权限生效"),
-            ("Killed: 9", "崩溃", "App 被系统杀死（通常是签名或内存问题）", "检查崩溃日志，用 diagnose.crash 分析"),
+            ("Killed: 9", "崩溃", "App 被系统杀死 (通常是签名或内存问题)", "检查崩溃日志，用 diagnose.crash 分析"),
             ("SSL/TLS connection failed", "网络", "GitHub 连接超时", "重试或配置代理，网络问题非 App bug"),
             ("unable to type-check", "编译", "Swift 表达式太复杂导致编译器超时", "拆分复杂字典/表达式为独立变量"),
             ("is inaccessible due to private", "编译", "访问了 private 成员", "将目标方法/属性改为 public 或 internal"),
-            ("cannot find in scope", "编译", "符号未定义（通常缺少 import）", "添加缺失的 import 或检查拼写"),
+            ("cannot find in scope", "编译", "符号未定义 (通常缺少 import)", "添加缺失的 import 或检查拼写"),
         ]
 
         for (kw, cat, cause, fix) in patterns {
@@ -148,7 +148,7 @@ final class FailureKnowledgeBase {
 final class KnowledgeBaseTool: MCPTool {
     let definition = ToolDefinition(
         name: "kb.query",
-        summary: "Query the crash/error knowledge base. Use for: look up known error patterns, find out what an error means and how to fix it. Don't use for: diagnose crash (use diagnose.crash), collect logs (use log.collect). Example: user says '这个错误是什么意思' → query knowledge base.",
+        summary: "Query the crash/error knowledge base. Use for: look up known error patterns, find out what an error means and how to fix it. Don't use for: diagnose crash (use diagnose.crash), collect logs (use log.collect). Example: user says 'what does this error mean' → query knowledge base.",
         parameters: [
             "error": "Error text to look up (required)",
             "action": "query (default) or add new pattern",
@@ -191,7 +191,7 @@ final class KnowledgeBaseTool: MCPTool {
 final class WorkspaceCleanupTool: MCPTool {
     let definition = ToolDefinition(
         name: "workspace.cleanup",
-        summary: "Clean up workspace temporary files. Use for: free up workspace space, remove old downloads/logs/reports. Don't use for: clean app cache (use cleanup.scan/execute), delete specific file (use fs.rm). Example: user says '清理一下 workspace 里的临时文件' → cleanup.",
+        summary: "Clean up workspace temporary files. Use for: free up workspace space, remove old downloads/logs/reports. Don't use for: clean app cache (use cleanup.scan/execute), delete specific file (use fs.rm). Example: user says 'clean temp files in workspace' → cleanup.",
         parameters: [
             "dry_run": "Preview only, don't actually delete (default: true)",
             "max_age_days": "Delete files older than N days (default: 7)",
@@ -263,7 +263,7 @@ final class WorkspaceCleanupTool: MCPTool {
             "freed_bytes": totalFreed,
             "freed_mb": String(format: "%.1f", Double(totalFreed) / 1024 / 1024),
             "workspace_total_mb": String(format: "%.1f", Double(totalSize) / 1024 / 1024),
-            "hint": dryRun ? "dry-run 模式，未实际删除。设 dry_run=false 执行清理" : "已清理完成"
+            "hint": dryRun ? "dry-run mode, nothing deleted. Set dry_run=false to actually clean" : "cleanup done"
         ]
     }
 }

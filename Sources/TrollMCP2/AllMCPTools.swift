@@ -11,7 +11,7 @@ import Vision
 final class SystemOverviewTool: MCPTool {
     let definition = ToolDefinition(
         name: "system.overview",
-        summary: "Get an overview of all available tools. Use for: when you don't know what tools exist, need to pick the right tool. Don't use for: specific tasks (use the actual tool directly). Example: user says '你都有哪些工具' → system overview.",
+        summary: "Get an overview of all available tools. Use for: when you don't know what tools exist, need to pick the right tool. Don't use for: specific tasks (use the actual tool directly). Example: user says 'what tools do you have' → system overview.",
         parameters: [:],
         verified: true, category: "system")
 
@@ -35,7 +35,7 @@ final class SystemOverviewTool: MCPTool {
                     "iOS 16.6.2+ (Apple patched CoreTrust)",
                     "iOS 17.1+ (Apple patched kfd for TrollStore)"
                 ],
-                "note": "Two environments: (1) TrollStore (jailbreak-free / 白巨魔), (2) Jailbreak (Relaxin/RootHide). Use jailbreak.status to detect which environment you're in."
+                "note": "Two environments: (1) TrollStore (jailbreak-free), (2) Jailbreak (Relaxin/RootHide). Use jailbreak.status to detect which environment you're in."
             ],
             "injection_methods": [
                 "jailbreak_ellekit": "jailbreak.inject — runtime injection via ElleKit. Fastest, no binary modification. Only on jailbroken devices (Relaxin/RootHide/Dopamine).",
@@ -155,7 +155,7 @@ final class SystemOverviewTool: MCPTool {
 final class SystemLessonsTool: MCPTool {
     let definition = ToolDefinition(
         name: "system.lessons",
-        summary: "Get known issues and best practices. Use for: when you hit an error, check if it's a known issue with a known fix. Don't use for: general system overview (use system.overview). Example: user says '分享功能闪退，之前有过吗' → check lessons.",
+        summary: "Get known issues and best practices. Use for: when you hit an error, check if it's a known issue with a known fix. Don't use for: general system overview (use system.overview). Example: user says 'share feature crashes, has this happened before' → check lessons.",
         parameters: [
             "topic": "Topic to look up (optional, empty for all)"
         ],
@@ -305,7 +305,7 @@ final class VerifyInjectTool: MCPTool {
             ]
         }
 
-        // 2. 检查 HTTP 端口（ControlAgent 4789 / ProbeAgent 4791）
+        // 2. 检查 HTTP 端口 (ControlAgent 4789 / ProbeAgent 4791）
         var httpUp = false
         if (params["check_http"] as? Bool) ?? true {
             for port in [4789, 4791] {
@@ -412,7 +412,7 @@ final class VerifyAppRunningTool: MCPTool {
 // MARK: - M3 注入工具
 
 final class InjectionEnableTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.enable", summary: "Inject a dylib/plugin into an app permanently. Use for: persistent injection that survives app restart. Don't use for: temporary testing (use injection.mem), check injection status (use injection.status). Note: only works on iOS ≤17.0 with ct_bypass; iOS 17.0.1+ uses static injection. Example: user says '把 ControlAgent 注入小红书' → enable injection.",
+    let definition = ToolDefinition(name: "injection.enable", summary: "Inject a dylib/plugin into an app permanently. Use for: persistent injection that survives app restart. Don't use for: temporary testing (use injection.mem), check injection status (use injection.status). Note: only works on iOS ≤17.0 with ct_bypass; iOS 17.0.1+ uses static injection. Example: user says 'inject ControlAgent into 小红书' → enable injection.",
         parameters: ["bundle_id": "Target App bundle_id (required)", "dylib_path": "Local plugin path (.dylib/.framework/.zip/.deb, e.g. Workspace/downloads/.../xxx.deb). Default: built-in ControlAgent.dylib", "weak_reference": "Optional Bool: weak reference injection (default false, matches TrollFools)", "inject_strategy": "Optional String: injection target strategy lexicographic (default)/fast (smallest file first)/preorder/postorder, matches TrollFools Strategy", "smart_fallback": "Optional Bool: auto-fallback to memory injection if no static target (default true)"],
         verified: true,
         category: "injection",
@@ -423,7 +423,7 @@ final class InjectionEnableTool: MCPTool {
         let dylibPath = params["dylib_path"] as? String
         let weakRef = (params["weak_reference"] as? Bool) ?? false
         let strategy = (params["inject_strategy"] as? String) ?? "lexicographic"
-        // v2.9.32：dylib_path 为本地文件路径 → 作为注入源（root 拷贝进目标 App）；
+        // v2.9.32：dylib_path 为本地文件路径 → 作为注入源 (root 拷贝进目标 App）；
         // 为 @executable_path/@loader_path 前缀 → 作为 load name；空 → 内置 agent。
         var source: String?
         var loadName = "@executable_path/ControlAgent.dylib"
@@ -451,23 +451,23 @@ final class InjectionEnableTool: MCPTool {
                 var seen = Set<String>()
                 let deduped = (important + tail).filter { seen.insert($0).inserted }
                 let summary = deduped.prefix(5).joined(separator: "\n")
-                slim[key] = summary.isEmpty ? "(日志已截断，完整日志见工作区)" : summary
+                slim[key] = summary.isEmpty ? "(log truncated, full log in workspace)" : summary
                 slim["\(key)_truncated"] = lines.count > 5
             }
         }
-        // v2.9.125：CLI 式一句话结论（dispatch 会取 message 放顶层）
+        // v2.9.125：CLI 式一句话结论 (dispatch 会取 message 放顶层）
         if let injected = result["injected"] as? Bool {
             let alive = (result["selfcheck"] as? [String: Any])?["app_alive"] as? Bool ?? false
             slim["message"] = injected
-                ? "注入成功（injected=true, app存活=\(alive ? "是" : "否")\(slim["risk_warning"] != nil ? ", 敏感App已护栏" : "")）"
-                : "注入未生效（injected=false）"
+                ? "注入OK (injected=true, app存活=\(alive ? "是" : "否")\(slim["risk_warning"] != nil ? ", 敏感App已护栏" : ""))"
+                : "注入未生效 (injected=false)"
         }
         return slim
     }
 }
 
 final class InjectionDisableTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.disable", summary: "Remove/uninstall dylib injection from an app. Use for: undo injection, rollback to original app, disable hook. Don't use for: just restart app (use app.restart), uninstall app (use app.uninstall). Example: user says '把小红书的注入删掉' → disable injection on com.xingin.discover.",
+    let definition = ToolDefinition(name: "injection.disable", summary: "Remove/uninstall dylib injection from an app. Use for: undo injection, rollback to original app, disable hook. Don't use for: just restart app (use app.restart), uninstall app (use app.uninstall). Example: user says 'remove 小红书 injection' → disable injection on com.xingin.discover.",
         parameters: ["bundle_id": "Target App bundle_id (required). e.g. com.xingin.discover", "desist": "Optional Bool: fully remove (default true; false=disable but keep backup, can re-enable later)"], verified: true, category: "injection")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
@@ -478,7 +478,7 @@ final class InjectionDisableTool: MCPTool {
     }
 }
 
-// v3.0.89：iOS 17 兼容的静态注入（insert_dylib + trollstorehelper 重装）
+// v3.0.89：iOS 17 兼容的静态injected (insert_dylib + trollstorehelper 重装）
 final class InjectionStaticTool: MCPTool {
     let definition = ToolDefinition(
         name: "injection.static",
@@ -502,7 +502,7 @@ final class InjectionStaticTool: MCPTool {
 }
 
 final class InjectionEnablePersistedTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.enable_persisted", summary: "Re-enable a disabled plugin on an app (toggle injection back on). Use for: you disabled injection before, now want to turn it back on. Don't use for: inject new dylib (use injection.enable), check if injected (use injection.status). Example: user says '小红书的注入重新打开' → enable_persisted.",
+    let definition = ToolDefinition(name: "injection.enable_persisted", summary: "Re-enable a disabled plugin on an app (toggle injection back on). Use for: you disabled injection before, now want to turn it back on. Don't use for: inject new dylib (use injection.enable), check if injected (use injection.status). Example: user says 're-enable 小红书 injection' → enable_persisted.",
         parameters: ["bundle_id": "Target App bundle ID (required)"], verified: true, category: "injection")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
@@ -513,9 +513,9 @@ final class InjectionEnablePersistedTool: MCPTool {
 }
 
 final class InjectionStatusTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.status", summary: "Show which apps are already injected (have dylib loaded). Use for: check if an app is already injected, see overall injection stats. Don't use for: find a specific app's bundle_id (use injection.list), inject into app (use injection.enable). Example: user says '小红书注入了吗' → check status of com.xingin.discover.", verified: true, category: "injection")
+    let definition = ToolDefinition(name: "injection.status", summary: "Show which apps are already injected (have dylib loaded). Use for: check if an app is already injected, see overall injection stats. Don't use for: find a specific app's bundle_id (use injection.list), inject into app (use injection.enable). Example: user says 'is 小红书 injected' → check status of com.xingin.discover.", verified: true, category: "injection")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        // v3.1.71：支持 bundle_id 单查该 App 注入态；不带参数时返回全量（兼容旧行为）
+        // v3.1.71：支持 bundle_id 单查该 App 注入态；不带参数时返回全量 (兼容旧行为）
         if let bid = params["bundle_id"] as? String, !bid.isEmpty {
             return InjectionManager.shared.status(for: bid)
         }
@@ -524,7 +524,7 @@ final class InjectionStatusTool: MCPTool {
 }
 
 final class InjectionInspectTool: MCPTool {
-    let definition = ToolDefinition(name: "injection.inspect", summary: "Check which dylibs are loaded in an app (injection status details). Use for: verify if injection actually worked, see what dylibs are loaded. Don't use for: list all injected apps (use injection.status), inject dylib (use injection.enable). Example: user says '小红书注入成功了吗' → inspect injection details.",
+    let definition = ToolDefinition(name: "injection.inspect", summary: "Check which dylibs are loaded in an app (injection status details). Use for: verify if injection actually worked, see what dylibs are loaded. Don't use for: list all injected apps (use injection.status), inject dylib (use injection.enable). Example: user says 'did 小红书 injection succeed' → inspect injection details.",
         parameters: ["bundle_id": "Target App bundle_id (required)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
@@ -535,7 +535,7 @@ final class InjectionInspectTool: MCPTool {
 final class InjectionListTool: MCPTool {
     // v2.9.41：检索式——query 按名称/bundle_id 模糊匹配，只返回命中项，不再全量 266 条塞给 AI
     let definition = ToolDefinition(name: "injection.list",
-        summary: "Search/find installed apps on the phone. Use for: find bundle_id for a specific app (e.g. find 小红书's bundle_id), list what apps are installed. Don't use for: check injection status (use injection.status), launch app (use app.launch). Example: user says '找小红书' → search '小红书' → get bundle_id com.xingin.discover.",
+        summary: "Search/find installed apps on the phone. Use for: find bundle_id for a specific app (e.g. find 小红书's bundle_id), list what apps are installed. Don't use for: check injection status (use injection.status), launch app (use app.launch). Example: user says 'find 小红书' → search '小红书' → get bundle_id com.xingin.discover.",
         parameters: ["query": "Search keyword (App Chinese name or bundle_id fragment, optional). If empty, return first 20 only. e.g. 小红书 / 微博 / tiktok / weibo"],
         returns: ["apps": "List of matching apps (bundle_id + name)", "count": "Number of results"],
         verified: true, category: "injection")
@@ -555,7 +555,7 @@ final class InjectionListTool: MCPTool {
             "total": apps.count,
             "matched": matched.count,
             "query": q,
-            "hint": q.isEmpty ? "共 \(apps.count) 个 App，只返回前 \(limit) 条；请用 query 按名称/bundle_id 搜索目标（如 query=\"Troll\"），或用 limit 控制条数" : "命中 \(matched.count) 个，以下最多 \(limit) 条",
+            "hint": q.isEmpty ? "total \(apps.count) apps, only first \(limit) entries; use query to search by name/bundle_id (e.g. query=\"Troll\"), or limit the count" : "matched \(matched.count), showing max \(limit) entries",
             "apps": Array(matched.prefix(limit)).map { ["bundle_id": $0.bundleId, "name": $0.name] }
         ]
     }
@@ -620,7 +620,7 @@ final class JailbreakInjectTool: MCPTool {
 }
 
 final class ContainerWriteTextTool: MCPTool {
-    let definition = ToolDefinition(name: "container.write_text", summary: "Write a text file into an app's data container (DANGEROUS!). Use for: modify app data files, write config into app sandbox. Don't use for: write workspace files (use fs.write), read app files (use fs.read). Warning: modifying app data can crash it! Example: user says '改一下小红书的配置文件' → write to container.",
+    let definition = ToolDefinition(name: "container.write_text", summary: "Write a text file into an app's data container (DANGEROUS!). Use for: modify app data files, write config into app sandbox. Don't use for: write workspace files (use fs.write), read app files (use fs.read). Warning: modifying app data can crash it! Example: user says 'modify 小红书 config file' → write to container.",
         parameters: ["bundle_id": "Target App bundle ID", "path": "File path inside app container", "content": "Text content to write"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String,
@@ -640,8 +640,8 @@ final class ContainerWriteTextTool: MCPTool {
 }
 
 // v3.1.68: container.resolve —— bundle_id → 安装目录 + 数据容器 + 沙盒路径
-// 此前 AI 为定位某 App 的数据目录要循环几百个目录跑 plutil（慢且易因环境问题崩），
-// 一条 resolve 直接给出全部路径（D 项修复，2026-09-23 真机实测确认缺失）
+// 此前 AI 为定位某 App 的数据目录要循环几百个目录跑 plutil (慢且易因环境问题崩），
+// 一条 resolve 直接给出全部路径 (D items修复，2026-09-23 真机实测确认缺失）
 final class ContainerResolveTool: MCPTool {
     let definition = ToolDefinition(name: "container.resolve", summary: "Resolve an app's install path, data container and sandbox paths by bundle_id. Use for: find where an app lives on disk, get its data container path for reading/writing config. Don't use for: read/write files (use container write/delete or fs.read). Example: container resolve bundle_id:com.xingin.discover → install path + data container + executable.",
         parameters: ["bundle_id": "App bundle ID to resolve"], returns: ["bundle_id": "Resolved bundle id", "app_name": "App display name", "install_path": "Bundle .app path", "data_container": "Data container path (nil if not accessible)", "executable": "Executable name", "version": "App version"], verified: true, category: "fs")
@@ -660,7 +660,7 @@ final class ContainerResolveTool: MCPTool {
             "data_container": app.containerPath ?? "",
             "executable": app.execName,
             "version": app.version,
-            "hint": app.containerPath == nil ? "数据容器不可访问（系统 App 或受限）" : "数据容器可直接 fs.read / container.write 访问"
+            "hint": app.containerPath == nil ? "data container inaccessible (system App or restricted)" : "data container accessible via fs.read / container.write"
         ]
     }
 }
@@ -668,7 +668,7 @@ final class ContainerResolveTool: MCPTool {
 // MARK: - M4 Gateway 工具
 
 final class CronFireTool: MCPTool {
-    let definition = ToolDefinition(name: "cron.fire", summary: "Manually trigger a scheduled/cron task. Use for: test automation task works, run scheduled task right now instead of waiting. Don't use for: create new automation task (use automation.create), list tasks (use automation.list). Example: user says '立刻跑一下定时任务' → fire the task.",
+    let definition = ToolDefinition(name: "cron.fire", summary: "Manually trigger a scheduled/cron task. Use for: test automation task works, run scheduled task right now instead of waiting. Don't use for: create new automation task (use automation.create), list tasks (use automation.list). Example: user says 'run the scheduled task now' → fire the task.",
         parameters: ["task": "Name of the scheduled task to trigger"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let task = params["task"] as? String ?? "unnamed"
@@ -677,10 +677,10 @@ final class CronFireTool: MCPTool {
     }
 }
 
-// MARK: - M4 自动化工具（真实 UNUserNotificationCenter 调度）
+// MARK: - M4 自动化工具 (真实 UNUserNotificationCenter 调度）
 
 final class AutomationRunNowTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.run_now", summary: "Run an automation task immediately (right now, don't wait for schedule). Use for: execute a saved automation task manually. Don't use for: create new task (use automation.create), list all tasks (use automation.list). Example: user says '跑一下那个定时任务' → run it now.",
+    let definition = ToolDefinition(name: "automation.run_now", summary: "Run an automation task immediately (right now, don't wait for schedule). Use for: execute a saved automation task manually. Don't use for: create new task (use automation.create), list all tasks (use automation.list). Example: user says 'run that scheduled task' → run it now.",
         parameters: ["name": "Task name or ID to run immediately"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
@@ -693,7 +693,7 @@ final class AutomationRunNowTool: MCPTool {
 }
 
 final class AutomationListTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.list", summary: "List all saved automation/scheduled tasks. Use for: see what scheduled tasks exist, check task list. Don't use for: run a task now (use automation.run_now), stop a task (use automation.stop). Example: user says '我有哪些定时任务' → list all automation tasks.")
+    let definition = ToolDefinition(name: "automation.list", summary: "List all saved automation/scheduled tasks. Use for: see what scheduled tasks exist, check task list. Don't use for: run a task now (use automation.run_now), stop a task (use automation.stop). Example: user says 'what scheduled tasks do I have' → list all automation tasks.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let tasks = AutomationStore.shared.tasks.map { t in
             [
@@ -712,7 +712,7 @@ final class AutomationListTool: MCPTool {
 }
 
 final class AutomationJobsTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.jobs", summary: "Check pending automation tasks and notification permission status. Use for: see how many tasks are scheduled, check if notifications are allowed. Don't use for: list task details (use automation.list), run task now (use automation.run_now). Example: user says '有多少定时任务在排队' → check automation jobs.")
+    let definition = ToolDefinition(name: "automation.jobs", summary: "Check pending automation tasks and notification permission status. Use for: see how many tasks are scheduled, check if notifications are allowed. Don't use for: list task details (use automation.list), run task now (use automation.run_now). Example: user says 'how many scheduled tasks are queued' → check automation jobs.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let store = AutomationStore.shared
         let status = AutomationSchedulerStatus()
@@ -726,7 +726,7 @@ final class AutomationJobsTool: MCPTool {
 }
 
 final class AutomationStopTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.stop", summary: "Stop/disable a scheduled automation task. Use for: cancel a scheduled task, turn off automation. Don't use for: list all tasks (use automation.list), run task now (use automation.run_now). Example: user says '把那个定时任务停了' → stop the task.",
+    let definition = ToolDefinition(name: "automation.stop", summary: "Stop/disable a scheduled automation task. Use for: cancel a scheduled task, turn off automation. Don't use for: list all tasks (use automation.list), run task now (use automation.run_now). Example: user says 'stop that scheduled task' → stop the task.",
         parameters: ["name": "Task name or ID to stop"], verified: true, category: "device")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String else { throw MCPError.invalidParams("name required") }
@@ -752,7 +752,7 @@ final class AutomationStatusTool: MCPTool {
     }
 }
 
-/// 读取通知授权状态（iOS 14 用 getNotificationSettings）
+/// 读取通知授权状态 (iOS 14 用 getNotificationSettings）
 /// v2.9.87：改为非阻塞——返回缓存值，后台异步刷新，避免信号量阻塞调用线程。
 func AutomationSchedulerStatus() -> String {
     let cacheKey = "automation.notif.status.cache"
@@ -775,8 +775,8 @@ func AutomationSchedulerStatus() -> String {
 // MARK: - M5 系统能力工具
 
 final class ContactsSearchTool: MCPTool {
-    let definition = ToolDefinition(name: "contacts.search", summary: "Search iPhone contacts by name. Use for: find someone's phone number, look up a contact. Don't use for: send message (use other tools), read calendar (use calendar.list). Example: user says '张三的电话多少' → search contacts.",
-        parameters: ["query": "Name keyword to search (e.g. '张三' / 'Bob')"], verified: true)
+    let definition = ToolDefinition(name: "contacts.search", summary: "Search iPhone contacts by name. Use for: find someone's phone number, look up a contact. Don't use for: send message (use other tools), read calendar (use calendar.list). Example: user says 'what is Zhang San phone number' → search contacts.",
+        parameters: ["query": "Name keyword to search (e.g. 'Zhang San' / 'Bob')"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let query = params["query"] as? String ?? ""
         let store = CNContactStore()
@@ -804,7 +804,7 @@ final class ContactsSearchTool: MCPTool {
 }
 
 final class CalendarListTool: MCPTool {
-    let definition = ToolDefinition(name: "calendar.list", summary: "List upcoming calendar events (iPhone Calendar). Use for: check what meetings/appointments are coming up. Don't use for: create reminder (use reminder.create), search contacts (use contacts.search). Example: user says '我这周有什么安排' → list calendar events for next 7 days.",
+    let definition = ToolDefinition(name: "calendar.list", summary: "List upcoming calendar events (iPhone Calendar). Use for: check what meetings/appointments are coming up. Don't use for: create reminder (use reminder.create), search contacts (use contacts.search). Example: user says 'what are my plans this week' → list calendar events for next 7 days.",
         parameters: ["days": "How many days ahead to look (default 7)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let days = params["days"] as? Int ?? 7
@@ -826,7 +826,7 @@ final class CalendarListTool: MCPTool {
 }
 
 final class ReminderCreateTool: MCPTool {
-    let definition = ToolDefinition(name: "reminder.create", summary: "Create a reminder in iPhone Reminders app. Use for: set a to-do, remember something. Don't use for: list upcoming events (use calendar.list), send notification (use notification.send). Example: user says '提醒我明天开会' → create a reminder.",
+    let definition = ToolDefinition(name: "reminder.create", summary: "Create a reminder in iPhone Reminders app. Use for: set a to-do, remember something. Don't use for: list upcoming events (use calendar.list), send notification (use notification.send). Example: user says 'remind me about the meeting tomorrow' → create a reminder.",
         parameters: ["title": "Reminder title (e.g. 'Buy milk')", "notes": "Optional notes for the reminder"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let title = params["title"] as? String else { throw MCPError.invalidParams("title required") }
@@ -841,7 +841,7 @@ final class ReminderCreateTool: MCPTool {
 }
 
 final class LocationGetTool: MCPTool {
-    let definition = ToolDefinition(name: "location.get", summary: "Get current GPS location (latitude/longitude). Use for: find where the phone is, location-based tasks. Don't use for: spoof fake location (use device.fake), get device info (use device.info). Example: user says '我现在在哪' → get current location.")
+    let definition = ToolDefinition(name: "location.get", summary: "Get current GPS location (latitude/longitude). Use for: find where the phone is, location-based tasks. Don't use for: spoof fake location (use device.fake), get device info (use device.info). Example: user says 'where am I now' → get current location.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let mgr = LocationProvider.shared
         return [
@@ -853,7 +853,7 @@ final class LocationGetTool: MCPTool {
 }
 
 final class NotificationSendTool: MCPTool {
-    let definition = ToolDefinition(name: "notification.send", summary: "Send a local push notification to the iPhone. Use for: alert user when task done, remind user. Don't use for: create reminder (use reminder.create), send message. Example: user says '编译完了提醒我' → send notification when done.",
+    let definition = ToolDefinition(name: "notification.send", summary: "Send a local push notification to the iPhone. Use for: alert user when task done, remind user. Don't use for: create reminder (use reminder.create), send message. Example: user says 'notify me when build finishes' → send notification when done.",
         parameters: ["title": "Notification title", "body": "Notification message text"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let title = params["title"] as? String ?? "TrollMCP"
@@ -870,7 +870,7 @@ final class NotificationSendTool: MCPTool {
 }
 
 final class ScanQRTool: MCPTool {
-    let definition = ToolDefinition(name: "scan.qr", summary: "Decode QR code or barcode from an image file. Use for: read QR code content from a screenshot/image. Don't use for: OCR text recognition (use ocr.image), take screenshot (use control.screenshot). Example: user says '这个二维码是什么内容' → decode QR from image.",
+    let definition = ToolDefinition(name: "scan.qr", summary: "Decode QR code or barcode from an image file. Use for: read QR code content from a screenshot/image. Don't use for: OCR text recognition (use ocr.image), take screenshot (use control.screenshot). Example: user says 'what is in this QR code' → decode QR from image.",
         parameters: ["image_path": "Image file path (in workspace) containing QR code"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["image_path"] as? String else { throw MCPError.invalidParams("image_path required") }
@@ -889,7 +889,7 @@ final class ScanQRTool: MCPTool {
 }
 
 final class ProcessListTool: MCPTool {
-    let definition = ToolDefinition(name: "process.list", summary: "List all running apps/processes on the device. Use for: find what's currently running, check if an app is alive, find app bundle_id. Don't use for: find a specific app (use injection.list with search), kill app (use app.restart). Example: user says '现在什么在后台跑着' → list all running processes.")
+    let definition = ToolDefinition(name: "process.list", summary: "List all running apps/processes on the device. Use for: find what's currently running, check if an app is alive, find app bundle_id. Don't use for: find a specific app (use injection.list with search), kill app (use app.restart). Example: user says 'what is running in the background' → list all running processes.")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         var procs: [[String: Any]] = []
         for app in AppCatalog.list() {
@@ -903,7 +903,7 @@ final class ProcessListTool: MCPTool {
 // MARK: - M6 编译模式工具
 
 final class BuildRunnerTokenTool: MCPTool {
-    let definition = ToolDefinition(name: "build.runner.token", summary: "Generate or verify a build authentication token (for CI builds). Use for: authenticate with build system. Don't use for: trigger GitHub Actions build (use github.trigger_build), check GitHub login (use github.account_status). Example: user says '生成 build token' → generate token.",
+    let definition = ToolDefinition(name: "build.runner.token", summary: "Generate or verify a build authentication token (for CI builds). Use for: authenticate with build system. Don't use for: trigger GitHub Actions build (use github.trigger_build), check GitHub login (use github.account_status). Example: user says 'generate build token' → generate token.",
         parameters: ["action": "generate (create new token) or verify (check token validity)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = params["action"] as? String ?? "generate"
@@ -917,7 +917,7 @@ final class BuildRunnerTokenTool: MCPTool {
 }
 
 final class ProjectGenerateTweakTool: MCPTool {
-    let definition = ToolDefinition(name: "project.generate_tweak", summary: "Generate a Tweak project template (Theos Makefile + Tweak.x + plist). Use for: start a new jailbreak tweak development project. Don't use for: compile existing tweak (use github.trigger_build), load dylib (use tool.load_dylib). Example: user says '创建一个新的 tweak 项目' → generate template.",
+    let definition = ToolDefinition(name: "project.generate_tweak", summary: "Generate a Tweak project template (Theos Makefile + Tweak.x + plist). Use for: start a new jailbreak tweak development project. Don't use for: compile existing tweak (use github.trigger_build), load dylib (use tool.load_dylib). Example: user says 'create a new tweak project' → generate template.",
         parameters: ["name": "Project name (e.g. MyTweak)", "bundle_id": "Target app bundle ID (optional)"], verified: true, category: "build")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let name = params["name"] as? String ?? "MyTweak"
@@ -942,7 +942,7 @@ final class ProjectGenerateTweakTool: MCPTool {
         { Filter = { Executables = ( "\(bid.isEmpty ? "com.example.app" : bid)" ); }; }
         """
         try plist.write(to: dir.appendingPathComponent("\(name).plist"), atomically: true, encoding: .utf8)
-        // v2.9.3：生成最小 Tweak.x 源文件，工程开箱即可编译（编译环境见 build.environment）
+        // v2.9.3：生成最小 Tweak.x 源文件，工程开箱即可编译 (编译环境见 build.environment）
         let tweakX = """
         #import <UIKit/UIKit.h>
 
@@ -963,7 +963,7 @@ final class ProjectGenerateTweakTool: MCPTool {
 }
 
 final class ModelConfigTool: MCPTool {
-    let definition = ToolDefinition(name: "model.config", summary: "View LLM model configurations (which AI models are available). Use for: check what AI models are configured, see current default model. Don't use for: change model (use model.update), system overview (use system.overview). Example: user says '现在用的什么模型' → show model config.",
+    let definition = ToolDefinition(name: "model.config", summary: "View LLM model configurations (which AI models are available). Use for: check what AI models are configured, see current default model. Don't use for: change model (use model.update), system overview (use system.overview). Example: user says 'which model am I using' → show model config.",
         parameters: ["action": "list (all configs) or default (current default)"], verified: true)
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = params["action"] as? String ?? "list"
@@ -977,10 +977,10 @@ final class ModelConfigTool: MCPTool {
     }
 }
 
-/// v2.9.299：远程修改模型配置（AI 诊断时可帮用户切换模型名/协议，无需手动设置）
+/// v2.9.299：远程修改模型配置 (AI 诊断时可帮用户切换模型名/协议，无需手动设置）
 final class ModelUpdateTool: MCPTool {
     let definition = ToolDefinition(name: "model.update",
-        summary: "Modify an existing LLM model configuration. Use for: change model settings, switch default model, update API endpoint. Don't use for: view current configs (use model.config), list all models (use model.config list). Example: user says '把默认模型换成 deepseek' → update model config.",
+        summary: "Modify an existing LLM model configuration. Use for: change model settings, switch default model, update API endpoint. Don't use for: view current configs (use model.config), list all models (use model.config list). Example: user says 'switch default model to deepseek' → update model config.",
         parameters: ["name": "Config name to modify (e.g. 'deepseek')", "model": "New model name (optional)", "baseURL": "New API base URL (optional)", "apiProtocol": "API protocol type (optional)", "contextTokens": "Context token limit (optional)", "isDefault": "Set as default model (optional bool)", "resetCompat": "Reset compatibility level (optional bool)"],
         verified: true, category: "system")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -988,7 +988,7 @@ final class ModelUpdateTool: MCPTool {
             throw MCPError.invalidParams("name required")
         }
         guard let idx = ModelStore.shared.configs.firstIndex(where: { $0.name == name }) else {
-            throw MCPError.failed("未找到配置: \(name)")
+            throw MCPError.failed("config not found: \(name)")
         }
         var cfg = ModelStore.shared.configs[idx]
         var changed: [String] = []
@@ -1021,11 +1021,11 @@ final class ModelUpdateTool: MCPTool {
     }
 }
 
-// v2.9.128：工具健康度自查——AI 和用户都能看到"哪些工具经常失败、为什么失败、怎么修"
+// v2.9.128：工具健康度自查——AI 和用户都能看到"哪些工具经常failed、为什么failed、怎么修"
 final class ToolHealthTool: MCPTool {
     let definition = ToolDefinition(
         name: "tools.health",
-        summary: "Check tool health statistics (how many times each tool failed). Use for: debug which tools are broken, see failure rates. Don't use for: actual tool execution, view audit log (use other tools). Example: user says '哪些工具老出问题' → check tool health.",
+        summary: "Check tool health statistics (how many times each tool failed). Use for: debug which tools are broken, see failure rates. Don't use for: actual tool execution, view audit log (use other tools). Example: user says 'which tools keep failing' → check tool health.",
         parameters: [
             "limit": "How many tools to show (default 20)"
         ],
@@ -1046,7 +1046,7 @@ final class ToolHealthTool: MCPTool {
         }
         return [
             "ok": true,
-            "message": "工具健康度：失败工具 \(summary.filter { $0.failure > 0 }.count) 个，错误码分布 \(dist.map { "\($0.code)×\($0.count)" }.joined(separator: " "))",
+            "message": "tool health: failed tools \(summary.filter { $0.failure > 0 }.count), error code distribution \(dist.map { "\($0.code)×\($0.count)" }.joined(separator: " "))",
             "data": [
                 "error_code_distribution": dist.map { ["code": $0.code, "count": $0.count] },
                 "tool_health": summary.map { h -> [String: Any] in
@@ -1079,19 +1079,19 @@ final class WorkspaceInfoTool: MCPTool {
         let items = (try? fm.contentsOfDirectory(atPath: Workspace.root.path)) ?? []
         let attrs = (try? fm.attributesOfItem(atPath: Workspace.root.path)) ?? [:]
 
-        // 目录说明（AI 一看就知道每个目录是干嘛的）
+        // 目录说明 (AI 一看就知道每个目录是干嘛的）
         let dirDescriptions: [String: String] = [
-            "uploads": "用户上传的文件（图片/文件附件自动复制到这里）",
-            "downloads": "下载的文件（IPA / dylib / 工具等）",
-            "projects": "编译项目（每个项目一个子目录，放 tweak 源码）",
-            "duplicates": "App 双开副本（app.duplicate 生成）",
-            "static_inject": "静态注入临时目录（injection.static 用）",
-            "screenshots": "截图（control.screenshot 保存到这里）",
-            "tweaks": "内置 dylib 插件（ControlAgent / ProbeAgent / MemoryTweak 等）",
+            "uploads": "用户上传的文件 (图片/文件附件自动复制到这里)",
+            "downloads": "下载的文件 (IPA / dylib / 工具等)",
+            "projects": "编译项目 (每个项目一个子目录，放 tweak 源码)",
+            "duplicates": "App 双开副本 (app.duplicate 生成)",
+            "static_inject": "静态注入临时目录 (injection.static 用)",
+            "screenshots": "截图 (control.screenshot 保存到这里)",
+            "tweaks": "内置 dylib 插件 (ControlAgent / ProbeAgent / MemoryTweak 等)",
             "bridge_exports": "桥接导出文件",
-            "artifacts": "生成的产物（编译结果 / 分析报告等）",
+            "artifacts": "生成的产物 (编译结果 / 分析报告等)",
             "knowledge": "知识库文件",
-            "backups": "备份文件（注入前自动备份）",
+            "backups": "备份文件 (注入前自动备份)",
             "logs": "日志文件",
             "cache": "缓存文件"
         ]
@@ -1115,7 +1115,7 @@ final class WorkspaceInfoTool: MCPTool {
             "entries": annotatedEntries,
             "entry_count": items.count,
             "size_bytes": attrs[.size] ?? 0,
-            "note": "每个目录的用途已在 description 字段说明。需要读文件用 fs.read，看目录用 fs.tree。"
+            "note": "each directory purpose is described in the description field. Use fs.read for files, fs.tree for directories."
         ]
     }
 }
@@ -1149,7 +1149,7 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
     }
 }
 
-// MARK: - v3.1.34: inject 大工具 + 子命令（合并 7 个 injection.* 工具）
+// MARK: - v3.1.34: inject 大工具 + 子命令 (合并 7 个 injection.* 工具）
 
 final class InjectionExecTool: MCPTool {
     let definition = ToolDefinition(
@@ -1162,7 +1162,7 @@ final class InjectionExecTool: MCPTool {
             "dylib_path": "Dylib path (for enable)",
             "query": "Search query (for list)"
         ],
-        verified: true, category: "injection", prerequisites: ["enable/static/enable_persisted 前确认 App 已安装且 bundle_id 有效（先 app status 确认）", "iOS 17+ 注入依赖 ct_bypass 可能失效（先用 inject diagnose 确认环境）"])
+        verified: true, category: "injection", prerequisites: ["enable/static/enable_persisted 前确认 App 已安装且 bundle_id 有效 (先 app status 确认)", "iOS 17+ 注入依赖 ct_bypass 可能失效 (先用 inject diagnose 确认环境)"])
     
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let command = params["command"] as? String else {
@@ -1199,7 +1199,7 @@ final class InjectionExecTool: MCPTool {
             return try InjectionEnablePersistedTool().invoke(["bundle_id": bundleId])
             
         case "status":
-            // v3.1.71：支持 bundle_id 单查（AI 反馈：只回全量列表、未注入目标不单列）
+            // v3.1.71：支持 bundle_id 单查 (AI 反馈：只回全量列表、未注入目标不单列）
             var p: [String: Any] = [:]
             if let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty { p["bundle_id"] = bundleId }
             return try InjectionStatusTool().invoke(p)
@@ -1297,7 +1297,7 @@ final class InjectionExecTool: MCPTool {
     }
 }
 
-// MARK: - v3.1.35: automation 大工具 + 子命令（合并 7 个 automation.* 工具）
+// MARK: - v3.1.35: automation 大工具 + 子命令 (合并 7 个 automation.* 工具）
 
 final class AutomationExecTool: MCPTool {
     let definition = ToolDefinition(

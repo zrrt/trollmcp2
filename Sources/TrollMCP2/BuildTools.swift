@@ -3,18 +3,18 @@ import UIKit
 
 // MARK: - v2.9.3 本机编译 / 构建能力
 //
-// 在 TrollMCP2 内原生实现"设备端编译桥"（此前是独立注入 dylib 的 TMBuildAgent 方案）。
-// 工具链约定（用户手动放置到工作区，符合"编译依赖可手动下载/删除"）：
+// 在 TrollMCP2 内原生实现"设备端编译桥" (此前是独立injected dylib 的 TMBuildAgent 方案）。
+// 工具链约定 (用户手动放置到工作区，符合"编译依赖可手动下载/删除"）：
 //   Documents/Workspace/toolchain/
 //     bin/clang, bin/ld, bin/make, bin/perl, bin/ldid
-//     theos/                 —— 完整 Theos（makefiles、lib、bin）
+//     theos/                 —— 完整 Theos (makefiles、lib、bin）
 //     sdk/iPhoneOS*.sdk      —— iOS SDK 头文件
-// 工程约定（与 project.generate_tweak 一致）：
+// 工程约定 (与 project.generate_tweak 一致）：
 //   Documents/Workspace/projects/<name>/  (Makefile + Tweak.x + <name>.plist)
 
 /// 进程执行结果
 struct BuildProcessResult {
-    let exitCode: Int32      // 0=成功；-1=spawn/内部错误；-2=超时被杀
+    let exitCode: Int32      // 0=OK；-1=spawn/内部错误；-2=超时被杀
     let stdout: String
     let stderr: String
     let timedOut: Bool
@@ -29,14 +29,14 @@ final class BuildRunner {
     private let maxOutputBytes = 4 * 1024 * 1024   // 输出截断上限 4MB
 
     /// 执行一条命令。
-    /// iOS SDK 限制：posix_spawn 无法设置工作目录（无 posix_spawnattr_setworkingdir_np）、
+    /// iOS SDK 限制：posix_spawn 无法设置工作目录 (无 posix_spawnattr_setworkingdir_np）、
     /// fork() 被标记 unavailable，因此需要工作目录时用 `/bin/sh -c "cd '<dir>' && exec ..."` 包装。
     /// - Parameters:
     ///   - executable: 可执行文件绝对路径
-    ///   - args: 参数（不含可执行文件本身）
-    ///   - workingDir: 工作目录（nil = 直接 spawn）
+    ///   - args: 参数 (不含可执行文件本身）
+    ///   - workingDir: 工作目录 (nil = 直接 spawn）
     ///   - env: 追加/覆盖的环境变量
-    ///   - timeout: 超时秒数（0 = 不超时）
+    ///   - timeout: 超时秒数 (0 = 不超时）
     func run(executable: String, args: [String], workingDir: String? = nil,
              env: [String: String] = [:], timeout: TimeInterval = 300) -> BuildProcessResult {
         guard FileManager.default.fileExists(atPath: executable) else {
@@ -67,7 +67,7 @@ final class BuildRunner {
         cenv.append(nil)
         defer { for p in cenv where p != nil { free(p) } }
 
-        // 输出落临时文件（避免管道缓冲死锁，适合大输出）
+        // 输出落临时文件 (避免管道缓冲死锁，适合大输出）
         let outPath = NSTemporaryDirectory() + "tmcp_build_out_\(UUID().uuidString).log"
         let errPath = NSTemporaryDirectory() + "tmcp_build_err_\(UUID().uuidString).log"
 
@@ -104,7 +104,7 @@ final class BuildRunner {
             usleep(200_000)
         }
 
-        // 读回输出（截断）
+        // 读回输出 (截断）
         var outStr = (try? String(contentsOfFile: outPath, encoding: .utf8)) ?? ""
         var errStr = (try? String(contentsOfFile: errPath, encoding: .utf8)) ?? ""
         if outStr.count > maxOutputBytes { outStr = String(outStr.prefix(maxOutputBytes)) }
@@ -121,12 +121,12 @@ final class BuildRunner {
         return BuildProcessResult(exitCode: exitCode, stdout: outStr, stderr: errStr, timedOut: timedOut, spawnError: nil)
     }
 
-    /// shell 单引号转义（用于安全拼接 `cd '<dir>'` 等）
+    /// shell 单引号转义 (用于安全拼接 `cd '<dir>'` 等）
     private func shellQuote(_ s: String) -> String {
         "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
-    /// 通过 /bin/sh -c 执行一条命令（用于版本探测等）
+    /// 通过 /bin/sh -c 执行一条命令 (用于版本探测等）
     func shell(_ command: String, workingDir: String? = nil, env: [String: String] = [:], timeout: TimeInterval = 30) -> BuildProcessResult {
         run(executable: "/bin/sh", args: ["-c", command], workingDir: workingDir, env: env, timeout: timeout)
     }
@@ -134,7 +134,7 @@ final class BuildRunner {
 
 // MARK: - 编译环境检查
 
-/// build.environment：检查本机编译环境（toolchain/clang/make/theos/iOS SDK）
+/// build.environment：检查本机编译环境 (toolchain/clang/make/theos/iOS SDK）
 final class BuildEnvironmentTool: MCPTool {
     let definition = ToolDefinition(name: "build.environment", 
         summary: "Check local build environment: toolchain dir, clang/make/perl/ldid, Theos, iOS SDK",
@@ -160,7 +160,7 @@ final class BuildEnvironmentTool: MCPTool {
             let executable = fileExists && fm.isExecutableFile(atPath: p)
             var info: [String: Any] = ["exists": fileExists, "executable": executable]
             if fileExists && executable {
-                // 真实探测版本（短超时）
+                // 真实探测版本 (短超时）
                 let r = BuildRunner.shared.run(executable: p, args: ["--version"], timeout: 10)
                 if r.exitCode == 0 {
                     let first = r.stdout.components(separatedBy: .newlines).first ?? ""
@@ -202,7 +202,7 @@ final class BuildEnvironmentTool: MCPTool {
             }
         }
 
-        // 磁盘占用（系统布局不统计）
+        // 磁盘占用 (系统布局不统计）
         let sizeBytes = profile.isSystem ? -1 : folderSize(profile.rootPath)
 
         let ready = (bins["clang"] as? [String: Any])?["exists"] as? Bool == true
@@ -214,7 +214,7 @@ final class BuildEnvironmentTool: MCPTool {
         AuditLog.shared.log("build.environment", detail: tcRel)
         return [
             "toolchain": tcRel,
-            "layout": profile.isSystem ? "system(越狱/Nyxian)" : "canonical(bin/theos/sdk)",
+            "layout": profile.isSystem ? "system (jailbreak/Nyxian)" : "canonical (bin/theos/sdk)",
             "theos_path": profile.theos,
             "sdk": profile.sdkDir ?? "",
             "bin": bins,
@@ -223,8 +223,8 @@ final class BuildEnvironmentTool: MCPTool {
             "size_bytes": sizeBytes,
             "ready": ready,
             "hint": ready
-                ? "环境就绪：可通过 build.run 编译 projects/ 下的 theos 或 clang 工程（toolchain 参数传 \(tcRel)）"
-                : "缺少组件：toolchain=\(tcRel)。规范布局需 bin/clang+make+perl、theos/、sdk/iPhoneOS*.sdk；越狱机可用 toolchain=system 直接指向系统工具链（Nyxian）。获取方式参考 DeviceBuild/toolchain/README.md（a-Shell LLVM-on-iOS / Nyxian theos）"
+                ? "环境ready：可通过 build.run 编译 projects/ 下的 theos 或 clang 工程 (toolchain 参数传 \(tcRel))"
+                : "缺少组件：toolchain=\(tcRel)。规范布局需 bin/clang+make+perl、theos/、sdk/iPhoneOS*.sdk；越狱机可用 toolchain=system 直接指向系统工具链 (Nyxian)。获取方式参考 DeviceBuild/toolchain/README.md (a-Shell LLVM-on-iOS / Nyxian theos)"
         ]
     }
 
@@ -243,7 +243,7 @@ final class BuildEnvironmentTool: MCPTool {
     }
 }
 
-// MARK: - 参数类型容错（OpenAI 工具调用 schema 全 string，模型可能传 "true"/"300"）
+// MARK: - 参数类型容错 (OpenAI 工具调用 schema 全 string，模型可能传 "true"/"300"）
 
 /// 布尔参数：兼容 Bool / NSNumber / String("true"/"1"/"yes") / 缺省
 func boolParam(_ params: [String: Any], _ key: String, _ def: Bool = false) -> Bool {
@@ -277,7 +277,7 @@ func stringArrayParam(_ params: [String: Any], _ key: String) -> [String]? {
     return nil
 }
 
-/// v2.9.4：工具链路径解析 —— 以 "/" 开头视为绝对路径（如 Nyxian 系统 theos /usr/local/theos），
+/// v2.9.4：工具链路径解析 —— 以 "/" 开头视为绝对路径 (如 Nyxian 系统 theos /usr/local/theos），
 /// 否则按工作区相对路径 Workspace/<path> 解析。
 func resolveToolchainPath(_ path: String) -> URL {
     if path.hasPrefix("/") {
@@ -288,19 +288,19 @@ func resolveToolchainPath(_ path: String) -> URL {
 
 /// v2.9.4：解析后的工具链配置
 struct ToolchainProfile {
-    var isSystem: Bool          // 系统布局（越狱/Nyxian，clang 在 /usr/bin 等）
-    var binDir: String?         // 规范布局的 bin 目录（prepend 到 PATH）；系统布局为 nil
-    var clang: String           // clang 绝对路径（可能不存在，由前置检查判定）
+    var isSystem: Bool          // 系统布局 (越狱/Nyxian，clang 在 /usr/bin 等）
+    var binDir: String?         // 规范布局的 bin 目录 (prepend 到 PATH）；系统布局为 nil
+    var clang: String           // clang 绝对路径 (可能不存在，由前置检查判定）
     var make: String?           // make 绝对路径
     var perl: String?           // perl 绝对路径
-    var ldid: String?           // ldid 绝对路径（可选）
+    var ldid: String?           // ldid 绝对路径 (可选）
     var theos: String           // theos 根目录
     var sdkDir: String?         // 探测到的 iOS SDK 目录
-    var env: [String: String]   // 额外环境（PATH/THEOS/SDKROOT/TARGET）
-    var rootPath: String        // 有效根目录（size/hint 用）
+    var env: [String: String]   // 额外环境 (PATH/THEOS/SDKROOT/TARGET）
+    var rootPath: String        // 有效根目录 (size/hint 用）
 }
 
-/// 按引用解析工具链："system" 或 "/" 走系统布局（越狱机 Nyxian），否则按规范布局（bin/theos/sdk）。
+/// 按引用解析工具链："system" 或 "/" 走系统布局 (越狱机 Nyxian），否则按规范布局 (bin/theos/sdk）。
 func resolveToolchainProfile(_ ref: String) -> ToolchainProfile {
     if ref == "system" || ref == "/" {
         return systemToolchainProfile()
@@ -338,7 +338,7 @@ func resolveToolchainProfile(_ ref: String) -> ToolchainProfile {
     )
 }
 
-/// 系统布局（越狱机 Nyxian / rootless）：clang/make/perl/ldid 在系统路径，theos 在 /usr/local/theos。
+/// 系统布局 (越狱机 Nyxian / rootless）：clang/make/perl/ldid 在系统路径，theos 在 /usr/local/theos。
 private func systemToolchainProfile() -> ToolchainProfile {
     let fm = FileManager.default
     func firstExisting(_ paths: [String]) -> String? {
@@ -385,11 +385,11 @@ private func systemToolchainProfile() -> ToolchainProfile {
 // MARK: - 编译执行
 
 /// build.run：编译 Workspace/projects/<project> 下的工程
-///  - mode="theos"：cd 工程 && THEOS=<tc>/theos make [package]（产出 .dylib/.deb）
+///  - mode="theos"：cd 工程 && THEOS=<tc>/theos make [package] (产出 .dylib/.deb）
 ///  - mode="clang"：clang -arch arm64 -fobjc-arc -isysroot <sdk> -dynamiclib 编译 .c/.m/.mm
 final class BuildRunTool: MCPTool {
     let definition = ToolDefinition(name: "build.run",
-        summary: "Compile/build a project. Use for: build a Theos tweak project, compile dylib. Don't use for: trigger GitHub CI build (use github.trigger_build), run tests (use test.run). Example: user says '编译一下这个 tweak 项目' → build project.",
+        summary: "Compile/build a project. Use for: build a Theos tweak project, compile dylib. Don't use for: trigger GitHub CI build (use github.trigger_build), run tests (use test.run). Example: user says 'build this tweak project' → build project.",
         parameters: [
             "project": "Project name in Workspace/projects/",
             "mode": "theos or clang (default: theos)",
@@ -405,7 +405,7 @@ final class BuildRunTool: MCPTool {
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let project = params["project"] as? String ?? ""
-        guard !project.isEmpty else { throw MCPError.invalidParams("project 必填") }
+        guard !project.isEmpty else { throw MCPError.invalidParams("project is required") }
         let mode = params["mode"] as? String ?? "theos"
         let tcRel = params["toolchain"] as? String ?? "toolchain"
         let doPackage = boolParam(params, "package", false)
@@ -424,24 +424,24 @@ final class BuildRunTool: MCPTool {
         var problems: [String] = []
         var isDir: ObjCBool = false
         if !(fm.fileExists(atPath: projectDir.path, isDirectory: &isDir) && isDir.boolValue) {
-            problems.append("工程目录不存在: \(projectDir.path)（先用 project.generate_tweak 或手动放置）")
+            problems.append("project directory does not exist: \(projectDir.path) (use project.generate_tweak or place it manually first)")
         }
         if profile.isSystem {
             if !fm.fileExists(atPath: clangPath) {
-                problems.append("系统 clang 不存在: \(clangPath)（越狱机需先装 Nyxian theos 工具链）")
+                problems.append("system clang missing: \(clangPath) (jailbroken devices need Nyxian theos toolchain)")
             }
             if mode == "theos" && !(fm.fileExists(atPath: theosDir, isDirectory: &isDir) && isDir.boolValue) {
-                problems.append("系统 theos 不存在: \(theosDir)（越狱机需先装 Nyxian theos）")
+                problems.append("system theos missing: \(theosDir) (jailbroken devices need Nyxian theos)")
             }
         } else {
             if !(fm.fileExists(atPath: profile.rootPath, isDirectory: &isDir) && isDir.boolValue) {
-                problems.append("工具链目录不存在: \(profile.rootPath)")
+                problems.append("toolchain directory does not exist: \(profile.rootPath)")
             }
             if !fm.fileExists(atPath: clangPath) {
                 problems.append("clang 不存在: \(clangPath)")
             }
             if mode == "theos" && !(fm.fileExists(atPath: theosDir, isDirectory: &isDir) && isDir.boolValue) {
-                problems.append("theos 目录不存在: \(theosDir)（mode=theos）")
+                problems.append("theos directory does not exist: \(theosDir) (mode=theos)")
             }
         }
         if !problems.isEmpty {
@@ -457,7 +457,7 @@ final class BuildRunTool: MCPTool {
                 ? (theosDir as NSString).appendingPathComponent("sdks/\(sdkName)")
                 : (profile.rootPath as NSString).appendingPathComponent("sdk/\(sdkName)")
         }
-        // 若探测到 SDK 则注入 env
+        // if SDK detected, inject env
         var env2 = env
         if let sdk = sdkDir { env2["SDKROOT"] = sdk }
 

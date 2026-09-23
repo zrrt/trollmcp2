@@ -3,14 +3,14 @@ import UIKit
 
 /// v2.9.181：远程终端服务器——TrollAgent 自身暴露公网 HTTP API
 ///
-/// 监听 0.0.0.0:8790（可配置），N1 公网 IPv4 端口转发到手机局域网 IP 即可由云端 AI 直连：
+/// 监听 0.0.0.0:8790 (可配置），N1 公网 IPv4 端口转发到手机局域网 IP 即可由云端 AI 直连：
 ///   - GET  /api/status     设备/版本/工具数/服务状态
-///   - POST /api/tool       调用工具（只读白名单 + 危险工具需设置授权）
-///   - GET  /api/audit      工具执行审计链路（成功/失败/耗时/错误码）
+///   - POST /api/tool       调用工具 (只读白名单 + 危险工具需设置授权）
+///   - GET  /api/audit      工具执行审计链路 (OK/failed/耗时/错误码）
 ///   - GET  /api/crash      崩溃日志列表 + 全文
 ///   - GET  /api/tools      工具清单
 ///
-/// 安全：Bearer token 鉴权；危险工具（注入/删除/写入/启动/抓包等）默认拒绝，
+/// 安全：Bearer token 鉴权；危险工具 (注入/删除/写入/启动/抓包等）默认拒绝，
 /// 需在 设置 → 远程终端 显式开启"允许危险工具"。
 /// 保活：开启服务后建议同时开启"后台常驻"，否则 App 被杀/深度挂起时服务不可达。
 final class RemoteTerminalServer {
@@ -38,7 +38,7 @@ final class RemoteTerminalServer {
         set { UserDefaults.standard.set(newValue, forKey: "remote_terminal_allow_dangerous") }
     }
 
-    /// 危险工具：默认拒绝（前缀模糊匹配也生效）
+    /// 危险工具：默认拒绝 (前缀模糊匹配也生效）
     private let dangerousPrefixes = [
         "injection.", "hook.", "cleanup.execute", "workspace.cleanup", "system.cleanup_execute",
         "fs.write", "fs.edit", "fs.delete", "fs.move", "fs.download", "fs.zip", "fs.unzip",
@@ -74,7 +74,7 @@ final class RemoteTerminalServer {
         isRunning = true
         acceptThread = Thread { [weak self] in self?.acceptLoop() }
         acceptThread?.start()
-        // v2.9.183：远程终端开启即自动启动后台保活（静音音频），
+        // v2.9.183：远程终端开启即自动启动后台保活 (静音音频），
         // 目标 App 在前台时 TrollAgent 退后台仍保持服务在线，避免 iOS 挂起断线。
         BackgroundKeepAlive.shared.start()
         return true
@@ -112,7 +112,7 @@ final class RemoteTerminalServer {
     private func readRequest(_ client: Int32) -> HTTPRequest? {
         var buf = [UInt8](repeating: 0, count: 8192)
         var raw = Data()
-        // 读头部直到 \r\n\r\n（最多 32KB）
+        // 读头部直到 \r\n\r\n (最多 32KB）
         var headerEnd = -1
         while raw.count < 32 * 1024 {
             let n = recv(client, &buf, buf.count, 0)
@@ -225,18 +225,18 @@ final class RemoteTerminalServer {
             // 白名单目录：工作区(Documents/Workspace)、文档(Documents)、临时
             handleFile(client, req)
         case ("GET", "/api/conversations"):
-            // v3.1.77：远程终端专用会话列表——走 ConversationStore（App 内读 UserDefaults），
-            // 避免外部 shell 读 plist 导致 App 闪退（用户实测：每次远程读会话都闪退）
+            // v3.1.77：远程终端专用会话列表——走 ConversationStore (App 内读 UserDefaults），
+            // 避免外部 shell 读 plist 导致 App 闪退 (用户实测：每次远程读会话都闪退）
             handleConversations(client, req)
         case ("GET", "/api/conversation"):
-            // v3.1.77：远程终端专用单会话完整导出（含 thinking/toolName/toolArgs），同走 App 内读取
+            // v3.1.77：远程终端专用单会话完整导出 (含 thinking/toolName/toolArgs），同走 App 内读取
             handleConversation(client, req)
         default:
             sendResponse(client, status: 404, body: json(["ok": false, "error": "no_route"]))
         }
     }
 
-    /// v3.1.77：会话列表（远程终端专用）
+    /// v3.1.77：会话列表 (远程终端专用）
     private func handleConversations(_ client: Int32, _ req: HTTPRequest) {
         let limit = Int(req.query["limit"] ?? "10") ?? 10
         do {
@@ -247,10 +247,10 @@ final class RemoteTerminalServer {
         }
     }
 
-    /// v3.1.77：单会话完整导出（远程终端专用）
+    /// v3.1.77：单会话完整导出 (远程终端专用）
     private func handleConversation(_ client: Int32, _ req: HTTPRequest) {
         guard let title = req.query["title"], !title.isEmpty else {
-            sendResponse(client, status: 400, body: json(["ok": false, "error": "title_required", "hint": "?title=<会话标题>"]))
+            sendResponse(client, status: 400, body: json(["ok": false, "error": "title_required", "hint": "?title=<conversation title>"]))
             return
         }
         let limit = Int(req.query["limit"] ?? "50") ?? 50
@@ -274,7 +274,7 @@ final class RemoteTerminalServer {
         ]
         let expanded = (p as NSString).expandingTildeInPath
         guard allowedPrefixes.contains(where: { expanded.hasPrefix($0) }) else {
-            sendResponse(client, status: 403, body: json(["ok": false, "error": "path_denied", "hint": "仅允许 Documents/Workspace 与 Documents 目录"]))
+            sendResponse(client, status: 403, body: json(["ok": false, "error": "path_denied", "hint": "only Documents/Workspace and Documents are allowed"]))
             return
         }
         guard let data = FileManager.default.contents(atPath: expanded) else {
@@ -320,7 +320,7 @@ final class RemoteTerminalServer {
             "port": port,
             "allow_dangerous": allowDangerous,
         ]
-        // 注入状态摘要（尽力而为）
+        // 注入状态摘要 (尽力而为）
         status["trollstore_detected"] = (try? FileManager.default.fileExists(atPath: "/var/containers/Bundle/Application")) ?? false
         return json(status)
     }
@@ -336,7 +336,7 @@ final class RemoteTerminalServer {
             return
         }
         if isDangerous(name) && !allowDangerous {
-            sendResponse(client, status: 200, body: json(["ok": false, "error": "remote_denied_dangerous", "hint": "危险工具需在设置 → 远程终端 开启授权"]))
+            sendResponse(client, status: 200, body: json(["ok": false, "error": "remote_denied_dangerous", "hint": "dangerous tools require authorization in Settings -> Remote Terminal"]))
             return
         }
         let params = (obj["params"] as? [String: Any]) ?? [:]

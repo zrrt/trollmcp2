@@ -1,15 +1,15 @@
 import Foundation
 
-// MARK: - v2.9.89 紧急救援工具（Residue 式）
+// MARK: - v2.9.89 紧急救援工具 (Residue 式）
 //
-// 背景：v2.9.88 及更早版本注入直接改主二进制 + 备份后缀不兼容（.bak_macho vs .troll-fools.bak），
-// 曾经导致敏感 App 注入事故后 TrollFools 无法识别/卸载，只能靠卸载重装（聊天记录丢失）。
+// 背景：v2.9.88 及更早版本注入直接改主二进制 + 备份后缀不兼容 (.bak_macho vs .troll-fools.bak），
+// 曾经导致敏感 App 注入事故后 TrollFools 无法识别/卸载，只能靠卸载重装 (聊天记录丢失）。
 // 本组工具提供：单 App 恢复、全机扫描、一键全恢复、残留清理——都是"保命"能力。
 
 /// injection.restore：单 App 恢复——移除注入加载命令、删除注入资产、从备份还原原始 Mach-O
 final class InjectionRestoreTool: MCPTool {
     let definition = ToolDefinition(name: "injection.restore",
-        summary: "Emergency restore: remove all injection + restore original app binary. Use for: app won't open after injection, app keeps crashing, need to undo injection quickly. Don't use for: normal disable (use injection.disable), remove dylib files (use injection.remove). Example: user says '小红书注入后打不开了，恢复一下' → restore.",
+        summary: "Emergency restore: remove all injection + restore original app binary. Use for: app won't open after injection, app keeps crashing, need to undo injection quickly. Don't use for: normal disable (use injection.disable), remove dylib files (use injection.remove). Example: user says '小红书 will not open after injection, restore it' → restore.",
         parameters: ["bundle_id": "Target App bundle ID (required)"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else { throw MCPError.invalidParams("bundle_id required") }
@@ -18,7 +18,7 @@ final class InjectionRestoreTool: MCPTool {
         AuditLog.shared.log("injection.restore", detail: bid)
         var out = r
         out["emergency"] = true
-        out["next"] = "若 App 仍无法启动，调用 rescue.cleanup（bundle_id）清理残留，或 rescue.recover_all 一键全恢复"
+        out["next"] = "if App still cannot launch, call rescue.cleanup (bundle_id) to clear residue, or rescue.recover_all for one-click full restore"
         return out
     }
 }
@@ -26,7 +26,7 @@ final class InjectionRestoreTool: MCPTool {
 /// rescue.scan：全机扫描——列出有注入痕迹/备份/损坏的 App，输出风险清单
 final class RescueScanTool: MCPTool {
     let definition = ToolDefinition(name: "rescue.scan",
-        summary: "Scan all apps for injection damage / broken state. Use for: check if any apps got damaged by injection, find apps that need restore. Don't use for: restore specific app (use rescue.restore_all), inject dylib (use injection.enable). Example: user says '扫描一下哪些 app 注入坏了' → scan all apps.",
+        summary: "Scan all apps for injection damage / broken state. Use for: check if any apps got damaged by injection, find apps that need restore. Don't use for: restore specific app (use rescue.restore_all), inject dylib (use injection.enable). Example: user says 'scan which apps have broken injection' → scan all apps.",
         parameters: ["query": "Filter by app name/bundle ID (optional)"], verified: true, category: "diagnose")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let q = (params["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -40,9 +40,9 @@ final class RescueScanTool: MCPTool {
             let hasAlt = FileManager.default.fileExists(atPath: alt) || FileManager.default.fileExists(atPath: legacy)
             let assets = InjectionManager.shared.injectedAssets(in: app)
             let modified = InjectionManager.shared.collectModifiedMachOs(app)
-            // v2.9.94 损坏检测收紧（对齐 TrollFools：只认硬证据）：
+            // v2.9.94 损坏检测收紧 (对齐 TrollFools：只认硬证据）：
             // 只有「文件能读到且 magic 不是 Mach-O」才算真损坏；
-            // 读不到（加密 App / 权限不足 / 系统 App）一律不算损坏，避免 149 个全量误报
+            // 读不到 (加密 App / 权限不足 / 系统 App）一律不算损坏，避免 149 个全量误报
             var damaged = false
             var damagedReason = ""
             var unreadable = false
@@ -51,7 +51,7 @@ final class RescueScanTool: MCPTool {
                 if let info = info {
                     if !info.valid && info.arch == "not-macho" {
                         damaged = true
-                        damagedReason = "主二进制不是合法 Mach-O（可能被损坏）"
+                        damagedReason = "main binary is not a valid Mach-O (possibly corrupted)"
                     }
                 } else {
                     unreadable = true   // 加密/权限读不到：不算损坏
@@ -75,7 +75,7 @@ final class RescueScanTool: MCPTool {
             "total_apps": apps.count,
             "findings": findings,
             "count": findings.count,
-            "hint": findings.isEmpty ? "未发现注入痕迹或损坏二进制" : "对问题 App 执行 injection.restore（bundle_id）逐项恢复，或直接 rescue.recover_all 一键全恢复"
+            "hint": findings.isEmpty ? "no injection trace or damaged binary found" : "restore problem Apps one by one with injection.restore (bundle_id), or rescue.recover_all for one-click full restore"
         ]
     }
 }
@@ -83,7 +83,7 @@ final class RescueScanTool: MCPTool {
 /// rescue.recover_all：一键全恢复——对所有有备份/损坏的 App 执行恢复
 final class RescueRecoverAllTool: MCPTool {
     let definition = ToolDefinition(name: "rescue.recover_all",
-        summary: "Emergency recovery for all injected apps. Use for: after bad injection, restore all apps to working state. Don't use for: scan for problems (use rescue.scan), restore single app (use injection.restore). Warning: high-risk! Example: user says '好多 app 闪退了，一键修复' → recover all.",
+        summary: "Emergency recovery for all injected apps. Use for: after bad injection, restore all apps to working state. Don't use for: scan for problems (use rescue.scan), restore single app (use injection.restore). Warning: high-risk! Example: user says 'many apps crashed, fix all at once' → recover all.",
         parameters: [:])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let apps = AppCatalog.list()
@@ -124,7 +124,7 @@ final class RescueRecoverAllTool: MCPTool {
             "failed_count": failed.count,
             "results": results,
             "failed": failed,
-            "hint": failed.isEmpty ? "全部恢复完成，被恢复的 App 已还原到注入前状态" : "部分 App 恢复失败，请逐项查看 failed 列表后用 injection.restore 重试"
+            "hint": failed.isEmpty ? "all restored, Apps back to pre-injection state" : "some Apps failed to restore, check the failed list and retry with injection.restore"
         ]
     }
 }
@@ -132,7 +132,7 @@ final class RescueRecoverAllTool: MCPTool {
 /// rescue.cleanup：清理残留——删除注入标记、孤儿备份、Frameworks 内残留的非系统 dylib
 final class RescueCleanupTool: MCPTool {
     let definition = ToolDefinition(name: "rescue.cleanup",
-        summary: "Clean up injection leftover files. Use for: remove leftover dylibs/backups after injection, free up space. Don't use for: restore app (use injection.restore), uninstall app (use app.uninstall). Example: user says '清理一下注入残留的文件' → cleanup.",
+        summary: "Clean up injection leftover files. Use for: remove leftover dylibs/backups after injection, free up space. Don't use for: restore app (use injection.restore), uninstall app (use app.uninstall). Example: user says 'clean injection leftover files' → cleanup.",
         parameters: ["bundle_id": "Target App bundle ID (optional, clean all if omitted)"], verified: true, category: "diagnose")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let mgr = InjectionManager.shared
@@ -170,13 +170,13 @@ final class RescueCleanupTool: MCPTool {
                     cleaned.append("\(app.bundleId):\((backup as NSString).lastPathComponent)")
                 }
             }
-            // 主二进制损坏时尝试从备份恢复（若清理时备份还在）
+            // 主二进制损坏时尝试从备份restored (若清理时备份还在）
             let mainInfo = MachOAnalyzer.analyze(main)
             if mainInfo == nil || !(mainInfo?.valid ?? false) {
                 if (try? mgr.restoreAlternate(main)) == true {
                     cleaned.append("\(app.bundleId):main_binary_restored")
                 } else {
-                    errors.append("\(app.bundleId):主二进制损坏且无可用备份，需卸载重装")
+                    errors.append("\(app.bundleId): main binary corrupted with no usable backup, uninstall and reinstall")
                 }
             }
         } else {
@@ -198,12 +198,12 @@ final class RescueCleanupTool: MCPTool {
             "cleaned": cleaned,
             "cleaned_count": cleaned.count,
             "errors": errors,
-            "hint": bid == nil ? "已清理全机孤儿备份" : "已清理 \(bid) 的注入残留与损坏二进制"
+            "hint": bid == nil ? "cleared all orphan backups on device" : "cleaned \(bid) injection residue and damaged binaries"
         ]
     }
 }
 
-// MARK: - v3.1.38: rescue 大工具 + 子命令（合并 3 个 rescue.* 工具）
+// MARK: - v3.1.38: rescue 大工具 + 子命令 (合并 3 个 rescue.* 工具）
 
 final class RescueExecTool: MCPTool {
     let definition = ToolDefinition(

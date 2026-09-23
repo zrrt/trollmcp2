@@ -11,7 +11,7 @@ struct GitHubAccount: Codable, Identifiable, Equatable {
     var id: String { login }
 }
 
-/// GitHub Actions run 摘要（用于线上编译状态展示）
+/// GitHub Actions run 摘要 (用于线上编译状态展示）
 struct GitHubRun: Identifiable {
     let id: Int
     let status: String          // queued / in_progress / completed
@@ -23,17 +23,17 @@ struct GitHubRun: Identifiable {
     var statusText: String {
         switch status {
         case "completed":
-            return (conclusion ?? "unknown") == "success" ? "✅ 完成" : "❌ \(conclusion ?? "失败")"
-        case "in_progress": return "⏳ 编译中"
-        default: return "🕐 排队中"
+            return (conclusion ?? "unknown") == "success" ? "✅ done" : "❌ \(conclusion ?? "failed")"
+        case "in_progress": return "⏳ building"
+        default: return "🕐 queued"
         }
     }
 }
 
-// MARK: - GitHub 账号 + 线上编译（v2.9.5）
+// MARK: - GitHub 账号 + 线上编译 (v2.9.5）
 
 /// 管理多个 GitHub 账号：PAT 登录 / 切换 / 删除 / 触发线上编译 workflow / 查询 run 状态。
-/// Token 存 UserDefaults（与项目 GatewayClient 同款策略；TrollStore 下 Keychain 受 entitlements 限制不可靠）。
+/// Token 存 UserDefaults (与项目 GatewayClient 同款策略；TrollStore 下 Keychain 受 entitlements 限制不可靠）。
 final class GitHubAccountStore: ObservableObject {
     static let shared = GitHubAccountStore()
 
@@ -44,20 +44,20 @@ final class GitHubAccountStore: ObservableObject {
     @Published var lastError: String?
     @Published private(set) var runs: [GitHubRun] = []
 
-    // 目标仓库（可在设置页修改；默认 trollmcp2 仓库 + build-tweak workflow）
+    // 目标仓库 (可在设置页修改；默认 trollmcp2 仓库 + build-tweak workflow）
     @Published var repoOwner: String
     @Published var repoName: String
     @Published var workflowId: String
     @Published var branch: String
 
     // Device Flow 用 OAuth App client_id。
-    // 默认值 = 内置共享 Client ID（origina47487lhe-droid 注册的 "TrollMCP2 线上编译" OAuth App，
+    // 默认值 = 内置共享 Client ID (origina47487lhe-droid 注册的 "TrollMCP2 线上编译" OAuth App，
     // Device Flow 已启用）。任意 GitHub 用户都可借此授权，各自拿自己的 token——新手零配置。
     // 高级用户可在「仓库设置」覆盖为自己的 OAuth App。
     @Published var clientID: String
 
     // Device Flow 轮询状态
-    @Published var deviceFlowState: String?   // 提示文案（含 user_code）
+    @Published var deviceFlowState: String?   // 提示文案 (含 user_code）
     @Published var isDevicePolling = false
     private var pollTimer: DispatchSourceTimer?   // 持有强引用，防止局部变量被释放导致轮询停止
 
@@ -69,7 +69,7 @@ final class GitHubAccountStore: ObservableObject {
     private let branchKey = "trollmcp2.github_branch"
     private let clientIDKey = "trollmcp2.github_client_id"
 
-    /// 内置默认 OAuth App Client ID（origina47487lhe-droid 注册的 "TrollMCP2 线上编译"，Device Flow 实测有效）
+    /// 内置默认 OAuth App Client ID (origina47487lhe-droid 注册的 "TrollMCP2 线上编译"，Device Flow 实测有效）
     static let defaultClientID = "Ov23li890n3hM15edlcw"
 
     private let apiBase = "https://api.github.com"
@@ -81,7 +81,7 @@ final class GitHubAccountStore: ObservableObject {
         repoName = def.string(forKey: repoKey) ?? "trollmcp2"
         workflowId = def.string(forKey: workflowKey) ?? "build-trollmcp2.yml"
         branch = def.string(forKey: branchKey) ?? "main"
-        // v2.9.117：空字符串也回退内置默认（旧版删空保存会覆盖默认值，导致"未设置 Client ID"）
+        // v2.9.117：空字符串也回退内置默认 (旧版删空保存会覆盖默认值，导致"未设置 Client ID"）
         let savedCID = def.string(forKey: clientIDKey) ?? ""
         clientID = savedCID.isEmpty ? Self.defaultClientID : savedCID
         load()
@@ -103,8 +103,8 @@ final class GitHubAccountStore: ObservableObject {
     // MARK: - 持久化
 
     private func load() {
-        // v2.9.110：旧配置自动迁移——早期默认指向 origina47487lhe-droid（Actions 配额已耗尽）与
-        // build-tweak workflow（已更名 build-trollmcp2.yml）。覆盖安装会保留旧 UserDefaults，
+        // v2.9.110：旧配置自动迁移——早期默认指向 origina47487lhe-droid (Actions 配额已耗尽）与
+        // build-tweak workflow (已更名 build-trollmcp2.yml）。覆盖安装会保留旧 UserDefaults，
         // 这里检测到旧值自动纠正，避免线上编译 404 / 触发到错误仓库。
         let def = UserDefaults.standard
         if def.string(forKey: ownerKey) == "origina47487lhe-droid" {
@@ -134,7 +134,7 @@ final class GitHubAccountStore: ObservableObject {
         def.set(repoName, forKey: repoKey)
         def.set(workflowId, forKey: workflowKey)
         def.set(branch, forKey: branchKey)
-        // v2.9.123：留空 = 使用内置默认，且删除旧的自定义值（根治"清空无效"——旧错误值残留 UserDefaults 导致重启后仍 404）
+        // v2.9.123：留空 = 使用内置默认，且删除旧的自定义值 (根治"清空无效"——旧错误值残留 UserDefaults 导致重启后仍 404）
         let trimmedCID = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedCID.isEmpty {
             def.removeObject(forKey: clientIDKey)
@@ -143,13 +143,13 @@ final class GitHubAccountStore: ObservableObject {
         }
     }
 
-    /// v2.9.124：一键恢复内置默认（内存立即生效 + 持久化，避免"恢复后不重启仍报空值"）
+    /// v2.9.124：一键恢复内置默认 (内存立即生效 + 持久化，避免"恢复后不重启仍报空值"）
     func restoreDefaultClientID() {
         clientID = Self.defaultClientID
         persistNow()
     }
 
-    // MARK: - Device Flow（内置浏览器登录，gh CLI 同款）
+    // MARK: - Device Flow (内置浏览器登录，gh CLI 同款）
 
     /// 设备授权码模型
     struct DeviceCode: Codable {
@@ -162,7 +162,7 @@ final class GitHubAccountStore: ObservableObject {
 
     /// 第一步：请求设备授权码。回调返回验证 URL 与 user_code。
     func startDeviceFlow(completion: @escaping (DeviceCode?, String?) -> Void) {
-        // v2.9.124：空值一律回退内置默认（恢复默认/手动清空后即使不重启 App 也能直接登录）
+        // v2.9.124：空值一律回退内置默认 (恢复默认/手动清空后即使不重启 App 也能直接登录）
         let cid = clientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? Self.defaultClientID
             : clientID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -170,7 +170,7 @@ final class GitHubAccountStore: ObservableObject {
         setHTTPMethod("POST", on: &req)
         req.setValue("application/json", forHTTPHeaderField: "Accept")
         req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        // scope：repo（读仓库+触发 workflow）+ workflow（workflow dispatch 必须）
+        // scope：repo (读仓库+触发 workflow）+ workflow (workflow dispatch 必须）
         let body = "client_id=\(cid.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? cid)&scope=repo%20workflow"
         req.httpBody = body.data(using: .utf8)
 
@@ -186,7 +186,7 @@ final class GitHubAccountStore: ObservableObject {
                 guard let data = data,
                       let code = try? JSONDecoder().decode(DeviceCode.self, from: data) else {
                     let raw = data.map { String(data: $0, encoding: .utf8) ?? "" } ?? ""
-                    self.lastError = status == 404 ? "Client ID 无效。若手动填过 Client ID：请到仓库设置里清空并保存（自动回退内置默认），或注册自己的 OAuth App 后填入真实 Client ID。" : "设备码请求失败 (HTTP \(status)) \(raw.prefix(200))"
+                    self.lastError = status == 404 ? "Client ID 无效。若手动填过 Client ID：请到仓库设置里清空并保存 (自动回退内置默认)，或注册自己的 OAuth App 后填入真实 Client ID。" : "设备码请求failed (HTTP \(status)) \(raw.prefix(200))"
                     completion(nil, self.lastError)
                     return
                 }
@@ -197,7 +197,7 @@ final class GitHubAccountStore: ObservableObject {
         }.resume()
     }
 
-    /// 第二步：轮询换取 access_token（interval 秒一次，最长 expires_in 秒）。
+    /// 第二步：轮询换取 access_token (interval 秒一次，最长 expires_in 秒）。
     func pollDeviceToken(deviceCode: DeviceCode, completion: @escaping (Bool, String?) -> Void) {
         isDevicePolling = true
         deviceFlowState = "请在浏览器输入代码 \(deviceCode.user_code)，等待授权…"
@@ -225,13 +225,13 @@ final class GitHubAccountStore: ObservableObject {
                     DispatchQueue.main.async {
                         self.isDevicePolling = false
                         self.deviceFlowState = nil
-                        // 用拿到的 token 走统一验证流程（GET /user + 存储）
+                        // 用拿到的 token 走统一验证流程 (GET /user + 存储）
                         self.finishLoginWith(token: token) { ok, msg in
                             completion(ok, msg)
                         }
                     }
                 } else if let error = error {
-                    // v3.0.42：只有"终止性"错误才停轮询；网络错误/解析失败/authorization_pending/slow_down
+                    // v3.0.42：只有"终止性"错误才停轮询；网络错误/解析failed/authorization_pending/slow_down
                     // 一律继续等下一次——之前网络错误会 cancel timer，移动网络一抖授权流程就死，卡"等待授权"。
                     let terminalErrors = ["access_denied", "expired_token",
                                           "incorrect_client_credentials", "invalid_grant"]
@@ -244,7 +244,7 @@ final class GitHubAccountStore: ObservableObject {
                             completion(false, error)
                         }
                     }
-                    // 可重试错误：继续轮询（timer 按 interval 再次触发）
+                    // 可重试错误：继续轮询 (timer 按 interval 再次触发）
                 }
             }
         }
@@ -265,7 +265,7 @@ final class GitHubAccountStore: ObservableObject {
             if err != nil { completion(nil, "网络错误"); return }
             guard let data = data,
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                completion(nil, "响应解析失败")
+                completion(nil, "响应解析failed")
                 return
             }
             if let token = json["access_token"] as? String {
@@ -296,7 +296,7 @@ final class GitHubAccountStore: ObservableObject {
                 guard status == 200, let data = data,
                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                       let login = json["login"] as? String else {
-                    self.lastError = "身份验证失败 (HTTP \(status))"
+                    self.lastError = "身份验证failed (HTTP \(status))"
                     completion(false, self.lastError)
                     return
                 }
@@ -304,7 +304,7 @@ final class GitHubAccountStore: ObservableObject {
                                          name: json["name"] as? String,
                                          avatarURL: json["avatar_url"] as? String,
                                          token: token)
-                // v2.9.117：全新账号授权成功后，若 Owner 仍是内置默认值 → 自动填入当前登录账号
+                // v2.9.117：全新账号授权OK后，若 Owner 仍是内置默认值 → 自动填入当前登录账号
                 let isDefaultOwner = (self.repoOwner == "zrrt" || self.repoOwner == "origina47487lhe-droid")
                 if isDefaultOwner && self.repoOwner != login {
                     self.repoOwner = login
@@ -316,7 +316,7 @@ final class GitHubAccountStore: ObservableObject {
                     self.accounts.append(acct)
                 }
                 self.activeLogin = login
-                NetworkLog.shared.log("GitHub 网页登录成功: \(login)")
+                NetworkLog.shared.log("GitHub 网页登录OK: \(login)")
                 self.persist()
                 completion(true, "已登录 @\(login)")
             }
@@ -325,7 +325,7 @@ final class GitHubAccountStore: ObservableObject {
 
     // MARK: - PAT 登录 / 验证
 
-    /// 用 GitHub PAT 验证并登录/更新账号。成功回调 true + 账号 login。
+    /// 用 GitHub PAT 验证并登录/更新账号。OK回调 true + 账号 login。
     func verifyAndLogin(token: String, completion: @escaping (Bool, String?) -> Void) {
         guard !token.isEmpty else {
             lastError = "Token 不能为空"
@@ -351,15 +351,15 @@ final class GitHubAccountStore: ObservableObject {
                 guard status == 200, let data = data,
                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                       let login = json["login"] as? String else {
-                    self.lastError = status == 401 ? "Token 无效或已过期（请检查 repo + workflow 权限）"
-                        : "GitHub 验证失败 (HTTP \(status))"
+                    self.lastError = status == 401 ? "Token 无效或已过期 (请检查 repo + workflow 权限)"
+                        : "GitHub 验证failed (HTTP \(status))"
                     completion(false, self.lastError)
                     return
                 }
                 let name = json["name"] as? String
                 let avatar = json["avatar_url"] as? String
                 let acct = GitHubAccount(login: login, name: name, avatarURL: avatar, token: token)
-                // v2.9.117：全新账号授权成功后，若 Owner 仍是内置默认值 → 自动填入当前登录账号
+                // v2.9.117：全新账号授权OK后，若 Owner 仍是内置默认值 → 自动填入当前登录账号
                 let isDefaultOwner = (self.repoOwner == "zrrt" || self.repoOwner == "origina47487lhe-droid")
                 if isDefaultOwner && self.repoOwner != login {
                     self.repoOwner = login
@@ -392,12 +392,12 @@ final class GitHubAccountStore: ObservableObject {
         persist()
     }
 
-    /// 手动触发持久化（仓库设置页保存按钮）
+    /// 手动触发持久化 (仓库设置页保存按钮）
     func persistNow() {
         persist()
     }
 
-    // MARK: - 线上编译（触发 GitHub Actions）
+    // MARK: - 线上编译 (触发 GitHub Actions）
 
     func triggerBuild(tweak: String, completion: @escaping (Bool, String?) -> Void) {
         guard let token = activeToken else {
@@ -437,13 +437,13 @@ final class GitHubAccountStore: ObservableObject {
                     self.fetchRuns { _ in }
                     completion(true, "已触发 \(tweak) 编译，稍后刷新状态")
                 } else if status == 404 {
-                    self.lastError = "workflow '\(self.workflowId)' 不存在（请确认仓库里有 build-tweak.yml）"
+                    self.lastError = "workflow '\(self.workflowId)' 不存在 (请确认仓库里有 build-tweak.yml)"
                     completion(false, self.lastError)
                 } else if status == 401 {
                     self.lastError = "Token 无 workflow 权限或已过期"
                     completion(false, self.lastError)
                 } else {
-                    self.lastError = "触发失败 (HTTP \(status))"
+                    self.lastError = "触发failed (HTTP \(status))"
                     completion(false, self.lastError)
                 }
             }

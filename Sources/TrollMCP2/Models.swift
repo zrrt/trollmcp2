@@ -18,15 +18,15 @@ struct ModelConfig: Codable, Identifiable, Hashable {
     var isDefault: Bool = false
     var temperature: Double = 0.7
     var maxTokens: Int = 2048
-    /// v2.9.11：输入上下文预算（token 估算）。发送前按预算自动裁剪最旧消息，
+    /// v2.9.11：输入上下文预算 (token 估算）。发送前按预算自动裁剪最旧消息，
     /// 避免长会话请求体无限增长导致"一直请求中"。
     var contextTokens: Int = 16000
-    /// v2.8.4：中转站兼容级别（由 OpenAIClient 自适应降级时写入并持久化）
+    /// v2.8.4：中转站兼容级别 (由 OpenAIClient 自适应降级时写入并持久化）
     /// 0=完整载荷 1=互换token参数名 2=去掉tool_choice 3=去掉tools纯对话 4=最小载荷
     var compatLevel: Int = 0
-    /// v2.9.107：分组名（供应商分组管理，对齐 cc-switch provider groups）
+    /// v2.9.107：分组名 (供应商分组管理，对齐 cc-switch provider groups）
     var group: String = "默认"
-    /// v3.1.1：是否支持视觉（VLM），自动根据模型名判断
+    /// v3.1.1：是否支持视觉 (VLM），自动根据模型名判断
     var supportsVision: Bool {
         let m = model.lowercased()
         // 明确支持视觉的模型
@@ -39,7 +39,7 @@ struct ModelConfig: Codable, Identifiable, Hashable {
         // 明确不支持的
         if m.contains("deepseek") { return false }
         if m.contains("gpt-3.5") || m.contains("gpt-35") { return false }
-        // 默认：不支持（保守策略，避免 API 报错）
+        // 默认：不支持 (保守策略，避免 API 报错）
         return false
     }
 
@@ -69,7 +69,7 @@ struct ModelConfig: Codable, Identifiable, Hashable {
         name = try c.decode(String.self, forKey: .name)
         provider = try c.decode(String.self, forKey: .provider)
         let decodedProtocol = (try? c.decode(String.self, forKey: .apiProtocol)) ?? "OpenAI Chat Completions"
-        // v2.9.2：OpenAI Completions（旧版文本补全）已移除，旧配置迁移到 Chat Completions
+        // v2.9.2：OpenAI Completions (旧版文本补全）已移除，旧配置迁移到 Chat Completions
         apiProtocol = decodedProtocol == "OpenAI Completions" ? "OpenAI Chat Completions" : decodedProtocol
         baseURL = try c.decode(String.self, forKey: .baseURL)
         apiKey = try c.decode(String.self, forKey: .apiKey)
@@ -104,12 +104,12 @@ extension ModelConfig {
         ("Botcf", "custom", "OpenAI Responses", "https://botcf.com/v1", "gpt-5.6-terra", "Bearer")
     ]
 
-    /// 推理系列模型（GPT-5.x / o1 / o3 / o4）不接受 temperature 参数，
+    /// 推理系列模型 (GPT-5.x / o1 / o3 / o4）不接受 temperature 参数，
     /// 中转站会返回 "Invalid request parameter"。
     var sendsTemperature: Bool { !isReasoningModel && !model.lowercased().contains("reasoning") }
 
-    /// v2.8.5：是否推理系列模型（GPT-5.x / o1 / o3 / o4）。
-    /// 这类模型默认 reasoning_effort=medium，回复前会长时间思考（聊天转圈半天的主因），
+    /// v2.8.5：是否推理系列模型 (GPT-5.x / o1 / o3 / o4）。
+    /// 这类模型默认 reasoning_effort=medium，回复前会长时间思考 (聊天转圈半天的主因），
     /// 请求时显式携带 reasoning_effort=none 提速。
     var isReasoningModel: Bool {
         let m = model.lowercased()
@@ -130,7 +130,7 @@ final class ModelStore: ObservableObject {
     static let shared = ModelStore()
 
     @Published var configs: [ModelConfig] = []
-    private let key = "trollmcp2.model_configs"    // v2.9.97：记住最近一次使用的模型，顶栏立即显示用户上次用的配置，不再回退到第一个（旧 gpt4o）
+    private let key = "trollmcp2.model_configs"    // v2.9.97：记住最近一次使用的模型，顶栏立即显示用户上次用的配置，不再回退到第一个 (旧 gpt4o）
     private let lastUsedKey = "trollmcp2.last_used_config_id"
 
     init() { load() }
@@ -148,7 +148,7 @@ final class ModelStore: ObservableObject {
         let ud = UserDefaults.standard
         guard let data = ud.data(forKey: key),
               let decoded = try? JSONDecoder().decode([ModelConfig].self, from: data) else {
-            // v2.9.107：主数据损坏时从备份恢复（最多试 4 份）
+            // v2.9.107：主数据损坏时从备份restored (最多试 4 份）
             for i in 0...3 {
                 if let bak = ud.data(forKey: "\(key).bak.\(i)"),
                    let decoded = try? JSONDecoder().decode([ModelConfig].self, from: bak) {
@@ -161,7 +161,7 @@ final class ModelStore: ObservableObject {
         configs = decoded
     }
 
-    /// v2.9.107：原子写前备份轮换（保留最近 4 份）
+    /// v2.9.107：原子写前备份轮换 (保留最近 4 份）
     private func rotateBackup() {
         let ud = UserDefaults.standard
         guard let current = ud.data(forKey: key) else { return }
@@ -180,11 +180,11 @@ final class ModelStore: ObservableObject {
         }
     }
 
-    // MARK: v2.9.107 —— 熔断器注册表（运行时，不持久化；对齐 cc-switch circuit_breaker）
+    // MARK: v2.9.107 —— 熔断器注册表 (运行时，不持久化；对齐 cc-switch circuit_breaker）
 
     private(set) var breakers: [UUID: CircuitBreaker] = [:]
     // v2.9.150：熔断器字典锁——ModelRow 渲染(主线程)与 AI 请求回调(后台线程)
-    // 并发调 breaker(for:) 写同一字典 → 字典并发修改 SIGSEGV（"模型 API 页闪退"根因）
+    // 并发调 breaker(for:) 写同一字典 → 字典并发修改 SIGSEGV ("模型 API 页闪退"根因）
     private let breakerLock = NSLock()
 
     func breaker(for id: UUID) -> CircuitBreaker {
@@ -196,7 +196,7 @@ final class ModelStore: ObservableObject {
         return b
     }
 
-    // MARK: v2.9.107 —— 配置导入 / 导出（对齐 cc-switch import/export）
+    // MARK: v2.9.107 —— 配置导入 / 导出 (对齐 cc-switch import/export）
 
     func exportJSON() -> String {
         var items: [Any] = []
@@ -259,7 +259,7 @@ final class ModelStore: ObservableObject {
         save()
     }
 
-    /// v2.9.126：深链导入专用——同 baseURL+model 去重（重复导入不再堆积配置）
+    /// v2.9.126：深链导入专用——同 baseURL+model 去重 (重复导入不再堆积配置）
     func importFromDeepLink(_ config: ModelConfig) -> Bool {
         let dup = configs.contains { $0.baseURL == config.baseURL && $0.model == config.model }
         guard !dup else { return false }
@@ -315,7 +315,7 @@ final class ModelAPIClient {
                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                       let models = json["data"] as? [[String: Any]] else {
                     let raw = String(data: data ?? Data(), encoding: .utf8) ?? "(no data)"
-                    completion(.failure("解析失败: \(raw.prefix(200))"))
+                    completion(.failure("parse failed: \(raw.prefix(200))"))
                     return
                 }
                 let ids = models.compactMap { $0["id"] as? String }.sorted()
@@ -344,9 +344,9 @@ final class ModelAPIClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         applyAuth(config: config, to: &request)
 
-        // v2.8.4：测试连接使用最小载荷（仅 model + messages）。
-        // 旧版发送 max_completion_tokens=8，推理模型（gpt-5.x 默认 medium 推理）
-        // 的推理 token 预算远超 8，会直接报参数错误，导致误判为连接失败。
+        // v2.8.4：测试连接使用最小载荷 (仅 model + messages）。
+        // 旧版发送 max_completion_tokens=8，推理模型 (gpt-5.x 默认 medium 推理）
+        // 的推理 token 预算远超 8，会直接报参数错误，导致误判为连接failed。
         let body: [String: Any]
         if config.apiProtocol == "Anthropic Messages" {
             // Anthropic 协议要求必须传 max_tokens
@@ -376,7 +376,7 @@ final class ModelAPIClient {
                 }
                 if let http = response as? HTTPURLResponse {
                     if (200...299).contains(http.statusCode) {
-                        completion(.success("连接成功 (HTTP \(http.statusCode))"))
+                        completion(.success("连接OK (HTTP \(http.statusCode))"))
                     } else {
                         let raw = String(data: data ?? Data(), encoding: .utf8) ?? ""
                         completion(.failure(NSError(domain: "ModelAPIClient", code: http.statusCode,
@@ -390,8 +390,8 @@ final class ModelAPIClient {
     }
 
 
-    // v2.9.100：通用轻量 chat 调用（AI 分析引擎等内部工具用）。
-    // 按 apiProtocol 自动选端点（chat/completions / responses / messages），不触发工具循环。
+    // v2.9.100：通用轻量 chat 调用 (AI 分析引擎等内部工具用）。
+    // 按 apiProtocol 自动选端点 (chat/completions / responses / messages），不触发工具循环。
     func sendChat(config: ModelConfig, messages: [[String: Any]],
                   timeout: TimeInterval = 90,
                   completion: @escaping (Result<String, Error>) -> Void) {
@@ -439,7 +439,7 @@ final class ModelAPIClient {
                 }
                 guard let data = data else {
                     completion(.failure(NSError(domain: "ModelAPIClient", code: 0,
-                                                userInfo: [NSLocalizedDescriptionKey: "无返回数据"])))
+                                                userInfo: [NSLocalizedDescriptionKey: "no response数据"])))
                     return
                 }
                 var text = ""
@@ -468,7 +468,7 @@ final class ModelAPIClient {
                 } else {
                     let raw = String(data: data, encoding: .utf8) ?? "(no data)"
                     completion(.failure(NSError(domain: "ModelAPIClient", code: 0,
-                                                userInfo: [NSLocalizedDescriptionKey: "解析失败: \(raw.prefix(200))"])))
+                                                userInfo: [NSLocalizedDescriptionKey: "parse failed: \(raw.prefix(200))"])))
                 }
             }
         }.resume()
@@ -485,7 +485,7 @@ final class ModelAPIClient {
         case "None":
             break
         default:
-            // 空/未知鉴权方式但填了 key 时，默认按 Bearer 发送（兼容旧配置或 UI 异常）
+            // 空/未知鉴权方式但填了 key 时，默认按 Bearer 发送 (兼容旧配置或 UI 异常）
             if !key.isEmpty {
                 request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
             }
@@ -510,21 +510,21 @@ struct ChatMessage: Codable, Identifiable, Hashable {
     var toolCalls: [ToolCall]?
     var toolCallId: String?
     var toolName: String?
-    /// v3.1.26：工具调用参数摘要（tool 消息专用），UI 里用特殊颜色显示
+    /// v3.1.26：工具调用参数摘要 (tool 消息专用），UI 里用特殊颜色显示
     var toolArgs: String? = nil
-    /// v2.9.9：多模态附件。存 data URL（如 "data:image/jpeg;base64,..."）。
+    /// v2.9.9：多模态附件。存 data URL (如 "data:image/jpeg;base64,..."）。
     /// 发送时若非空，OpenAIClient 把 content 序列化为多模态数组。
     var imageDataURLs: [String]? = nil
-    /// v2.9.20：思考记录（reasoning）。Responses API 返回的 reasoning 摘要，气泡内可展开。
+    /// v2.9.20：思考记录 (reasoning）。Responses API 返回的 reasoning 摘要，气泡内可展开。
     var thinking: String? = nil
-    /// v2.9.127：执行轨迹（对齐豆包工作任务/Codex turn 流）——AI 本次回复的
+    /// v2.9.127：执行轨迹 (对齐豆包工作任务/Codex turn 流）——AI 本次回复的
     /// 思考→工具调用→工具结果 全过程，随消息持久化，可展开回看。
     var trail: [TrailStep]? = nil
 
     var isTool: Bool { role == "tool" }
 }
 
-/// v2.9.127：执行轨迹单步（思考/工具调用/工具结果/备注）
+/// v2.9.127：执行轨迹单步 (思考/工具调用/工具结果/备注）
 struct TrailStep: Codable, Identifiable, Hashable {
     var id: UUID = UUID()
     var kind: Kind
@@ -562,31 +562,31 @@ final class ConversationStore: ObservableObject {
     @Published var conversations: [ChatConversation] = []
     @Published var selectedId: UUID?
     @Published var isLoading = false
-    /// v2.8.5：当前请求的实时状态文案（等待响应/降级重试中），展示在输入指示器旁
+    /// v2.8.5：当前请求的实时状态文案 (等待响应/降级重试中），展示在输入指示器旁
     @Published var statusText: String?
-    /// v2.9.34：请求过程可视化——当前第几轮（对齐老 MCP 的"正在请求模型（第 N/60 轮）"）
+    /// v2.9.34：请求过程可视化——当前第几轮 (对齐老 MCP 的"正在请求模型 (第 N/60 轮）"）
     @Published var requestRound = 0
     @Published var requestRounds = 60
-    /// v2.9.34：正在执行的工具名（展示"正在执行工具 xxx…"）
+    /// v2.9.34：正在执行的工具名 (展示"正在执行工具 xxx…"）
     @Published var runningTool: String?
-    /// v2.9.127：执行轨迹（实时）——当前请求的 思考→工具调用→工具结果 步骤流，
-    /// 请求结束时随最后一条 assistant 消息持久化（message.trail）。
+    /// v2.9.127：执行轨迹 (实时）——当前请求的 思考→工具调用→工具结果 步骤流，
+    /// 请求结束时随最后一条 assistant 消息持久化 (message.trail）。
     @Published var liveTrail: [TrailStep] = []
 
-    // v3.0.3：保存当前请求的思考内容（onThinking 流式累加），
+    // v3.0.3：保存当前请求的思考内容 (onThinking 流式累加），
     // toolCalls 时传到 tool 消息，前端在 toolBubble 顶部显示
     private var thinkBuffer: String = ""
 
-    // v2.9.87：网络恢复自动重试（"切后台回来网络中断"补偿）——
+    // v2.9.87：网络恢复自动重试 ("切后台回来网络中断"补偿）——
     // 网络类错误且当前确认为断网时，等 AppLifecycleMonitor 广播 networkRestored 后自动重发一次。
     private var retryObserver: NSObjectProtocol?
     private var retriedNetworkOnce = false
-    /// v2.9.13：当前正在进行的 OpenAIClient（支持取消）
+    /// v2.9.13：当前正在进行的 OpenAIClient (支持取消）
     private var currentClient: OpenAIClient?
-    /// v2.9.53：当前流式输出的消息 ID（逐字显示时跟踪，完成后更新或清理）
+    /// v2.9.53：当前流式输出的消息 ID (逐字显示时跟踪，done后更新或清理）
     private var streamingMessageId: UUID?
     /// v3.1.70：活动请求绑定的会话 ID——请求由哪个会话发起就写回哪个会话。
-    /// 修复"请求进行中切换会话，AI 输出错位/写错会话"（用户实测：老会话未暂停，切换新会话后输出仍乱）。
+    /// 修复"请求进行中切换会话，AI 输出错位/写错会话" (用户实测：老会话未暂停，切换新会话后输出仍乱）。
     private var activeConvId: UUID?
 
     private let key = "trollmcp2.conversations"
@@ -597,7 +597,7 @@ final class ConversationStore: ObservableObject {
         conversations.firstIndex { $0.id == selectedId }
     }
 
-    /// v3.1.70：活动请求的会话 index（优先活动会话，兜底当前选中会话）
+    /// v3.1.70：活动请求的会话 index (优先活动会话，兜底当前选中会话）
     private var activeConvIndex: Int? {
         if let id = activeConvId, let i = conversations.firstIndex(where: { $0.id == id }) {
             return i
@@ -619,7 +619,7 @@ final class ConversationStore: ObservableObject {
         let conv = ChatConversation(title: title, createdAt: Date(), updatedAt: Date(), messages: [])
         conversations.insert(conv, at: 0)
         selectedId = conv.id
-        // v2.9.22：新会话清空工具会话授权（AI 需重新搜索/决定）
+        // v2.9.22：新会话清空工具会话授权 (AI 需重新搜索/决定）
         ToolRegistry.shared.clearSessionApproval()
         save()
     }
@@ -633,7 +633,7 @@ final class ConversationStore: ObservableObject {
         sortAndSave()
     }
 
-    /// v3.1.70：写入活动请求的会话（无活动请求时写入当前选中会话）
+    /// v3.1.70：写入活动请求的会话 (无活动请求时写入当前选中会话）
     func appendToCurrent(_ message: ChatMessage) {
         guard let idx = activeConvIndex else { return }
         var conv = conversations[idx]
@@ -646,7 +646,7 @@ final class ConversationStore: ObservableObject {
         sortAndSave()
     }
 
-    /// v3.1.70：更新活动请求会话内消息内容（无活动请求时用当前选中会话）
+    /// v3.1.70：更新活动请求会话内消息内容 (无活动请求时用当前选中会话）
     func updateMessageContent(id: UUID, content: String) {
         guard let idx = activeConvIndex,
               let mi = conversations[idx].messages.firstIndex(where: { $0.id == id }) else { return }
@@ -654,14 +654,14 @@ final class ConversationStore: ObservableObject {
         conversations[idx].updatedAt = Date()
     }
 
-    /// v3.1.70：删除活动请求会话内的消息（无活动请求时用当前选中会话）
+    /// v3.1.70：删除活动请求会话内的消息 (无活动请求时用当前选中会话）
     func removeMessage(id: UUID) {
         guard let idx = activeConvIndex,
               let mi = conversations[idx].messages.firstIndex(where: { $0.id == id }) else { return }
         conversations[idx].messages.remove(at: mi)
     }
 
-    /// v2.9.13：取消当前进行中的请求（ChatView 停止按钮）
+    /// v2.9.13：取消当前进行中的请求 (ChatView 停止按钮）
     func cancelCurrent() {
         cancelNetworkRetry()
         currentClient?.cancel()
@@ -702,7 +702,7 @@ final class ConversationStore: ObservableObject {
         // v2.9.87：新一轮请求重置网络重试状态
         retriedNetworkOnce = false
         cancelNetworkRetry()
-        // v3.1.70：请求绑定到发起时的会话——中途切换会话，输出仍写回该会话（修复输出错位）
+        // v3.1.70：请求绑定到发起时的会话——中途切换会话，输出仍写回该会话 (修复输出错位）
         activeConvId = selectedId
         var msg = ChatMessage(role: "user", content: text)
         if let imgs = imageDataURLs, !imgs.isEmpty {
@@ -711,7 +711,7 @@ final class ConversationStore: ObservableObject {
         appendToCurrent(msg)
         isLoading = true
 
-        // v3.1.66：全量加载所有工具（tool_search 已删除，不再渐进式披露）
+        // v3.1.66：全量加载所有工具 (tool_search 已删除，不再渐进式披露）
         var baseTools = config.apiProtocol == "Anthropic Messages" ? nil : ToolRegistry.shared.enabledOpenAIToolSchema()
         // v2.9.20：智能搜索开关真实生效——关闭时从工具集移除 web.search / knowledge.search / web.fetch
         if !smartSearch {
@@ -723,7 +723,7 @@ final class ConversationStore: ObservableObject {
                 return true
             }
         }
-        // v3.1.66：全量加载，disclosed 机制已不再新增工具（tool_search 已删），
+        // v3.1.66：全量加载，disclosed 机制已不再新增工具 (tool_search 已删），
         // 保留仅为兼容会话内已授权工具 schema 的持久注入。
         let preDisclosed = ToolRegistry.shared.approvedToolNames()
         runLoop(config: config, tools: baseTools, disclosed: preDisclosed, depth: 0, reasoningLevel: reasoningLevel)
@@ -736,7 +736,7 @@ final class ConversationStore: ObservableObject {
         // 网络类错误码：断网/找不到主机/网络连接丢失/连接重置
         let networkCodes: Set<Int> = [-1009, -1003, -1005, -1004, -1001]
         let isNetworkError = err.domain == NSURLErrorDomain && networkCodes.contains(err.code)
-        // 只对"当前确实断网"的情况等待重试（确认不是中转站问题）
+        // 只对"当前确实断网"的情况等待重试 (确认不是中转站问题）
         return isNetworkError && !AppLifecycleMonitor.shared.isNetworkAvailable
     }
 
@@ -779,7 +779,7 @@ final class ConversationStore: ObservableObject {
     }
 
     /// v2.9.127：实时思考——把流式 reasoning 增量逐段追加到轨迹的"正在思考"步骤
-    /// （没有该步骤就新建，打字机式逐句累积）
+    ///  (没有该步骤就新建，打字机式逐句累积）
     func appendThinking(_ delta: String) {
         DispatchQueue.main.async {
             let trimmed = delta.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -796,9 +796,9 @@ final class ConversationStore: ObservableObject {
         }
     }
 
-    /// v2.9.127：把实时轨迹持久化到最后一条 assistant 消息（AI 回复完成后调用）
-    /// thinking 非空时把"已思考"插到轨迹最前（对齐豆包流程第一步）。
-    /// 收尾：残留 running 步骤统一标成功/失败（消息报错则标失败）。
+    /// v2.9.127：把实时轨迹持久化到最后一条 assistant 消息 (AI 回复done后调用）
+    /// thinking 非空时把"已思考"插到轨迹最前 (对齐豆包流程第一步）。
+    /// 收尾：残留 running 步骤统一标OK/failed (消息报错则标failed）。
     func attachTrail(to messageId: UUID?, thinking: String? = nil) {
         guard let sid = messageId, !liveTrail.isEmpty else { return }
         DispatchQueue.main.async {
@@ -822,7 +822,7 @@ final class ConversationStore: ObservableObject {
     }
 
     private func runLoop(config: ModelConfig, tools: [[String: Any]]?, disclosed: [String], depth: Int, reasoningLevel: Int = 0) {
-        // v2.9.25：不再限制工具调用轮次（用户可手动点「停止」）。
+        // v2.9.25：不再限制工具调用轮次 (用户可手动点「停止」）。
         // 仅保留 60 轮极端安全保险，正常流程永不触发，防止 AI 完全失控无限发请求。
         guard depth < 60 else {
             isLoading = false
@@ -831,8 +831,8 @@ final class ConversationStore: ObservableObject {
             runningTool = nil
             // v2.9.82：后台时通知
             TaskNotify.shared.endBackground()
-            TaskNotify.shared.notifyIfBackground(title: "⏹ 任务已停止", body: "达到极端安全上限（60 轮），已停止。可点「停止」中断。")
-            let stopMsg = ChatMessage(role: "assistant", content: "已达到极端安全上限（60 轮），已停止。若 AI 仍在循环，请点输入框旁的「停止」按钮中断。", isError: true)
+            TaskNotify.shared.notifyIfBackground(title: "⏹ 任务已停止", body: "达到极端安全上限 (60 轮)，已停止。可点「停止」中断。")
+            let stopMsg = ChatMessage(role: "assistant", content: "已达到极端安全上限 (60 轮)，已停止。若 AI 仍在循环，请点输入框旁的「停止」按钮中断。", isError: true)
             self.appendToCurrent(stopMsg)
             self.liveTrail = []   // v2.9.127：停止分支先清空上轮残留轨迹再收尾
             self.trailStep(.done(.note, "任务停止", detail: "达到 60 轮上限", ok: false))
@@ -843,13 +843,13 @@ final class ConversationStore: ObservableObject {
         DispatchQueue.main.async {
             self.requestRound = depth + 1
             self.requestRounds = 60
-            self.statusText = "已准备请求（正在整理会话与可用工具）"
+            self.statusText = "已准备请求 (正在整理会话与可用工具)"
             self.liveTrail = []   // v2.9.127：新一轮清空实时轨迹
         }
 
-        // 动态合并：白名单 schema + 已披露工具的 schema（去重）
-        // v2.9.175：tools 为 nil（Anthropic 协议）时也走空数组合并——Anthropic 通道
-        // 现在同样能拿到 coreTools + 已披露工具的 schema（OpenAIClient 已支持转换）。
+        // 动态合并：白名单 schema + 已披露工具的 schema (去重）
+        // v2.9.175：tools 为 nil (Anthropic 协议）时也走空数组合并——Anthropic 通道
+        // 现在同样能拿到 coreTools + 已披露工具的 schema (OpenAIClient 已支持转换）。
         var effectiveTools = tools ?? []
         if !disclosed.isEmpty {
             var existing = Set<String>()
@@ -872,9 +872,9 @@ final class ConversationStore: ObservableObject {
         client.currentReasoningLevel = reasoningLevel
         currentClient = client
         var history = messagesForAPI(budget: config.contextTokens)
-        // v2.9.138：模块化 system prompt 组装（稳定前缀工程）——
-        // 稳定块（系统指令→开发者指令）在前、动态状态块（设备/App/工作区/会话）在后，
-        // 稳定前缀保持字节一致 → 官方 API 前缀缓存可直接命中（Anthropic/OpenAI）。
+        // v2.9.138：模块化 system prompt 组装 (稳定前缀工程）——
+        // 稳定块 (系统指令→开发者指令）在前、动态状态块 (设备/App/工作区/会话）在后，
+        // 稳定前缀保持字节一致 → 官方 API 前缀缓存可直接matched (Anthropic/OpenAI）。
         history.insert(ChatMessage(role: "system", content: SystemPrompts.shared.selected.content), at: 0)
         if let devInstr = DeveloperInstructionStore.shared.defaultInjectionContent(), !devInstr.isEmpty {
             history.insert(ChatMessage(role: "system", content: "以下是开发者指令，请始终遵守：\n" + devInstr), at: 0)
@@ -884,9 +884,9 @@ final class ConversationStore: ObservableObject {
 
         client.send(messages: history, tools: effectiveTools, onStatus: { status in
             DispatchQueue.main.async {
-                // v2.9.34：带轮次前缀，展示"正在请求模型（第 N/60 轮）…"
+                // v2.9.34：带轮次前缀，展示"正在请求模型 (第 N/60 轮）…"
                 if self.requestRound > 0 && !status.contains("第 ") {
-                    self.statusText = "正在请求模型（第 \(self.requestRound)/\(self.requestRounds) 轮）· \(status)"
+                    self.statusText = "正在请求模型 (第 \(self.requestRound)/\(self.requestRounds) 轮)· \(status)"
                 } else {
                     self.statusText = status
                 }
@@ -895,7 +895,7 @@ final class ConversationStore: ObservableObject {
             // v2.9.53：流式逐字显示
             DispatchQueue.main.async {
                 if let sid = self.streamingMessageId {
-                    // 追加到已有流式消息（v3.1.70：按活动会话定位，切换会话不丢增量）
+                    // 追加到已有流式消息 (v3.1.70：按活动会话定位，切换会话不丢增量）
                     guard let idx = self.activeConvIndex,
                           let mi = self.conversations[idx].messages.firstIndex(where: { $0.id == sid }) else { return }
                     self.conversations[idx].messages[mi].content += delta
@@ -923,7 +923,7 @@ final class ConversationStore: ObservableObject {
                     self.requestRound = 0
                     self.runningTool = nil
                     self.thinkBuffer = "" // 重置缓冲区
-                    // v2.9.138：自动会话记忆——一轮完整回复后落库（供下会话 BM25 检索）
+                    // v2.9.138：自动会话记忆——一轮完整回复后落库 (供下会话 BM25 检索）
                     if let idx = self.activeConvIndex {
                         let msgs = self.conversations[idx].messages
                         let lastUser = msgs.last { $0.role == "user" }?.content ?? ""
@@ -933,9 +933,9 @@ final class ConversationStore: ObservableObject {
                             reply: String(text.prefix(150)),
                             tools: Array(Set(usedTools)).sorted().suffix(8))
                     }
-                    // v2.9.127：轨迹——回复完成，附到消息持久化
-                    self.trailStep(.done(.note, "AI 回复完成", detail: String(text.prefix(80))))
-                    // v2.9.82：完成通知（后台时）
+                    // v2.9.127：轨迹——回复done，附到消息持久化
+                    self.trailStep(.done(.note, "AI 回复done", detail: String(text.prefix(80))))
+                    // v2.9.82：done通知 (后台时）
                     TaskNotify.shared.endBackground()
                     TaskNotify.shared.notifyIfBackground(title: "✅ AI 已回复", body: String(text.prefix(60)))
                     if let sid = self.streamingMessageId {
@@ -954,13 +954,13 @@ final class ConversationStore: ObservableObject {
                         self.appendToCurrent(am)
                         self.attachTrail(to: am.id, thinking: thinking)
                     }
-                    // v3.1.70：整条请求链（含工具递归）结束——解除活动会话绑定
+                    // v3.1.70：整条请求链 (含工具递归）结束——解除活动会话绑定
                     self.activeConvId = nil
                 case .success(.toolCalls(let calls, let thinking)):
                     // v3.1.72：思考(reasoning)与可见输出(content)分开存放——
                     // 旧逻辑把流式可见文本+思考合并成 thinkText 塞进 assistant.content，
                     // 又把同一 thinkText 塞进 tool 消息 thinking，导致 UI 上"回复内容"和
-                    // "思考内容"显示一模一样、每轮工具调用重复一次（用户实测反馈）。
+                    // "思考内容"显示一模一样、每轮工具调用重复一次 (用户实测反馈）。
                     var visibleText = ""
                     var reasoningText = self.thinkBuffer
                     if let th = thinking, !th.isEmpty {
@@ -969,14 +969,14 @@ final class ConversationStore: ObservableObject {
                     if let sid = self.streamingMessageId,
                        let ci = self.activeConvIndex,
                        let mi = self.conversations[ci].messages.firstIndex(where: { $0.id == sid }) {
-                        // 保留流式可见文本作为回复内容，思考进 thinking 字段，toolCalls 挂上（不删除重建）
+                        // 保留流式可见文本作为回复内容，思考进 thinking 字段，toolCalls 挂上 (不删除重建）
                         visibleText = self.conversations[ci].messages[mi].content
                         self.conversations[ci].messages[mi].toolCalls = calls
                         if !reasoningText.isEmpty {
                             self.conversations[ci].messages[mi].thinking = reasoningText
                         }
                     } else {
-                        // 无流式消息（流式未开始就被 toolCalls 打断）：新建 assistant 消息
+                        // 无流式消息 (流式未开始就被 toolCalls 打断）：新建 assistant 消息
                         var am = ChatMessage(role: "assistant", content: visibleText, toolCalls: calls)
                         if !reasoningText.isEmpty { am.thinking = reasoningText }
                         self.appendToCurrent(am)
@@ -986,8 +986,8 @@ final class ConversationStore: ObservableObject {
                     // v2.9.127：轨迹——AI 决定调用一批工具
                     self.trailStep(.done(.tool, "AI 选择调用 \(calls.count) 个工具",
                                          detail: calls.map { $0.name }.joined(separator: "、")))
-                    // v2.9.31：递归处理一批工具调用（后台执行，无授权弹窗）
-                    // v3.1.72：thinkText 传可见文本（工具调用前的说明），不再写入 tool 消息 thinking
+                    // v2.9.31：递归处理一批工具调用 (后台执行，无授权弹窗）
+                    // v3.1.72：thinkText 传可见文本 (工具调用前的说明），不再写入 tool 消息 thinking
                     self.processToolCalls(calls, index: 0, toolMessages: [], newlyDisclosed: [],
                                           config: config, tools: tools, disclosed: disclosed, depth: depth,
                                           reasoningLevel: reasoningLevel, thinkText: visibleText)
@@ -997,7 +997,7 @@ final class ConversationStore: ObservableObject {
                     self.requestRound = 0
                     self.runningTool = nil
                     self.thinkBuffer = "" // 重置缓冲区
-                    // v2.9.13：用户主动取消（-999）不追加错误气泡
+                    // v2.9.13：用户主动取消 (-999）不追加错误气泡
                     let nsErr = error as NSError
                     if nsErr.code == -999 {
                         self.statusText = nil
@@ -1014,16 +1014,16 @@ final class ConversationStore: ObservableObject {
                         self.scheduleRetryAfterNetworkRestore(config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
                         return
                     }
-                    // v2.9.82：失败通知（后台时）
+                    // v2.9.82：failed通知 (后台时）
                     TaskNotify.shared.endBackground()
                     TaskNotify.shared.notifyIfBackground(title: "⚠️ 任务出错", body: String(error.localizedDescription.prefix(60)))
-                    // 流式失败时保留已输出的部分文本，追加错误提示
+                    // 流式failed时保留已输出的部分文本，追加错误提示
                     if self.streamingMessageId != nil {
                         self.streamingMessageId = nil
                     }
                     let errMsg = ChatMessage(role: "assistant", content: "⚠️ \(error.localizedDescription)", isError: true)
                     self.appendToCurrent(errMsg)
-                    self.trailStep(.done(.note, "请求失败", detail: String(error.localizedDescription.prefix(200)), ok: false))
+                    self.trailStep(.done(.note, "请求failed", detail: String(error.localizedDescription.prefix(200)), ok: false))
                     self.attachTrail(to: errMsg.id)
                     // v3.1.70：请求链结束——解除活动会话绑定
                     self.activeConvId = nil
@@ -1039,7 +1039,7 @@ final class ConversationStore: ObservableObject {
         return trimmed.replacingOccurrences(of: "\n", with: " ")
     }
 
-    /// v3.1.26：把参数 JSON 转成简短摘要（比如 "url: https://xxx"）
+    /// v3.1.26：把参数 JSON 转成简短摘要 (比如 "url: https://xxx"）
     /// UI 里用特殊颜色显示，太长就截断
     static func summarizeArgs(_ argsString: String) -> String? {
         guard let data = argsString.data(using: .utf8),
@@ -1060,7 +1060,7 @@ final class ConversationStore: ObservableObject {
         return entries.joined(separator: ", ")
     }
 
-    /// v2.9.31：递归处理一批工具调用。工具在后台线程执行（避免耗时操作阻塞主线程），
+    /// v2.9.31：递归处理一批工具调用。工具在后台线程执行 (避免耗时操作阻塞主线程），
     /// 结果经 handleDispatchResult 回主线程继续。
     private func processToolCalls(_ calls: [ToolCall],
                                   index: Int,
@@ -1082,11 +1082,11 @@ final class ConversationStore: ObservableObject {
         let params = Self.parseArgs(call.arguments)
         // v2.9.34：展示"正在执行工具 xxx…"
         self.runningTool = call.name
-        // v2.9.127：轨迹——单工具开始执行（参数序列化展示）
+        // v2.9.127：轨迹——单工具开始执行 (参数序列化展示）
         self.trailStep(.running(.tool, call.name, detail: Self.jsonString(params)))
         do {
             // v2.9.29：工具执行放后台线程，避免注入/文件操作等耗时调用阻塞主线程
-            // （授权恢复后执行注入导致一直转圈 + 聊天框/输入框无响应）。
+            //  (授权恢复后Run injection导致一直转圈 + 聊天框/输入框无响应）。
             // dispatch 在后台执行，结果/授权/错误统一回主线程继续递归。
             DispatchQueue.global().async {
                 let result: Result<[String: Any], Error>
@@ -1105,7 +1105,7 @@ final class ConversationStore: ObservableObject {
     }
 
     /// v2.9.29：在主线程处理一次工具执行结果，然后继续递归调用链
-    /// v2.9.31：去掉授权弹窗分支（工具搜索即自动授权，无需暂停等待用户选择）。
+    /// v2.9.31：去掉授权弹窗分支 (工具搜索即自动授权，无需暂停等待用户选择）。
     private func handleDispatchResult(_ result: Result<[String: Any], Error>,
                                       call: ToolCall, calls: [ToolCall], index: Int,
                                       toolMessages: [ChatMessage], newlyDisclosed: [String],
@@ -1115,11 +1115,11 @@ final class ConversationStore: ObservableObject {
         switch result {
         case .success(let r):
             let rawContent = Self.jsonString(r)
-            // v2.9.49：工具结果截断（>8000字符），防止单条工具结果（如 browser.snapshot / injection.list）
+            // v2.9.49：工具结果截断 (>8000字符），防止单条工具结果 (如 browser.snapshot / injection.list）
             // 撑爆上下文导致后续请求巨慢。截断后加提示，模型可调用带分页/过滤参数的工具获取完整数据。
             let content: String
             if rawContent.count > 8000 {
-                content = rawContent.prefix(8000) + "\n... [工具结果已截断，共 \(rawContent.count) 字符。如需完整数据，请调用该工具时使用 limit/filter/query 等参数缩小范围。]"
+                content = rawContent.prefix(8000) + "\n... [工具结果已截断，total \(rawContent.count) 字符。如需完整数据，请调用该工具时使用 limit/filter/query 等参数缩小范围。]"
             } else {
                 content = rawContent
             }
@@ -1128,9 +1128,9 @@ final class ConversationStore: ObservableObject {
             // v3.1.26：存参数摘要，UI 里用特殊颜色显示
             toolMsg.toolArgs = Self.summarizeArgs(call.arguments)
             // v3.1.72：不再写 toolMsg.thinking——思考已在 assistant 消息的 thinking 字段显示一次，
-            // 旧逻辑把同一文本又塞进 tool 消息导致"回复内容和思考内容一模一样"（用户实测反馈）
+            // 旧逻辑把同一文本又塞进 tool 消息导致"回复内容和思考内容一模一样" (用户实测反馈）
             next.append(toolMsg)
-            // v2.9.127：轨迹——工具执行成功（结果摘要 200 字符，完整结果在 tool 消息里）
+            // v2.9.127：轨迹——工具执行OK (结果摘要 200 字符，完整结果在 tool 消息里）
             self.trailStep(.done(.result, call.name,
                                  detail: Self.trailSummary(rawContent),
                                  ok: true))
@@ -1140,7 +1140,7 @@ final class ConversationStore: ObservableObject {
                                   config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel,
                                   thinkText: thinkText)
         case .failure(let err as MCPError):
-            // v2.9.125：失败也输出结构化 JSON（对齐 CLI 返回协议），AI 可直接解析分类与下一步
+            // v2.9.125：failed也输出结构化 JSON (对齐 CLI 返回协议），AI 可直接解析分类与下一步
             var next = toolMessages
             let failureBody: [String: Any]
             if case MCPError.classified(let m, let code, let reason, let nextStep) = err {
@@ -1151,9 +1151,9 @@ final class ConversationStore: ObservableObject {
             }
             let content = Self.jsonString(failureBody)
             var failMsg = ChatMessage(role: "tool", content: content, isError: true, toolCallId: call.id, toolName: call.name)
-            // v3.1.72：不再写 failMsg.thinking（思考只在 assistant 消息显示一次，避免重复）
+            // v3.1.72：不再写 failMsg.thinking (思考只在 assistant 消息显示一次，避免重复）
             next.append(failMsg)
-            // v2.9.127：轨迹——工具执行失败（四分类错误摘要）
+            // v2.9.127：轨迹——工具执行failed (四分类错误摘要）
             self.trailStep(.done(.result, call.name,
                                  detail: Self.trailSummary(Self.jsonString(failureBody)),
                                  ok: false))
@@ -1162,7 +1162,7 @@ final class ConversationStore: ObservableObject {
                                   thinkText: thinkText)
         case .failure(let err):
             var next = toolMessages
-            // v3.0.77：智能错误诊断——AI 看到错误就知道为什么失败、下一步该做什么
+            // v3.0.77：智能错误诊断——AI 看到错误就知道为什么failed、下一步该做什么
             let errStr = err.localizedDescription.lowercased()
             var reason = "Tool execution failed"
             var nextStep = "Check the error message above. Try a different approach or tool."
@@ -1191,7 +1191,7 @@ final class ConversationStore: ObservableObject {
             ]
             var errMsg = ChatMessage(role: "tool", content: Self.jsonString(errBody),
                                     isError: true, toolCallId: call.id, toolName: call.name)
-            // v3.1.72：不再写 errMsg.thinking（思考只在 assistant 消息显示一次，避免重复）
+            // v3.1.72：不再写 errMsg.thinking (思考只在 assistant 消息显示一次，避免重复）
             next.append(errMsg)
             self.trailStep(.done(.result, call.name,
                                  detail: "❌ \(err.localizedDescription.prefix(200))",
@@ -1202,8 +1202,8 @@ final class ConversationStore: ObservableObject {
         }
     }
 
-    /// v2.9.138：动态会话状态块——设备/App/工作区/当前会话，注入 system 最前
-    /// （位于稳定块之后，最新状态放最后）。让 AI 始终感知当前环境，不靠猜。
+    /// v2.9.138：动态会话状态块——设备/App/工作区/当前会话，injected system 最前
+    ///  (位于稳定块之后，最新状态放最后）。让 AI 始终感知当前环境，不靠猜。
     private static func dynamicStatePrompt() -> String {
         var device = "iPhone"
         var os = ""
@@ -1220,7 +1220,7 @@ final class ConversationStore: ObservableObject {
            idx < ConversationStore.shared.conversations.count {
             parts.append("当前会话: \(ConversationStore.shared.conversations[idx].title)")
         }
-        // v3.1.5: 自动提取的关键信息（App 名、bundle id、文件路径等）
+        // v3.1.5: 自动提取的关键信息 (App 名、bundle id、文件路径等）
         if let hint = AutoContextExtractor.shared.contextHint() {
             parts.append(hint)
         }
@@ -1230,11 +1230,11 @@ final class ConversationStore: ObservableObject {
     private func messagesForAPI(budget: Int) -> [ChatMessage] {
         var all = currentMessages.filter { !$0.isError }
         guard !all.isEmpty else { return all }
-        // v2.9.138：工具结果修剪（Claude Code Precision Forgetting Layer 1）——
+        // v2.9.138：工具结果修剪 (Claude Code Precision Forgetting Layer 1）——
         // 非最近 3 条 tool 消息、内容 > 300 字符的旧工具结果替换为紧凑占位符。
         // 零 LLM 成本回收上下文：AI 需要细节时可重新调用该工具。
-        // v3.1.68：阈值 300 → 2000（AI 实测"377 字符不该被截"属实，小结果不再替换）；
-        // 替换时保留原内容前 500 字符（"截空看不到主体"根因——占位符不再整条顶替，
+        // v3.1.68：阈值 300 → 2000 (AI 实测"377 字符不该被截"属实，小结果不再替换）；
+        // 替换时保留原内容前 500 字符 ("截空看不到主体"根因——占位符不再整条顶替，
         // 且后续预算裁剪/sanitize 删占位符时头部仍在，AI 不至于完全失去线索）。
         let toolIdx = all.enumerated().filter { $0.element.isTool }.map { $0.offset }
         let keepTool = Set(toolIdx.suffix(3))
@@ -1246,20 +1246,20 @@ final class ConversationStore: ObservableObject {
             all[i] = nm
         }
         // v2.9.87：预算预留 30% 给 tools schema + 系统/开发者指令 + 请求开销。
-        // 之前只按消息估算，tools（可能几十 KB JSON）+ 两条 system 前缀没算，
-        // 长会话+多工具时实际请求体远超预算 → 中转处理慢（"一直请求中"）。
+        // 之前只按消息估算，tools (可能几十 KB JSON）+ 两条 system 前缀没算，
+        // 长会话+多工具时实际请求体远超预算 → 中转处理慢 ("一直请求中"）。
         let theBudget = max(Int(Double(budget) * 0.7), 2000)
-        // 估算总 token；低于预算直接返回（短会话）
+        // 估算总 token；低于预算直接返回 (短会话）
         let total = all.reduce(0) { $0 + Self.estimateTokens($1) }
         if total <= theBudget { return all }
         // 长会话：从旧到新裁剪，但始终保留最后 N 条核心消息
         let keepMin = 6
         var kept: [ChatMessage] = []
-        // 先保留最新 keepMin 条（含用户最新提问），其 token 计入预算
+        // 先保留最新 keepMin 条 (含用户最新提问），其 token 计入预算
         let suffix = Array(all.suffix(keepMin))
         let prefix = Array(all.prefix(all.count - keepMin))
         var used = suffix.reduce(0) { $0 + Self.estimateTokens($1) }
-        // 从旧到新累计到「预算 - suffix」内（v2.9.16：suffix 计入预算，避免超发）
+        // 从旧到新累计到「预算 - suffix」内 (v2.9.16：suffix 计入预算，避免超发）
         for m in prefix {
             let t = Self.estimateTokens(m)
             if used + t > theBudget { break }
@@ -1269,7 +1269,7 @@ final class ConversationStore: ObservableObject {
         var result = kept + suffix
         // 清理孤立 tool 消息：裁剪可能导致 assistant(tool_calls) 被裁、其 tool 结果残留
         result = Self.sanitizeToolSequence(result)
-        // 插入截断提示（v2.9.88：本地生成话题摘要，而非简单丢弃 —— 不用额外请求，
+        // 插入截断提示 (v2.9.88：本地生成话题摘要，而非简单丢弃 —— 不用额外请求，
         // 从被裁消息里提取用户提问/工具名作为"旧会话记忆"，AI 仍能感知上下文主题）
         let dropped = all.count - result.count
         if dropped > 0 {
@@ -1321,10 +1321,10 @@ final class ConversationStore: ObservableObject {
             }
         }
         let ascii = content.count - cjk
-        // v2.9.87：CJK 1.5→2.0 保守估算（中文实际约 1.5~2 token/字），
+        // v2.9.87：CJK 1.5→2.0 保守估算 (中文实际约 1.5~2 token/字），
         // 低估会让请求体超预算 → 中转处理慢。
         t += Int(Double(cjk) * 2.0) + ascii / 3
-        t += (m.imageDataURLs?.count ?? 0) * 600   // 每张图约 600 token（低分辨率近似）
+        t += (m.imageDataURLs?.count ?? 0) * 600   // 每张图约 600 token (低分辨率近似）
         return max(t, 8)
     }
 
@@ -1356,7 +1356,7 @@ final class ConversationStore: ObservableObject {
         return obj
     }
 
-    // v2.9.171：工具结果序列化去掉 prettyPrinted → 紧凑 JSON（无缩进空格）。
+    // v2.9.171：工具结果序列化去掉 prettyPrinted → 紧凑 JSON (无缩进空格）。
     private static func jsonString(_ dict: [String: Any]) -> String {
         guard let data = try? JSONSerialization.data(withJSONObject: dict),
               let s = String(data: data, encoding: .utf8) else { return "{}" }
@@ -1392,7 +1392,7 @@ final class ConversationStore: ObservableObject {
 
     private func save() {
         if let data = try? JSONEncoder().encode(conversations) {
-            // v2.9.107：原子写前备份轮换（保留最近 2 份，防会话数据损坏丢失）
+            // v2.9.107：原子写前备份轮换 (保留最近 2 份，防会话数据损坏丢失）
             let ud = UserDefaults.standard
             if let cur = ud.data(forKey: key) {
                 if let old = ud.data(forKey: key + ".bak.1") { ud.set(old, forKey: key + ".bak.2") }
@@ -1443,7 +1443,7 @@ final class ConversationStore: ObservableObject {
     }
 }
 
-// MARK: - 熔断器（v2.9.107，对齐 cc-switch circuit_breaker 三态机）
+// MARK: - 熔断器 (v2.9.107，对齐 cc-switch circuit_breaker 三态机）
 
 enum CircuitState: String {
     case closed = "closed", open = "open", halfOpen = "half_open"
@@ -1466,8 +1466,8 @@ final class CircuitBreaker {
     private var lastOpenedAt: Date?
     private var halfOpenRequests = 0
 
-    var failureThreshold = 4          // 连续失败阈值 → Open
-    var successThreshold = 2          // HalfOpen 成功次数 → Closed
+    var failureThreshold = 4          // 连续failed阈值 → Open
+    var successThreshold = 2          // HalfOpen OK次数 → Closed
     var timeoutSeconds: TimeInterval = 60  // Open 后多久尝试 HalfOpen
     var errorRateThreshold = 0.6      // 错误率阈值 → Open
     var minRequests = 10              // 计算错误率前最少请求数
@@ -1492,7 +1492,7 @@ final class CircuitBreaker {
         lastOpenedAt = nil
     }
 
-    /// 路由可用性判断（不占 HalfOpen 探测名额）
+    /// 路由可用性判断 (不占 HalfOpen 探测名额）
     func isAvailable() -> Bool {
         lock.lock(); defer { lock.unlock() }
         switch state {
@@ -1509,7 +1509,7 @@ final class CircuitBreaker {
         }
     }
 
-    /// 请求前调用：是否放行（HalfOpen 限流 1 个探测请求）
+    /// 请求前调用：是否放行 (HalfOpen 限流 1 个探测请求）
     func allowRequest() -> (allowed: Bool, usedHalfOpenPermit: Bool) {
         lock.lock(); defer { lock.unlock() }
         switch state {
@@ -1585,10 +1585,10 @@ final class CircuitBreaker {
     }
 }
 
-// MARK: - v2.9.126 深链导入暂存（对齐 cc-switch DeepLinkImportDialog）
+// MARK: - v2.9.126 深链导入暂存 (对齐 cc-switch DeepLinkImportDialog）
 
 /// AppDelegate 收到 trollagent://import?... 后暂存配置，发通知；SwiftUI 层弹确认页。
-/// 确认才写入 ModelStore（防误导入），取消即丢弃。
+/// 确认才写入 ModelStore (防误导入），取消即丢弃。
 final class PendingImport: ObservableObject {
     static let shared = PendingImport()
     static let didStageNotification = Notification.Name("trollagent.pendingImport.staged")
@@ -1606,7 +1606,7 @@ final class PendingImport: ObservableObject {
         guard let c = staged else { return }
         let ok = ModelStore.shared.importFromDeepLink(c)
         staged = nil
-        // 通知 UI 显示结果（导入成功/已存在重复）
+        // 通知 UI 显示结果 (导入OK/已存在重复）
         NotificationCenter.default.post(name: Self.didStageNotification,
                                         object: nil,
                                         userInfo: ["result": ok ? "imported" : "duplicate"])

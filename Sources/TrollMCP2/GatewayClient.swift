@@ -25,8 +25,8 @@ final class GatewayClient: ObservableObject {
     init() {
         serverURL = UserDefaults.standard.string(forKey: key) ?? ""
         pairedToken = UserDefaults.standard.string(forKey: tokenKey)
-        // v2.9.10：网络恢复 / 回前台自动重连（解决"切后台再回来连接中断"）
-        // 用闭包观察者而非 #selector（GatewayClient 非 NSObject 子类，#selector 不可用）
+        // v2.9.10：网络restored / 回前台自动重连 (解决"切后台再回来连接中断"）
+        // 用闭包观察者而非 #selector (GatewayClient 非 NSObject 子类，#selector 不可用）
         NotificationCenter.default.addObserver(
             forName: AppLifecycleMonitor.networkRestored, object: nil, queue: .main
         ) { [weak self] _ in
@@ -47,7 +47,7 @@ final class GatewayClient: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self = self, !self.isConnected else { return }
             self.connect(url: url, token: token)
-            AuditLog.shared.log("gateway.auto_reconnect", detail: "网络恢复自动重连: \(url)")
+            AuditLog.shared.log("gateway.auto_reconnect", detail: "network restored, auto-reconnecting: \(url)")
         }
     }
 
@@ -62,7 +62,7 @@ final class GatewayClient: ObservableObject {
         if let t = pairedToken { UserDefaults.standard.set(t, forKey: tokenKey) }
 
         guard let wsURL = URL(string: url) else {
-            lastError = "无效 URL"
+            lastError = "invalid URL"
             completion?(false, "invalid url")
             return
         }
@@ -80,7 +80,7 @@ final class GatewayClient: ObservableObject {
         let timeout = DispatchWorkItem { [weak self] in
             guard let self = self, !self.handshakeResolved else { return }
             self.handshakeResolved = true
-            self.lastError = "握手超时（\(self.handshakeTimeoutSeconds)s 内未收到服务端确认）"
+            self.lastError = "handshake timeout (no server confirmation within \(self.handshakeTimeoutSeconds)s)"
             self.disconnect()
             self.handshakeCompletion?(false, self.lastError)
             self.handshakeCompletion = nil
@@ -88,7 +88,7 @@ final class GatewayClient: ObservableObject {
         handshakeTimeout = timeout
         DispatchQueue.global().asyncAfter(deadline: .now() + handshakeTimeoutSeconds, execute: timeout)
 
-        // 发送 hello（携带 token 做配对）
+        // 发送 hello (携带 token 做配对）
         let hello: [String: Any] = [
             "type": "hello",
             "client": "TrollMCP2",
@@ -138,7 +138,7 @@ final class GatewayClient: ObservableObject {
                 DispatchQueue.main.async {
                     if !self.handshakeResolved {
                         self.handshakeResolved = true
-                        self.lastError = "连接失败: \(error.localizedDescription)"
+                        self.lastError = "connection failed: \(error.localizedDescription)"
                         self.isConnected = false
                         self.handshakeCompletion?(false, self.lastError)
                         self.handshakeCompletion = nil
@@ -168,23 +168,23 @@ final class GatewayClient: ObservableObject {
                 handshakeResolved = true
                 handshakeTimeout?.cancel()
                 DispatchQueue.main.async { self.isConnected = true }
-                AuditLog.shared.log("gateway.connect", detail: "握手成功: \(serverURL)")
+                AuditLog.shared.log("gateway.connect", detail: "handshake OK: \(serverURL)")
                 handshakeCompletion?(true, nil)
                 handshakeCompletion = nil
                 return
             }
-            // 握手阶段收到非确认消息：视为连接失败（缺少握手确认）
+            // 握手阶段收到非确认消息：视为连接failed (缺少握手确认）
             if type == "error" || (obj["status"] as? String) == "error" {
                 handshakeResolved = true
                 handshakeTimeout?.cancel()
-                let err = (obj["message"] as? String) ?? "握手被拒绝"
+                let err = (obj["message"] as? String) ?? "handshake rejected"
                 DispatchQueue.main.async { self.lastError = err }
                 disconnect()
                 handshakeCompletion?(false, err)
                 handshakeCompletion = nil
                 return
             }
-            // 其它消息：继续等待确认（保持连接）
+            // 其它消息：继续等待确认 (保持连接）
             return
         }
 

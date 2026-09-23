@@ -1,7 +1,7 @@
 ﻿import Foundation
 
 // v2.9.71：自动诊断 + 本地 HTTP 服务
-// 1. 自动诊断 — 启动失败/崩溃/注入失败自动判因，给出修复建议
+// 1. 自动诊断 — 启动failed/崩溃/注入failed自动判因，给出修复建议
 // 2. 本地 HTTP 服务 — localhost REST API，其他脚本/工具可调用
 
 // MARK: - 自动诊断工具
@@ -9,7 +9,7 @@
 final class DiagnoseStartupTool: MCPTool {
     let definition = ToolDefinition(
         name: "diagnose.startup",
-        summary: "Auto-diagnose why an app won't launch. Use for: app crashes on start, won't open, find out why. Don't use for: read crash logs (use fs.crash), inject dylib (use injection.enable). Example: user says '小红书一打开就闪退' → diagnose startup failure.",
+        summary: "Auto-diagnose why an app won't launch. Use for: app crashes on start, won't open, find out why. Don't use for: read crash logs (use fs.crash), inject dylib (use injection.enable). Example: user says '小红书 crashes on open' → diagnose startup failure.",
         parameters: [
             "bundle_id": "Target App bundle ID (required)",
             "auto_fix": "Auto try to fix (default false, just diagnose)"
@@ -29,7 +29,7 @@ final class DiagnoseStartupTool: MCPTool {
         // 1. 检查 App 是否存在
         let apps = AppCatalog.list()
         guard let target = apps.first(where: { $0.bundleId == bundleId }) else {
-            return ["error": "App 未安装: \(bundleId)", "fix": "用 TrollStore 重新安装"]
+            return ["error": "App not installed: \(bundleId)", "fix": "reinstall with TrollStore"]
         }
         diagnosis["app_path"] = target.path
 
@@ -38,21 +38,21 @@ final class DiagnoseStartupTool: MCPTool {
         let binaryPath = target.path.appending("/\(exec)")
         diagnosis["binary_exists"] = FileManager.default.fileExists(atPath: binaryPath)
         if !FileManager.default.fileExists(atPath: binaryPath) {
-            causes.append("主二进制不存在")
-            fixes.append("重新安装 App")
+            causes.append("main binary does not exist")
+            fixes.append("reinstall the App")
         }
 
-        // 3. 检查架构（v2.9.125：arch unknown = 解析失败（可能加密），不误判"非 arm64"）
+        // 3. 检查架构 (v2.9.125：arch unknown = 解析failed (可能加密），不误判"非 arm64"）
         let (_, fileOutput) = InjectionManager.shared.spawnRoot("/usr/bin/file", args: [binaryPath])
         let isArm64 = fileOutput.contains("arm64")
         let isOtherArch = fileOutput.contains("x86_64") || fileOutput.contains("armv7") || fileOutput.contains("i386")
         if isArm64 {
             diagnosis["arch"] = "arm64"
         } else if isOtherArch {
-            diagnosis["arch"] = "非arm64"
+            diagnosis["arch"] = "non-arm64"
         } else {
             diagnosis["arch"] = "unknown"
-            diagnosis["arch_note"] = "解析失败（可能加密或特殊 Mach-O），不代表不可启动/不可注入；配合 cryptid 判断"
+            diagnosis["arch_note"] = "parse failed (maybe encrypted or special Mach-O), does not mean unlaunchable/uninjectable; judge with cryptid"
         }
         if isOtherArch {
             causes.append("非 arm64 架构")
@@ -105,7 +105,7 @@ final class DiagnoseStartupTool: MCPTool {
         diagnosis["launch_pid"] = pid
         diagnosis["launched"] = pid > 0
         if pid == 0 {
-            causes.append("启动后 3 秒内进程消失（闪退）")
+            causes.append("启动后 3 秒内进程消失 (闪退)")
             fixes.append("检查崩溃日志中的 dyld 错误，通常是注入的 dylib 依赖缺失")
         }
 
@@ -123,7 +123,7 @@ final class DiagnoseStartupTool: MCPTool {
         diagnosis["verdict"] = causes.isEmpty ? "✅ 启动正常" : "❌ 发现 \(causes.count) 个问题"
         // v2.9.125：CLI 式一句话结论
         diagnosis["message"] = causes.isEmpty
-            ? "未发现启动问题（arch=\(diagnosis["arch"] ?? "unknown")）"
+            ? "未发现启动问题 (arch=\(diagnosis["arch"] ?? "unknown"))"
             : "发现 \(causes.count) 个问题：\(causes.prefix(3).joined(separator: "；"))"
 
         return diagnosis
@@ -133,7 +133,7 @@ final class DiagnoseStartupTool: MCPTool {
 final class DiagnoseCrashTool: MCPTool {
     let definition = ToolDefinition(
         name: "diagnose.crash",
-        summary: "Analyze app crash logs to find root cause. Use for: app keeps crashing, find out why. Don't use for: read raw crash log (use fs.crash), diagnose startup failure (use diagnose.startup). Example: user says '小红书老闪退，什么原因' → analyze crash.",
+        summary: "Analyze app crash logs to find root cause. Use for: app keeps crashing, find out why. Don't use for: read raw crash log (use fs.crash), diagnose startup failure (use diagnose.startup). Example: user says '小红书 keeps crashing, why' → analyze crash.",
         parameters: [
             "bundle_id": "Target App bundle ID (required)",
             "count": "How many recent crashes to analyze (default 1)"
@@ -148,12 +148,12 @@ final class DiagnoseCrashTool: MCPTool {
 
         let crashDir = NSHomeDirectory().appending("/Library/Logs/CrashReporter")
         guard let files = try? FileManager.default.contentsOfDirectory(atPath: crashDir) else {
-            return ["error": "无法访问崩溃日志目录"]
+            return ["error": "cannot access crash log directory"]
         }
 
         let relevant = files.filter { $0.contains(bundleId) }.sorted().suffix(count)
         guard !relevant.isEmpty else {
-            return ["bundle_id": bundleId, "result": "未找到崩溃日志"]
+            return ["bundle_id": bundleId, "result": "no crash log found"]
         }
 
         var analyses: [[String: Any]] = []
@@ -181,7 +181,7 @@ final class DiagnoseCrashTool: MCPTool {
                 }
             }
 
-            // 提取崩溃线程调用栈（前 10 帧）
+            // 提取崩溃线程调用栈 (前 10 帧）
             var inCrashedThread = false
             var stack: [String] = []
             for line in lines {
@@ -201,7 +201,7 @@ final class DiagnoseCrashTool: MCPTool {
             var rootCause = "未知"
             if let term = analysis["termination_reason"] as? String {
                 if term.contains("CODESIGNING") { rootCause = "签名失效" }
-                else if term.contains("DYLD") { rootCause = "动态库加载失败" }
+                else if term.contains("DYLD") { rootCause = "动态库加载failed" }
                 else if term.contains("0xdead10cc") { rootCause = "后台挂起时持有文件锁" }
             }
             if analysis["dyld_error"] != nil { rootCause = "dyld 依赖缺失或符号未找到" }
@@ -211,13 +211,13 @@ final class DiagnoseCrashTool: MCPTool {
             // 修复建议
             switch rootCause {
             case "签名失效":
-                analysis["fix"] = "用 TrollStore 重装，或用 ldid -S 重新签名主二进制"
-            case "动态库加载失败", "dyld 依赖缺失或符号未找到":
-                analysis["fix"] = "检查注入的 dylib 依赖库（otool -L），确认所有依赖在目标设备上存在"
+                analysis["fix"] = "reinstall via TrollStore, or re-sign main binary with ldid -S"
+            case "动态库加载failed", "dyld 依赖缺失或符号未找到":
+                analysis["fix"] = "check injected dylib dependencies (otool -L), confirm all dependencies exist on device"
             case "后台挂起时持有文件锁":
-                analysis["fix"] = "App 进入后台前关闭文件句柄和数据库连接"
+                analysis["fix"] = "close file handles and DB connections before App goes background"
             default:
-                analysis["fix"] = "查看完整崩溃日志和调用栈，定位具体代码位置"
+                analysis["fix"] = "read full crash log and stack trace to locate the exact code"
             }
 
             analyses.append(analysis)
@@ -348,7 +348,7 @@ final class LocalServerManager {
                 }
                 do {
                     let result = try tool.invoke(params)
-                    // v2.9.125：网关输出与聊天侧统一 CLI 结构（ok/message/data）
+                    // v2.9.125：网关输出与聊天侧统一 CLI 结构 (ok/message/data）
                     var data = result
                     data.removeValue(forKey: "message")
                     let msg = (result["message"] as? String)
@@ -359,7 +359,7 @@ final class LocalServerManager {
                     }
                 } catch {
                     statusCode = 500
-                    // 失败也分类输出
+                    // failed也分类输出
                     let text = (error as? MCPError)?.description ?? error.localizedDescription
                     let info = FailureKind.classify(text)
                     let body: [String: Any] = [
@@ -390,7 +390,7 @@ final class LocalServerManager {
 final class ServerStartTool: MCPTool {
     let definition = ToolDefinition(
         name: "server.start",
-        summary: "Start the local HTTP server. Use for: enable external tools/scripts to call TrollAgent via REST API. Don't use for: stop server (use server.stop), check server status (use server.status). Example: user says '启动本地服务器' → start server.",
+        summary: "Start the local HTTP server. Use for: enable external tools/scripts to call TrollAgent via REST API. Don't use for: stop server (use server.stop), check server status (use server.status). Example: user says 'start local server' → start server.",
         parameters: [
             "port": "Port number (default 8765)"
         ], verified: true, category: "diagnose")
@@ -399,7 +399,7 @@ final class ServerStartTool: MCPTool {
         let port = (params["port"] as? Int) ?? 8765
         let ok = LocalServerManager.shared.start(port: port)
         return [
-            "message": ok ? "本地 HTTP 服务已启动（127.0.0.1:\(LocalServerManager.shared.port)）" : "启动失败（端口被占用或权限不足）",
+            "message": ok ? "local HTTP server started (127.0.0.1:\(LocalServerManager.shared.port))" : "start failed (port in use or insufficient permission)",
             "started": ok,
             "port": LocalServerManager.shared.port,
             "base_url": "http://127.0.0.1:\(LocalServerManager.shared.port)",
@@ -415,7 +415,7 @@ final class ServerStartTool: MCPTool {
 final class ServerStopTool: MCPTool {
     let definition = ToolDefinition(
         name: "server.stop",
-        summary: "Stop the local HTTP server. Use for: turn off the local web server, save battery. Don't use for: start server (use server.start), check server status (use server.status). Example: user says '把本地服务器关了' → stop server.",
+        summary: "Stop the local HTTP server. Use for: turn off the local web server, save battery. Don't use for: start server (use server.start), check server status (use server.status). Example: user says 'stop local server' → stop server.",
         parameters: [:],
         verified: true, category: "system")
 
@@ -428,7 +428,7 @@ final class ServerStopTool: MCPTool {
 final class ServerStatusTool: MCPTool {
     let definition = ToolDefinition(
         name: "server.status",
-        summary: "Check if the local HTTP server is running. Use for: see if server is up, check what port it's on. Don't use for: start server (use server.start), stop server (use server.stop). Example: user says '本地服务器开了吗' → check server status.",
+        summary: "Check if the local HTTP server is running. Use for: see if server is up, check what port it's on. Don't use for: start server (use server.start), stop server (use server.stop). Example: user says 'is local server running' → check server status.",
         parameters: [:],
     verified: true, category: "system")
 
@@ -441,7 +441,7 @@ final class ServerStatusTool: MCPTool {
     }
 }
 
-// MARK: - v3.1.36: server 大工具 + 子命令（合并 3 个 server.* 工具）
+// MARK: - v3.1.36: server 大工具 + 子命令 (合并 3 个 server.* 工具）
 
 final class ServerExecTool: MCPTool {
     let definition = ToolDefinition(

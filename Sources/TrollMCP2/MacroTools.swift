@@ -2,8 +2,8 @@ import Foundation
 import UIKit
 
 // MARK: - v2.9.141 AI 操作宏录制/回放
-// 录制：macro.record 开启后，ui.tap/swipe/long_press/clipboard 调用自动入宏（含截图验证点）
-// 回放：macro.run 用控制中心实时展示进度（计划=宏步骤），纯执行+每步截图存证（不耗 token 调 AI）
+// 录制：macro.record 开启后，ui.tap/swipe/long_press/clipboard 调用自动入宏 (含截图验证点）
+// 回放：macro.run 用控制中心实时展示进度 (计划=宏步骤），纯执行+每步截图存证 (不耗 token 调 AI）
 
 enum MacroStore {
     static var dir: URL { Workspace.root.appendingPathComponent("macros", isDirectory: true) }
@@ -63,7 +63,7 @@ enum MacroStore {
     private static func sanitize(_ name: String) -> String {
         let disallowed = CharacterSet(charactersIn: "/\\:?%*|\"<>")
         let cleaned = name.components(separatedBy: disallowed).joined(separator: "")
-        return cleaned.isEmpty ? "宏\(Int(Date().timeIntervalSince1970))" : cleaned
+        return cleaned.isEmpty ? "macro\(Int(Date().timeIntervalSince1970))" : cleaned
     }
 }
 
@@ -80,29 +80,29 @@ final class MacroRecorder {
         isRecording = true
     }
 
-    /// ui 工具调用钩子：录制中则记录（裁剪大参数）
+    /// ui 工具调用钩子：录制中则记录 (裁剪大参数）
     func capture(tool: String, params: [String: Any]) {
         guard isRecording else { return }
         var clean = params
-        // reason 保留（回放说明），大文本裁剪
+        // reason 保留 (回放说明），大文本裁剪
         if let t = clean["text"] as? String, t.count > 200 { clean["text"] = String(t.prefix(200)) }
         steps.append(["tool": tool, "params": clean])
     }
 
     @discardableResult
     func stop() -> (ok: Bool, message: String) {
-        guard isRecording else { return (false, "当前未在录制") }
+        guard isRecording else { return (false, "not currently recording") }
         isRecording = false
         let name = currentName
         let count = steps.count
         currentName = ""
         steps = []
-        guard count > 0 else { return (false, "宏为空（没有记录到任何操作）") }
+        guard count > 0 else { return (false, "macro is empty (no actions recorded)") }
         do {
             try MacroStore.save(name: name, steps: steps)
-            return (true, "宏「\(name)」已保存，共 \(count) 步")
+            return (true, "macro \"\(name)\" saved, total \(count) steps")
         } catch {
-            return (false, "保存失败: \(error.localizedDescription)")
+            return (false, "save failed: \(error.localizedDescription)")
         }
     }
 
@@ -117,11 +117,11 @@ final class MacroRecorder {
 final class MacroRunner {
     static func run(name: String, loop: Int, stepDelayMs: Int, completion: @escaping (Bool, String) -> Void) {
         guard let macro = MacroStore.load(name) else {
-            completion(false, "宏「\(name)」不存在")
+            completion(false, "macro \"\(name)\" does not exist")
             return
         }
         let steps = macro["steps"] as? [[String: Any]] ?? []
-        guard !steps.isEmpty else { completion(false, "宏为空"); return }
+        guard !steps.isEmpty else { completion(false, "macro is empty"); return }
 
         let loops = max(1, min(loop, 100))
         let plan = steps.map { step -> String in
@@ -133,7 +133,7 @@ final class MacroRunner {
         }
 
         DispatchQueue.global(qos: .userInitiated).async {
-            ControlSession.shared.begin(target: "宏回放 · \(name)", plan: plan)
+            ControlSession.shared.begin(target: "macro replay · \(name)", plan: plan)
             var done = 0
             var failed = 0
             for _ in 0..<loops {
@@ -147,22 +147,22 @@ final class MacroRunner {
                         ControlSession.shared.updateStep(index: i, status: .done, detail: tool)
                     } else {
                         failed += 1
-                        ControlSession.shared.updateStep(index: i, status: .failed, detail: "执行失败（回放中止）")
-                        ControlSession.shared.addResult("❌ \(tool) 回放失败，已中止")
-                        ControlSession.shared.finish(result: "宏「\(name)」回放失败：第 \(i + 1) 步 \(tool) 执行失败。可手动检查目标 App 状态后重试。")
-                        DispatchQueue.main.async { completion(false, "第 \(i + 1) 步失败") }
+                        ControlSession.shared.updateStep(index: i, status: .failed, detail: "execution failed (replay aborted)")
+                        ControlSession.shared.addResult("❌ \(tool) replay failed, aborted")
+                        ControlSession.shared.finish(result: "macro \"\(name)\" replay failed at step \(i + 1) (\(tool) execution failed). Check target App state and retry.")
+                        DispatchQueue.main.async { completion(false, "step \(i + 1) failed") }
                         return
                     }
                     Thread.sleep(forTimeInterval: Double(max(stepDelayMs, 50)) / 1000.0)
                 }
             }
-            // 每步截图存证（最后一步额外留证）
+            // 每步截图存证 (最后一步额外留证）
             let sem = DispatchSemaphore(value: 0)
             ScreenCapture.take { _, _ in sem.signal() }
             _ = sem.wait(timeout: .now() + 8)
-            ControlSession.shared.addResult("📸 已留存现场截图")
-            ControlSession.shared.finish(result: "宏「\(name)」回放完成：\(loops) 次 × \(steps.count) 步，成功 \(done) 步，失败 \(failed) 步。")
-            DispatchQueue.main.async { completion(true, "回放完成（\(done) 步成功）") }
+            ControlSession.shared.addResult("📸 scene screenshot kept")
+            ControlSession.shared.finish(result: "macro \"\(name)\" replay done: \(loops) times x \(steps.count) steps, OK \(done), failed \(failed).")
+            DispatchQueue.main.async { completion(true, "replay done (\(done) steps OK)") }
         }
     }
 
@@ -192,21 +192,21 @@ final class MacroRunner {
 
 final class MacroRecordTool: MCPTool {
     let definition = ToolDefinition(name: "macro.record",
-        summary: "Start recording a UI action macro. Use for: record a sequence of taps/swipes to replay later. Don't use for: play back macro (use macro.run), list macros (use macro.list). Example: user says '录一个自动签到的宏' → start recording.",
+        summary: "Start recording a UI action macro. Use for: record a sequence of taps/swipes to replay later. Don't use for: play back macro (use macro.run), list macros (use macro.list). Example: user says 'record an auto-checkin macro' → start recording.",
         parameters: ["name": "Macro name to save as"], verified: true, category: "macro")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
             throw MCPError.invalidParams("name required")
         }
         MacroRecorder.shared.start(name: name)
-        ControlSession.shared.addLog(.info, "🎬 开始录制宏「\(name)」——后续 ui.* 操作将记录")
-        return ["message": "开始录制宏「\(name)」。之后每次 ui.tap/swipe/long_press/clipboard 都会记录；完成后调用 macro.stop"]
+        ControlSession.shared.addLog(.info, "🎬 start recording macro \"\(name)\" - subsequent ui.* actions will be recorded")
+        return ["message": "start recording macro \"\(name)\". Each ui.tap/swipe/long_press/clipboard will be recorded; call macro.stop when done"]
     }
 }
 
 final class MacroStopTool: MCPTool {
     let definition = ToolDefinition(name: "macro.stop",
-        summary: "Stop recording and save a macro. Use for: after recording UI actions, stop and save the macro. Don't use for: start recording (use macro.record), play macro (use macro.run). Example: user says '录完了，保存这个宏' → stop recording.",
+        summary: "Stop recording and save a macro. Use for: after recording UI actions, stop and save the macro. Don't use for: start recording (use macro.record), play macro (use macro.run). Example: user says 'done recording, save this macro' → stop recording.",
         parameters: [:])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let (ok, msg) = MacroRecorder.shared.stop()
@@ -218,7 +218,7 @@ final class MacroStopTool: MCPTool {
 
 final class MacroListTool: MCPTool {
     let definition = ToolDefinition(name: "macro.list",
-        summary: "List all saved macro recordings. Use for: see what macros you've recorded, find a macro to play. Don't use for: record new macro (use macro.record), play macro (use macro.run). Example: user says '我录过哪些宏' → list all macros.",
+        summary: "List all saved macro recordings. Use for: see what macros you've recorded, find a macro to play. Don't use for: record new macro (use macro.record), play macro (use macro.run). Example: user says 'what macros have I recorded' → list all macros.",
         parameters: [:], verified: true, category: "macro")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let list = MacroStore.list()
@@ -228,7 +228,7 @@ final class MacroListTool: MCPTool {
 
 final class MacroRunTool: MCPTool {
     let definition = ToolDefinition(name: "macro.run",
-        summary: "Play back a recorded macro. Use for: replay a sequence of UI actions automatically. Don't use for: record new macro (use macro.record), list macros (use macro.list). Prerequisite: target app must be in foreground. Example: user says '跑一下签到宏' → run macro.",
+        summary: "Play back a recorded macro. Use for: replay a sequence of UI actions automatically. Don't use for: record new macro (use macro.record), list macros (use macro.list). Prerequisite: target app must be in foreground. Example: user says 'run the checkin macro' → run macro.",
         parameters: ["name": "Macro name to play", "loop": "How many times to repeat (default: 1, max: 100)", "step_delay_ms": "Delay between steps (default: 300ms)"], verified: true, category: "macro")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
@@ -245,44 +245,44 @@ final class MacroRunTool: MCPTool {
         }
         _ = sem.wait(timeout: .now() + 600)
         guard let ok = out["ok"] as? Bool, ok else {
-            throw MCPError.failed(out["message"] as? String ?? "回放超时（或失败）")
+            throw MCPError.failed(out["message"] as? String ?? "replay timeout (or failed)")
         }
-        return ["message": out["message"] ?? "回放完成", "name": name, "loop": loop]
+        return ["message": out["message"] ?? "replay done", "name": name, "loop": loop]
     }
 }
 
 final class MacroDeleteTool: MCPTool {
     let definition = ToolDefinition(name: "macro.delete",
-        summary: "Delete a saved macro. Use for: remove a macro you don't need anymore. Don't use for: play macro (use macro.run), list macros (use macro.list). Example: user says '删掉那个签到宏' → delete macro.",
+        summary: "Delete a saved macro. Use for: remove a macro you don't need anymore. Don't use for: play macro (use macro.run), list macros (use macro.list). Example: user says 'delete that checkin macro' → delete macro.",
         parameters: ["name": "Macro name to delete"], verified: true, category: "macro")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
             throw MCPError.invalidParams("name required")
         }
         let ok = MacroStore.delete(name)
-        guard ok else { throw MCPError.failed("宏「\(name)」不存在") }
-        return ["message": "已删除宏「\(name)」"]
+        guard ok else { throw MCPError.failed("macro \"\(name)\" does not exist") }
+        return ["message": "deleted macro \"\(name)\""]
     }
 }
 
 final class MacroExportTool: MCPTool {
     let definition = ToolDefinition(name: "macro.export",
-        summary: "Export a macro to JSON file. Use for: backup macros, share macros with others. Don't use for: play macro (use macro.run), list macros (use macro.list). Example: user says '把签到宏导出备份' → export macro.",
+        summary: "Export a macro to JSON file. Use for: backup macros, share macros with others. Don't use for: play macro (use macro.run), list macros (use macro.list). Example: user says 'export checkin macro for backup' → export macro.",
         parameters: ["name": "Macro name to export"], verified: true, category: "macro")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, !name.isEmpty else {
             throw MCPError.invalidParams("name required")
         }
-        guard let macro = MacroStore.load(name) else { throw MCPError.failed("宏不存在") }
+        guard let macro = MacroStore.load(name) else { throw MCPError.failed("macro does not exist") }
         let src = MacroStore.dir.appendingPathComponent(name).appendingPathExtension("json")
         let dst = Workspace.root.appendingPathComponent("macros_export").appendingPathComponent(name).appendingPathExtension("json")
         do {
             try FileManager.default.createDirectory(at: dst.deletingLastPathComponent(), withIntermediateDirectories: true)
             if FileManager.default.fileExists(atPath: dst.path) { try FileManager.default.removeItem(at: dst) }
             try FileManager.default.copyItem(at: src, to: dst)
-            return ["message": "已导出: \(dst.path)", "path": dst.path]
+            return ["message": "exported: \(dst.path)", "path": dst.path]
         } catch {
-            throw MCPError.failed("导出失败: \(error.localizedDescription)")
+            throw MCPError.failed("export failed: \(error.localizedDescription)")
         }
     }
 }

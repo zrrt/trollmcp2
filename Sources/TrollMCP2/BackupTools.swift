@@ -5,7 +5,7 @@ import Foundation
 final class BackupCreateTool: MCPTool {
     let definition = ToolDefinition(
         name: "backup.create",
-        summary: "Backup an app's data to a zip file. Use for: backup game saves, chat history, before reset. Don't use for: list backups (use backup.list), restore backup (use backup.restore). Example: user says '备份一下微信聊天记录' → create backup.",
+        summary: "Backup an app's data to a zip file. Use for: backup game saves, chat history, before reset. Don't use for: list backups (use backup.list), restore backup (use backup.restore). Example: user says 'back up WeChat chat history' → create backup.",
         parameters: [
             "bundle_id": "Target app bundle ID"
         ],
@@ -34,7 +34,7 @@ final class BackupCreateTool: MCPTool {
         let filename = "\(bundleId)_\(timestamp).zip"
         let zipPath = backupDir.appendingPathComponent(filename)
         
-        // 3. 打包 zip（用 iSH 引擎执行）
+        // 3. 打包 zip (用 iSH 引擎执行）
         let containerParent = (container as NSString).deletingLastPathComponent
         let containerName = (container as NSString).lastPathComponent
         let zipCmd = "cd \(containerParent) && zip -r -y \(zipPath.path) \(containerName) 2>&1"
@@ -76,7 +76,7 @@ final class BackupCreateTool: MCPTool {
 final class BackupDeviceFakeTool: MCPTool {
     let definition = ToolDefinition(
         name: "backup.device_fake",
-        summary: "Backup device spoofing configuration. Use for: save fake device setup, clone to another app. Don't use for: backup app data (use backup.create), restore spoofing (use backup.device_fake_restore). Example: user says '备份一下虚拟设备设置' → backup device fake config.",
+        summary: "Backup device spoofing configuration. Use for: save fake device setup, clone to another app. Don't use for: backup app data (use backup.create), restore spoofing (use backup.device_fake_restore). Example: user says 'back up fake device settings' → backup device fake config.",
         parameters: [
             "name": "Backup name (optional)"
         ],

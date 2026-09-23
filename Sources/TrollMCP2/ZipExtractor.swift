@@ -19,8 +19,8 @@ enum ZipExtractor {
         case notZip, corrupt(String)
         var description: String {
             switch self {
-            case .notZip: return "不是有效的 ZIP 文件"
-            case .corrupt(let m): return "ZIP 解析失败: \(m)"
+            case .notZip: return "not a valid ZIP file"
+            case .corrupt(let m): return "ZIP parse failed: \(m)"
             }
         }
     }
@@ -54,7 +54,7 @@ enum ZipExtractor {
             guard offset + 46 <= bytes.count,
                   bytes[offset] == 0x50, bytes[offset+1] == 0x4b,
                   bytes[offset+2] == 0x01, bytes[offset+3] == 0x02 else {
-                throw ZipError.corrupt("中央目录条目签名错误 @\(offset)")
+                throw ZipError.corrupt("central directory entry signature error @\(offset)")
             }
             let method = u16(bytes, offset + 10)
             let compSize = u32(bytes, offset + 20)
@@ -76,12 +76,12 @@ enum ZipExtractor {
     static func entryData(_ data: Data, name: String) throws -> Data {
         let bytes = [UInt8](data)
         guard let e = try entries(data).first(where: { $0.name == name }) else {
-            throw ZipError.corrupt("条目不存在: \(name)")
+            throw ZipError.corrupt("entry does not exist: \(name)")
         }
         guard !e.isDir else { return Data() }
         let dataStart = try localDataOffset(bytes: bytes, localOffset: e.localOffset)
         let compEnd = dataStart + e.compSize
-        guard compEnd <= bytes.count else { throw ZipError.corrupt("压缩数据越界 @\(name)") }
+        guard compEnd <= bytes.count else { throw ZipError.corrupt("compressed data out of bounds @\(name)") }
         let comp = Array(bytes[dataStart..<compEnd])
         let out: [UInt8]
         if e.method == 0 {
@@ -121,7 +121,7 @@ enum ZipExtractor {
             guard offset + 46 <= bytes.count,
                   bytes[offset] == 0x50, bytes[offset+1] == 0x4b,
                   bytes[offset+2] == 0x01, bytes[offset+3] == 0x02 else {
-                throw ZipError.corrupt("中央目录条目签名错误 @\(offset)")
+                throw ZipError.corrupt("central directory entry signature error @\(offset)")
             }
             let method = u16(bytes, offset + 10)
             let compSize = u32(bytes, offset + 20)
@@ -141,7 +141,7 @@ enum ZipExtractor {
                 let dataStart = try localDataOffset(bytes: bytes, localOffset: Int(localOffset))
                 let compEnd = dataStart + Int(compSize)
                 guard compEnd <= bytes.count else {
-                    throw ZipError.corrupt("压缩数据越界 @\(name)")
+                    throw ZipError.corrupt("compressed data out of bounds @\(name)")
                 }
                 let comp = Array(bytes[dataStart..<compEnd])
                 let out: [UInt8]

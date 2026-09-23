@@ -47,9 +47,9 @@ enum ISHEngine {
         case .booted:
             return nil
         case .booting:
-            return "[ish] 正在初始化内核，请稍后再试"
+            return "[ish] kernel initializing, try again later"
         case .failed(let msg):
-            return "[ish] 内核初始化失败: \(msg)"
+            return "[ish] kernel init failed: \(msg)"
         case .idle:
             break
         }
@@ -59,16 +59,16 @@ enum ISHEngine {
         let fm = FileManager.default
         if !fm.fileExists(atPath: dataPath) {
             guard let zipURL = Bundle.main.url(forResource: "alpine-rootfs", withExtension: "zip") else {
-                state = .failed("bundle 内缺少 alpine-rootfs.zip")
-                return "[ish] 内核初始化失败: bundle 内缺少 alpine-rootfs.zip"
+                state = .failed("alpine-rootfs.zip missing from bundle")
+                return "[ish] kernel init failed: alpine-rootfs.zip missing from bundle"
             }
             do {
                 let parent = URL(fileURLWithPath: rootfsDir).deletingLastPathComponent()
                 try fm.createDirectory(at: parent, withIntermediateDirectories: true)
                 try fm.unzipItem(at: zipURL, to: parent)
             } catch {
-                state = .failed("rootfs 解压失败: \(error.localizedDescription)")
-                return "[ish] 内核初始化失败: rootfs 解压失败 \(error.localizedDescription)"
+                state = .failed("rootfs extraction failed: \(error.localizedDescription)")
+                return "[ish] kernel init failed: rootfs extraction failed \(error.localizedDescription)"
             }
             if !fm.fileExists(atPath: dataPath) {
                 state = .failed("rootfs 解压后缺少 data 目录")
@@ -114,7 +114,7 @@ enum ISHEngine {
         }
         lock.lock()
         defer { lock.unlock() }
-        guard case .booted = state else { return ("[ish] 内核未就绪", -1, false) }
+        guard case .booted = state else { return ("[ish] kernel not ready", -1, false) }
 
         let cwd = guestCwd
         let tStart = Date()
@@ -136,7 +136,7 @@ enum ISHEngine {
         var notifyFds: [Int32] = [-1, -1]
         guard pipe(&outFds) == 0, pipe(&errFds) == 0, pipe(&notifyFds) == 0 else {
             ShellDiag.log("ISH exec pipe fail")
-            return ("[ish] 管道创建失败", -1, false)
+            return ("[ish] pipe creation failed", -1, false)
         }
 
         let argvBuf = buildCStringArray(["/bin/sh", "-c", fullCommand])
@@ -157,7 +157,7 @@ enum ISHEngine {
         if pid <= 0 {
             close(outFds[0]); close(errFds[0]); close(notifyFds[0])
             ShellDiag.log("ISH exec spawn fail pid=\(pid)")
-            return ("[ish] 进程创建失败 rc=\(pid)", -1, false)
+            return ("[ish] process creation failed rc=\(pid)", -1, false)
         }
         ShellDiag.log("ISH spawned pid=\(pid)")
 

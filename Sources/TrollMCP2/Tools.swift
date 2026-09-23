@@ -1,12 +1,12 @@
 import Foundation
 import UIKit
 
-// MARK: - 文件桥（对齐原版 artifact.* 工具）
+// MARK: - 文件桥 (对齐原版 artifact.* 工具）
 
 final class ArtifactReadTextTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.read_text",
-        summary: "Read a text file from the workspace. Use for: read files you created or downloaded. Don't use for: browse directory (use fs.tree), read app container files (use fs.read with bundle_id). Example: user says '读一下那个报告' → read text file from workspace.",
+        summary: "Read a text file from the workspace. Use for: read files you created or downloaded. Don't use for: browse directory (use fs.tree), read app container files (use fs.read with bundle_id). Example: user says 'read that report' → read text file from workspace.",
         parameters: ["path": "File path relative to workspace (e.g. reports/data.txt)"], verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -22,7 +22,7 @@ final class ArtifactReadTextTool: MCPTool {
 final class ArtifactWriteTextTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.write_text",
-        summary: "Write a text file to the workspace. Use for: create new file, save text results. Don't use for: write to app container (use container.write_text), edit existing file (use fs.edit). Example: user says '把这个结果保存成文件' → write to workspace.",
+        summary: "Write a text file to the workspace. Use for: create new file, save text results. Don't use for: write to app container (use container.write_text), edit existing file (use fs.edit). Example: user says 'save this result to a file' → write to workspace.",
         parameters: ["path": "File path", "content": "File content"]
     )
 
@@ -44,7 +44,7 @@ final class ArtifactWriteTextTool: MCPTool {
 final class ArtifactListTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.list",
-        summary: "List files in the workspace directory. Use for: see what files are in workspace, browse downloaded files. Don't use for: browse app container files (use fs.tree), read file content (use fs.read). Example: user says 'workspace 里有什么文件' → list artifacts.",
+        summary: "List files in the workspace directory. Use for: see what files are in workspace, browse downloaded files. Don't use for: browse app container files (use fs.tree), read file content (use fs.read). Example: user says 'what files are in workspace' → list artifacts.",
     verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -52,9 +52,9 @@ final class ArtifactListTool: MCPTool {
         let dir = try Workspace.resolve(sub)
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: dir.path, isDirectory: &isDir) else {
-            return ["entries": [], "error": "路径不存在: \(sub)"]
+            return ["entries": [], "error": "path does not exist: \(sub)"]
         }
-        // v2.9.33：subpath 是文件时返回该文件信息（修复 AI 列 .deb 文件报 Not a directory）
+        // v2.9.33：subpath 是文件时返回该文件信息 (修复 AI 列 .deb 文件报 Not a directory）
         if !isDir.boolValue {
             let attrs = try? FileManager.default.attributesOfItem(atPath: dir.path)
             let size = (attrs?[.size] as? NSNumber)?.int64Value ?? 0
@@ -63,7 +63,7 @@ final class ArtifactListTool: MCPTool {
                  "path": dir.path,
                  "isDirectory": false,
                  "size": size,
-                 "hint": "这是文件不是目录；如需读取其内容请用 artifact.read_text（文本）或查看下载目录中的同名裸 dylib"]
+                 "hint": "this is a file not a directory; to read it use artifact.read_text (text) or check the same-named raw dylib in the download directory"]
             ]]
         }
         let items = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
@@ -76,19 +76,19 @@ final class ArtifactListTool: MCPTool {
         }
         // v2.9.68：限制最多 50 条，避免目录文件多时上下文爆炸
         let limited = Array(entries.prefix(50))
-        return ["entries": limited, "total": entries.count, "truncated": entries.count > 50, "hint": entries.count > 50 ? "目录有 \(entries.count) 项，仅返回前 50 项；用 artifact.find 按名称/扩展名精确搜索" : ""]
+        return ["entries": limited, "total": entries.count, "truncated": entries.count > 50, "hint": entries.count > 50 ? "directory has \(entries.count) items, only first 50 returned; use artifact.find by name/extension for precise search" : ""]
     }
 }
 
 // MARK: - v2.9.33 递归查找工具
 
-/// 递归扫描工作区，按文件名/扩展名查找文件（如 .dylib / .deb），
-/// 帮 AI 快速定位 GitHub 下载产物中的注入源 dylib（Theos 打包的裸 dylib 在
+/// 递归扫描工作区，按文件名/扩展名查找文件 (如 .dylib / .deb），
+/// 帮 AI 快速定位 GitHub 下载产物中的注入源 dylib (Theos 打包的裸 dylib 在
 /// downloads/run_*/private/.theos/obj/debug/ 下，.deb 是归档包不是目录）。
 final class ArtifactFindTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact.find",
-        summary: "Find files in workspace by name or extension. Use for: locate a specific file (e.g. find all .ipa files). Don't use for: list directory (use artifact.list), search file contents (use fs.grep). Example: user says 'workspace 里的 IPA 文件在哪' → find by extension.",
+        summary: "Find files in workspace by name or extension. Use for: locate a specific file (e.g. find all .ipa files). Don't use for: list directory (use artifact.list), search file contents (use fs.grep). Example: user says 'where are the IPA files in workspace' → find by extension.",
     verified: true, category: "filesystem")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -126,12 +126,12 @@ final class ArtifactFindTool: MCPTool {
             }
         }
         walk(root, 0)
-        skipped = results.count >= limit ? ["达到 limit=\(limit)，可用更精确的 ext/name 缩小范围"] : []
+        skipped = results.count >= limit ? ["hit limit=\(limit), narrow with a more precise ext/name"] : []
         return [
             "query": ["ext": ext, "name": nameFrag],
             "total": results.count,
             "matches": results,
-            "hint": "Theos 编译产物通常同时产出裸 dylib（.../.theos/obj/debug/xxx.dylib）与归档 .deb；注入时用裸 dylib 路径传给 injection.enable 的 dylib_path。",
+            "hint": "Theos builds usually produce both a raw dylib (.../.theos/obj/debug/xxx.dylib) and a .deb archive; pass the raw dylib path to injection.enable's dylib_path.",
             "note": skipped
         ]
     }
@@ -140,7 +140,7 @@ final class ArtifactFindTool: MCPTool {
 // MARK: - 基础工具
 
 final class PingTool: MCPTool {
-    let definition = ToolDefinition(name: "ping", summary: "Connectivity test. Use for: check if TrollAgent is responsive. Don't use for: check network connectivity (use shell.exec ping), check device info (use device.info). Example: user says '你还在吗' → ping test.",
+    let definition = ToolDefinition(name: "ping", summary: "Connectivity test. Use for: check if TrollAgent is responsive. Don't use for: check network connectivity (use shell.exec ping), check device info (use device.info). Example: user says 'are you still there' → ping test.",
         parameters: [:])
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -149,7 +149,7 @@ final class PingTool: MCPTool {
 }
 
 final class DeviceInfoTool: MCPTool {
-    let definition = ToolDefinition(name: "device.info", summary: "Get device info: iOS version, iPhone model, memory/storage, battery, TrollAgent version, workspace path. Use for: check what iOS version, know device specs, find workspace path. Don't use for: spoof/change device info (use device.fake), wipe keychain (use device.keychain_wipe). Example: user says '我手机什么型号' → get device info.", verified: true, category: "device")
+    let definition = ToolDefinition(name: "device.info", summary: "Get device info: iOS version, iPhone model, memory/storage, battery, TrollAgent version, workspace path. Use for: check what iOS version, know device specs, find workspace path. Don't use for: spoof/change device info (use device.fake), wipe keychain (use device.keychain_wipe). Example: user says 'what model is my phone' → get device info.", verified: true, category: "device")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         [
@@ -165,19 +165,19 @@ final class DeviceInfoTool: MCPTool {
 final class DeviceProbeTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.probe",
-        summary: "Probe/check device environment: TrollStore installed, can we inject, what permissions available. Use for: check if device supports injection, see what capabilities are available. Don't use for: get device specs (use device.info), check battery/memory (use device.snapshot). Example: user says '我手机能注入吗，环境怎么样' → probe device.",
+        summary: "Probe/check device environment: TrollStore installed, can we inject, what permissions available. Use for: check if device supports injection, see what capabilities are available. Don't use for: get device specs (use device.info), check battery/memory (use device.snapshot). Example: user says 'can my phone inject, how is the environment' → probe device.",
         verified: true, category: "device")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let r = DeviceProbe.shared.run()
-        // v2.9.125：CLI 式一句话结论（dispatch 取 message 放顶层）
+        // v2.9.125：CLI 式一句话结论 (dispatch 取 message 放顶层）
         let failedChecks = r.checks.filter { !$0.passed }
         let message: String
         if r.ready {
-            message = "环境就绪（TrollStore✓ 权限✓ 工具链✓）"
+            message = "environment ready (TrollStore OK, permissions OK, toolchain OK)"
         } else {
             let labels = failedChecks.prefix(3).map { $0.label }.joined(separator: "、")
-            message = "环境未就绪：\(labels.isEmpty ? "未知原因" : labels)"
+            message = "environment not ready: \(labels.isEmpty ? "unknown reason" : labels)"
         }
         return [
             "message": message,
@@ -202,19 +202,19 @@ final class DeviceProbeTool: MCPTool {
     }
 }
 
-// MARK: - MemoryTweak（H5GG 式内存修改，通过注入的 dylib HTTP API 通信）
+// MARK: - MemoryTweak (H5GG 式内存修改，通过注入的 dylib HTTP API 通信）
 
 final class MemoryTweakTool: MCPTool {
     let definition = ToolDefinition(
         name: "memory",
-        summary: "Game memory modification (like GameGuardian/H5GG). Use for: modify game values like coins, HP, lives, scores. Don't use for: read app files (use shell.exec cat), network capture (use network.capture). Prerequisite: inject MemoryTweak.dylib into target game first. Workflow: 1) search for current value, 2) change value in game, 3) refine search, 4) write new value. Example: user says '改金币' → search coin count in game memory.",
+        summary: "Game memory modification (like GameGuardian/H5GG). Use for: modify game values like coins, HP, lives, scores. Don't use for: read app files (use shell.exec cat), network capture (use network.capture). Prerequisite: inject MemoryTweak.dylib into target game first. Workflow: 1) search for current value, 2) change value in game, 3) refine search, 4) write new value. Example: user says 'modify coins' → search coin count in game memory.",
         parameters: [
-            "action": "attach (确认已注入并连接，注入 dylib 后服务即已 attach，等价 status) / search (first scan) / refine (filter results) / write (set new value) / freeze (lock value) / unfreeze / status / frozen (list locked values)",
+            "action": "attach (确认已注入并连接，injected dylib 后服务即已 attach，等价 status) / search (first scan) / refine (filter results) / write (set new value) / freeze (lock value) / unfreeze / status / frozen (list locked values)",
             "value": "Value to search/write/freeze. e.g. 1000 coins, 50 HP",
             "type": "Data type: int (integer, default) / int64 / float (decimal) / double / byte / short",
             "address": "Memory address (0x hex format, required for write/freeze)"
         ],
-        prerequisites: ["目标游戏已注入 MemoryTweak.dylib（先 inject enable MemoryTweak 到目标 App）", "attach/status 确认连接成功（HTTP 127.0.0.1:8765 可达）后才 search/refine/write/freeze"]
+        prerequisites: ["目标游戏已injected MemoryTweak.dylib (先 inject enable MemoryTweak 到目标 App)", "attach/status 确认连接OK (HTTP 127.0.0.1:8765 可达)后才 search/refine/write/freeze"]
     )
 
     private let port = 8765
@@ -229,8 +229,8 @@ final class MemoryTweakTool: MCPTool {
         var body: [String: Any] = [:]
 
         switch action {
-        // v3.1.69: attach —— 指引里反复提 "memory attach"，但此前无此动作（AI 反馈属实）。
-        // MemoryTweak.dylib 被注入目标进程后 HTTP 服务即已 attach（无独立 attach 端点），
+        // v3.1.69: attach —— 指引里反复提 "memory attach"，但此前无此动作 (AI 反馈属实）。
+        // MemoryTweak.dylib 被注入目标进程后 HTTP 服务即已 attach (无独立 attach 端点），
         // attach 动作等价确认服务在线/进程已注入，转发 /status。
         case "attach":
             method = "GET"; path = "/status"
@@ -295,30 +295,30 @@ final class MemoryTweakTool: MCPTool {
         _ = semaphore.wait(timeout: .now() + 35)
 
         if let error = resultError {
-            return ["error": "连接 MemoryTweak 失败（\(error.localizedDescription)）。请确认 MemoryTweak.dylib 已注入目标App且目标App正在运行。", "connected": false]
+            return ["error": "failed to connect MemoryTweak (\(error.localizedDescription). Confirm MemoryTweak.dylib injected into target App and target App is running.", "connected": false]
         }
         guard let data = resultData,
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return ["error": "解析响应失败", "connected": false]
+            return ["error": "failed to parse response", "connected": false]
         }
         return json
     }
 }
 
 
-// MARK: - v2.9.108 剪贴板工具（借鉴 ios-mcp 能力）
+// MARK: - v2.9.108 剪贴板工具 (借鉴 ios-mcp 能力）
 // AI 读取/写入系统剪贴板：读验证码/链接/token、把结果复制给用户粘贴
 
 final class ClipboardReadTool: MCPTool {
     let definition = ToolDefinition(
         name: "clipboard.read",
-        summary: "Read what's currently in the clipboard. Use for: get the last copied text, read verification code from clipboard. Don't use for: copy text to clipboard (use clipboard.write), save text to file (use artifact.write_text). Example: user says '剪贴板里复制了什么' → read clipboard.",
+        summary: "Read what's currently in the clipboard. Use for: get the last copied text, read verification code from clipboard. Don't use for: copy text to clipboard (use clipboard.write), save text to file (use artifact.write_text). Example: user says 'what is copied in clipboard' → read clipboard.",
         parameters: [:],
         verified: true, category: "system")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let text = UIThreadBridge.readClipboard()
         if text.isEmpty {
-            return ["text": "", "empty": true, "hint": "剪贴板为空（无可读文本）"]
+            return ["text": "", "empty": true, "hint": "clipboard is empty (no readable text)"]
         }
         return ["text": text, "empty": false, "length": text.count]
     }
@@ -327,7 +327,7 @@ final class ClipboardReadTool: MCPTool {
 final class ClipboardWriteTool: MCPTool {
     let definition = ToolDefinition(
         name: "clipboard.write",
-        summary: "Copy text to the clipboard. Use for: put text on clipboard so user can paste it elsewhere. Don't use for: read clipboard (use clipboard.read), save text to file (use artifact.write_text). Example: user says '把这段文字复制一下' → write to clipboard.",
+        summary: "Copy text to the clipboard. Use for: put text on clipboard so user can paste it elsewhere. Don't use for: read clipboard (use clipboard.read), save text to file (use artifact.write_text). Example: user says 'copy this text' → write to clipboard.",
         parameters: ["text": "Text to copy to clipboard (required)"],
     verified: true, category: "system")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -339,7 +339,7 @@ final class ClipboardWriteTool: MCPTool {
     }
 }
 
-// MARK: - v3.1.39: artifact 大工具 + 子命令（合并 3 个 artifact.* 工具）
+// MARK: - v3.1.39: artifact 大工具 + 子命令 (合并 3 个 artifact.* 工具）
 
 final class ArtifactExecTool: MCPTool {
     let definition = ToolDefinition(
@@ -369,10 +369,10 @@ final class ArtifactExecTool: MCPTool {
             
         case "write":
             guard let filename = params["filename"] as? String else {
-                throw MCPError.invalidParams("filename required. Usage: artifact write filename:notes.txt text:'内容'")
+                throw MCPError.invalidParams("filename required. Usage: artifact write filename:notes.txt text:<content>")
             }
             guard let text = params["text"] as? String else {
-                throw MCPError.invalidParams("text required. Usage: artifact write filename:notes.txt text:'内容'")
+                throw MCPError.invalidParams("text required. Usage: artifact write filename:notes.txt text:<content>")
             }
             return try ArtifactWriteTextTool().invoke(["filename": filename, "text": text])
             
@@ -384,7 +384,7 @@ final class ArtifactExecTool: MCPTool {
 
         case "output_name_set":
             guard let name = params["name"] as? String else {
-                throw MCPError.invalidParams("name required. Usage: artifact output_name_set name:我的输出名")
+                throw MCPError.invalidParams("name required. Usage: artifact output_name_set name:<output name>")
             }
             return try WorkspaceOutputNameTool().invoke(["name": name])
 
@@ -397,7 +397,7 @@ final class ArtifactExecTool: MCPTool {
     }
 }
 
-// MARK: - v3.1.40: device 大工具 + 子命令（合并 4 个 device.* 工具）
+// MARK: - v3.1.40: device 大工具 + 子命令 (合并 4 个 device.* 工具）
 
 final class DeviceExecTool: MCPTool {
     let definition = ToolDefinition(
@@ -446,7 +446,7 @@ final class DeviceExecTool: MCPTool {
     }
 }
 
-// MARK: - v3.1.41: container 大工具 + 子命令（合并 3 个 container.* 工具）
+// MARK: - v3.1.41: container 大工具 + 子命令 (合并 3 个 container.* 工具）
 
 final class ContainerExecTool: MCPTool {
     let definition = ToolDefinition(
@@ -458,7 +458,7 @@ final class ContainerExecTool: MCPTool {
             "path": "File path — REQUIRED for write/delete",
             "text": "Text to write — REQUIRED for write"
         ],
-        verified: true, category: "fs", prerequisites: ["resolve/write/delete 的 bundle_id 必须对应已安装 App（先 app status 确认）", "refresh 无需前置，可随时调用"])
+        verified: true, category: "fs", prerequisites: ["resolve/write/delete 的 bundle_id 必须对应已安装 App (先 app status 确认)", "refresh has no prerequisite, callable anytime"])
     
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let command = params["command"] as? String else {
@@ -473,13 +473,13 @@ final class ContainerExecTool: MCPTool {
             
         case "write":
             guard let bundleId = params["bundle_id"] as? String else {
-                throw MCPError.invalidParams("bundle_id required. Usage: container write bundle_id:com.xxx path:Documents/a.txt text:内容")
+                throw MCPError.invalidParams("bundle_id required. Usage: container write bundle_id:com.xxx path:Documents/a.txt text:<content>")
             }
             guard let path = params["path"] as? String else {
-                throw MCPError.invalidParams("path required. Usage: container write bundle_id:com.xxx path:Documents/a.txt text:内容")
+                throw MCPError.invalidParams("path required. Usage: container write bundle_id:com.xxx path:Documents/a.txt text:<content>")
             }
             guard let text = params["text"] as? String else {
-                throw MCPError.invalidParams("text required. Usage: container write bundle_id:com.xxx path:Documents/a.txt text:内容")
+                throw MCPError.invalidParams("text required. Usage: container write bundle_id:com.xxx path:Documents/a.txt text:<content>")
             }
             return try ContainerWriteTextTool().invoke(["bundle_id": bundleId, "path": path, "text": text])
             
@@ -493,8 +493,8 @@ final class ContainerExecTool: MCPTool {
             return try ContainerDeleteTool().invoke(["bundle_id": bundleId, "path": path])
             
         // v3.1.68: container resolve —— bundle_id → 安装目录 + 数据容器 + 沙盒路径
-        // 此前 AI 为了找某 App 的数据目录要 loop 几百个目录跑 plutil（又慢又易崩），
-        // 一条 resolve 直接给出全部路径（D 项修复，2026-09-23 实测确认缺失）
+        // 此前 AI 为了找某 App 的数据目录要 loop 几百个目录跑 plutil (又慢又易崩），
+        // 一条 resolve 直接给出全部路径 (D items修复，2026-09-23 实测确认缺失）
         case "resolve":
             guard let bundleId = params["bundle_id"] as? String else {
                 throw MCPError.invalidParams("bundle_id required. Usage: container resolve bundle_id:com.xxx")
@@ -507,7 +507,7 @@ final class ContainerExecTool: MCPTool {
     }
 }
 
-// MARK: - v3.1.42: diagnose 大工具 + 子命令（合并 2 个 diagnose.* 工具）
+// MARK: - v3.1.42: diagnose 大工具 + 子命令 (合并 2 个 diagnose.* 工具）
 
 final class DiagnoseExecTool: MCPTool {
     let definition = ToolDefinition(
@@ -517,7 +517,7 @@ final class DiagnoseExecTool: MCPTool {
             "command": "Subcommand: startup / injection",
             "bundle_id": "App bundle ID"
         ],
-        verified: true, category: "diagnose", prerequisites: ["App 已安装且 bundle_id 有效（先 app status 确认）", "startup 诊断依赖 App 曾启动过（有崩溃日志才有意义）"])
+        verified: true, category: "diagnose", prerequisites: ["App 已安装且 bundle_id 有效 (先 app status 确认)", "startup 诊断依赖 App 曾启动过 (有崩溃日志才有意义)"])
     
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let command = params["command"] as? String else {
@@ -545,7 +545,7 @@ final class DiagnoseExecTool: MCPTool {
     }
 }
 
-// MARK: - v3.1.43: memory 大工具 + 子命令（合并 3 个 assistant.memory.* 工具）
+// MARK: - v3.1.43: memory 大工具 + 子命令 (合并 3 个 assistant.memory.* 工具）
 
 final class MemoryExecTool: MCPTool {
     let definition = ToolDefinition(
@@ -590,7 +590,7 @@ final class MemoryExecTool: MCPTool {
     }
 }
 
-// MARK: - v3.1.44: verify 大工具 + 子命令（合并 2 个 verify.* 工具）
+// MARK: - v3.1.44: verify 大工具 + 子命令 (合并 2 个 verify.* 工具）
 
 final class VerifyExecTool: MCPTool {
     let definition = ToolDefinition(
@@ -601,7 +601,7 @@ final class VerifyExecTool: MCPTool {
             "path": "File path (for file)",
             "bundle_id": "App bundle ID (for app_running)"
         ],
-        verified: true, category: "system", prerequisites: ["app_running 前确认 bundle_id 已安装且曾启动过（app.launch 后验证才有意义）", "file 验证前 path 应为真实存在的绝对路径"])
+        verified: true, category: "system", prerequisites: ["app_running 前确认 bundle_id 已安装且曾启动过 (app.launch 后验证才有意义)", "path must be a real absolute path before file verification"])
     
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let command = params["command"] as? String else {
@@ -629,7 +629,7 @@ final class VerifyExecTool: MCPTool {
     }
 }
 
-// MARK: - v3.1.45: ssh 大工具 + 子命令（合并 2 个 ssh.* 工具）
+// MARK: - v3.1.45: ssh 大工具 + 子命令 (合并 2 个 ssh.* 工具）
 
 final class SshExecTool: MCPTool {
     let definition = ToolDefinition(
@@ -672,7 +672,7 @@ final class SshExecTool: MCPTool {
     }
 }
 
-// MARK: - v3.1.48: macro 大工具 + 子命令（合并 6 个 macro.* 工具）
+// MARK: - v3.1.48: macro 大工具 + 子命令 (合并 6 个 macro.* 工具）
 
 final class MacroExecTool: MCPTool {
     let definition = ToolDefinition(
@@ -728,7 +728,7 @@ final class MacroExecTool: MCPTool {
     }
 }
 
-// MARK: - v3.1.49: model 大工具 + 子命令（合并 6 个 model.* 工具）
+// MARK: - v3.1.49: model 大工具 + 子命令 (合并 6 个 model.* 工具）
 
 final class ModelExecTool: MCPTool {
     let definition = ToolDefinition(
@@ -779,7 +779,7 @@ final class ModelExecTool: MCPTool {
     }
 }
 
-// MARK: - v3.1.50: knowledge 大工具 + 子命令（合并 4 个 knowledge.* 工具）
+// MARK: - v3.1.50: knowledge 大工具 + 子命令 (合并 4 个 knowledge.* 工具）
 
 final class KnowledgeExecTool: MCPTool {
     let definition = ToolDefinition(
@@ -832,7 +832,7 @@ final class KnowledgeExecTool: MCPTool {
     }
 }
 
-// MARK: - v3.1.51: location 大工具 + 子命令（合并 4 个 location.* 工具）
+// MARK: - v3.1.51: location 大工具 + 子命令 (合并 4 个 location.* 工具）
 
 final class LocationExecTool: MCPTool {
     let definition = ToolDefinition(
@@ -877,7 +877,7 @@ final class LocationExecTool: MCPTool {
     }
 }
 
-// MARK: - v3.1.52: github 大工具 + 子命令（合并 4 个 github.* 工具）
+// MARK: - v3.1.52: github 大工具 + 子命令 (合并 4 个 github.* 工具）
 
 final class GitHubExecTool: MCPTool {
     let definition = ToolDefinition(

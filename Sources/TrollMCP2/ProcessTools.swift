@@ -1,9 +1,9 @@
 import Foundation
 
-// v2.9.184：libproc 进程枚举（proc_listallpids / proc_pidpath，纯 C API，
+// v2.9.184：libproc 进程枚举 (proc_listallpids / proc_pidpath，纯 C API，
 // 不依赖 shell/ps/task_for_pid——TrollStore 无 shell 环境 /bin/ps 不可用，
-// 导致 app.status / app.decrypt 的进程检测永远 false（实测证实）。
-// Darwin 模块不暴露 libproc 符号，用 @_silgen_name 直接绑定系统符号（iOS 6+ 均存在）。
+// 导致 app.status / app.decrypt 的进程检测永远 false (实测证实）。
+// Darwin 模块不暴露 libproc 符号，用 @_silgen_name 直接绑定系统符号 (iOS 6+ 均存在）。
 
 // v2.9.70：进程管理 + 测试编排器
 // 1. 进程管理 — 目标 App 启停、重启、前台状态、CPU/内存/线程采样
@@ -14,7 +14,7 @@ import Foundation
 final class AppStartTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.start",
-        summary: "Launch/open an app. Use for: start an app, open it from home screen. Don't use for: restart app (use app.restart), check if running (use app.status). Example: user says '打开小红书' → launch app.",
+        summary: "Launch/open an app. Use for: start an app, open it from home screen. Don't use for: restart app (use app.restart), check if running (use app.status). Example: user says 'open 小红书' → launch app.",
         parameters: [
             "bundle_id": "Target app bundle ID",
             "wait_seconds": "Wait after launch to confirm it started (default: 3s)"
@@ -30,7 +30,7 @@ final class AppStartTool: MCPTool {
         var errors: [[String: Any]] = []
         func find() -> Int32 { findPid(by: bundleId) }
 
-        // 方法 1：open -b（正确带 -b 标志；旧版漏了 -b 导致 exit 2 误报 Bundle ID 错误）
+        // 方法 1：open -b (正确带 -b 标志；旧版漏了 -b 导致 exit 2 误报 Bundle ID 错误）
         let (c1, o1) = InjectionManager.shared.spawnRoot("/usr/bin/open", args: ["-b", bundleId])
         Thread.sleep(forTimeInterval: TimeInterval(wait))
         var pid = find()
@@ -40,7 +40,7 @@ final class AppStartTool: MCPTool {
         }
         errors.append(["step": "open -b", "exit": Int(c1), "stderr": String(o1.prefix(400))])
 
-        // 方法 1.5（v2.9.185）：LSApplicationWorkspace 私有 API 拉起（TrollStore 可用，不依赖 shell）
+        // 方法 1.5 (v2.9.185）：LSApplicationWorkspace 私有 API 拉起 (TrollStore 可用，不依赖 shell）
         if let wsClass = NSClassFromString("LSApplicationWorkspace") as? NSObject.Type,
            let ws = wsClass.perform(NSSelectorFromString("defaultWorkspace"))?.takeUnretainedValue() as? NSObject,
            ws.responds(to: NSSelectorFromString("openApplicationWithBundleID:")) {
@@ -54,7 +54,7 @@ final class AppStartTool: MCPTool {
             errors.append(["step": "ls_workspace_open", "exit": 0, "stderr": "openApplicationWithBundleID 未拉起"])
         }
 
-        // 方法 2：注册表路径 → 直接执行主二进制（绕过 open 依赖）
+        // 方法 2：注册表路径 → 直接执行主二进制 (绕过 open 依赖）
         if let app = AppCatalog.find(bundleId) {
             let plistPath = app.path + "/Info.plist"
             let plist = NSDictionary(contentsOfFile: plistPath)
@@ -90,15 +90,15 @@ final class AppStartTool: MCPTool {
         return ["bundle_id": bundleId, "started": false, "pid": 0,
                 "launch_ms": Int(Date().timeIntervalSince(start) * 1000),
                 "errors": errors,
-                "next_step": "先查 app.encrypt_info（已加密需 app.decrypt 砸壳）→ app.status 确认进程；反调试拦截时考虑 injection.mem 内存注入",
-                "hint": "三种启动方式均失败，见 errors 明细（不再是 Bundle ID 误报）"]
+                "next_step": "check app.encrypt_info (decrypt if encrypted) -> app.status to confirm process; consider injection.mem memory injection when anti-debug blocks",
+                "hint": "all three launch methods failed, see errors detail (no longer a Bundle ID false report)"]
     }
 }
 
 final class AppStopTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.stop",
-        summary: "Kill/stop an app (force close it). Use for: close an app that's running, force quit. Don't use for: restart app (use app.restart), uninstall app (use app.uninstall). Example: user says '把小红书关掉' → stop app.",
+        summary: "Kill/stop an app (force close it). Use for: close an app that's running, force quit. Don't use for: restart app (use app.restart), uninstall app (use app.uninstall). Example: user says 'close 小红书' → stop app.",
         parameters: [
             "bundle_id": "Target App bundle ID (required)"
         ],
@@ -111,7 +111,7 @@ final class AppStopTool: MCPTool {
 
         let pid = findPid(by: bundleId)
         guard pid > 0 else {
-            return ["bundle_id": bundleId, "stopped": false, "reason": "进程未运行"]
+            return ["bundle_id": bundleId, "stopped": false, "reason": "process not running"]
         }
 
         let (exitCode, _) = InjectionManager.shared.spawnRoot("/bin/kill", args: ["-9", "\(pid)"])
@@ -130,7 +130,7 @@ final class AppStopTool: MCPTool {
 final class AppRestartTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.restart",
-        summary: "Restart/kill then relaunch an app. Use for: restart app after injection, clear app state, force close and reopen. Don't use for: just opening app (use app.launch), uninstall app (use app.uninstall). Example: user says '重启小红书' → restart com.xingin.discover.",
+        summary: "Restart/kill then relaunch an app. Use for: restart app after injection, clear app state, force close and reopen. Don't use for: just opening app (use app.launch), uninstall app (use app.uninstall). Example: user says 'restart 小红书' → restart com.xingin.discover.",
         parameters: [
             "bundle_id": "Target App bundle_id (required). e.g. com.xingin.discover",
             "wait_seconds": "Wait seconds after launch (default 3)"
@@ -146,10 +146,10 @@ final class AppRestartTool: MCPTool {
         let start = Date()
         // 杀掉旧进程——v2.9.251: spawnRoot 在 TrollStore 无 root shell(/bin/sh not found)下 kill 不执行,
         // App 没真正重启导致 ControlAgent.dylib 不重新加载、4789 服务器起不来;改普通 spawn(用户态可杀自己进程)
-        // v2.9.256: 实测 app.restart 返回 old_pid==new_pid（PID 未变=假重启）——
+        // v2.9.256: 实测 app.restart 返回 old_pid==new_pid (PID 未变=假重启）——
         // 普通 spawn /bin/kill 在 TrollStore 沙盒无 task_for_pid 杀不掉其他 App 进程。
-        // 改调 SpringBoardServices 私有 API SBTerminateApplication（platform-application entitlement 可调，
-        // iOS 全版本存在），失败再兜底 /bin/kill。
+        // 改调 SpringBoardServices 私有 API SBTerminateApplication (platform-application entitlement 可调，
+        // iOS 全版本存在），failed再兜底 /bin/kill。
         // v2.9.257: SBTerminateApplication 实测也无效(需 springboard.debug entitlement)。对齐 TrollFools
         // TFUtilKillAll——直接进程内调 kill() 系统调用(platform-application 权限足够),这才是验证过的可靠方式。
         let oldPid = findPid(by: bundleId)
@@ -184,7 +184,7 @@ final class AppRestartTool: MCPTool {
 
     /// v2.9.256: 真终止 App——SpringBoardServices 私有 API SBTerminateApplication。
     /// TrollStore 的 App 带 platform-application entitlement，可调该符号终止任意前台 App；
-    /// 比 /bin/kill 可靠（kill 需 task_for_pid/root，TrollStore 非越狱下不可用）。
+    /// 比 /bin/kill 可靠 (kill 需 task_for_pid/root，TrollStore 非越狱下不可用）。
     static func terminateApplication(bundleId: String) -> Bool {
         guard let handle = dlopen("/System/Library/PrivateFrameworks/SpringBoardServices.framework/SpringBoardServices", RTLD_LAZY) else {
             return false
@@ -205,7 +205,7 @@ final class AppRestartTool: MCPTool {
 final class AppStatusTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.status",
-        summary: "Check if an app is running + its resource usage (CPU, memory, PID). Use for: see if app is alive, check how much memory it uses. Don't use for: list all running apps (use process.list), stop app (use app.stop). Example: user says '小红书现在在跑吗，占多少内存' → check app status.",
+        summary: "Check if an app is running + its resource usage (CPU, memory, PID). Use for: see if app is alive, check how much memory it uses. Don't use for: list all running apps (use process.list), stop app (use app.stop). Example: user says 'is 小红书 running, how much memory' → check app status.",
         parameters: [
             "bundle_id": "Target App bundle ID (required)"
         ],
@@ -253,7 +253,7 @@ final class AppStatusTool: MCPTool {
 final class AppStatsTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.stats",
-        summary: "Profile CPU/memory usage of an app. Use for: performance analysis, detect memory leaks. Don't use for: check if app is running (use app.status), list running apps (use process.list). Example: user says '测一下小红书的内存占用' → profile stats.",
+        summary: "Profile CPU/memory usage of an app. Use for: performance analysis, detect memory leaks. Don't use for: check if app is running (use app.status), list running apps (use process.list). Example: user says 'measure 小红书 memory usage' → profile stats.",
         parameters: [
             "bundle_id": "Target app bundle ID",
             "duration": "How long to sample (default: 10s)",
@@ -274,7 +274,7 @@ final class AppStatsTool: MCPTool {
 
         let pid = findPid(by: bundleId)
         guard pid > 0 else {
-            return ["bundle_id": bundleId, "error": "App 未运行"]
+            return ["bundle_id": bundleId, "error": "App not running"]
         }
 
         let steps = max(1, duration / interval)
@@ -309,7 +309,7 @@ final class AppStatsTool: MCPTool {
             "cpu": ["avg": String(format: "%.1f", avgCpu), "max": String(format: "%.1f", maxCpu), "unit": "%"],
             "memory": ["avg_kb": avgMem, "max_kb": maxMem, "min_kb": minMem, "growth_kb": memGrowth],
             "trend": samples,
-            "leak_suspect": memGrowth > 1024 ? "⚠️ 内存增长 \(memGrowth)KB，疑似泄漏" : "内存稳定"
+            "leak_suspect": memGrowth > 1024 ? "⚠️ memory grew \(memGrowth)KB, possible leak" : "memory stable"
         ]
     }
 }
@@ -319,7 +319,7 @@ final class AppStatsTool: MCPTool {
 final class TestRunTool: MCPTool {
     let definition = ToolDefinition(
         name: "test.run",
-        summary: "One-click test pipeline for an app. Use for: test dylib injection automatically, collect perf/logs. Don't use for: run task template (use task.run), inject dylib manually (use injection.enable). Example: user says '测试一下这个 dylib 注入小红书行不行' → run test pipeline.",
+        summary: "One-click test pipeline for an app. Use for: test dylib injection automatically, collect perf/logs. Don't use for: run task template (use task.run), inject dylib manually (use injection.enable). Example: user says 'test if this dylib works injected into 小红书' → run test pipeline.",
         parameters: [
             "bundle_id": "Target app bundle ID",
             "dylib_path": "Dylib path to inject (optional)",
@@ -369,7 +369,7 @@ final class TestRunTool: MCPTool {
             record("start", ["pid": pid, "running": pid > 0])
         }
 
-        // 3. 等待稳定（已在 start 中等待）
+        // 3. 等待稳定 (已在 start 中等待）
         if steps.contains("wait") {
             Thread.sleep(forTimeInterval: TimeInterval(wait))
             record("wait", ["seconds": wait])
@@ -397,11 +397,11 @@ final class TestRunTool: MCPTool {
                 let maxMem = memValues.max() ?? 0
                 record("stats", ["cpu_avg": String(format: "%.1f", avgCpu), "mem_max_kb": maxMem, "samples": cpuValues.count])
             } else {
-                record("stats", ["error": "进程不存在"])
+                record("stats", ["error": "process does not exist"])
             }
         }
 
-        // 5. 采集日志
+        // 5. Collect logs
         if steps.contains("logs") {
             let workspace = NSHomeDirectory().appending("/Documents/Workspace/logs")
             try? FileManager.default.createDirectory(atPath: workspace, withIntermediateDirectories: true)
@@ -453,17 +453,17 @@ final class TestRunTool: MCPTool {
 
 // MARK: - 辅助函数
 
-// libproc 系统符号直绑（iOS 6+；macOS CI 交叉编译 iOS target 也可链接）
+// libproc 系统符号直绑 (iOS 6+；macOS CI 交叉编译 iOS target 也可链接）
 @_silgen_name("proc_listallpids")
 func sys_proc_listallpids(_ buffer: UnsafeMutablePointer<pid_t>?, _ bufferSize: Int32) -> Int32
 
 @_silgen_name("proc_pidpath")
 func sys_proc_pidpath(_ pid: Int32, _ buffer: UnsafeMutablePointer<CChar>?, _ buffersize: UInt32) -> Int32
 
-/// v2.9.184：libproc 枚举进程，按可执行文件路径前缀匹配（xxx.app 目录）。
+/// v2.9.184：libproc 枚举进程，按可执行文件路径前缀匹配 (xxx.app 目录）。
 /// 纯 C API，TrollStore 无 shell 环境可用；非越狱可能受进程可见性限制，实测确认。
 /// v3.1.71：路径归一化——libproc 返回真实路径 /private/var/...，而 AppCatalog 记录可能是
-/// /var/...（软链），前缀匹配会失败（AI 实测 app.status 与 encrypt_info 打架的根因之一）。
+/// /var/... (软链），前缀匹配会failed (AI 实测 app.status 与 encrypt_info 打架的根因之一）。
 func findPidByExecutable(bundlePath: String) -> Int32 {
     let normBundle = normalizeIOPath(bundlePath)
     var pids = [pid_t](repeating: 0, count: 2048)
@@ -475,11 +475,11 @@ func findPidByExecutable(bundlePath: String) -> Int32 {
         let len = sys_proc_pidpath(pid, &buf, UInt32(buf.count))
         if len > 0 {
             let path = String(cString: buf)
-            // v2.9.186：排除扩展进程（.appex）——扩展在 bundle 目录内但非主 App 进程，
-            // 此前误把 NotificationServiceExtension 当主进程（真机实测 pid 11718 假阳性，
-            // 导致 app.start 误报启动成功、app.decrypt 拿扩展进程 task 读镜像表全空）
+            // v2.9.186：排除扩展进程 (.appex）——扩展在 bundle 目录内但非主 App 进程，
+            // 此前误把 NotificationServiceExtension 当主进程 (真机实测 pid 11718 假阳性，
+            // 导致 app.start 误报启动OK、app.decrypt 拿扩展进程 task 读镜像表全空）
             if path.contains(".appex") { continue }
-            // 可执行文件在 .app 目录内，路径以 bundlePath 开头即命中（归一化后比较）
+            // 可执行文件在 .app 目录内，路径以 bundlePath 开头即matched (归一化后比较）
             if normalizeIOPath(path).hasPrefix(normBundle) {
                 return pid
             }
@@ -488,7 +488,7 @@ func findPidByExecutable(bundlePath: String) -> Int32 {
     return 0
 }
 
-/// v3.1.71：/var ↔ /private/var 软链归一（/var/xxx → /private/var/xxx；反之还原）
+/// v3.1.71：/var ↔ /private/var 软链归一 (/var/xxx → /private/var/xxx；反之还原）
 func normalizeIOPath(_ p: String) -> String {
     if p.hasPrefix("/private/var/") {
         return "/var" + String(p.dropFirst("/private/var".count))
@@ -500,7 +500,7 @@ func normalizeIOPath(_ p: String) -> String {
 }
 
 func findPid(by bundleId: String) -> Int32 {
-    // v2.9.184：主用 libproc（不依赖 shell）。AppCatalog 拿 bundle 可执行路径。
+    // v2.9.184：主用 libproc (不依赖 shell）。AppCatalog 拿 bundle 可执行路径。
     if let entry = AppCatalog.find(bundleId) {
         let exePath = entry.path + "/" + entry.execName
         let pid = findPidByExecutable(bundlePath: exePath)
@@ -509,13 +509,13 @@ func findPid(by bundleId: String) -> Int32 {
         // 用 .app 目录前缀再试一次
         let pid2 = findPidByExecutable(bundlePath: entry.path)
         if pid2 > 0 { return pid2 }
-        // v3.1.71：libproc 命中失败时先按可执行名精确匹配（ps 输出 comm 列）
+        // v3.1.71：libproc 命中failed时先按可执行名精确匹配 (ps 输出 comm 列）
         let pid3 = findPidByPsName(entry.execName)
         if pid3 > 0 { return pid3 }
     }
-    // 兜底：旧 ps 方式（无 shell 环境会失败，保留仅作兼容）
-    // v3.1.71：改用 spawnRootDetailed（30s 超时）——spawnRoot 无超时在慢设备上
-    // 可能拿不到 ps 输出导致漏报（真机实测 app.status 与 app.encrypt_info 打架）
+    // 兜底：旧 ps 方式 (无 shell 环境会failed，保留仅作兼容）
+    // v3.1.71：改用 spawnRootDetailed (30s 超时）——spawnRoot 无超时在慢设备上
+    // 可能拿不到 ps 输出导致漏报 (真机实测 app.status 与 app.encrypt_info 打架）
     let output = InjectionManager.shared.spawnRootDetailed("/bin/ps", args: ["-ax"], timeout: 30).stdout
     for line in output.components(separatedBy: .newlines) {
         if line.contains(bundleId) || line.contains(bundleId.replacingOccurrences(of: ".", with: "")) {
@@ -528,8 +528,8 @@ func findPid(by bundleId: String) -> Int32 {
     return 0
 }
 
-/// v3.1.71：按进程名（comm 列）匹配 pid——app.status 与 encrypt_info 打架的补丁：
-/// libproc 匹配可执行路径失败时，ps 里 comm 列（可执行文件名）仍可命中。
+/// v3.1.71：按进程名 (comm 列）匹配 pid——app.status 与 encrypt_info 打架的补丁：
+/// libproc 匹配可执行路径failed时，ps 里 comm 列 (可执行文件名）仍可命中。
 func findPidByPsName(_ execName: String) -> Int32 {
     guard !execName.isEmpty else { return 0 }
     let output = InjectionManager.shared.spawnRootDetailed("/bin/ps", args: ["-ax"], timeout: 30).stdout
@@ -544,7 +544,7 @@ func findPidByPsName(_ execName: String) -> Int32 {
     return 0
 }
 
-// MARK: - v3.1.34: app 大工具 + 子命令（合并 5 个 app.* 工具）
+// MARK: - v3.1.34: app 大工具 + 子命令 (合并 5 个 app.* 工具）
 
 final class AppExecTool: MCPTool {
     let definition = ToolDefinition(

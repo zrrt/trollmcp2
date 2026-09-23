@@ -4,14 +4,14 @@ import ObjectiveC
 import AVFoundation
 import BackgroundTasks
 
-// MARK: - App 二进制依赖树（v2.9.261）
+// MARK: - App 二进制依赖树 (v2.9.261）
 // 用途：找出"启动必加载"的 framework——主二进制 LC_LOAD_DYLIB 直接依赖的 App 内 framework
-// 才是启动时加载的（注入它 ControlAgent constructor 必执行）；仅被其他 framework 依赖的
-// 是懒加载（注入无效）。小红书 AppsFlyerLib/B 站 BGM 均实测为懒加载，注入后 4789 不监听。
+// 才是启动时加载的 (注入它 ControlAgent constructor 必执行）；仅被其他 framework 依赖的
+// 是懒加载 (注入无效）。小红书 AppsFlyerLib/B 站 BGM 均实测为懒加载，注入后 4789 不监听。
 final class AppDepsTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.deps",
-        summary: "Show what dylibs an app links to (dependencies). Use for: analyze app structure, see if a dylib is already injected, check binary linkage. Don't use for: inject dylib (use injection.enable), check if encrypted (use app.encrypt_info). Example: user says '小红书依赖哪些库' → show app deps.",
+        summary: "Show what dylibs an app links to (dependencies). Use for: analyze app structure, see if a dylib is already injected, check binary linkage. Don't use for: inject dylib (use injection.enable), check if encrypted (use app.encrypt_info). Example: user says 'what dylibs does 小红书 depend on' → show app deps.",
         parameters: ["bundle_id": "Target App bundle_id (e.g. com.xingin.discover)"],
         verified: true, category: "app_control")
 
@@ -20,11 +20,11 @@ final class AppDepsTool: MCPTool {
             throw MCPError.invalidParams("bundle_id required")
         }
         guard let app = AppCatalog.find(bundleId) else {
-            throw MCPError.failed("未找到 App: \(bundleId)")
+            throw MCPError.failed("app not found: \(bundleId)")
         }
         let exec = (NSDictionary(contentsOfFile: app.path + "/Info.plist")?["CFBundleExecutable"] as? String) ?? ""
         guard !exec.isEmpty else {
-            return ["bundle_id": bundleId, "error": "Info.plist 无 CFBundleExecutable"]
+            return ["bundle_id": bundleId, "error": "Info.plist has no CFBundleExecutable"]
         }
         let mainPath = app.path + "/" + exec
 
@@ -61,7 +61,7 @@ final class AppDepsTool: MCPTool {
                         if isBoot { bootCandidates.append(fwExe) } else { lazyCandidates.append(fwExe) }
                     }
                 } else {
-                    entry["error"] = "MachOAnalyzer 解析失败"
+                    entry["error"] = "MachOAnalyzer parse failed"
                 }
                 frameworkDeps.append(entry)
             }
@@ -77,7 +77,7 @@ final class AppDepsTool: MCPTool {
     }
 }
 
-// v2.9.87：UIApplication.openURL 已弃用（iOS10+），统一走 open(_:options:)。
+// v2.9.87：UIApplication.openURL 已弃用 (iOS10+），统一走 open(_:options:)。
 // 工具在后台线程执行，这里用信号量同步等待结果，保持 invoke 的同步语义。
 private func openURLSync(_ url: URL) -> Bool {
     // v2.9.147：UIApplication.open 必须在主线程，后台调用 SIGSEGV 闪退
@@ -89,7 +89,7 @@ private func openURLSync(_ url: URL) -> Bool {
 final class AppCacheInspectTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.cache_inspect",
-        summary: "Check how much cache space each app uses. Use for: see which apps take up the most cache, find big cache users. Don't use for: actually clearing cache (use cleanup.scan/cleanup.execute), check free disk space (use device.snapshot). Example: user says '哪个 app 缓存最大' → inspect cache sizes.",
+        summary: "Check how much cache space each app uses. Use for: see which apps take up the most cache, find big cache users. Don't use for: actually clearing cache (use cleanup.scan/cleanup.execute), check free disk space (use device.snapshot). Example: user says 'which app has the biggest cache' → inspect cache sizes.",
         verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -134,7 +134,7 @@ final class AppCacheInspectTool: MCPTool {
 final class AppCacheClearTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.cache_clear",
-        summary: "Clear an app's cache files (Caches/tmp directories). Use for: free up space, clear app cache. Don't use for: reset all app data (use device.refresh_container), wipe login state (use device.keychain_wipe). Example: user says '清小红书缓存' → clear app cache.",
+        summary: "Clear an app's cache files (Caches/tmp directories). Use for: free up space, clear app cache. Don't use for: reset all app data (use device.refresh_container), wipe login state (use device.keychain_wipe). Example: user says 'clear 小红书 cache' → clear app cache.",
         parameters: ["bundle_id": "Target App bundle_id (e.g. com.xingin.discover)", "dry_run": "If true, just calculate how much would be freed (don't actually delete)"], verified: true, category: "app_control")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -209,9 +209,9 @@ enum AppCacheScanner {
 // MARK: - 启动 App
 
 
-// MARK: - 启动并输入（依赖注入代理，这里做状态上报）
+// MARK: - 启动并输入 (依赖注入代理，这里做状态上报）
 
-// MARK: - Agent HTTP 通道（v2.9.103：ControlAgent v4.1 本地 HTTP 127.0.0.1:4792）
+// MARK: - Agent HTTP 通道 (v2.9.103：ControlAgent v4.1 本地 HTTP 127.0.0.1:4792）
 // v3/v4 时代用 NSNotification/UserDefaults 跨进程——沙盒隔离根本不通；v4.1 agent 内置
 // loopback HTTP server，主 App 直连目标 App 的 agent，链路真实可用。
 
@@ -254,7 +254,7 @@ private func waitAgentReady(timeout: TimeInterval = 8) -> Bool {
 final class AppOpenAndInputTool: MCPTool {
     let definition = ToolDefinition(
         name: "apps.open_and_input",
-        summary: "Open app and automatically input text into it. Use for: launch app and fill in text (like search). Don't use for: just open app (use apps.open), type into already open app (use control.type_text). Example: user says '打开百度搜索 iPhone 15' → open and input text.",
+        summary: "Open app and automatically input text into it. Use for: launch app and fill in text (like search). Don't use for: just open app (use apps.open), type into already open app (use control.type_text). Example: user says 'open Baidu and search iPhone 15' → open and input text.",
         parameters: [
             "bundle_id": "Target App bundle ID",
             "text": "Text to input",
@@ -279,7 +279,7 @@ final class AppOpenAndInputTool: MCPTool {
             opened = LSAppWorkspaceOpen(bundleId: bid)
         }
 
-        // 等待注入的 agent HTTP 就绪（目标 App 启动后 ~1s 起服务）
+        // 等待注入的 agent HTTP ready (目标 App 启动后 ~1s 起服务）
         let wait = (params["wait"] as? Double) ?? 8
         let ready = waitAgentReady(timeout: wait)
         var agentStatus = "no_agent"
@@ -322,7 +322,7 @@ private func LSAppWorkspaceOpen(bundleId: String) -> Bool {
     return openFn(ws, sel, bundleId as NSString)
 }
 
-// MARK: - v2.9.109 TrollAgent 自身后台保活（音频静音引擎）
+// MARK: - v2.9.109 TrollAgent 自身后台保活 (音频静音引擎）
 // 远程控制/长任务期间自动启动：AVAudioSession playback + 静音源持续输出，
 // TrollAgent 切后台不被系统挂起，AI 可继续调用目标 App 的 4789。
 final class BackgroundKeepAlive {
@@ -366,7 +366,7 @@ final class BackgroundKeepAlive {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
-    // MARK: - v2.9.136 BGTask 周期刷新（与音频保活双保险）
+    // MARK: - v2.9.136 BGTask 周期刷新 (与音频保活双保险）
     // iOS 调度允许时周期性唤醒 App，Audio 保活被系统回收后仍有恢复机会。
     // TrollStore 环境不受 BGTask 权限门槛限制，注册即生效。
 
@@ -376,7 +376,7 @@ final class BackgroundKeepAlive {
         guard #available(iOS 13.0, *) else { return }
         BGTaskScheduler.shared.register(forTaskWithIdentifier: refreshID, using: nil) { task in
             task.expirationHandler = { task.setTaskCompleted(success: false) }
-            // 唤醒后：若全局常驻开着且引擎已停（被系统回收），重启保活
+            // 唤醒后：若全局常驻开着且引擎已停 (被系统回收），重启保活
             if UserDefaults.standard.bool(forKey: "trollagent.keepalive_global") {
                 BackgroundKeepAlive.shared.start()
             }
@@ -399,7 +399,7 @@ final class BackgroundKeepAlive {
     }
 }
 
-// 跨进程切换目标 App 的真后台保活（ControlAgent 监听同名字 Darwin 通知）
+// 跨进程切换目标 App 的真后台保活 (ControlAgent 监听同名字 Darwin 通知）
 func postKeepAliveNotification(_ on: Bool) {
     UserDefaults.standard.set(on, forKey: "trollagent.keepalive")
     CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(),

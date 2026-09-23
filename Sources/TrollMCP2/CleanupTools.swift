@@ -1,9 +1,9 @@
 import Foundation
 import UIKit
 
-// v2.9.128：清理中心工具集（对齐 Fuck 工具箱"清理类"能力 + AI 清理亮点）
+// v2.9.128：清理中心工具集 (对齐 Fuck 工具箱"清理类"能力 + AI 清理亮点）
 // 聚合已有能力：缓存清理 / keychain / 广告符 / 数据容器 / 标识符
-// 分层：scan（分析可清理项）→ execute（按项执行）→ ai（AI 全自动清理+验证报告）
+// 分层：scan (分析可清理项）→ execute (按项执行）→ ai (AI 全自动清理+验证报告）
 
 struct CleanupItem {
     let id: String          // cache / keychain / adid / container / idfv
@@ -12,10 +12,10 @@ struct CleanupItem {
     let bytes: Int          // 预估释放
     let risk: Risk          // 影响分级
     enum Risk: String { case safe, warn, danger, error }
-    let affected: String    // 影响描述（登录态/广告符/数据）
+    let affected: String    // 影响描述 (登录态/广告符/数据）
 }
 
-/// 清理项扫描器（内部复用现有工具实现）
+/// 清理项扫描器 (内部复用现有工具实现）
 final class CleanupScanner {
     static func scan(bundleId: String) -> [CleanupItem] {
         var items: [CleanupItem] = []
@@ -23,45 +23,45 @@ final class CleanupScanner {
             return []   // 调用方处理"未找到/容器不可访问"
         }
 
-        // 1. 缓存 + tmp（安全）
+        // 1. 缓存 + tmp (安全）
         let caches = URL(fileURLWithPath: container).appendingPathComponent("Library/Caches")
         let tmp = URL(fileURLWithPath: container).appendingPathComponent("tmp")
         let cacheBytes = AppCacheScanner.directorySize(caches) + AppCacheScanner.directorySize(tmp)
         if cacheBytes > 0 {
-            items.append(CleanupItem(id: "cache", label: "清理缓存与临时文件",
-                                     detail: "Library/Caches + tmp（\(AppCacheScanner.humanSize(cacheBytes))）",
-                                     bytes: cacheBytes, risk: .safe, affected: "无影响，下次启动重新生成"))
+            items.append(CleanupItem(id: "cache", label: "clean caches and temp files",
+                                     detail: "Library/Caches + tmp (\(AppCacheScanner.humanSize(cacheBytes)))",
+                                     bytes: cacheBytes, risk: .safe, affected: "no impact, regenerated on next launch"))
         } else {
-            items.append(CleanupItem(id: "cache", label: "清理缓存与临时文件",
-                                     detail: "当前无可清理缓存（0 B）",
+            items.append(CleanupItem(id: "cache", label: "clean caches and temp files",
+                                     detail: "当前无可清理缓存 (0 B)",
                                      bytes: 0, risk: .safe, affected: "无影响"))
         }
 
-        // 2. 钥匙串（警告——清登录态）
-        items.append(CleanupItem(id: "keychain", label: "清钥匙串（登录态/令牌）",
+        // 2. 钥匙串 (警告——清登录态）
+        items.append(CleanupItem(id: "keychain", label: "清钥匙串 (登录态/令牌)",
                                  detail: "按 keychain-access-groups 删除该 App 的密码/令牌/密钥",
                                  bytes: 0, risk: .warn, affected: "清空该 App 登录态，需重新登录"))
 
-        // 3. 广告标识符（警告——IDFA）
-        items.append(CleanupItem(id: "adid", label: "刷新广告标识符（IDFA）",
+        // 3. 广告标识符 (警告——IDFA）
+        items.append(CleanupItem(id: "adid", label: "刷新广告标识符 (IDFA)",
                                  detail: "调用私有 API 尝试重置；iOS 14+ 受系统限制时仅提示",
                                  bytes: 0, risk: .warn, affected: "广告符变化，游戏拉新/广告追踪可能重置"))
 
-        // 4. 数据容器（危险——整体重置，可恢复）
-        items.append(CleanupItem(id: "container", label: "刷新数据容器（重置 App 数据，可恢复）",
+        // 4. 数据容器 (危险——整体重置，可恢复）
+        items.append(CleanupItem(id: "container", label: "刷新数据容器 (重置 App 数据，可恢复)",
                                  detail: "容器改名备份 → 杀进程 → 系统重建空容器；备份可 restore 恢复",
-                                 bytes: 0, risk: .danger, affected: "清空所有本地数据（含未上传存档），备份保留可恢复"))
+                                 bytes: 0, risk: .danger, affected: "清空所有本地数据 (含未上传存档)，备份保留可恢复"))
 
-        // 5. 标识符（只读提示）
+        // 5. 标识符 (只读提示）
         let idfv = UIDevice.current.identifierForVendor?.uuidString ?? "N/A"
-        items.append(CleanupItem(id: "idfv", label: "标识符（IDFV）",
+        items.append(CleanupItem(id: "idfv", label: "标识符 (IDFV)",
                                  detail: "系统 \(idfv.prefix(8))…；无公开刷新 API，删除 App 后由系统决定",
                                  bytes: 0, risk: .safe, affected: "只读信息，不执行"))
 
         return items
     }
 
-    /// 按项执行（复用现有工具，统一 AuditLog）
+    /// 按项执行 (复用现有工具，统一 AuditLog）
     static func execute(bundleId: String, itemIds: [String], dryRun: Bool = false) -> [[String: Any]] {
         var results: [[String: Any]] = []
         for id in itemIds {
@@ -70,29 +70,29 @@ final class CleanupScanner {
             case "cache":
                 if let out = try? AppCacheClearTool().invoke(["bundle_id": bundleId, "dry_run": dryRun]) {
                     r["ok"] = true; r["result"] = out
-                } else { r["ok"] = false; r["error"] = "缓存清理失败" }
+                } else { r["ok"] = false; r["error"] = "cache cleanup failed" }
             case "keychain":
                 if dryRun {
-                    r["ok"] = true; r["result"] = ["dry_run": true, "note": "将删除该 App 全部钥匙串条目"]
+                    r["ok"] = true; r["result"] = ["dry_run": true, "note": "will delete all keychain entries of this App"]
                 } else if let out = try? KeychainWipeTool().invoke(["bundle_id": bundleId]) {
                     r["ok"] = true; r["result"] = out
-                } else { r["ok"] = false; r["error"] = "钥匙串清理失败" }
+                } else { r["ok"] = false; r["error"] = "keychain cleanup failed" }
             case "adid":
                 if dryRun {
-                    r["ok"] = true; r["result"] = ["dry_run": true, "note": "将尝试刷新 IDFA"]
+                    r["ok"] = true; r["result"] = ["dry_run": true, "note": "will try to refresh IDFA"]
                 } else if let out = try? AdvertisingTool().invoke(["action": "reset"]) {
                     r["ok"] = true; r["result"] = out
-                } else { r["ok"] = false; r["error"] = "广告符刷新失败" }
+                } else { r["ok"] = false; r["error"] = "IDFA refresh failed" }
             case "container":
                 if dryRun {
-                    r["ok"] = true; r["result"] = ["dry_run": true, "note": "将备份容器并重置（可恢复）"]
+                    r["ok"] = true; r["result"] = ["dry_run": true, "note": "will backup container and reset (restorable)"]
                 } else if let out = try? RefreshContainerTool().invoke(["bundle_id": bundleId, "restore": false]) {
                     r["ok"] = true; r["result"] = out
-                } else { r["ok"] = false; r["error"] = "容器刷新失败" }
+                } else { r["ok"] = false; r["error"] = "container reset failed" }
             case "idfv":
-                r["ok"] = true; r["result"] = ["note": "IDFV 无公开刷新 API，跳过"]
+                r["ok"] = true; r["result"] = ["note": "IDFV has no public refresh API, skipped"]
             default:
-                r["ok"] = false; r["error"] = "未知清理项 \(id)"
+                r["ok"] = false; r["error"] = "unknown cleanup item \(id)"
             }
             results.append(r)
         }
@@ -105,7 +105,7 @@ final class CleanupScanner {
 final class CleanupScanTool: MCPTool {
     let definition = ToolDefinition(
         name: "cleanup.scan",
-        summary: "Scan an app for cleanable items (cache, keychain, advertising ID, identifiers). Use for: find what can be cleaned in an app, see what's taking up space. Don't use for: actually deleting files (use cleanup.execute), clean workspace temp files (use workspace.cleanup). Example: user says '小红书缓存多大' → scan cleanup items.",
+        summary: "Scan an app for cleanable items (cache, keychain, advertising ID, identifiers). Use for: find what can be cleaned in an app, see what's taking up space. Don't use for: actually deleting files (use cleanup.execute), clean workspace temp files (use workspace.cleanup). Example: user says 'how big is 小红书 cache' → scan cleanup items.",
         parameters: ["bundle_id": "Target App bundle_id (required). e.g. com.xingin.discover"],
         verified: true, category: "cleanup")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -114,7 +114,7 @@ final class CleanupScanTool: MCPTool {
         }
         let items = CleanupScanner.scan(bundleId: bundleId)
         guard !items.isEmpty else {
-            return ["ok": false, "message": "无法定位 \(bundleId) 或数据容器不可访问（缺 AppDataContainers 权限）",
+            return ["ok": false, "message": "cannot locate \(bundleId) or data container inaccessible (missing AppDataContainers entitlement)",
                     "data": ["bundle_id": bundleId, "items": []]]
         }
         let payload = items.map { i -> [String: Any] in
@@ -128,7 +128,7 @@ final class CleanupScanTool: MCPTool {
         let totalBytes = items.reduce(0) { $0 + $1.bytes }
         return [
             "ok": true,
-            "message": "扫描完成：\(items.count) 项（安全 \(safe) / 警告 \(warn) / 危险 \(danger)），可释放 \(AppCacheScanner.humanSize(totalBytes))",
+            "message": "scan done: \(items.count) items (safe \(safe) / warn \(warn) / danger \(danger), can free \(AppCacheScanner.humanSize(totalBytes))",
             "data": ["bundle_id": bundleId, "items": payload, "total_bytes": totalBytes,
                      "risk_counts": ["safe": safe, "warn": warn, "danger": danger]]
         ]
@@ -140,7 +140,7 @@ final class CleanupScanTool: MCPTool {
 final class CleanupExecuteTool: MCPTool {
     let definition = ToolDefinition(
         name: "cleanup.execute",
-        summary: "Actually clean/delete cache/keychain/data from an app. Use for: clear app cache, reset app data, wipe app login state. Don't use for: just scanning what's cleanable (use cleanup.scan), clean workspace files (use workspace.cleanup). Warning: 'container' item will reset ALL app data (auto-backup). Example: user says '清小红书缓存' → clean cache items.",
+        summary: "Actually clean/delete cache/keychain/data from an app. Use for: clear app cache, reset app data, wipe app login state. Don't use for: just scanning what's cleanable (use cleanup.scan), clean workspace files (use workspace.cleanup). Warning: 'container' item will reset ALL app data (auto-backup). Example: user says 'clear 小红书 cache' → clean cache items.",
         parameters: [
             "bundle_id": "Target App bundle_id (required). e.g. com.xingin.discover",
             "items": "Items to clean: cache / keychain / adid / container / idfv (required). e.g. [\"cache\",\"keychain\"]",
@@ -158,18 +158,18 @@ final class CleanupExecuteTool: MCPTool {
         let failed = results.filter { ($0["ok"] as? Bool) != true }.count
         return [
             "ok": failed == 0,
-            "message": dryRun ? "预览完成（未执行）：\(results.count) 项" : "清理完成：\(results.count - failed) 项成功，\(failed) 项失败",
+            "message": dryRun ? "preview done (not executed): \(results.count) items" : "clean done: \(results.count - failed) OK, \(failed) failed",
             "data": ["bundle_id": bundleId, "dry_run": dryRun, "results": results]
         ]
     }
 }
 
-// MARK: - cleanup.ai：AI 全自动清理（亮点功能）
+// MARK: - cleanup.ai：AI 全自动清理 (亮点功能）
 
 final class CleanupAiTool: MCPTool {
     let definition = ToolDefinition(
         name: "cleanup.ai",
-        summary: "AI one-click full cleanup of an app. Use for: automatically clean all safe items in an app (cache, temp files). Don't use for: just scan what's cleanable (use cleanup.scan), specific cleanup (use cleanup.execute). Example: user says '一键清理小红书' → AI cleanup.",
+        summary: "AI one-click full cleanup of an app. Use for: automatically clean all safe items in an app (cache, temp files). Don't use for: just scan what's cleanable (use cleanup.scan), specific cleanup (use cleanup.execute). Example: user says 'one-click clean 小红书' → AI cleanup.",
         parameters: [
             "bundle_id": "Target App bundle ID (required)",
             "auto": "Also clear warning-level (keychain/ad ID) (default: false)",
@@ -186,7 +186,7 @@ final class CleanupAiTool: MCPTool {
         // 1. 扫描
         let scanned = CleanupScanner.scan(bundleId: bundleId)
         guard !scanned.isEmpty else {
-            return ["ok": false, "message": "无法定位 \(bundleId) 或数据容器不可访问（缺 AppDataContainers 权限）",
+            return ["ok": false, "message": "cannot locate \(bundleId) or data container inaccessible (missing AppDataContainers entitlement)",
                     "data": ["bundle_id": bundleId]]
         }
         // 2. 决定执行项
@@ -198,10 +198,10 @@ final class CleanupAiTool: MCPTool {
                 if item.id != "idfv" { toRun.append(item.id) }   // idfv 只读
             case .warn:
                 if auto { toRun.append(item.id) }
-                else { skipped.append(["id": item.id, "reason": "警告级，需 auto=true", "affected": item.affected]) }
+                else { skipped.append(["id": item.id, "reason": "warning level, needs auto=true", "affected": item.affected]) }
             case .danger:
                 if confirm { toRun.append(item.id) }
-                else { skipped.append(["id": item.id, "reason": "危险级（重置全部数据），需 confirm=true", "affected": item.affected]) }
+                else { skipped.append(["id": item.id, "reason": "danger level (resets all data), needs confirm=true", "affected": item.affected]) }
             case .error:
                 skipped.append(["id": item.id, "reason": item.detail])
             }
@@ -218,7 +218,7 @@ final class CleanupAiTool: MCPTool {
 
         return [
             "ok": failedCount == 0,
-            "message": "AI 清理完成：执行 \(executed.count) 项（成功 \(executed.count - failedCount)），释放 \(AppCacheScanner.humanSize(freed))，跳过 \(skipped.count) 项",
+            "message": "AI clean done: executed \(executed.count) items (OK \(executed.count - failedCount), freed \(AppCacheScanner.humanSize(freed)), skipped \(skipped.count) items",
             "data": [
                 "bundle_id": bundleId,
                 "executed": executed,
@@ -226,7 +226,7 @@ final class CleanupAiTool: MCPTool {
                 "freed_bytes": freed,
                 "freed_readable": AppCacheScanner.humanSize(freed),
                 "verification": [
-                    "note": "重新扫描结果：缓存类已清零则验证通过",
+                    "note": "re-scan result: verification passes when cache items are zero",
                     "cache_remaining": after.first(where: { $0.id == "cache" })?.bytes ?? 0,
                     "risk_counts": ["safe": after.filter { $0.risk == .safe }.count,
                                     "warn": after.filter { $0.risk == .warn }.count,

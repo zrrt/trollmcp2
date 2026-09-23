@@ -6,12 +6,12 @@ import CommonCrypto
 // 提供三个工具：
 //   fs.tree    —— 浏览 App 数据容器 / Bundle / 工作区的目录树
 //   fs.read    —— 读取任意文件，自动识别文本 / plist / SQLite / 二进制
-//   fs.hexdump —— 二进制十六进制 + ASCII 查看（offset / length 分段）
+//   fs.hexdump —— 二进制十六进制 + ASCII 查看 (offset / length 分段）
 
 // MARK: - 路径解析与安全边界
 
 private enum FSPolicy {
-    /// 解析目标路径：bundle_id + relative（容器内相对）优先，否则按绝对路径。
+    /// 解析目标路径：bundle_id + relative (容器内相对）优先，否则按绝对路径。
     /// 返回 nil 表示无法解析。
     static func resolve(bundleId: String?, relative: String?, path: String?) -> String? {
         if let bid = bundleId, !bid.isEmpty {
@@ -25,7 +25,7 @@ private enum FSPolicy {
         return nil
     }
 
-    /// 只允许访问用户数据区（App 容器 / Bundle / 工作区 / 全局偏好），
+    /// 只允许访问用户数据区 (App 容器 / Bundle / 工作区 / 全局偏好），
     /// 拒绝系统关键区，防止 AI 误读系统文件。
     static func isAllowed(_ raw: String) -> Bool {
         let s = (raw as NSString).standardizingPath
@@ -35,7 +35,7 @@ private enum FSPolicy {
             "/var/mobile/Containers/Data/Application",
             "/var/mobile/Containers/Bundle/Application",
             "/var/mobile/Library",
-            // v2.9.251: 真机实际路径无 /mobile 前缀（/var/containers/Bundle/Application/<UUID>/xxx.app），
+            // v2.9.251: 真机实际路径无 /mobile 前缀 (/var/containers/Bundle/Application/<UUID>/xxx.app），
             // 此前只允许 /var/mobile/Containers/... 导致 fs.tree/read/hexdump 等全部读不了 App Bundle
             "/var/containers/Data/Application",
             "/var/containers/Bundle/Application"
@@ -51,18 +51,18 @@ private enum FSPolicy {
             "/var/containers/Shared/SystemGroup",
             "/var/mobile/Library/SpringBoard",
             "/var/mobile/Library/UserNotifications",
-            // v3.1.25: 禁止 AI 访问破甲指令目录（未勾选的破甲指令不应该被 AI 读取）
+            // v3.1.25: 禁止 AI 访问破甲指令目录 (未勾选的破甲指令不应该被 AI 读取）
             "/KnowledgeBase/DeveloperInstructions"
         ]
         for d in denied {
             if s2.hasPrefix(d) || s.hasPrefix(d) { return false }
-            // v3.1.25: 也检查子路径（路径里包含这个字符串就拒绝）
+            // v3.1.25: 也检查子路径 (路径里包含这个字符串就拒绝）
             if s2.contains(d) || s.contains(d) { return false }
         }
         return true
     }
 
-    /// 是否可写：仅工作区与 App 数据容器（Documents/Library 等），禁止 App Bundle 与系统区。
+    /// 是否可写：仅工作区与 App 数据容器 (Documents/Library 等），禁止 App Bundle 与系统区。
     static func isWritable(_ raw: String) -> Bool {
         guard isAllowed(raw) else { return false }
         let s = (raw as NSString).standardizingPath
@@ -82,7 +82,7 @@ private enum FSPolicy {
     static func describe(_ raw: String) -> String {
         if let app = AppCatalog.list().first(where: { $0.containerPath.map { raw.hasPrefix($0) } ?? false }) {
             let rel = raw.dropFirst(app.containerPath!.count)
-            return "\(app.bundleId) 容器\(rel)"
+            return "\(app.bundleId) container\(rel)"
         }
         return raw
     }
@@ -93,7 +93,7 @@ private enum FSPolicy {
 final class FSTreeTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.tree",
-        summary: "[DEPRECATED] Use shell.exec(ls /path) instead. Browse directory structure. Example: user says '看看这个目录里有什么' → shell.exec(\"ls /path/to/dir\").",
+        summary: "[DEPRECATED] Use shell.exec(ls /path) instead. Browse directory structure. Example: user says 'see what is in this directory' → shell.exec(\"ls /path/to/dir\").",
         parameters: [
             "bundle_id": "Target app bundle ID (browse app container)",
             "path": "Directory path (default: workspace root)",
@@ -118,12 +118,12 @@ final class FSTreeTool: MCPTool {
             root = "/var/mobile/Documents/Workspace"
         }
         guard FSPolicy.isAllowed(root) else {
-            throw MCPError.failed("路径不在可访问范围（仅限 App 容器 / Bundle / 工作区 / 用户 Library）: \(root)")
+            throw MCPError.failed("path outside accessible scope (App container / Bundle / workspace / user Library only): \(root)")
         }
 
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: root, isDirectory: &isDir) else {
-            return ["error": "路径不存在: \(root)"]
+            return ["error": "path does not exist: \(root)"]
         }
 
         var children: [[String: Any]] = []
@@ -135,7 +135,7 @@ final class FSTreeTool: MCPTool {
             "isDir": isDir.boolValue,
             "target": FSPolicy.describe(root),
             "entries": children,
-            "hint": "用 fs.read 读取文件（自动识别文本/plist/SQLite/二进制）；用 fs.hexdump 看二进制十六进制"
+            "hint": "use fs.read to read files (auto-detects text/plist/SQLite/binary); use fs.hexdump for binary hex"
         ]
     }
 
@@ -166,18 +166,18 @@ final class FSTreeTool: MCPTool {
             if shown >= limit { break }
         }
         if items.count > shown {
-            out.append(["name": "...(另有 \(items.count - shown) 项未显示)", "isDir": false, "size": 0, "truncated": true])
+            out.append(["name": "...(\(items.count - shown) more items not shown)", "isDir": false, "size": 0, "truncated": true])
         }
         return out
     }
 }
 
-// MARK: - 文件读取（智能识别）
+// MARK: - 文件读取 (智能识别）
 
 final class FSReadTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.read",
-        summary: "[DEPRECATED] Use shell.exec(cat /path/to/file) instead. Read a file's content. Example: user says '读一下这个文件' → shell.exec(\"cat /path/to/file\").",
+        summary: "[DEPRECATED] Use shell.exec(cat /path/to/file) instead. Read a file's content. Example: user says 'read this file' → shell.exec(\"cat /path/to/file\").",
         parameters: [
             "path": "File path to read",
             "bundle_id": "Target app bundle ID (optional, for app container)",
@@ -199,21 +199,21 @@ final class FSReadTool: MCPTool {
         let lineEnd = params["line_end"] as? Int
 
         guard let p = FSPolicy.resolve(bundleId: bundleId, relative: rel, path: path) else {
-            throw MCPError.invalidParams("需要 bundle_id+relative 或 path")
+            throw MCPError.invalidParams("need bundle_id+relative or path")
         }
         guard FSPolicy.isAllowed(p) else {
-            throw MCPError.failed("路径不在可访问范围（仅限 App 容器 / Bundle / 工作区 / 用户 Library）: \(p)")
+            throw MCPError.failed("path outside accessible scope (App container / Bundle / workspace / user Library only): \(p)")
         }
         let fm = FileManager.default
         var isDir: ObjCBool = false
         guard fm.fileExists(atPath: p, isDirectory: &isDir) else {
-            return ["error": "路径不存在: \(p)"]
+            return ["error": "path does not exist: \(p)"]
         }
         if isDir.boolValue {
-            return ["error": "这是目录，用 fs.tree 浏览: \(p)"]
+            return ["error": "this is a directory, use fs.tree to browse: \(p)"]
         }
         guard let data = fm.contents(atPath: p) else {
-            return ["error": "读取失败（无权限?）: \(p)"]
+            return ["error": "read failed (no permission?): \(p)"]
         }
         let limited = maxBytes > 0 && data.count > maxBytes
         let slice = limited ? data.subdata(in: 0..<maxBytes) : data
@@ -236,7 +236,7 @@ final class FSReadTool: MCPTool {
             result["tables"] = Self.sqliteTables(p)
             return result
         }
-        // 2) plist（XML / 二进制）
+        // 2) plist (XML / 二进制）
         if force == "json" || force == "auto" {
             if let plist = try? PropertyListSerialization.propertyList(from: slice, options: [], format: nil),
                let j = try? JSONSerialization.data(withJSONObject: plist, options: [.prettyPrinted, .sortedKeys]),
@@ -246,7 +246,7 @@ final class FSReadTool: MCPTool {
                 return result
             }
         }
-        // 3) 文本（UTF-8 优先，UTF-16 BOM），支持按行分页
+        // 3) 文本 (UTF-8 优先，UTF-16 BOM），支持按行分页
         if force == "text" || force == "auto" {
             var str: String? = nil
             var enc = "utf-8"
@@ -274,12 +274,12 @@ final class FSReadTool: MCPTool {
                 result["line_end"] = endIdx
                 result["content"] = part
                 if endIdx < totalLines {
-                    result["hint"] = "还有 \(totalLines - endIdx) 行：继续用 line_start=\(endIdx + 1) 读取下一页"
+                    result["hint"] = "\(totalLines - endIdx) more lines: continue with line_start=\(endIdx + 1) for the next page"
                 }
                 return result
             }
         }
-        // 4) 图片格式识别（无法在文本里查看，提示用 image / screenshot 类工具）
+        // 4) 图片格式识别 (无法在文本里查看，提示用 image / screenshot 类工具）
         if slice.count >= 12 {
             let h = [UInt8](slice.prefix(12))
             var img: String? = nil
@@ -290,7 +290,7 @@ final class FSReadTool: MCPTool {
             if let im = img {
                 result["kind"] = "image"
                 result["image_format"] = im
-                result["hint"] = "图片文件：AI 可用 image 读取/截图类工具查看内容（本工具只识别格式）"
+                result["hint"] = "image file: AI can view it with image/screenshot tools (this tool only detects format)"
                 return result
             }
         }
@@ -298,7 +298,7 @@ final class FSReadTool: MCPTool {
         result["kind"] = "binary"
         result["magic"] = slice.prefix(16).map { String(format: "%02x", $0) }.joined(separator: " ")
         result["ascii_preview"] = slice.prefix(64).map { (0x20...0x7e).contains($0) ? String(UnicodeScalar($0)) : "." }.joined()
-        result["hint"] = "二进制文件：用 fs.hexdump（offset/length 分段）或 ipa.inspect / dylib.inspect / binary.symbols 分析"
+        result["hint"] = "binary file: analyze with fs.hexdump (offset/length paging) or ipa.inspect / dylib.inspect / binary.symbols"
         return result
     }
 
@@ -342,7 +342,7 @@ final class FSReadTool: MCPTool {
 final class FSHexdumpTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.hexdump",
-        summary: "Hexdump a binary file (show hex + ASCII). Use for: inspect binary files, check file headers, debug file format. Don't use for: read text files (use fs.read), browse directory (use fs.tree). Example: user says '看看这个二进制文件头' → hexdump first 256 bytes.",
+        summary: "Hexdump a binary file (show hex + ASCII). Use for: inspect binary files, check file headers, debug file format. Don't use for: read text files (use fs.read), browse directory (use fs.tree). Example: user says 'look at this binary file header' → hexdump first 256 bytes.",
         parameters: [
             "bundle_id": "Target App bundle_id (to browse app container)",
             "relative": "Relative path inside app container (when using bundle_id)",
@@ -360,22 +360,22 @@ final class FSHexdumpTool: MCPTool {
         let length = min(max((params["length"] as? Int) ?? 256, 1), 4096)
 
         guard let p = FSPolicy.resolve(bundleId: bundleId, relative: rel, path: path) else {
-            throw MCPError.invalidParams("需要 bundle_id+relative 或 path")
+            throw MCPError.invalidParams("need bundle_id+relative or path")
         }
         guard FSPolicy.isAllowed(p) else {
-            throw MCPError.failed("路径不在可访问范围: \(p)")
+            throw MCPError.failed("path outside accessible scope: \(p)")
         }
         let fm = FileManager.default
         var isDir: ObjCBool = false
         guard fm.fileExists(atPath: p, isDirectory: &isDir), !isDir.boolValue else {
-            return ["error": "文件不存在或为目录: \(p)"]
+            return ["error": "file does not exist or is a directory: \(p)"]
         }
         guard let data = fm.contents(atPath: p) else {
-            return ["error": "读取失败（无权限?）: \(p)"]
+            return ["error": "read failed (no permission?): \(p)"]
         }
         let total = data.count
         if offset >= total {
-            return ["path": p, "size": total, "error": "offset 超出文件大小"]
+            return ["path": p, "size": total, "error": "offset beyond file size"]
         }
         let slice: Data
         if offset + length <= total {
@@ -393,18 +393,18 @@ final class FSHexdumpTool: MCPTool {
             "read": slice.count,
             "hex": FSReadTool.hexLines(slice, offset: offset, length: slice.count),
             "ascii": ascii,
-            "hint": "继续分段查看：把 offset 设为 \(offset + slice.count)"
+            "hint": "continue paging: set offset to \(offset + slice.count)"
         ]
     }
 }
 
 
-// MARK: - ZIP 浏览（IPA/归档分析）
+// MARK: - ZIP 浏览 (IPA/归档分析）
 
 final class FSZipTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.zip",
-        summary: "List or read contents of a ZIP/IPA archive. Use for: inspect what's inside an IPA or zip file, read files from archive. Don't use for: extract files to disk (use shell.exec unzip), browse normal directory (use fs.tree). Example: user says 'IPA 里有什么' → list zip contents.",
+        summary: "List or read contents of a ZIP/IPA archive. Use for: inspect what's inside an IPA or zip file, read files from archive. Don't use for: extract files to disk (use shell.exec unzip), browse normal directory (use fs.tree). Example: user says 'what is in this IPA' → list zip contents.",
         parameters: [
             "path": "Path to ZIP/IPA file (required)",
             "action": "list (show contents) / read (read specific file)",
@@ -419,10 +419,10 @@ final class FSZipTool: MCPTool {
             throw MCPError.invalidParams("path required")
         }
         guard FSPolicy.isAllowed(path) else {
-            throw MCPError.failed("路径不在可访问范围: \(path)")
+            throw MCPError.failed("path outside accessible scope: \(path)")
         }
         guard let data = FileManager.default.contents(atPath: path) else {
-            return ["error": "读取失败: \(path)"]
+            return ["error": "read failed: \(path)"]
         }
         let action = (params["action"] as? String) ?? "list"
         let filter = (params["filter"] as? String)?.lowercased()
@@ -430,13 +430,13 @@ final class FSZipTool: MCPTool {
         do {
             if action == "read" {
                 guard let entry = params["entry"] as? String, !entry.isEmpty else {
-                    throw MCPError.invalidParams("action=read 需要 entry 参数")
+                    throw MCPError.invalidParams("action=read requires entry param")
                 }
                 let raw = try ZipExtractor.entryData(data, name: entry)
                 let force = (params["as"] as? String) ?? "auto"
                 var out: [String: Any] = ["zip": path, "entry": entry, "size": raw.count]
                 if raw.count > 1_048_576 {
-                    out["hint"] = "条目超过 1MB，已截断为前 1MB"
+                    out["hint"] = "entry exceeds 1MB, truncated to first 1MB"
                 }
                 let slice = raw.prefix(1_048_576)
                 if force == "hex" {
@@ -458,7 +458,7 @@ final class FSZipTool: MCPTool {
                 }
                 out["kind"] = "binary"
                 out["magic"] = slice.prefix(16).map { String(format: "%02x", $0) }.joined(separator: " ")
-                out["hint"] = "二进制条目：用 fs.zip action=read as=hex 查看十六进制"
+                out["hint"] = "binary entry: view hex with fs.zip action=read as=hex"
                 return out
             }
             // list
@@ -486,12 +486,12 @@ final class FSZipTool: MCPTool {
                 "total_uncompressed": totalSize,
                 "entries": list
             ]
-            if entries.count > list.count { out["hint"] = "还有 \(entries.count - list.count) 个条目未显示（可用 filter 过滤）" }
+            if entries.count > list.count { out["hint"] = "\(entries.count - list.count) more entries not shown (filter to narrow)" }
             return out
         } catch let e as ZipExtractor.ZipError {
             return ["error": e.description, "path": path]
         } catch {
-            return ["error": "解析失败: \(error.localizedDescription)"]
+            return ["error": "parse failed: \(error.localizedDescription)"]
         }
     }
 }
@@ -501,7 +501,7 @@ final class FSZipTool: MCPTool {
 final class FSSQLTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.sql",
-        summary: "Query a SQLite database (.sqlite/.db file). Use for: read app databases, inspect stored data, query tables. Don't use for: read text files (use fs.read), read plist files (use fs.plist). Example: user says '小红书的数据库里有什么表' → list tables in SQLite.",
+        summary: "Query a SQLite database (.sqlite/.db file). Use for: read app databases, inspect stored data, query tables. Don't use for: read text files (use fs.read), read plist files (use fs.plist). Example: user says 'what tables are in 小红书 database' → list tables in SQLite.",
         parameters: [
             "bundle_id": "Target App bundle_id (to browse app container)",
             "relative": "Relative path inside app container (e.g. Documents/data.db)",
@@ -515,10 +515,10 @@ final class FSSQLTool: MCPTool {
         let rel = params["relative"] as? String
         let path = params["path"] as? String
         guard let p = FSPolicy.resolve(bundleId: bundleId, relative: rel, path: path) else {
-            throw MCPError.invalidParams("需要 bundle_id+relative 或 path")
+            throw MCPError.invalidParams("need bundle_id+relative or path")
         }
         guard FSPolicy.isAllowed(p) else {
-            throw MCPError.failed("路径不在可访问范围: \(p)")
+            throw MCPError.failed("path outside accessible scope: \(p)")
         }
         let sql = (params["sql"] as? String) ?? "SELECT name, type FROM sqlite_master WHERE type IN ('table','view') ORDER BY name"
         let limit = min(max((params["limit"] as? Int) ?? 100, 1), 500)
@@ -528,20 +528,20 @@ final class FSSQLTool: MCPTool {
         let upper = trimmed.uppercased()
         let allowed = upper.hasPrefix("SELECT") || upper.hasPrefix("PRAGMA") || upper.hasPrefix("EXPLAIN") || upper.hasPrefix("WITH")
         guard allowed else {
-            throw MCPError.failed("只允许只读 SQL（SELECT/PRAGMA/EXPLAIN/WITH），禁止修改语句")
+            throw MCPError.failed("read-only SQL only (SELECT/PRAGMA/EXPLAIN/WITH), no modification statements")
         }
 
         var db: OpaquePointer?
         guard sqlite3_open_v2(p, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK, let d = db else {
-            return ["error": "打开数据库失败（不是 SQLite 文件?）: \(p)"]
+            return ["error": "failed to open database (not a SQLite file?): \(p)"]
         }
         defer { sqlite3_close(d) }
 
-        // v2.9.114：PRAGMA 只放行查询型，拒绝赋值型（journal_mode=WAL 等）
+        // v2.9.114：PRAGMA 只放行查询型，拒绝赋值型 (journal_mode=WAL 等）
         if upper.hasPrefix("PRAGMA") && upper.contains("=") {
-            throw MCPError.failed("只允许查询型 PRAGMA（table_info/index_list 等），禁止赋值型")
+            throw MCPError.failed("query-type PRAGMA only (table_info/index_list etc.), no assignment-type")
         }
-        // 强制 LIMIT（已带 LIMIT 的语句跳过）；先剥尾部分号，避免 LIMIT 被当成第二条语句失效
+        // 强制 LIMIT (已带 LIMIT 的语句跳过）；先剥尾部分号，避免 LIMIT 被当成第二条语句失效
         var exec = trimmed
         while exec.hasSuffix(";") { exec = String(exec.dropLast()) }
         if !upper.contains("LIMIT") && upper.hasPrefix("SELECT") {
@@ -550,7 +550,7 @@ final class FSSQLTool: MCPTool {
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(d, exec, -1, &stmt, nil) == SQLITE_OK, let s = stmt else {
             let msg = String(cString: sqlite3_errmsg(d))
-            return ["error": "SQL 错误: \(msg)", "sql": trimmed]
+            return ["error": "SQL error: \(msg)", "sql": trimmed]
         }
         defer { sqlite3_finalize(s) }
 
@@ -585,7 +585,7 @@ final class FSSQLTool: MCPTool {
             "columns": columns,
             "rows": rows,
             "row_count": rows.count,
-            "hint": "继续查询：改 sql 加 WHERE/ORDER BY；看表结构用 PRAGMA table_info(表名)"
+            "hint": "to continue: add WHERE/ORDER BY to sql; use PRAGMA table_info(table name) for schema"
         ]
     }
 }
@@ -595,7 +595,7 @@ final class FSSQLTool: MCPTool {
 final class FSGrepTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.grep",
-        summary: "[DEPRECATED] Use shell.exec(grep 'keyword' /path/to/file) instead. Search for text/keyword inside files. Example: user says '哪个文件里有 token' → shell.exec(\"grep 'token' /path/to/file\").",
+        summary: "[DEPRECATED] Use shell.exec(grep 'keyword' /path/to/file) instead. Search for text/keyword inside files. Example: user says 'which file contains token' → shell.exec(\"grep 'token' /path/to/file\").",
         parameters: [
             "dir": "Directory to search (default: workspace root)",
             "bundle_id": "Search inside this app's container (instead of dir)",
@@ -619,11 +619,11 @@ final class FSGrepTool: MCPTool {
             dir = "/var/mobile/Documents/Workspace"
         }
         guard FSPolicy.isAllowed(dir) else {
-            throw MCPError.failed("路径不在可访问范围: \(dir)")
+            throw MCPError.failed("path outside accessible scope: \(dir)")
         }
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: dir, isDirectory: &isDir), isDir.boolValue else {
-            return ["error": "目录不存在: \(dir)"]
+            return ["error": "directory does not exist: \(dir)"]
         }
         let exts = (params["ext"] as? String)?
             .split(separator: ",").map { $0.trimmingCharacters(in: CharacterSet.whitespaces).lowercased() } ?? []
@@ -665,18 +665,18 @@ final class FSGrepTool: MCPTool {
             "scanned_files": scanned,
             "hits": hits,
             "hit_count": hits.count,
-            "hint": "搜索到目标后用 fs.read 读取文件（line_start/line_end 定位行）"
+            "hint": "use fs.read on the target (line_start/line_end to locate lines)"
         ]
     }
 }
 
 
-// MARK: - 文件写入（带自动备份）
+// MARK: - 文件写入 (带自动备份）
 
 final class FSWriteTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.write",
-        summary: "[DEPRECATED] Use shell.exec(echo 'content' > /path/to/file) instead. Write/create a file. Example: user says '写一个配置文件' → shell.exec(\"echo '内容' > /path/to/file\").",
+        summary: "[DEPRECATED] Use shell.exec(echo 'content' > /path/to/file) instead. Write/create a file. Example: user says 'write a config file' → shell.exec(\"echo 'content' > /path/to/file\").",
         parameters: [
             "path": "File path (absolute or workspace relative)",
             "bundle_id": "Target app bundle ID (optional, writes to app container)",
@@ -701,9 +701,9 @@ final class FSWriteTool: MCPTool {
             // 工作区相对路径
             target = FSPolicy.workspace() + "/" + p
         }
-        guard let p = target else { throw MCPError.invalidParams("需要 path 或 bundle_id+relative") }
+        guard let p = target else { throw MCPError.invalidParams("need path or bundle_id+relative") }
         guard FSPolicy.isWritable(p) else {
-            throw MCPError.failed("不可写：仅限工作区与 App 数据容器（Documents/Library），禁止 Bundle 与系统区: \(p)")
+            throw MCPError.failed("not writable: workspace and App data container (Documents/Library) only, Bundle and system areas forbidden: \(p)")
         }
         let fm = FileManager.default
         let parent = (p as NSString).deletingLastPathComponent
@@ -716,7 +716,7 @@ final class FSWriteTool: MCPTool {
         do {
             try Data(content.utf8).write(to: URL(fileURLWithPath: p))
         } catch {
-            return ["error": "写入失败: \(error.localizedDescription)", "path": p]
+            return ["error": "write failed: \(error.localizedDescription)", "path": p]
         }
         var out: [String: Any] = ["path": p, "bytes": content.utf8.count, "backup_created": bakCreated]
         if bakCreated { out["backup_path"] = p + ".bak" }
@@ -724,12 +724,12 @@ final class FSWriteTool: MCPTool {
     }
 }
 
-// MARK: - 行级编辑（带自动备份）
+// MARK: - 行级编辑 (带自动备份）
 
 final class FSEditTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.edit",
-        summary: "[DEPRECATED] Use shell.exec(sed -i 's/old/new/g' /path) instead. Edit/modify a text file (find and replace). Example: user says '把这个文件里的 localhost 改成 127.0.0.1' → shell.exec(\"sed -i 's/localhost/127.0.0.1/g' /path\").",
+        summary: "[DEPRECATED] Use shell.exec(sed -i 's/old/new/g' /path) instead. Edit/modify a text file (find and replace). Example: user says 'change localhost to 127.0.0.1 in this file' → shell.exec(\"sed -i 's/localhost/127.0.0.1/g' /path\").",
         parameters: [
             "path": "File path (or workspace-relative)",
             "bundle_id": "Target App bundle ID (to edit app container file)",
@@ -750,20 +750,20 @@ final class FSEditTool: MCPTool {
         } else if let p = path, !p.hasPrefix("/") {
             target = FSPolicy.workspace() + "/" + p
         }
-        guard let p = target else { throw MCPError.invalidParams("需要 path 或 bundle_id+relative") }
+        guard let p = target else { throw MCPError.invalidParams("need path or bundle_id+relative") }
         guard FSPolicy.isWritable(p) else {
-            throw MCPError.failed("不可写：仅限工作区与 App 数据容器: \(p)")
+            throw MCPError.failed("not writable: workspace and App data container only: \(p)")
         }
         let fm = FileManager.default
         guard let data = fm.contents(atPath: p), var text = String(data: data, encoding: .utf8) else {
-            return ["error": "读取失败或非 UTF-8 文本: \(p)"]
+            return ["error": "read failed or non-UTF-8 text: \(p)"]
         }
         var changed = false
         var detail = ""
         if let line = params["line"] as? Int, let newText = params["new_text"] as? String {
             var lines = text.components(separatedBy: "\n")
             guard line >= 1, line <= lines.count else {
-                return ["error": "行号越界: \(line)（共 \(lines.count) 行）"]
+                return ["error": "line number out of range: \(line) (total \(lines.count) lines)"]
             }
             let oldLine = lines[line - 1]
             lines[line - 1] = newText
@@ -773,19 +773,19 @@ final class FSEditTool: MCPTool {
         } else if let old = params["old"] as? String, !old.isEmpty {
             let replacement = (params["new"] as? String) ?? ""
             let count = text.components(separatedBy: old).count - 1
-            guard count > 0 else { return ["error": "未找到原文片段"] }
+            guard count > 0 else { return ["error": "original text fragment not found"] }
             text = text.replacingOccurrences(of: old, with: replacement)
             changed = true
-            detail = "替换 \(count) 处"
+            detail = "replaced \(count) spots"
         }
-        guard changed else { throw MCPError.invalidParams("需要 line+new_text 或 old(+new) 参数") }
+        guard changed else { throw MCPError.invalidParams("need line+new_text or old(+new) params") }
 
         try? fm.removeItem(atPath: p + ".bak")
         try? fm.copyItem(atPath: p, toPath: p + ".bak")
         do {
             try Data(text.utf8).write(to: URL(fileURLWithPath: p))
         } catch {
-            return ["error": "写入失败: \(error.localizedDescription)"]
+            return ["error": "write failed: \(error.localizedDescription)"]
         }
         return ["path": p, "changed": detail, "backup_path": p + ".bak"]
     }
@@ -796,7 +796,7 @@ final class FSEditTool: MCPTool {
 final class FSDiffTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.diff",
-        summary: "Compare two files and show differences. Use for: see what changed between two versions, check config differences. Don't use for: read file content (use fs.read), search file contents (use fs.grep). Example: user says '这两个配置文件有什么不一样' → diff them.",
+        summary: "Compare two files and show differences. Use for: see what changed between two versions, check config differences. Don't use for: read file content (use fs.read), search file contents (use fs.grep). Example: user says 'what is different between these two config files' → diff them.",
         parameters: [
             "path_a": "First file path",
             "path_b": "Second file path",
@@ -814,11 +814,11 @@ final class FSDiffTool: MCPTool {
             throw MCPError.invalidParams("path_b required")
         }
         guard FSPolicy.isAllowed(pa), FSPolicy.isAllowed(pb) else {
-            throw MCPError.failed("路径不在可访问范围")
+            throw MCPError.failed("path outside accessible scope")
         }
         let fm = FileManager.default
         guard let da = fm.contents(atPath: pa), let db = fm.contents(atPath: pb) else {
-            return ["error": "读取失败"]
+            return ["error": "read failed"]
         }
         // 二进制哈希对比
         let hashA = Self.sha256Hex(da)
@@ -841,7 +841,7 @@ final class FSDiffTool: MCPTool {
                     "hash_a": hashA, "hash_b": hashB,
                     "lines_a": la.count, "lines_b": lb.count,
                     "diff": d,
-                    "hint": "文本差异 \(d.count) 行"
+                    "hint": "text diff \(d.count) lines"
                 ]
             }
             return [
@@ -850,7 +850,7 @@ final class FSDiffTool: MCPTool {
                 "size_a": da.count, "size_b": db.count,
                 "hash_a": hashA, "hash_b": hashB,
                 "first_diff_offset": firstDiff,
-                "hint": "二进制不同：用 fs.hexdump offset=\(firstDiff) 查看差异区域"
+                "hint": "binaries differ: use fs.hexdump offset=\(firstDiff) to view the diff region"
             ]
         }
         return ["equal": true, "size": da.count, "hash": hashA]
@@ -875,7 +875,7 @@ final class FSDiffTool: MCPTool {
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 
-    /// 简单 LCS 行级 diff（限制行数与输出量）
+    /// 简单 LCS 行级 diff (限制行数与输出量）
     private static func lcsDiff(_ a: [String], _ b: [String], maxLines: Int) -> [[String: Any]] {
         let n = a.count, m = b.count
         var dp = [[Int]](repeating: [Int](repeating: 0, count: m + 1), count: n + 1)
@@ -896,7 +896,7 @@ final class FSDiffTool: MCPTool {
         }
         while i < n, out.count < maxLines { out.append(["op": "-", "line_a": i + 1, "text": String(a[i].prefix(200))]); i += 1 }
         while j < m, out.count < maxLines { out.append(["op": "+", "line_b": j + 1, "text": String(b[j].prefix(200))]); j += 1 }
-        if i < n || j < m { out.append(["op": "...", "text": "差异过长已截断"]) }
+        if i < n || j < m { out.append(["op": "...", "text": "diff too long, truncated"]) }
         return out
     }
 }
@@ -906,7 +906,7 @@ final class FSDiffTool: MCPTool {
 final class FSHashTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.hash",
-        summary: "Calculate file hash (MD5/SHA256). Use for: verify file integrity, compare if two files are same, check file fingerprint. Don't use for: compare file content (use fs.diff), read file (use fs.read). Example: user says '这个 IPA 的 MD5 是多少' → calculate hash.",
+        summary: "Calculate file hash (MD5/SHA256). Use for: verify file integrity, compare if two files are same, check file fingerprint. Don't use for: compare file content (use fs.diff), read file (use fs.read). Example: user says 'what is the MD5 of this IPA' → calculate hash.",
         parameters: [
             "path": "File path",
             "bundle_id": "Bundle ID (if in app container)",
@@ -924,14 +924,14 @@ final class FSHashTool: MCPTool {
         } else if let p = path, !p.isEmpty {
             target = p.hasPrefix("/") ? p : FSPolicy.workspace() + "/" + p
         }
-        guard let p = target else { throw MCPError.invalidParams("需要 path 或 bundle_id+relative") }
-        guard FSPolicy.isAllowed(p) else { throw MCPError.failed("路径不在可访问范围: \(p)") }
+        guard let p = target else { throw MCPError.invalidParams("need path or bundle_id+relative") }
+        guard FSPolicy.isAllowed(p) else { throw MCPError.failed("path outside accessible scope: \(p)") }
         let fm = FileManager.default
         var isDir: ObjCBool = false
         guard fm.fileExists(atPath: p, isDirectory: &isDir), !isDir.boolValue else {
-            return ["error": "文件不存在或为目录: \(p)"]
+            return ["error": "file does not exist or is a directory: \(p)"]
         }
-        guard let data = fm.contents(atPath: p) else { return ["error": "读取失败: \(p)"] }
+        guard let data = fm.contents(atPath: p) else { return ["error": "read failed: \(p)"] }
         let algo = (params["algo"] as? String)?.lowercased() ?? "sha256"
         var hash = ""
         switch algo {
@@ -968,7 +968,7 @@ final class FSHashTool: MCPTool {
 final class FSFindTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.find",
-        summary: "[DEPRECATED] Use shell.exec(find /path -name '*.plist') instead. Find files by filename. Example: user says '找所有 plist 文件' → shell.exec(\"find ~/Documents -name '*.plist'\").",
+        summary: "[DEPRECATED] Use shell.exec(find /path -name '*.plist') instead. Find files by filename. Example: user says 'find all plist files' → shell.exec(\"find ~/Documents -name '*.plist'\").",
         parameters: [
             "dir": "Directory to search (default: workspace root)",
             "bundle_id": "Search inside this app's container (instead of dir)",
@@ -989,7 +989,7 @@ final class FSFindTool: MCPTool {
         } else {
             dir = FSPolicy.workspace()
         }
-        guard FSPolicy.isAllowed(dir) else { throw MCPError.failed("路径不在可访问范围: \(dir)") }
+        guard FSPolicy.isAllowed(dir) else { throw MCPError.failed("path outside accessible scope: \(dir)") }
         let needle = name.lowercased()
         let exts = (params["ext"] as? String)?
             .split(separator: ",").map { $0.trimmingCharacters(in: CharacterSet.whitespaces).lowercased() } ?? []
@@ -1021,7 +1021,7 @@ final class FSFindTool: MCPTool {
 final class FSDownloadTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.download",
-        summary: "Download a file from URL to the workspace. Use for: fetch files from internet, download IPAs/dylibs/docs. Don't use for: open website in browser (use browser.open), read web page text (use web.fetch). Example: user says '下载这个 IPA' → download to workspace.",
+        summary: "Download a file from URL to the workspace. Use for: fetch files from internet, download IPAs/dylibs/docs. Don't use for: open website in browser (use browser.open), read web page text (use web.fetch). Example: user says 'download this IPA' → download to workspace.",
         parameters: [
             "url": "http/https URL to download (required)",
             "filename": "Save as this filename (default: use URL's last part)",
@@ -1034,7 +1034,7 @@ final class FSDownloadTool: MCPTool {
               let url = URL(string: urlStr),
               let scheme = url.scheme?.lowercased(),
               scheme == "http" || scheme == "https" else {
-            throw MCPError.invalidParams("需要有效的 http/https URL")
+            throw MCPError.invalidParams("valid http/https URL required")
         }
         let timeout = max((params["timeout"] as? Int) ?? 60, 5)
         let subdir = (params["subdir"] as? String) ?? "downloads"
@@ -1051,11 +1051,11 @@ final class FSDownloadTool: MCPTool {
         var req = URLRequest(url: url, timeoutInterval: TimeInterval(timeout))
         req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
         let sem = DispatchSemaphore(value: 0)
-        var result: [String: Any] = ["error": "下载失败"]
+        var result: [String: Any] = ["error": "download failed"]
         URLSession.shared.dataTask(with: req) { data, resp, err in
             defer { sem.signal() }
-            if let err = err { result["error"] = "网络错误: \(err.localizedDescription)"; return }
-            guard let data = data else { result["error"] = "无数据"; return }
+            if let err = err { result["error"] = "network error: \(err.localizedDescription)"; return }
+            guard let data = data else { result["error"] = "no data"; return }
             let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
             guard status == 200 else { result["error"] = "HTTP \(status)"; return }
             do {
@@ -1065,7 +1065,7 @@ final class FSDownloadTool: MCPTool {
                 let hash = d.map { String(format: "%02x", $0) }.joined()
                 result = ["ok": true, "path": dest, "size": data.count, "sha256": hash]
             } catch {
-                result["error"] = "写入失败: \(error.localizedDescription)"
+                result["error"] = "write failed: \(error.localizedDescription)"
             }
         }.resume()
         _ = sem.wait(timeout: .now() + TimeInterval(timeout + 15))
@@ -1074,12 +1074,12 @@ final class FSDownloadTool: MCPTool {
 }
 
 
-// MARK: - plist 键值编辑（Filza 属性表编辑器写能力）
+// MARK: - plist 键值编辑 (Filza 属性表编辑器写能力）
 
 final class FSPropertyListTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.plist",
-        summary: "Read/modify a plist file (property list). Use for: read app settings, modify plist values, inspect configuration. Don't use for: read SQLite (use fs.sql), read text file (use fs.read). Example: user says '小红书的偏好设置是什么' → read plist file.",
+        summary: "Read/modify a plist file (property list). Use for: read app settings, modify plist values, inspect configuration. Don't use for: read SQLite (use fs.sql), read text file (use fs.read). Example: user says 'what are 小红书 preferences' → read plist file.",
         parameters: [
             "bundle_id": "Target App bundle_id (to browse app container)",
             "relative": "Relative path inside app container",
@@ -1096,24 +1096,24 @@ final class FSPropertyListTool: MCPTool {
         let rel = params["relative"] as? String
         let path = params["path"] as? String
         guard let p = FSPolicy.resolve(bundleId: bundleId, relative: rel, path: path) else {
-            throw MCPError.invalidParams("需要 bundle_id+relative 或 path")
+            throw MCPError.invalidParams("need bundle_id+relative or path")
         }
         let action = (params["action"] as? String) ?? "get"
         let key = (params["key"] as? String) ?? ""
         let isWrite = action != "get"
         if isWrite {
             guard FSPolicy.isWritable(p) else {
-                throw MCPError.failed("不可写：仅限工作区与 App 数据容器: \(p)")
+                throw MCPError.failed("not writable: workspace and App data container only: \(p)")
             }
-            guard !key.isEmpty else { throw MCPError.invalidParams("写操作需要 key") }
+            guard !key.isEmpty else { throw MCPError.invalidParams("write operation requires key") }
         } else {
-            guard FSPolicy.isAllowed(p) else { throw MCPError.failed("路径不在可访问范围: \(p)") }
+            guard FSPolicy.isAllowed(p) else { throw MCPError.failed("path outside accessible scope: \(p)") }
         }
         let fm = FileManager.default
-        guard let data = fm.contents(atPath: p) else { return ["error": "读取失败: \(p)"] }
+        guard let data = fm.contents(atPath: p) else { return ["error": "read failed: \(p)"] }
         let isBinary = data.count >= 8 && data.prefix(8) == Data("bplist00".utf8)
         guard let obj = try? PropertyListSerialization.propertyList(from: data, options: [.mutableContainersAndLeaves], format: nil) else {
-            return ["error": "不是合法 plist: \(p)"]
+            return ["error": "not a valid plist: \(p)"]
         }
         let keys = key.split(separator: ".").map(String.init)
 
@@ -1134,7 +1134,7 @@ final class FSPropertyListTool: MCPTool {
         }
 
         do {
-            guard var root = obj as AnyObject? else { throw MCPError.failed("plist 根不是容器") }
+            guard var root = obj as AnyObject? else { throw MCPError.failed("plist root is not a container") }
             if action == "set" {
                 let val = Self.coerce(params["value"] as? String ?? "")
                 try Self.set(&root, keys: keys, value: val)
@@ -1143,14 +1143,14 @@ final class FSPropertyListTool: MCPTool {
             }
             let fmt: PropertyListSerialization.PropertyListFormat = isBinary ? .binary : .xml
             guard let out = try? PropertyListSerialization.data(fromPropertyList: root, format: fmt, options: 0) else {
-                return ["error": "序列化失败（可能有不支持的根类型）"]
+                return ["error": "serialization failed (possibly unsupported root type)"]
             }
             try out.write(to: URL(fileURLWithPath: p))
             return ["path": p, "action": action, "key": key, "format": isBinary ? "binary" : "xml", "bytes": out.count, "backup_path": p + ".bak"]
         } catch let e as MCPError {
             throw e
         } catch {
-            return ["error": "操作失败: \(error.localizedDescription)"]
+            return ["error": "operation failed: \(error.localizedDescription)"]
         }
     }
 
@@ -1211,17 +1211,17 @@ final class FSPropertyListTool: MCPTool {
                 while a.count <= idx { a.add(NSMutableDictionary()) }
                 node = a[idx] as AnyObject
             } else {
-                throw MCPError.failed("键路径中间节点不是字典/数组: \(k)")
+                throw MCPError.failed("intermediate key-path node is not dict/array: \(k)")
             }
         }
-        guard let last = keys.last else { throw MCPError.invalidParams("key 不能为空") }
+        guard let last = keys.last else { throw MCPError.invalidParams("key cannot be empty") }
         if let d = node as? NSMutableDictionary {
             d[last] = value
         } else if let a = node as? NSMutableArray, let idx = Int(last) {
             while a.count <= idx { a.add(NSNull()) }
             a[idx] = value
         } else {
-            throw MCPError.failed("键路径末端不是字典/数组: \(last)")
+            throw MCPError.failed("key-path end is not dict/array: \(last)")
         }
     }
 
@@ -1229,22 +1229,22 @@ final class FSPropertyListTool: MCPTool {
         var node: AnyObject = root
         for k in keys.dropLast() {
             if let d = node as? NSMutableDictionary {
-                guard let next = d[k] else { throw MCPError.failed("键不存在: \(k)") }
+                guard let next = d[k] else { throw MCPError.failed("key does not exist: \(k)") }
                 node = next as AnyObject
             } else if let a = node as? NSMutableArray, let idx = Int(k), idx < a.count {
                 node = a[idx] as AnyObject
             } else {
-                throw MCPError.failed("键路径中间节点不是字典/数组: \(k)")
+                throw MCPError.failed("intermediate key-path node is not dict/array: \(k)")
             }
         }
-        guard let last = keys.last else { throw MCPError.invalidParams("key 不能为空") }
+        guard let last = keys.last else { throw MCPError.invalidParams("key cannot be empty") }
         if let d = node as? NSMutableDictionary {
-            guard d[last] != nil else { throw MCPError.failed("键不存在: \(last)") }
+            guard d[last] != nil else { throw MCPError.failed("key does not exist: \(last)") }
             d.removeObject(forKey: last)
         } else if let a = node as? NSMutableArray, let idx = Int(last), idx < a.count {
             a.removeObject(at: idx)
         } else {
-            throw MCPError.failed("键路径末端不是字典/数组: \(last)")
+            throw MCPError.failed("key-path end is not dict/array: \(last)")
         }
     }
 }
@@ -1260,7 +1260,7 @@ final class FSPropertyListTool: MCPTool {
 final class FSImageInfoTool: MCPTool {
     let definition = ToolDefinition(
         name: "fs.image_info",
-        summary: "Get image file metadata (format, width, height, size). Use for: check image dimensions, know image format. Don't use for: view image content (use model vision / screenshot), read text file (use fs.read). Example: user says '这张图片多大尺寸' → get image info.",
+        summary: "Get image file metadata (format, width, height, size). Use for: check image dimensions, know image format. Don't use for: view image content (use model vision / screenshot), read text file (use fs.read). Example: user says 'what size is this image' → get image info.",
         parameters: [
             "path": "Image file path",
             "bundle_id": "Bundle ID (if in app container)",
@@ -1277,10 +1277,10 @@ final class FSImageInfoTool: MCPTool {
         } else if let p = path, !p.isEmpty {
             target = p.hasPrefix("/") ? p : FSPolicy.workspace() + "/" + p
         }
-        guard let p = target else { throw MCPError.invalidParams("需要 path 或 bundle_id+relative") }
-        guard FSPolicy.isAllowed(p) else { throw MCPError.failed("路径不在可访问范围: \(p)") }
+        guard let p = target else { throw MCPError.invalidParams("need path or bundle_id+relative") }
+        guard FSPolicy.isAllowed(p) else { throw MCPError.failed("path outside accessible scope: \(p)") }
         let fm = FileManager.default
-        guard let data = fm.contents(atPath: p) else { return ["error": "读取失败: \(p)"] }
+        guard let data = fm.contents(atPath: p) else { return ["error": "read failed: \(p)"] }
         var out: [String: Any] = ["path": p, "size": data.count]
         let b = [UInt8](data.prefix(64))
         func be16(_ o: Int) -> Int { Int(b[o]) << 8 | Int(b[o+1]) }
@@ -1315,9 +1315,9 @@ final class FSImageInfoTool: MCPTool {
             }
         } else {
             out["format"] = "unknown"
-            out["hint"] = "不是常见图片格式（PNG/JPEG/GIF/WebP），用 fs.hexdump 查看 magic"
+            out["hint"] = "not a common image format (PNG/JPEG/GIF/WebP), use fs.hexdump to check magic"
         }
-        out["hint"] = "需要看图内容时用模型的视觉能力查看"
+        out["hint"] = "use the model's vision capability to view image content"
         return out
     }
 }

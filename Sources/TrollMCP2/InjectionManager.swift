@@ -14,10 +14,10 @@ private func posix_spawnattr_set_persona_uid_np(_ attr: UnsafeMutablePointer<pos
 private func posix_spawnattr_set_persona_gid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t?>, _ gid: UInt32) -> Int32
 private let POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE: UInt32 = 1
 
-// MARK: - v2.9.89 Mach-O 分析器（对齐 TrollFools 注入策略：选未加密可注入目标 + 备份 diff）
+// MARK: - v2.9.89 Mach-O 分析器 (对齐 TrollFools 注入策略：选未加密可注入目标 + 备份 diff）
 
-/// 轻量 Mach-O 解析：magic / 架构 / 加密状态（LC_ENCRYPTION_INFO cryptid）/ 加载的 dylib 列表。
-/// 支持 thin（32/64）与 fat（大端，自动定位 arm64 slice）。
+/// 轻量 Mach-O 解析：magic / 架构 / 加密状态 (LC_ENCRYPTION_INFO cryptid）/ 加载的 dylib 列表。
+/// 支持 thin (32/64）与 fat (大端，自动定位 arm64 slice）。
 enum MachOAnalyzer {
     struct Info {
         var arch: String
@@ -34,9 +34,9 @@ enum MachOAnalyzer {
     static let lcEncryptionInfo: UInt32 = 0x21
     static let lcEncryptionInfo64: UInt32 = 0x2C
 
-    /// 解析 Mach-O 信息；非 Mach-O 或读取失败返回 nil
-    /// v2.9.265：大文件只读头 8MB（fat header + load commands 区足够解析 cryptID/dylibs）——
-    /// 全量 mmap 394MB 主二进制 + 6 个 framework 会压垮 TrollAgent（实测多次断连/被杀）。
+    /// 解析 Mach-O 信息；非 Mach-O 或读取failed返回 nil
+    /// v2.9.265：大文件只读头 8MB (fat header + load commands 区足够解析 cryptID/dylibs）——
+    /// 全量 mmap 394MB 主二进制 + 6 个 framework 会压垮 TrollAgent (实测多次断连/被杀）。
     static func analyze(_ path: String) -> Info? {
         let size = (try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? NSNumber
         let total = size?.int64Value ?? 0
@@ -50,7 +50,7 @@ enum MachOAnalyzer {
         var effectiveMagic = magic
 
         if magic == 0xCAFEBABE || magic == 0xBEBAFECA {
-            // fat：按大端读 nfat_arch，找 arm64（cputype=0x0100000C）slice
+            // fat：按大端读 nfat_arch，找 arm64 (cputype=0x0100000C）slice
             let countRaw = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: UInt32.self) }
             let count = magic == 0xCAFEBABE ? countRaw.byteSwapped : countRaw
             var foundSlice: (off: UInt32, size: UInt32)?
@@ -130,7 +130,7 @@ enum MachOAnalyzer {
                     fileType: fileType, hasCodeSignature: hasCodeSignature)
     }
 
-    /// 是否已加密（App Store 加密二进制 cryptid=1，注入会破坏它 → 必须跳过）
+    /// 是否已加密 (App Store 加密二进制 cryptid=1，注入会破坏它 → 必须跳过）
     static func isProtected(_ path: String) -> Bool {
         guard let info = analyze(path) else { return true }
         return info.cryptID != 0
@@ -142,23 +142,23 @@ enum MachOAnalyzer {
         return info.valid && (info.arch == "arm64" || info.arch == "arm32" || info.arch.hasPrefix("fat")) && info.cryptID == 0
     }
 
-    /// v2.9.305：只要是合法 Mach-O 就列进候选（不查 cryptid）——小红书自家 framework
+    /// v2.9.305：只要是合法 Mach-O 就列进候选 (不查 cryptid）——小红书自家 framework
     /// (Sheim/DisGuard) 可能加密，TrollFools 靠 ct_bypass 强注，枚举阶段不应过滤。
     static func isValidMachO(_ path: String) -> Bool {
         guard let info = analyze(path) else { return false }
         return info.valid && (info.arch == "arm64" || info.arch == "arm32" || info.arch.hasPrefix("fat"))
     }
 
-    /// v2.9.308：是否加密（对齐 TrollFools isProtectedMachO）——选目标时优先未加密
+    /// v2.9.308：是否加密 (对齐 TrollFools isProtectedMachO）——选目标时优先未加密
     static func isEncryptedMachO(_ path: String) -> Bool {
         return (analyze(path)?.cryptID ?? 0) != 0
     }
 }
 
 /// 注入管理器：使用内置 ldid / optool / insert_dylib / ct_bypass 二进制，通过 posix_spawn
-/// 真实地把 ControlAgent.dylib 注入到目标 App 主可执行文件（TrollStore 无越狱注入）。
-/// v2.9.32：写 bundle 的文件操作全部改 **root 身份**执行（TrollStore TSRootBinaries +
-/// persona-mgmt），修复无越狱下 mobile 用户无权写 root 拥有的 app bundle（POSIX 13）。
+/// 真实地把 ControlAgent.dylib 注入到目标 App 主可执行文件 (TrollStore 无越狱注入）。
+/// v2.9.32：写 bundle 的文件操作全部改 **root 身份**执行 (TrollStore TSRootBinaries +
+/// persona-mgmt），修复无越狱下 mobile 用户无权写 root 拥有的 app bundle (POSIX 13）。
 final class InjectionManager {
     static let shared = InjectionManager()
 
@@ -177,7 +177,7 @@ final class InjectionManager {
         return names.filter { binaryPath($0) != nil }
     }
 
-    /// iOS 大版本（用于选择 cp / cp-15 等工具变体）
+    /// iOS 大版本 (用于选择 cp / cp-15 等工具变体）
     private var majorVersion: Int {
         let v = ProcessInfo.processInfo.operatingSystemVersion
         return v.majorVersion
@@ -196,8 +196,8 @@ final class InjectionManager {
 
     // MARK: - posix_spawn 执行包内二进制
 
-    /// v2.9.126：结构化 spawn 结果——stdout/stderr 分离（根治"ldid 错误混进 entitlements"）、
-    /// 超时标记、signal/exit 区分。code：>=0 exit code；-1 spawn 失败；-2 超时被 SIGKILL。
+    /// v2.9.126：结构化 spawn 结果——stdout/stderr 分离 (根治"ldid 错误混进 entitlements"）、
+    /// 超时标记、signal/exit 区分。code：>=0 exit code；-1 spawn failed；-2 超时被 SIGKILL。
     struct SpawnResult {
         var code: Int32
         var stdout: String
@@ -206,14 +206,14 @@ final class InjectionManager {
         var signaled: Bool
         var signal: Int32
         var diagPrefix: String
-        /// v3.0.42：stdout 原始字节（二进制安全，如 ldid -e 输出的 bplist）。解析用 rawStdout，展示用 stdout。
+        /// v3.0.42：stdout 原始字节 (二进制安全，如 ldid -e 输出的 bplist）。解析用 rawStdout，展示用 stdout。
         var rawStdout: Data = Data()
         var output: String { diagPrefix + stdout + stderr }
         var isTimeout: Bool { code == -2 || timedOut }
         var isSpawnFailed: Bool { code == -1 }
     }
 
-    /// 执行包内二进制，捕获 stdout/stderr，返回 (exitCode, combinedOutput)
+    /// 执行包内二进制，captured stdout/stderr，返回 (exitCode, combinedOutput)
     @discardableResult
     func runBundled(_ name: String, args: [String], timeout: Double = 60) -> (Int32, String) {
         guard let bin = binaryPath(name) else { return (-1, "binary not bundled: \(name)") }
@@ -227,21 +227,21 @@ final class InjectionManager {
         return result
     }
 
-    /// v2.9.32：以 **root 身份**执行包内二进制（写 app bundle 必需，mobile 无 POSIX 写权限）。
+    /// v2.9.32：以 **root 身份**执行包内二进制 (写 app bundle 必需，mobile 无 POSIX 写权限）。
     /// 依赖 TrollStore 安装时保留的 persona-mgmt entitlement + Info.plist TSRootBinaries 声明。
-    /// v2.9.126：内部走 spawnRootDetailed（stdout/stderr 分离 + 超时），对外签名不变；
-    /// 进程本身已是 root（越狱环境 geteuid()==0）时，cp/rm/mv/mkdir/chown 直接用 FileManager
-    /// 原生 API（对齐 TrollFools isPrivileged），省一次进程创建。
+    /// v2.9.126：内部走 spawnRootDetailed (stdout/stderr 分离 + 超时），对外签名不变；
+    /// 进程本身已是 root (越狱环境 geteuid()==0）时，cp/rm/mv/mkdir/chown 直接用 FileManager
+    /// 原生 API (对齐 TrollFools isPrivileged），省一次进程创建。
     @discardableResult
     func runAsRoot(_ name: String, args: [String], timeout: Double = 60) -> (Int32, String) {
         guard let bin = binaryPath(name) else { return (-1, "binary not bundled: \(name)") }
         if geteuid() == 0, let native = nativeFileOp(name, args) {
             return native
         }
-        // v2.9.284：去掉 [name] 前缀——argv[0]=bin 已是可执行路径（v2.9.281 修复），
+        // v2.9.284：去掉 [name] 前缀——argv[0]=bin 已是可执行路径 (v2.9.281 修复），
         // argv[1:] 应为纯参数。之前多塞 name 导致 argv[1]="cp"/"chown"/"install_name_tool" 等
-        // 被工具当作第一个参数/第一个源文件：cp 报 "target ... No such file"（把 "cp" 当源）、
-        // install_name_tool 把 "install_name_tool" 当命令等，大量注入步骤静默失败（_ = 忽略返回）。
+        // 被工具当作第一个参数/第一个源文件：cp 报 "target ... No such file" (把 "cp" 当源）、
+        // install_name_tool 把 "install_name_tool" 当命令等，大量注入步骤静默failed (_ = 忽略返回）。
         let result = spawnRootDetailed(bin, args: args, timeout: timeout)
         if result.code != 0, name != "ldid", let ldid = binaryPath("ldid") {
             _ = spawnRootDetailed(ldid, args: ["-S", bin], timeout: 30)
@@ -251,7 +251,7 @@ final class InjectionManager {
         return (result.code, result.output)
     }
 
-    /// v2.9.126：root 环境下 FileManager 原生映射（对齐 TrollFools isPrivileged 快路径）。
+    /// v2.9.126：root 环境下 FileManager 原生映射 (对齐 TrollFools isPrivileged 快路径）。
     /// 只处理参数形态明确的简单操作，无法安全映射返回 nil 走 spawn。
     private func nativeFileOp(_ name: String, _ args: [String]) -> (Int32, String)? {
         let fm = FileManager.default
@@ -299,28 +299,28 @@ final class InjectionManager {
         return nil
     }
 
-    /// 需要纯净 stdout 的命令（如 ldid -e 提取 entitlements）：stderr 噪音不混入。
+    /// 需要纯净 stdout 的命令 (如 ldid -e 提取 entitlements）：stderr 噪音不混入。
     /// v2.9.126：根治"工具结果混杂"——解析类命令只读 stdout。
     @discardableResult
     func runAsRootStdout(_ name: String, args: [String], timeout: Double = 30) -> (Int32, String) {
         guard let bin = binaryPath(name) else { return (-1, "") }
-        // v2.9.284：同 runAsRoot，去掉 [name] 前缀（argv[0]=bin，argv[1:] 纯参数）
+        // v2.9.284：同 runAsRoot，去掉 [name] 前缀 (argv[0]=bin，argv[1:] 纯参数）
         let r = spawnRootDetailed(bin, args: args, timeout: timeout)
         return (r.code, r.stdout)
     }
 
-    /// v3.0.42：root 执行返回原始 stdout 字节（二进制安全）——ldid -e 输出 bplist 时用。
+    /// v3.0.42：root 执行返回原始 stdout 字节 (二进制安全）——ldid -e 输出 bplist 时用。
     func runAsRootData(_ name: String, args: [String], timeout: Double = 60) -> (Int32, Data) {
         guard let bin = binaryPath(name) else { return (-1, Data()) }
         let r = spawnRootDetailed(bin, args: args, timeout: timeout)
         return (r.code, r.rawStdout)
     }
 
-    /// v3.0.50：设备端注入——多策略签名链依次尝试，哪个能让 opainject dlopen 成功用哪个。
-    /// 背景（真机实测链）：TrollStore 安装签名带 Team ID → dyld 报 "different Team IDs"；
+    /// v3.0.50：设备端注入——多策略签名链依次尝试，哪个能让 opainject dlopen OK用哪个。
+    /// 背景 (真机实测链）：TrollStore 安装签名带 Team ID → dyld 报 "different Team IDs"；
     /// 设备端 ldid -S 空签 → iOS16 dyld 报 "code signature invalid (errno=1)"。
-    /// 依次试：①ldid -S（空 entitlements adhoc）②ldid -S+platform/no-sandbox entitlements
-    /// ③系统 /usr/bin/codesign adhoc ④不重签直接注入（对照）。返回最优结果 + 全链路诊断。
+    /// 依次试：①ldid -S (空 entitlements adhoc）②ldid -S+platform/no-sandbox entitlements
+    /// ③系统 /usr/bin/codesign adhoc ④不重签直接injected (对照）。返回最优结果 + 全链路诊断。
     @discardableResult
     func injectDylib(pid: Int, dylib: String, timeout: Double = 25) -> (Int32, String) {
         let workDir = "/var/mobile/Documents/Workspace"
@@ -338,8 +338,8 @@ final class InjectionManager {
         """
         _ = try? entXML.data(using: .utf8)?.write(to: URL(fileURLWithPath: entPath))
 
-        // (签名工具, 参数, 描述)。v3.0.58: ctchain 排第一（真机验证成功路径），失败依次降级。
-        // 成功路径 = teamid 提目标 App Team ID + ldid -S 伪签 + ct_bypass CoreTrust（CVE-2023-41991 多签名者）。
+        // (签名工具, 参数, 描述)。v3.0.58: ctchain 排第一 (真机验证OK路径），failed依次降级。
+        // OK路径 = teamid 提目标 App Team ID + ldid -S 伪签 + ct_bypass CoreTrust (CVE-2023-41991 多签名者）。
         let signSteps: [(String, [String], String)] = [
             ("ctchain", [dylib], "ldid -S + ct_bypass CoreTrust"),
             ("ldid", ["-S", dylib], "ldid -S 空签"),
@@ -355,8 +355,8 @@ final class InjectionManager {
                 let r = spawnRootDetailed("/usr/bin/codesign", args: args, timeout: 20)
                 rc = r.code; ro = r.output
             } else if tool == "ctchain" {
-                // v3.0.53: 先提目标进程真实 Team ID（teamid 解析其 CodeDirectory TeamID 字段），
-                // 再 ldid -S 伪签 → ct_bypass -r -i -t <teamID>（CoreTrust 多签名者漏洞，CVE-2023-41991）
+                // v3.0.53: 先提目标进程真实 Team ID (teamid 解析其 CodeDirectory TeamID 字段），
+                // 再 ldid -S 伪签 → ct_bypass -r -i -t <teamID> (CoreTrust 多签名者漏洞，CVE-2023-41991）
                 let (tc, to) = runAsRoot("teamid", args: ["\(pid)", "-v"], timeout: 15)
                 var teamID = ""
                 if tc == 0 {
@@ -364,75 +364,75 @@ final class InjectionManager {
                         teamID = String(line.dropFirst(9)).trimmingCharacters(in: .whitespacesAndNewlines)
                     }
                 }
-                diag += "【\(desc)】teamid(\(tc)) team=\(teamID.isEmpty ? "(空)" : teamID)\n"
+                diag += "[\(desc)] teamid(\(tc)) team=\(teamID.isEmpty ? "(empty)" : teamID)\n"
                 diag += to.prefix(900) + "\n"
                 (rc, ro) = runAsRoot("ldid", args: ["-S", dylib], timeout: 20)
                 if rc != 0 {
-                    diag += "【\(desc)】ldid 伪签失败(\(rc)) \(ro.prefix(150))\n"
+                    diag += "[\(desc)] ldid fake-sign failed (\(rc)) \(ro.prefix(150))\n"
                     continue
                 }
                 (rc, ro) = runAsRoot("ct_bypass", args: ["-r", "-i", dylib, "-t", teamID], timeout: 30)
                 if rc != 0 {
-                    diag += "【\(desc)】ct_bypass 失败(\(rc)) \(ro.prefix(200))\n"
+                    diag += "【\(desc)】ct_bypass failed(\(rc)) \(ro.prefix(200))\n"
                     continue
                 }
             } else {
                 (rc, ro) = runAsRoot(tool, args: args, timeout: 20)
             }
             if rc != 0 {
-                diag += "【\(desc)】签名失败(\(rc)) \(ro.prefix(150))\n"
+                diag += "[\(desc)] signing failed (\(rc)) \(ro.prefix(150))\n"
                 continue
             }
             let (ic, io) = runAsRoot("opainject", args: ["\(pid)", dylib], timeout: timeout)
             let ok = io.contains("dlopen succeeded") || io.contains("Injected") || io.contains("injected successfully")
-            diag += "【\(desc)】opainject \(ok ? "成功" : "失败"): " + io.replacingOccurrences(of: "\n", with: " ").suffix(180) + "\n"
+            diag += "【\(desc)】opainject \(ok ? "OK" : "failed"): " + io.replacingOccurrences(of: "\n", with: " ").suffix(180) + "\n"
             if ok { return (ic, io) }
-            // v3.0.62：ctchain（成功路径）opainject 失败且是"读内存/__LINKEDIT/task port"类环境问题，
+            // v3.0.62：ctchain (OK路径）opainject failed且是"读内存/__LINKEDIT/task port"类环境问题，
             // 说明 opainject 本身读不到目标进程内存，后续签名变体也救不了——直接停，避免 5 个 opainject 堆在手机上发烫
             if desc.contains("CoreTrust") {
                 let envIssue = io.contains("Failed to read process memory") || io.contains("__LINKEDIT not found") || io.contains("Failed to find main thread") || io.contains("task port") || io.contains("EBADARCH") || io.contains("spawnRoot failed")
                 if envIssue {
-                    diag += "【v3.0.62】ctchain opainject 环境类失败，跳过后续签名策略（避免 opainject 堆积发烫）\n"
+                    diag += "[v3.0.62] ctchain opainject env-class failed, skipping further signing strategy (avoid opainject pileup)\n"
                     break
                 }
             }
         }
-        // 最后：不重签直接注入（对照 TrollStore 安装签名）
+        // 最后：不重签直接injected (对照 TrollStore 安装签名）
         let (ic2, io2) = runAsRoot("opainject", args: ["\(pid)", dylib], timeout: timeout)
         let ok2 = io2.contains("dlopen succeeded") || io2.contains("Injected") || io2.contains("injected successfully")
-        diag += "【不重签直注】opainject \(ok2 ? "成功" : "失败"): " + io2.replacingOccurrences(of: "\n", with: " ").suffix(180) + "\n"
+        diag += "[no-resign direct inject] opainject \(ok2 ? "OK" : "failed"): " + io2.replacingOccurrences(of: "\n", with: " ").suffix(180) + "\n"
         if ok2 { return (ic2, io2) }
-        // v3.0.62：智能失败归因——不是干巴巴的错误，告诉用户为什么失败+怎么办
+        // v3.0.62：智能failed归因——不是干巴巴的错误，告诉用户为什么failed+怎么办
         var reason = "未知"
         var advice = ""
         if diag.contains("team=(空)") {
-            reason = "目标 App 无 Team ID（Apple 系统 App 常见）"
+            reason = "目标 App 无 Team ID (Apple 系统 App 常见)"
             advice = "系统 App 签名里没有 Team ID 字段，ct_bypass 无法匹配。这类 App 暂不支持内存注入。"
         } else if diag.contains("Failed to read process memory") || diag.contains("__LINKEDIT not found") {
             reason = "opainject 读不到目标进程内存"
-            advice = "目标 App 有安全 SDK 防护（字节/腾讯/阿里系常见），或进程处于冻结/挂起态。试试：先手动打开目标 App 到前台，再注入。"
+            advice = "目标 App 有安全 SDK 防护 (字节/腾讯/阿里系常见)，或进程处于冻结/挂起态。试试：先手动打开目标 App 到前台，再注入。"
         } else if diag.contains("Failed to find main thread") || diag.contains("task port") {
-            reason = "opainject 获取 task port 失败"
-            advice = "目标 App 有反调试/反注入保护（如聚安全/安全 SDK），或进程已崩溃。换无防护 App 测试。"
+            reason = "opainject 获取 task port failed"
+            advice = "目标 App 有反调试/反注入保护 (如聚安全/安全 SDK)，或进程已崩溃。换无防护 App 测试。"
         } else if diag.contains("EBADARCH") || diag.contains("spawnRoot failed (85)") {
             reason = "opainject 架构不兼容"
             advice = "opainject 二进制与 TrollMCP2 主二进制架构不匹配。检查 Resources/bin/opainject 架构。"
         } else if diag.contains("spawnRoot failed (2)") {
-            reason = "/usr/bin/codesign 不存在（预期）"
+            reason = "/usr/bin/codesign 不存在 (预期)"
             advice = "TrollStore 环境没有 codesign，正常。ct_bypass 应该能替代。"
         } else if diag.contains("ldid") || diag.contains("ct_bypass") {
-            reason = "签名工具失败"
-            advice = "ldid 或 ct_bypass 执行失败，检查 bin/ 目录下二进制完整性。"
+            reason = "签名工具failed"
+            advice = "ldid 或 ct_bypass 执行failed，检查 bin/ 目录下二进制完整性。"
         }
-        diag += "\n【智能归因】失败原因：\(reason)\n【建议】\(advice)\n"
+        diag += "\n【智能归因】failed原因：\(reason)\n【建议】\(advice)\n"
         return (1, diag)
     }
 
-    /// 非 root 版 posix_spawn（部分场景需要 mobile 身份执行）。
-    /// v2.9.126：加 timeout（默认 60s，超时 SIGKILL 返回 code=-2），防命令挂起卡死。
+    /// 非 root 版 posix_spawn (部分场景需要 mobile 身份执行）。
+    /// v2.9.126：加 timeout (默认 60s，超时 SIGKILL 返回 code=-2），防命令挂起卡死。
     /// v2.9.281：argv[0] 必须放可执行路径——posix_spawn 的 argv[0] 是程序名惯例，
     /// trollstorehelper 等从 argv[1] 开始解析命令；之前直接放 args 导致 cmd 错位
-    /// （收到 "installd"/"custom" 而非 "install"/"uninstall"），helper 静默返回 0 假成功。
+    ///  (收到 "installd"/"custom" 而非 "install"/"uninstall"），helper 静默返回 0 假OK。
     func spawn(_ path: String, args: [String], timeout: Double = 60) -> (Int32, String) {
         var argv: [UnsafeMutablePointer<CChar>?] = [strdup(path)] + args.map { strdup($0) }
         argv.append(nil)
@@ -464,7 +464,7 @@ final class InjectionManager {
 
         var out = Data()
         if status == 0 {
-            // v2.9.126：超时控制（timer 到点 SIGKILL，防挂起永久卡死）
+            // v2.9.126：超时控制 (timer 到点 SIGKILL，防挂起永久卡死）
             var timedOut = false
             let timer = DispatchSource.makeTimerSource(queue: .global())
             timer.schedule(deadline: .now() + timeout)
@@ -495,12 +495,12 @@ final class InjectionManager {
         return (status, "posix_spawn failed (\(status))")
     }
 
-    /// v2.9.52：root 版 spawn（真正修复版）。
-    /// 对照 TrollStore 官方 TSUtil.m spawnRoot：persona 99 + uid=0 + gid=0，编译时链接（@_silgen_name）。
+    /// v2.9.52：root 版 spawn (真正修复版）。
+    /// 对照 TrollStore 官方 TSUtil.m spawnRoot：persona 99 + uid=0 + gid=0，编译时链接 (@_silgen_name）。
     /// 之前用 dlsym 运行时查找，iOS 上这些是隐藏符号，dlsym 全返回 nil → persona 没设置 → euid=501 → EPERM。
     /// 编译时链接后直接调用，有 persona-mgmt entitlement 即可 root spawn，不依赖 TSRootBinaries setuid 位。
     /// v2.9.57：完全重写，对齐 TrollFools AuxiliaryExecute+Spawn.swift。
-    /// v2.9.126：薄封装，真实实现走 spawnRootDetailed（stdout/stderr 分离 + 超时 + signal 区分）。
+    /// v2.9.126：薄封装，真实实现走 spawnRootDetailed (stdout/stderr 分离 + 超时 + signal 区分）。
     @discardableResult
     func spawnRoot(_ path: String, args: [String], timeout: Double = 60) -> (Int32, String) {
         let r = spawnRootDetailed(path, args: args, timeout: timeout)
@@ -508,14 +508,14 @@ final class InjectionManager {
     }
 
     /// v2.9.126：root spawn 结构化版。
-    /// - stdout/stderr 分离：解析类命令（ldid -e 等）可只取 stdout，根治"stderr 噪音混进结果"
+    /// - stdout/stderr 分离：解析类命令 (ldid -e 等）可只取 stdout，根治"stderr 噪音混进结果"
     /// - 超时：默认 60s，超时 SIGKILL → code=-2，调用方可报 [TOOL_TIMEOUT]
     /// - signal/exit 区分：被信号杀死的命令 → signaled=true + signal 号，而非误报 exit code
     /// 保持 v2.9.57 的非阻塞 pipe + DispatchSource 异步读取 + waitpid 同步等待。
     func spawnRootDetailed(_ path: String, args: [String], timeout: Double = 60) -> SpawnResult {
-        // v2.9.281：argv[0] 放可执行路径（posix_spawn 程序名惯例）。之前 argv[0]=args[0]
-        // 导致 trollstorehelper 的 main（从 argv[1] 解析 cmd）把命令参数当成命令：
-        // install/uninstall/refresh-all 全部假成功返回 0，实际从未执行（小红书装不上根因）。
+        // v2.9.281：argv[0] 放可执行路径 (posix_spawn 程序名惯例）。之前 argv[0]=args[0]
+        // 导致 trollstorehelper 的 main (从 argv[1] 解析 cmd）把命令参数当成命令：
+        // install/uninstall/refresh-all 全部假OK返回 0，实际从未执行 (小红书装不上根因）。
         var argv: [UnsafeMutablePointer<CChar>?] = [strdup(path)] + args.map { strdup($0) }
         argv.append(nil)
         defer { for p in argv where p != nil { free(p) } }
@@ -583,7 +583,7 @@ final class InjectionManager {
 
         var stdoutStr = ""
         var stderrStr = ""
-        var stdoutData = Data()   // v3.0.42：原始字节（二进制安全，bplist 等）
+        var stdoutData = Data()   // v3.0.42：原始字节 (二进制安全，bplist 等）
         let outputLock = NSLock()
         let bufsiz = 65536
 
@@ -643,9 +643,9 @@ final class InjectionManager {
         repeat { wr = waitpid(pid, &st, 0) } while wr == -1 && errno == EINTR
         timer.cancel()
         // 进程已退出，等待 pipe 数据全部读完
-        // v2.9.280：waitpid 返回后 DispatchSource 可能仍有余量未读（大输出被 64KB pipe
+        // v2.9.280：waitpid 返回后 DispatchSource 可能仍有余量未读 (大输出被 64KB pipe
         // 缓冲截断、进程已退出导致 event 不再触发），先同步 drain 两个 pipe 到 EOF，
-        // 再等 sem，避免 install/sign 等大输出日志丢失（曾导致 install 中间日志全丢、
+        // 再等 sem，避免 install/sign 等大输出日志丢失 (曾导致 install 中间日志全丢、
         // 无法诊断"返回 0 却没装上"）。
         func drain(_ fd: Int32) {
             var buf = [UInt8](repeating: 0, count: 65536)
@@ -670,7 +670,7 @@ final class InjectionManager {
         outSem.wait()
         errSem.wait()
 
-        // v2.9.126：signal/exit 区分（对齐 TrollFools WIFSIGNALED/WTERMSIG）
+        // v2.9.126：signal/exit 区分 (对齐 TrollFools WIFSIGNALED/WTERMSIG）
         var signaled = false
         var signal = Int32(0)
         if timedOut {
@@ -701,9 +701,9 @@ final class InjectionManager {
         return (app.path as NSString).appendingPathComponent(fallback)
     }
 
-    /// 通过扫描二进制内是否含 "ControlAgent" 字符串判断注入状态（LC_LOAD_DYLIB 名字会被写入）
+    /// 通过扫描二进制内是否含 "ControlAgent" 字符串判断注入状态 (LC_LOAD_DYLIB 名字会被写入）
     /// v2.9.265：只读前 1MB——load commands 区在文件头 64KB 内，全量读 394MB 主二进制的
-    /// Data(contentsOf:) 会压垮 TrollAgent（实测多次内存被杀/断连）。
+    /// Data(contentsOf:) 会压垮 TrollAgent (实测多次内存被杀/断连）。
     func isInjected(_ mainBinary: String) -> Bool {
         guard let fh = try? FileHandle(forReadingFrom: URL(fileURLWithPath: mainBinary)) else { return false }
         defer { try? fh.close() }
@@ -711,9 +711,9 @@ final class InjectionManager {
         return head.range(of: "ControlAgent".data(using: .utf8)!) != nil
     }
 
-    // MARK: - 公共 API
+    // MARK: - 公total API
 
-    /// 高危 App 前缀（v2.9.89 高危护栏）：支付/银行/系统等注入风险高，注入前强制提醒
+    /// 高危 App 前缀 (v2.9.89 高危护栏）：支付/银行/系统等注入风险高，注入前强制提醒
     static let sensitiveBundleHints = [
         "com.tencent.mm", "com.tencent.xin", "com.alipay", "com.apple",
         "com.unionpay", "com.ccb", "com.icbc", "com.cmbchina", "com.bank",
@@ -724,7 +724,7 @@ final class InjectionManager {
         sensitiveBundleHints.contains { bundleId.lowercased().hasPrefix($0) }
     }
 
-    /// 是否为系统/越狱基础库（清理残留时不能删这些）
+    /// 是否为系统/越狱基础库 (清理残留时不能删这些）
     static func isSensitiveSystemLibrary(_ itemName: String) -> Bool {
         let lower = itemName.lowercased()
         if lower.hasPrefix("libswift") { return true }
@@ -733,13 +733,13 @@ final class InjectionManager {
         return names.contains { lower.contains($0) }
     }
 
-    /// 注入资产忽略名单（对齐 TrollFools ignoredDylibAndFrameworkNames）
+    /// 注入资产忽略名单 (对齐 TrollFools ignoredDylibAndFrameworkNames）
     private static let ignoredDylibNames: Set<String> = [
         "cydiasubstrate", "cydiasubstrate.framework", "ellekit", "ellekit.framework",
         "libsubstrate.dylib", "libsubstitute.dylib", "libellekit.dylib",
     ]
 
-    // MARK: 备份辅助（对齐 TrollFools：备份后缀 .troll-fools.bak）
+    // MARK: 备份辅助 (对齐 TrollFools：备份后缀 .troll-fools.bak）
 
     private func alternateURL(for target: String) -> String {
         target + ".troll-fools.bak"
@@ -750,7 +750,7 @@ final class InjectionManager {
         FileManager.default.fileExists(atPath: target + ".bak_macho")   // 旧格式兼容
     }
 
-    /// 持久化注入资产到 /var/mobile/Library/TrollFools/PersistentPlugins/<bid>/（对齐 TrollFools persist：
+    /// 持久化注入资产到 /var/mobile/Library/TrollFools/PersistentPlugins/<bid>/ (对齐 TrollFools persist：
     /// App 覆盖重装/更新后可从持久区恢复注入）
     private static let persistentPluginsRoot = "/var/mobile/Library/TrollFools/PersistentPlugins"
     private func persistAsset(name: String, src: String, bid: String) {
@@ -765,11 +765,11 @@ final class InjectionManager {
         }
     }
 
-    /// 从持久化区启用插件（对齐 TrollFools：启用 = 从 PersistentPlugins 副本重新注入）
+    /// 从持久化区启用插件 (对齐 TrollFools：启用 = 从 PersistentPlugins 副本重新注入）
     func restore(bundleId: String) throws -> [String: Any] {
         let base = Self.persistentPluginsRoot + "/" + bundleId
         guard let items = try? FileManager.default.contentsOfDirectory(atPath: base) else {
-            throw MCPError.failed("该 App 没有持久化插件可启用（先注入才会持久化）")
+            throw MCPError.failed("this App has no persisted plugin to enable (inject first to persist)")
         }
         var restored: [String: String] = [:]
         for item in items.sorted() where item.hasSuffix(".dylib") || item.hasSuffix(".framework") || item.hasSuffix(".bundle") {
@@ -780,7 +780,7 @@ final class InjectionManager {
         return ["action": "restore", "bundleId": bundleId, "restored": restored]
     }
 
-    // MARK: - CydiaSubstrate（对齐 TrollFools prepareSubstrate / standardizeLoadCommandDylibToSubstrate）
+    // MARK: - CydiaSubstrate (对齐 TrollFools prepareSubstrate / standardizeLoadCommandDylibToSubstrate）
     // v2.9.121：根治 substrate 插件闪退——不再拒绝，而是内置 CydiaSubstrate.framework.zip，
     // 注入用户插件时自动准备并拷入目标 App，插件对 substrate 的引用重定向到内置路径。
 
@@ -791,14 +791,14 @@ final class InjectionManager {
         "libsubstrate.dylib", "libsubstitute.dylib", "libellekit.dylib",
     ]
 
-    /// 解压内置 CydiaSubstrate.framework.zip → 临时目录，标记 .troll-fools + ct_bypass + chown 33:33（对齐 prepareSubstrate）
+    /// 解压内置 CydiaSubstrate.framework.zip → 临时目录，标记 .troll-fools + ct_bypass + chown 33:33 (对齐 prepareSubstrate）
     private func prepareSubstrate() throws -> String {
         let tmpRoot = NSTemporaryDirectory() + "TrollAgentSubstrate-" + UUID().uuidString
         try? FileManager.default.createDirectory(atPath: tmpRoot, withIntermediateDirectories: true)
         let zipPath = Bundle.main.path(forResource: "CydiaSubstrate.framework", ofType: "zip")
             ?? (binDir.deletingLastPathComponent().appendingPathComponent("CydiaSubstrate.framework.zip").path)
         guard FileManager.default.fileExists(atPath: zipPath) else {
-            throw MCPError.failed("CydiaSubstrate.framework.zip 未内置")
+            throw MCPError.failed("CydiaSubstrate.framework.zip not bundled")
         }
         let data = try Data(contentsOf: URL(fileURLWithPath: zipPath))
         let entries = try ZIPReader.extractEntries(from: data)
@@ -808,7 +808,7 @@ final class InjectionManager {
             try e.data.write(to: URL(fileURLWithPath: dest))
         }
         let fwk = tmpRoot + "/" + Self.substrateFwkName
-        guard FileManager.default.fileExists(atPath: fwk) else { throw MCPError.failed("substrate 解压失败") }
+        guard FileManager.default.fileExists(atPath: fwk) else { throw MCPError.failed("substrate extraction failed") }
         _ = runAsRoot("touch", args: [fwk + "/.troll-fools"])
         let machO = fwk + "/" + Self.substrateName
         let (pc, po) = runAsRoot("ct_bypass", args: ["-r", "-i", machO, "-t", "TROLLTROLL"])
@@ -817,7 +817,7 @@ final class InjectionManager {
         return fwk
     }
 
-    /// 插件内 substrate 系 load command → 内置 substrate 路径（对齐 standardizeLoadCommandDylibToSubstrate）
+    /// 插件内 substrate 系 load command → 内置 substrate 路径 (对齐 standardizeLoadCommandDylibToSubstrate）
     private func standardizeLoadCommandDylibToSubstrate(_ asset: String) {
         let machO: String
         if asset.hasSuffix(".framework") {
@@ -835,7 +835,7 @@ final class InjectionManager {
         }
     }
 
-    // MARK: - iTunesMetadata 分离（对齐 TrollFools setMetadataDetached：注入期间移开 metadata，
+    // MARK: - iTunesMetadata 分离 (对齐 TrollFools setMetadataDetached：注入期间移开 metadata，
     // 避免 App Store 更新/校验把注入痕迹当异常）
 
     private func metadataURLs(bundleId: String) -> (meta: String, bak: String) {
@@ -863,14 +863,14 @@ final class InjectionManager {
     }
 
     /// 启动自检：open -b 兜底直接执行主二进制；两次探测进程均不在 → 判定闪退
-    // v2.9.190：TrollStore 无 shell（/bin/sh、/usr/bin/open、/bin/ps、spawnRoot 全部不可用，
-    // 真机实测）——原实现启动与探测全走 spawnRoot，恒失败 → 误判"注入后必闪退"并自动回滚，
+    // v2.9.190：TrollStore 无 shell (/bin/sh、/usr/bin/open、/bin/ps、spawnRoot 全部不可用，
+    // 真机实测）——原实现启动与探测全走 spawnRoot，恒failed → 误判"注入后必闪退"并Auto rollback，
     // 导致 201 个工具里 injection.enable/control.inject 注入任意 App 都被判"闪退"。
-    // 修复：启动改用 LSWorkspace 私有 API（与 app.start 同款，185 起真机实测可拉起），
-    //       探测改用 libproc（proc_listallpids + proc_pidpath，排除 .appex，与 app.status 同款）。
+    // 修复：启动改用 LSWorkspace 私有 API (与 app.start 同款，185 起真机实测可拉起），
+    //       探测改用 libproc (proc_listallpids + proc_pidpath，排除 .appex，与 app.status 同款）。
     private func launchAndProbe(bundleId: String, execName: String, executable: String) -> Bool {
-        // v2.9.301：大厂App（豆包/小红书/微信）冷启动需8-15秒，旧版仅7秒窗口会误判闪退→回滚好注入。
-        // 改为25秒窗口、每1.5秒探测一次；拉起pid=0时也继续探测（LSWorkspace可能异步拉起）。
+        // v2.9.301：大厂App (豆包/小红书/微信）冷启动需8-15秒，旧版仅7秒窗口会误判闪退→回滚好注入。
+        // 改为25秒窗口、每1.5秒探测一次；拉起pid=0时也继续探测 (LSWorkspace可能异步拉起）。
         _ = DecryptEngine.launchApp(bundleId: bundleId, waitSeconds: 2)
         for _ in 0..<16 {
             Thread.sleep(forTimeInterval: 1.5)
@@ -880,7 +880,7 @@ final class InjectionManager {
     }
 
     private func appProcessAlive(_ executable: String) -> Bool {
-        // executable = xxx.app/xxx；bundlePath = xxx.app（findPidByExecutable 排除 .appex 后命中主进程）
+        // executable = xxx.app/xxx；bundlePath = xxx.app (findPidByExecutable 排除 .appex 后命中主进程）
         let bundlePath = (executable as NSString).deletingLastPathComponent
         return findPidByExecutable(bundlePath: bundlePath) > 0
     }
@@ -890,12 +890,12 @@ final class InjectionManager {
         let alt = alternateURL(for: target)
         if !FileManager.default.fileExists(atPath: alt) {
             let (c, o) = runAsRoot("cp", args: ["--reflink=auto", "-rfp", target, alt])
-            if c != 0 { throw MCPError.failed("root cp 备份失败(\(c)): \(o)") }
+            if c != 0 { throw MCPError.failed("root cp backup failed (\(c)): \(o)") }
         }
         return alt
     }
 
-    /// 从备份恢复（优先新格式 .troll-fools.bak，兼容旧 .bak_macho），成功后删备份
+    /// 从备份restored (优先新格式 .troll-fools.bak，兼容旧 .bak_macho），OK后删备份
     @discardableResult
     func restoreAlternate(_ target: String) throws -> Bool {
         let alt = alternateURL(for: target)
@@ -910,15 +910,15 @@ final class InjectionManager {
         }
         _ = runAsRoot("rm", args: ["-f", target])
         let (c, o) = runAsRoot("mv", args: ["-f", backupPath, target])
-        if c != 0 { throw MCPError.failed("root mv 恢复失败(\(c)): \(o)") }
+        if c != 0 { throw MCPError.failed("root mv restore failed (\(c)): \(o)") }
         _ = runAsRoot("rm", args: ["-f", backupPath])
         return true
     }
 
-    // MARK: Mach-O 收集（对齐 TrollFools frameworkMachOsInBundle + locateAvailableMachO）
+    // MARK: Mach-O collected (对齐 TrollFools frameworkMachOsInBundle + locateAvailableMachO）
 
-    /// 收集可注入 Mach-O：Frameworks/ 下未加密 dylib（字典序），主二进制垫底。
-    /// 跳过：非 Mach-O、加密段（cryptid!=0）、忽略名单、备份文件、已注入资产文件。
+    /// 收集可injected Mach-O：Frameworks/ 下未加密 dylib (字典序），主二进制垫底。
+    /// 跳过：非 Mach-O、加密段 (cryptid!=0）、忽略名单、备份文件、已注入资产文件。
     func collectInjectableMachOs(_ app: AppCatalog.AppEntry, strategy: String = "lexicographic") -> [String] {
         var candidates: [String] = []
         let frameworksDir = (app.path as NSString).appendingPathComponent("Frameworks")
@@ -950,12 +950,12 @@ final class InjectionManager {
                 }
             }
         }
-        // 主二进制垫底（TrollFools 默认 preferMainExecutable=false）
+        // 主二进制垫底 (TrollFools 默认 preferMainExecutable=false）
         let main = executablePath(app)
         if MachOAnalyzer.isInjectiveMachO(main) { candidates.append(main) }
 
-        // 备份差分（对齐 TrollFools Build 246 三层防御第三层）：当前 load commands 与
-        // .troll-fools.bak 备份的差集 = 注入添加的 → 排除已注入 Mach-O，防止二次注入误选
+        // 备份差分 (对齐 TrollFools Build 246 三层防御第三层）：当前 load commands 与
+        // .troll-fools.bak 备份的差集 = 注入添加的 → 排除已injected Mach-O，防止二次注入误选
         var injectedNames = Set<String>()
         for m in (candidates + [main]) {
             let alt = alternateURL(for: m)
@@ -974,7 +974,7 @@ final class InjectionManager {
         }
 
         // v2.9.310：对齐 TrollFools intersection——主二进制直接链接的 ∩ 枚举到的
-        // 优先选真链接的（启动必加载）；空了才 fallback 全部（懒加载 App）
+        // 优先选真链接的 (启动必加载）；空了才 fallback 全部 (懒加载 App）
         let mainDylibNames = Set((MachOAnalyzer.analyze(executablePath(app))?.dylibs ?? [])
             .map { ($0 as NSString).lastPathComponent })
         let intersected = candidates.filter { mainDylibNames.contains(($0 as NSString).lastPathComponent) }
@@ -985,7 +985,7 @@ final class InjectionManager {
             AuditLog.shared.log("injection.intersection_empty", detail: "主二进制无直接链接framework,fallback全部\(candidates.count)")
         }
 
-        // 注入策略排序（对齐 TrollFools Strategy：lexicographic 默认 / fast 大小升序 / preorder / postorder）
+        // 注入策略排序 (对齐 TrollFools Strategy：lexicographic 默认 / fast 大小升序 / preorder / postorder）
         switch strategy {
         case "fast":
             candidates = candidates.sorted { a, b in
@@ -1003,7 +1003,7 @@ final class InjectionManager {
         return candidates
     }
 
-    /// 注入资产列表（对齐 TrollFools injectedDylibAndFrameworkURLsInBundle）：
+    /// 注入资产列表 (对齐 TrollFools injectedDylibAndFrameworkURLsInBundle）：
     /// Frameworks/ 下非系统 dylib + 带 .troll-fools 标记的 framework/bundle
     func injectedAssets(in app: AppCatalog.AppEntry) -> [String] {
         var assets: [String] = []
@@ -1020,7 +1020,7 @@ final class InjectionManager {
                 if lower.hasSuffix(".dylib"), !isDir.boolValue {
                     assets.append(full)
                 } else if lower.hasSuffix(".framework") || lower.hasSuffix(".bundle") {
-                    // 只有带注入标记的才算（.troll-fools 文件）
+                    // 只有带注入标记的才算 (.troll-fools 文件）
                     let marker = (full as NSString).appendingPathComponent(".troll-fools")
                     if FileManager.default.fileExists(atPath: marker) { assets.append(full) }
                 }
@@ -1029,7 +1029,7 @@ final class InjectionManager {
         return assets.sorted()
     }
 
-    /// 收集被修改过的 Mach-O（有备份的）：主二进制 + Frameworks 下所有 dylib
+    /// 收集被修改过的 Mach-O (有备份的）：主二进制 + Frameworks 下所有 dylib
     func collectModifiedMachOs(_ app: AppCatalog.AppEntry) -> [String] {
         var modified: [String] = []
         let main = executablePath(app)
@@ -1054,15 +1054,15 @@ final class InjectionManager {
         return modified
     }
 
-    /// 移除指定资产的加载命令（对齐 TrollFools optool uninstall）
+    /// 移除指定资产的加载命令 (对齐 TrollFools optool uninstall）
     private func removeLoadCommand(assetName: String, from target: String) -> (Int32, String) {
         runAsRoot("optool", args: ["uninstall", "-p", assetName, "-t", target])
     }
 
-    /// 伪签（对齐 TrollFools cmdPseudoSign）：
-    /// - 已有代码签名且非 force → 跳过，避免二次签名破坏原签名（v2.9.104 修复：此前无条件 ldid -S
+    /// 伪签 (对齐 TrollFools cmdPseudoSign）：
+    /// - 已有代码签名且非 force → 跳过，避免二次签名破坏原签名 (v2.9.104 修复：此前无条件 ldid -S
     ///   会把主二进制的 entitlements 抹掉 → App 启动被 amfid 拒 → 注入后闪退）
-    /// - 主二进制（MH_EXECUTE=0x2）→ 保留 entitlements：ldid -e 提取 → -S<xml> 重签
+    /// - 主二进制 (MH_EXECUTE=0x2）→ 保留 entitlements：ldid -e 提取 → -S<xml> 重签
     /// - 无签名 → ldid -S
     @discardableResult
     private func pseudoSign(_ target: String, force: Bool = false) -> (Int32, String) {
@@ -1090,8 +1090,8 @@ final class InjectionManager {
         return runAsRoot("ldid", args: ["-S", target])
     }
 
-    /// CoreTrust 重签 + 属主（对齐 TrollFools cmdCoreTrustBypass + cmdChangeOwnerToInstalld）
-    /// v2.9.104：teamID 用目标 App 真实 TeamID（TrollFools 用 LSApplicationProxy.teamID()），
+    /// CoreTrust 重签 + 属主 (对齐 TrollFools cmdCoreTrustBypass + cmdChangeOwnerToInstalld）
+    /// v2.9.104：teamID 用目标 App 真实 TeamID (TrollFools 用 LSApplicationProxy.teamID()），
     /// fallback TROLLTROLL——部分 App 对签名 TeamID 有校验，固定 TROLLTROLL 会被拒启动
     @discardableResult
     func coreTrustBypass(_ target: String, teamID: String = "TROLLTROLL") -> (Int32, String) {
@@ -1102,8 +1102,8 @@ final class InjectionManager {
     }
 
     /// 目标 App 真实 TeamID。
-    /// v3.0.59：优先用 teamid 工具直接解析主二进制 CodeDirectory teamOffset 字段（与内存注入链路统一，
-    /// 不依赖 ldid -e entitlements 解析）；失败才回退 ldid -e application-identifier 前缀；再失败 TROLLTROLL。
+    /// v3.0.59：优先用 teamid 工具直接解析主二进制 CodeDirectory teamOffset 字段 (与内存注入链路统一，
+    /// 不依赖 ldid -e entitlements 解析）；failed才回退 ldid -e application-identifier 前缀；再failed TROLLTROLL。
     func realTeamID(for bundleId: String, appPath: String?) -> String {
         guard let main = appPath else { return "TROLLTROLL" }
         if let tid = teamIDFromBinary(main) {
@@ -1125,7 +1125,7 @@ final class InjectionManager {
         return "TROLLTROLL"
     }
 
-    /// 用 teamid 工具解析 Mach-O 的 CodeDirectory TeamID（接受 pid 或路径）。
+    /// 用 teamid 工具解析 Mach-O 的 CodeDirectory TeamID (接受 pid 或路径）。
     func teamIDFromBinary(_ path: String) -> String? {
         let (c, o) = runAsRoot("teamid", args: [path], timeout: 15)
         guard c == 0 else { return nil }
@@ -1136,10 +1136,10 @@ final class InjectionManager {
         return nil
     }
 
-    /// 注入 dylib 到指定 App
+    /// injected dylib 到指定 App
     /// v2.9.89：完全对齐 TrollFools InjectorV3 策略——
-    /// 目标默认选 Frameworks/ 内未加密可注入 Mach-O（不直接改主二进制），
-    /// 备份 .troll-fools.bak（TrollFools 可识别），每步改前 ldid 伪签，任一步失败自动回滚。
+    /// 目标默认选 Frameworks/ 内未加密可injected Mach-O (不直接改主二进制），
+    /// 备份 .troll-fools.bak (TrollFools 可识别），每步改前 ldid 伪签，任一步failedAuto rollback。
     func enable(bundleId: String, dylibName: String = "@executable_path/ControlAgent.dylib",
                 dylibSourcePath: String? = nil, weakReference: Bool = false,
                 injectStrategy: String = "lexicographic", preferredTarget: String? = nil,
@@ -1150,10 +1150,10 @@ final class InjectionManager {
             throw MCPError.failed("app not found: \(bundleId)")
         }
 
-        // v3.0.89：iOS 17+ 自动切换到静态注入（ct_bypass 已失效）
+        // v3.0.89：iOS 17+ 自动切换到静态injected (ct_bypass 已失效）
         let majorVer = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
         if majorVer >= 17 {
-            // iOS 17+：用静态注入（insert_dylib + trollstorehelper 重装）
+            // iOS 17+：用静态injected (insert_dylib + trollstorehelper 重装）
             let dylibPath = dylibSourcePath ?? Bundle.main.path(forResource: "ControlAgent", ofType: "dylib") ?? ""
             if dylibPath.isEmpty {
                 throw MCPError.failed("iOS 17+ requires dylib_path parameter (no built-in dylib found)")
@@ -1168,20 +1168,20 @@ final class InjectionManager {
               binaryPath("optool") != nil,
               binaryPath("ct_bypass") != nil,
               cpBinary() != nil else {
-            throw MCPError.failed("insert_dylib / ldid / install_name_tool / optool / ct_bypass / cp 未内置")
+            throw MCPError.failed("insert_dylib / ldid / install_name_tool / optool / ct_bypass / cp not bundled")
         }
 
-        // 0. 高危护栏：敏感 App 注入前强制提醒（不阻断，AI 需看到风险并先 diagnose）
+        // 0. 高危护栏：敏感 App 注入前强制提醒 (不阻断，AI 需看到风险并先 diagnose）
         let sensitive = Self.isSensitive(bundleId)
 
-        // 1. 决定注入源资产列表（对齐 TrollFools preprocessAssets：支持 .zip/.deb 解压提取 dylib/framework/bundle）
+        // 1. 决定注入源资产列表 (对齐 TrollFools preprocessAssets：支持 .zip/.deb 解压提取 dylib/framework/bundle）
         let agentSrc: String
         let sourceFileName: String
         var preparedAssets: [String] = []
         let assetTmpRoot = NSTemporaryDirectory() + "TrollAgentAssets-" + UUID().uuidString
         if let src = dylibSourcePath, !src.isEmpty {
             guard FileManager.default.fileExists(atPath: src) else {
-                throw MCPError.failed("指定的插件文件不存在: \(src)")
+                throw MCPError.failed("specified plugin file not found: \(src)")
             }
             let ext = (src as NSString).pathExtension.lowercased()
             if ext == "zip" || ext == "deb" {
@@ -1205,7 +1205,7 @@ final class InjectionManager {
                 }
                 preparedAssets = preparedAssets.filter { !Self.ignoredRuntimeNames.contains(($0 as NSString).lastPathComponent.lowercased()) }
                 guard !preparedAssets.isEmpty else {
-                    throw MCPError.failed("zip/deb 中没有有效的插件（dylib/framework/bundle），已过滤系统运行时")
+                    throw MCPError.failed("no valid plugin (dylib/framework/bundle) in zip/deb, system runtimes filtered out")
                 }
                 sourceFileName = (preparedAssets[0] as NSString).lastPathComponent
                 agentSrc = preparedAssets[0]
@@ -1217,18 +1217,18 @@ final class InjectionManager {
         } else {
             agentSrc = binDir.appendingPathComponent("ControlAgent.dylib").path
             guard FileManager.default.fileExists(atPath: agentSrc) else {
-                throw MCPError.failed("ControlAgent.dylib 未内置（\(agentSrc)）")
+                throw MCPError.failed("ControlAgent.dylib not bundled (\(agentSrc))")
             }
             sourceFileName = "ControlAgent.dylib"
             preparedAssets = [agentSrc]
         }
 
-        // 2. 选注入目标 Mach-O：对齐 TrollFools——有 Frameworks 时只注入 Frameworks/ 内的 Mach-O
-        //（TrollFools 的 modified 判定 = Frameworks/ 内带 .troll-fools.bak 的 Mach-O；
+        // 2. 选注入目标 Mach-O：对齐 TrollFools——有 Frameworks 时只injected Frameworks/ 内的 Mach-O
+        // (TrollFools 的 modified 判定 = Frameworks/ 内带 .troll-fools.bak 的 Mach-O；
         //  注入主二进制 TrollFools 无法识别也无法关闭，用户会被卡死，故有 Frameworks 时强制拒绝主二进制）
         // v2.9.260：control.inject 传 allowMain=true 时强制选主二进制——懒加载 framework(AppsFlyerLib/BGM)
         // 实测导致 ControlAgent constructor 永不执行、4789 永不监听；主二进制 LC_LOAD_DYLIB 启动必加载
-        //（加密 App 的 load commands 区不加密，insert_dylib + 伪签 + ct_bypass 可改；TrollStore fake sign 绕过校验）
+        // (加密 App 的 load commands 区不加密，insert_dylib + 伪签 + ct_bypass 可改；TrollStore fake sign 绕过校验）
         let frameworksDirPath = (app.path as NSString).appendingPathComponent("Frameworks")
         let hasFrameworks = FileManager.default.fileExists(atPath: frameworksDirPath)
         let allCandidates = collectInjectableMachOs(app, strategy: injectStrategy)
@@ -1250,7 +1250,7 @@ final class InjectionManager {
             let name = (path as NSString).lastPathComponent
             let lower = name.lowercased()
             if MachOAnalyzer.isEncryptedMachO(path) {
-                return (-1000, ["加密(cryptid!=0)"])
+                return (-1000, ["encrypted (cryptid!=0)"])
             }
             if depNames.contains(where: { $0 == name || $0.hasPrefix(name) || name.hasPrefix($0) }) {
                 score += 50; reasons.append("主二进制直接链接")
@@ -1270,7 +1270,7 @@ final class InjectionManager {
         let scored = fwCandidates.map { ($0, scoreCandidate($0)) }
             .filter { $0.1.0 > -1000 }
             .sorted { $0.1.0 > $1.1.0 }
-        // v2.9.316：保存排序列表，selfcheck 失败时返回 retry 建议（第二层自动重试）
+        // v2.9.316：保存排序列表，selfcheck failed时返回 retry 建议 (第二层自动重试）
         let scoredNames = scored.map { ($0.0 as NSString).lastPathComponent }
         AuditLog.shared.log("injection.score", detail: "\(bundleId) 打分: \(scored.map { "\(($0.0 as NSString).lastPathComponent)=\($0.1.0)" }.joined(separator: ","))")
 
@@ -1291,8 +1291,8 @@ final class InjectionManager {
             }
         }
         guard let targetMachO else {
-            // v3.0.59：智能降级——无静态可注入目标（全加密/无 framework）时自动转内存注入，
-            // 免砸壳免改文件（用户点名"以内存注入方式实现 trollfools 注入"）
+            // v3.0.59：智能降级——无静态可注入目标 (全加密/无 framework）时自动转内存注入，
+            // 免砸壳免改文件 (用户点名"以内存注入方式实现 trollfools 注入"）
             if smartFallback {
                 let memDylib = preparedAssets.first ?? ProcessHelper.tweakPath("ControlAgent.dylib") ?? ""
                 if !memDylib.isEmpty {
@@ -1306,7 +1306,7 @@ final class InjectionManager {
                         }
                     }
                     guard pid > 0 else {
-                        throw MCPError.failed("静态注入无可选目标且 App 未启动，无法内存降级（先手动打开 App）")
+                        throw MCPError.failed("static injection has no candidate and App not running, memory fallback unavailable (open the App manually first)")
                     }
                     let (mc, mo) = injectDylib(pid: Int(pid), dylib: memDylib)
                     let ok = mo.contains("dlopen succeeded")
@@ -1315,7 +1315,7 @@ final class InjectionManager {
                     return [
                         "status": ok ? "injected" : "failed",
                         "mode": "memory_fallback",
-                        "reason": "无静态可注入目标（候选全加密/无framework），已自动转内存注入",
+                        "reason": "no statically injectable target (all candidates encrypted/no framework), auto-switched to memory injection",
                         "bundle_id": bundleId,
                         "app": app.name,
                         "pid": pid,
@@ -1323,28 +1323,28 @@ final class InjectionManager {
                         "app_alive": alive,
                         "exit": mc,
                         "output": mo,
-                        "note": ok ? "内存注入成功：免砸壳、零残留、立即生效；App 重启后需重新注入" : "内存注入失败，见 output"
+                        "note": ok ? "memory injection OK: no decrypt, zero residue, instant; re-inject after App restart" : "memory injection failed, see output"
                     ]
                 }
             }
-            throw MCPError.failed("无可注入 Mach-O：所有候选加密。需先砸壳(app.decrypt)。")
+            throw MCPError.failed("no injectable Mach-O: all candidates encrypted. Decrypt first (app.decrypt).")
         }
         let targetIsMain = targetMachO == executablePath(app)
 
-        // 2.5 dylib 架构预检（防注入后闪退）：源 dylib 与目标 Mach-O 均须可解析
+        // 2.5 dylib 架构预检 (防注入后闪退）：源 dylib 与目标 Mach-O 均须可解析
         let dylibInfo2 = MachOAnalyzer.analyze(agentSrc)
         let targetInfo2 = MachOAnalyzer.analyze(targetMachO)
         if let d2 = dylibInfo2, let t2 = targetInfo2 {
             let dArchOk = d2.valid && (d2.arch == "arm64" || d2.arch == "arm32" || d2.arch.hasPrefix("fat"))
             if !dArchOk || !t2.valid {
-                throw MCPError.failed("架构预检失败，已拒绝注入（防闪退）：dylib=\(d2.arch) valid=\(d2.valid) target=\(t2.arch) valid=\(t2.valid)")
+                throw MCPError.failed("arch precheck failed, injection rejected (crash prevention): dylib=\(d2.arch) valid=\(d2.valid) target=\(t2.arch) valid=\(t2.valid)")
             }
         } else {
-            throw MCPError.failed("无法解析 dylib 或目标 Mach-O 架构，已拒绝注入（防闪退）")
+            throw MCPError.failed("cannot parse dylib or target Mach-O arch, injection rejected (crash prevention)")
         }
 
-        // 3. 杀目标进程（v2.9.193：TrollStore 无 /usr/bin/killall，spawnRoot 恒失败 → 旧进程不杀
-        // → 注入后 App 未真正重启 → dylib 永不加载 → 4789 不起（B站 pid 恒定 1697 实测实锤）。
+        // 3. 杀目标进程 (v2.9.193：TrollStore 无 /usr/bin/killall，spawnRoot 恒failed → 旧进程不杀
+        // → 注入后 App 未真正重启 → dylib 永不加载 → 4789 不起 (B站 pid 恒定 1697 实测实锤）。
         // 改用 libproc 找主进程 pid + kill syscall）
         let executableName = (executablePath(app) as NSString).lastPathComponent
         let targetPid = findPidByExecutable(bundlePath: app.path)
@@ -1353,10 +1353,10 @@ final class InjectionManager {
             Thread.sleep(forTimeInterval: 0.6)
         }
 
-        // 5. 拷贝 dylib 到 Frameworks/（无 Frameworks 才放 app 根）
-        // A3 资产预处理（对齐 TrollFools injectDylibsAndFrameworks 前置）：
-        // 用户插件 → standardizeLoadCommandDylibToSubstrate（substrate 引用重定向内置）+ ct_bypass + chown；
-        // 内置 agent → ct_bypass + chown（agent 无 substrate 依赖）
+        // 5. 拷贝 dylib 到 Frameworks/ (无 Frameworks 才放 app 根）
+        // A3 资产预处理 (对齐 TrollFools injectDylibsAndFrameworks 前置）：
+        // 用户插件 → standardizeLoadCommandDylibToSubstrate (substrate 引用重定向内置）+ ct_bypass + chown；
+        // 内置 agent → ct_bypass + chown (agent 无 substrate 依赖）
         let frameworksDir = (app.path as NSString).appendingPathComponent("Frameworks")
         // v2.9.303：useFramework 由 targetMachO 实际位置决定，不再看 allowMain。
         // 注入目标在 Frameworks/ 下 → dylib 也放 Frameworks + @rpath；
@@ -1383,7 +1383,7 @@ final class InjectionManager {
         }
         let firstInjectName = injectNameMap[preparedAssets[0]] ?? "@rpath/\(sourceFileName)"
 
-        // A4 拷贝资产到 Frameworks/ + substrate 自动注入（对齐 TrollFools copyfiles + prepareSubstrate）
+        // A4 拷贝资产到 Frameworks/ + substrate 自动injected (对齐 TrollFools copyfiles + prepareSubstrate）
         var copiedAssets: [String] = []
         if isUserPlugin {
             let sf = try prepareSubstrate()
@@ -1395,7 +1395,7 @@ final class InjectionManager {
                 _ = runAsRoot("rm", args: ["-rf", subDst])
             }
             let (c3, o3) = runAsRoot("cp", args: ["--reflink=auto", "-rfp", sf, subDst])
-            if c3 != 0 { throw MCPError.failed("root cp substrate 失败(\(c3)): \(o3)") }
+            if c3 != 0 { throw MCPError.failed("root cp substrate failed(\(c3)): \(o3)") }
             _ = runAsRoot("chown", args: ["33:33", subDst])
             copiedAssets.append(subDst)
             AuditLog.shared.log("injection.substrate", detail: "\(bundleId) substrate=ready")
@@ -1409,7 +1409,7 @@ final class InjectionManager {
                 _ = runAsRoot("rm", args: ["-rf", dst])
             }
             let (c0, o0) = runAsRoot("cp", args: ["--reflink=auto", "-rfp", asset, dst])
-            if c0 != 0 { throw MCPError.failed("root cp 资产失败(\(c0)): \(o0)") }
+            if c0 != 0 { throw MCPError.failed("root cp assets failed (\(c0)): \(o0)") }
             _ = runAsRoot("chown", args: ["33:33", dst])
             var isDir2: ObjCBool = false
             FileManager.default.fileExists(atPath: asset, isDirectory: &isDir2)
@@ -1419,21 +1419,21 @@ final class InjectionManager {
             copiedAssets.append(dst)
         }
 
-        // 6. 备份目标 Mach-O（对齐 TrollFools makeAlternate：.troll-fools.bak）
+        // 6. 备份目标 Mach-O (对齐 TrollFools makeAlternate：.troll-fools.bak）
         let backup = try makeAlternate(targetMachO)
 
-        // 7. 注入链：改前伪签 → rpath → insert_dylib → 重签 → 验证；任一步失败自动回滚
+        // 7. 注入链：改前伪签 → rpath → insert_dylib → 重签 → 验证；任一步failedAuto rollback
         var rpathExit: Int32 = -1
         var rpathOutput = ""
         var insertExit: Int32 = -1
         var insertOutput = ""
         do {
-            // 7a. 改前伪签（对齐 TrollFools cmdPseudoSign force）——修掉 install_name_tool LINKEDIT 报错
+            // 7a. 改前伪签 (对齐 TrollFools cmdPseudoSign force）——修掉 install_name_tool LINKEDIT 报错
             let (ps, pso) = pseudoSign(targetMachO, force: true)
             if ps != 0 { AuditLog.shared.log("injection.presign", detail: "exit=\(ps) \(pso)") }
 
             // 7b. LC_RPATH：对齐 TrollFools cmdInsertLoadCommandRuntimePath——
-            // 目标 Mach-O 统一加 @executable_path/Frameworks（@executable_path 始终指向 App 根目录）
+            // 目标 Mach-O 统一加 @executable_path/Frameworks (@executable_path 始终指向 App 根目录）
             if useFramework {
                 let (r, o) = runAsRoot("install_name_tool", args: ["-add_rpath", "@executable_path/Frameworks", targetMachO])
                 rpathExit = r; rpathOutput = o
@@ -1443,7 +1443,7 @@ final class InjectionManager {
                 }
             }
 
-            // 7c. insert_dylib（对齐 TrollFools 参数 + 幂等：目标已含同名 load command 则跳过）—— 多资产逐个注入
+            // 7c. insert_dylib (对齐 TrollFools 参数 + 幂等：目标已含同名 load command 则跳过）—— 多资产逐个注入
             var insertedNames: [String] = []
             for asset in preparedAssets {
                 let iname = injectNameMap[asset] ?? firstInjectName
@@ -1456,12 +1456,12 @@ final class InjectionManager {
                     let (c1, o1) = runAsRoot("insert_dylib", args: insArgs)
                     insertExit = c1; insertOutput = o1
                     guard c1 == 0 else {
-                        throw MCPError.failed("insert_dylib 失败(\(c1)): \(o1)")
+                        throw MCPError.failed("insert_dylib failed(\(c1)): \(o1)")
                     }
                 }
                 insertedNames.append(iname)
 
-                // 7c2. standardizeLoadCommandDylib（对齐 TrollFools）：目标里指向同资产的其他路径统一为 @rpath/name
+                // 7c2. standardizeLoadCommandDylib (对齐 TrollFools）：目标里指向同资产的其他路径统一为 @rpath/name
                 let itemName = iname.hasPrefix("@rpath/") ? String(iname.dropFirst(7)) : (iname as NSString).lastPathComponent
                 let postLoads = MachOAnalyzer.analyze(targetMachO)?.dylibs ?? []
                 for d in postLoads where d != iname && d.hasSuffix("/" + itemName) {
@@ -1469,7 +1469,7 @@ final class InjectionManager {
                 }
             }
 
-            // 7d. 重签：条件伪签（保留 entitlements）+ ct_bypass（真实 teamID）+ chown
+            // 7d. 重签：条件伪签 (保留 entitlements）+ ct_bypass (真实 teamID）+ chown
             _ = coreTrustBypass(targetMachO, teamID: realTeamID(for: bundleId, appPath: executablePath(app)))
 
             // 7e. 验证：每个资产加载命令已写入 + Mach-O 结构有效
@@ -1480,10 +1480,10 @@ final class InjectionManager {
                 for n in insertedNames where !vd.contains(n) { loadOK = false }
             }
             if !loadOK || !structOK {
-                throw MCPError.failed("注入后验证失败: loadCommand=\(loadOK) macho=\(structOK) names=\(insertedNames)")
+                throw MCPError.failed("post-injection verification failed: loadCommand=\(loadOK) macho=\(structOK) names=\(insertedNames)")
             }
         } catch {
-            // 失败自动回滚：恢复目标 Mach-O + 删掉已拷贝 dylib（对齐 TrollFools restoreAlternate + batchRemove）
+            // failedAuto rollback：恢复目标 Mach-O + 删掉已拷贝 dylib (对齐 TrollFools restoreAlternate + batchRemove）
             var rollbackLog: [String: Any] = ["triggered": true]
             do {
                 rollbackLog["restored"] = try restoreAlternate(targetMachO)
@@ -1495,7 +1495,7 @@ final class InjectionManager {
                 rollbackLog["asset_removed"] = (dst as NSString).lastPathComponent
             }
             let wrapped = NSError(domain: "InjectionManager", code: -1,
-                userInfo: [NSLocalizedDescriptionKey: "\(error.localizedDescription)（已自动回滚）"])
+                userInfo: [NSLocalizedDescriptionKey: "\(error.localizedDescription) (已Auto rollback)"])
             AuditLog.shared.log("injection.enable.rollback", detail: "\(bundleId) \(wrapped.localizedDescription)")
             throw wrapped
         }
@@ -1503,8 +1503,8 @@ final class InjectionManager {
         let injected = MachOAnalyzer.analyze(targetMachO)?.dylibs.contains(firstInjectName) ?? false
         AuditLog.shared.log("injection.enable", detail: "\(bundleId) → \(targetMachO) injected=\(injected)")
 
-        // 8. 启动自检（v2.9.301 改策略）：旧版探测失败就自动回滚，但大厂App冷启动8-15秒，
-        // 7秒窗口误判率高。现在：探测不到不回滚（注入已写入磁盘），只告警——用户手动开App验证，
+        // 8. 启动自检 (v2.9.301 改策略）：旧版探测failed就Auto rollback，但大厂App冷启动8-15秒，
+        // 7秒窗口误判率高。现在：探测不到不回滚 (注入已写入磁盘），只告警——用户手动开App验证，
         // 真闪退用"注入与自动化→手动恢复"回退。避免误杀好注入。
         var selfcheckAlive = false
         var selfcheckNote = "skipped"
@@ -1513,15 +1513,15 @@ final class InjectionManager {
             if selfcheckAlive {
                 selfcheckNote = "app launched and alive"
             } else {
-                // v2.9.316：第二层自动重试建议——返回排序后的候选列表，AI 看到失败后自动换目标
+                // v2.9.316：第二层自动重试建议——返回排序后的候选列表，AI 看到failed后自动换目标
                 let nextTargets = scoredNames.filter { $0 != (targetMachO as NSString).lastPathComponent }.prefix(3)
-                // v3.0.65：闪退自动回滚——selfcheck 失败（App 启动后 25s 内进程消失）= dylib 导致崩溃，自动 disable 回滚
+                // v3.0.65：闪退Auto rollback——selfcheck failed (App 启动后 25s 内进程消失）= dylib 导致崩溃，自动 disable 回滚
                 do {
                     _ = try self.disable(bundleId: bundleId, desist: true)
-                    selfcheckNote = "selfcheck: 25s内未探测到进程（疑似闪退）→ 已自动回滚注入。建议：换 target=\(nextTargets.joined(separator: "/"))；若全失败，app.decrypt 砸壳主二进制"
+                    selfcheckNote = "selfcheck: 25s内未探测到进程 (疑似闪退)→ 已Auto rollback注入。建议：换 target=\(nextTargets.joined(separator: "/"))；若全failed，app.decrypt 砸壳主二进制"
                     AuditLog.shared.log("injection.auto_rollback", detail: "\(bundleId) → \(targetMachO): \(selfcheckNote)")
                 } catch {
-                    selfcheckNote = "selfcheck: 25s内未探测到进程（疑似闪退），自动回滚失败：\(error.localizedDescription)。建议：手动 injection.disable"
+                    selfcheckNote = "selfcheck: 25s内未探测到进程 (疑似闪退)，Auto rollbackfailed：\(error.localizedDescription)。建议：手动 injection.disable"
                     AuditLog.shared.log("injection.selfcheck_warn", detail: "\(bundleId) → \(targetMachO): \(selfcheckNote)")
                 }
             }
@@ -1543,7 +1543,7 @@ final class InjectionManager {
             "target_is_main": targetIsMain,
             "candidates": allCandidates.map { ($0 as NSString).lastPathComponent },
             "framework_candidates": fwCandidates.map { ($0 as NSString).lastPathComponent },
-            // v2.9.316：打分排序后的候选（AI 自动重试用）
+            // v2.9.316：打分排序后的候选 (AI 自动重试用）
             "scored_candidates": scoredNames,
             // v2.9.309：对齐 TrollFools 诊断——每个候选的加密状态/大小/是否被选
             "candidates_detail": fwCandidates.map { p -> [String: Any] in
@@ -1579,21 +1579,21 @@ final class InjectionManager {
             "persisted": persisted,
             "weak_reference": weakReference,
             "selfcheck": ["app_alive": selfcheckAlive, "note": selfcheckNote],
-            "risk_warning": sensitive ? "⚠️ 目标 App 为敏感应用（支付/银行/系统类）。已自动选择 Frameworks 内未加密 Mach-O 注入，未修改主二进制；如有异常立即调用 injection.restore 或 rescue.recover_all 恢复。" : nil,
-            "hint": "Injection target: unencrypted Mach-O in Frameworks/ (TrollFools-style, no main binary mod). Backup at \(backup)，Restore via injection.disabletion.restore 随时恢复。",
+            "risk_warning": sensitive ? "⚠️ 目标 App 为敏感应用 (支付/银行/系统类)。已自动选择 Frameworks 内未加密 Mach-O 注入，未修改主二进制；如有异常立即调用 injection.restore 或 rescue.recover_all 恢复。" : nil,
+            "hint": "Injection target: unencrypted Mach-O in Frameworks/ (TrollFools-style, no main binary mod). Backup at \(backup). Restore anytime via injection.restore.",
             "status": injected ? "injected" : "injection_failed"
         ]
     }
 
-    /// 还原注入（v2.9.89：对齐 TrollFools eject 流程）
-    /// 1) 收集有备份的 Mach-O（modified）；2) 移除每个注入资产的加载命令并删文件；
+    /// 还原injected (v2.9.89：对齐 TrollFools eject 流程）
+    /// 1) 收集有备份的 Mach-O (modified）；2) 移除每个注入资产的加载命令并删文件；
     /// 3) 重签；4) 全部清空后从备份还原并删备份。兼容 TrollFools 注入的 App。
     func disable(bundleId: String, desist: Bool = true) throws -> [String: Any] {
         guard let app = AppCatalog.find(bundleId) else {
             throw MCPError.failed("app not found: \(bundleId)")
         }
         guard binaryPath("optool") != nil, binaryPath("ct_bypass") != nil, cpBinary() != nil else {
-            throw MCPError.failed("optool / ct_bypass / cp 未内置")
+            throw MCPError.failed("optool / ct_bypass / cp not bundled")
         }
 
         var modified = collectModifiedMachOs(app)
@@ -1608,7 +1608,7 @@ final class InjectionManager {
         }
 
         guard !modified.isEmpty || !assets.isEmpty else {
-            throw MCPError.failed("未发现注入痕迹（无备份、无注入资产）")
+            throw MCPError.failed("no injection trace found (no backup, no injected assets)")
         }
 
         // 杀目标进程
@@ -1619,7 +1619,7 @@ final class InjectionManager {
         var removedLoads: [String: [String]] = [:]
         var removedAssets: [String] = []
 
-        // 1. 先删除注入资产文件（对齐 TrollFools eject：cmdRemove asset）
+        // 1. 先删除注入资产文件 (对齐 TrollFools eject：cmdRemove asset）
         for asset in assets {
             var isDir: ObjCBool = false
             FileManager.default.fileExists(atPath: asset, isDirectory: &isDir)
@@ -1627,7 +1627,7 @@ final class InjectionManager {
             if cD == 0 { removedAssets.append(asset) }
         }
 
-        // 2. 有备份的 Mach-O 直接 restore（备份 = 注入前原二进制，还原后无需 optool/重签；
+        // 2. 有备份的 Mach-O 直接 restore (备份 = 注入前原二进制，还原后无需 optool/重签；
         //    v2.9.105 修复：此前先 coreTrustBypass(TROLLTROLL) 再 restore，重签本身会破坏签名 → 删除也闪退）
         var restored: [String] = []
         var remaining: [String] = []
@@ -1641,7 +1641,7 @@ final class InjectionManager {
             remaining.append(target)
         }
 
-        // 3. 无备份的 target 才手工清理：optool uninstall + 重签（真实 teamID，对齐 TrollFools eject）
+        // 3. 无备份的 target 才手工清理：optool uninstall + 重签 (真实 teamID，对齐 TrollFools eject）
         for target in remaining {
             for asset in assets {
                 let assetName: String
@@ -1659,7 +1659,7 @@ final class InjectionManager {
             _ = coreTrustBypass(target, teamID: realTeamID(for: bundleId, appPath: executablePath(app)))
         }
 
-        // 2.5 desist：desist=false 时保留持久化资产（对齐 TrollFools 关闭插件语义，可再启用）
+        // 2.5 desist：desist=false 时保留持久化资产 (对齐 TrollFools 关闭插件语义，可再启用）
         if desist {
         for asset in assets {
             let pName = (asset as NSString).lastPathComponent
@@ -1670,7 +1670,7 @@ final class InjectionManager {
         }
         }
 
-        // 2.6 清理注入的 CydiaSubstrate.framework（对齐 TrollFools eject：注入的 substrate 一并移除，防残留）
+        // 2.6 清理注入的 CydiaSubstrate.framework (对齐 TrollFools eject：注入的 substrate 一并移除，防残留）
         let subDst = (app.path as NSString).appendingPathComponent("Frameworks/" + Self.substrateFwkName)
         if FileManager.default.fileExists(atPath: subDst) {
             _ = runAsRoot("rm", args: ["-rf", subDst])
@@ -1693,7 +1693,7 @@ final class InjectionManager {
             "desisted": desist,
             "injected": injected,
             "status": injected ? "still_injected" : "reverted",
-            "hint": restored.isEmpty ? "未找到可还原的备份；若 App 仍无法启动，用 rescue.cleanup 清理残留" : "已从备份还原原始二进制"
+            "hint": restored.isEmpty ? "no restorable backup found; if App still cannot launch, use rescue.cleanup to clear residue" : "restored original binary from backup"
         ]
     }
 
@@ -1724,7 +1724,7 @@ final class InjectionManager {
         return r
     }
 
-    /// 检查指定 App 是否已注入（全 Mach-O 扫描：主二进制 + Frameworks 内全部可注入 Mach-O）
+    /// 检查指定 App 是否已injected (全 Mach-O 扫描：主二进制 + Frameworks 内全部可injected Mach-O）
     func inspect(_ bundleId: String) -> [String: Any] {
         guard let app = AppCatalog.find(bundleId) else {
             return ["error": "app not found: \(bundleId)"]
@@ -1761,15 +1761,15 @@ final class InjectionManager {
         ]
     }
 
-    /// 列出真正已注入的 App（存在 .troll-fools.bak / .bak_macho 备份即代表曾被注入）
+    /// 列出真正已注入的 App (存在 .troll-fools.bak / .bak_macho 备份即代表曾被注入）
     /// v2.9.58：root 诊断——执行 /usr/bin/id 验证 persona spawn 后子进程真实 uid/gid
     /// 返回 "uid=0(root) gid=0(wheel) ..." 或错误信息
     func diagnoseRoot() -> [String: Any] {
-        // v2.9.64：不依赖 /usr/bin/id（部分 iOS 版本无此命令），改用 /bin/sh -c "id"，
+        // v2.9.64：不依赖 /usr/bin/id (部分 iOS 版本无此命令），改用 /bin/sh -c "id"，
         // shell 内置总能执行；同时把 spawn 诊断前缀放进输出，避免空输出误判。
         let shPath = "/bin/sh"
         guard FileManager.default.fileExists(atPath: shPath) else {
-            return ["error": "/bin/sh not found", "exit_code": -1, "id_output": "(无shell)", "is_root": false]
+            return ["error": "/bin/sh not found", "exit_code": -1, "id_output": "(no shell)", "is_root": false]
         }
         var (code, output) = spawnRoot(shPath, args: ["sh", "-c", "id"])
         if code == -1 || output.isEmpty {
@@ -1812,12 +1812,12 @@ final class InjectionManager {
         ]
     }
 
-    /// v3.1.71：单查指定 App 的注入态（inject status bundle_id:xxx）。
+    /// v3.1.71：单查指定 App 的注入态 (inject status bundle_id:xxx）。
     /// AI 实测反馈：inject status 只按已注入列表返回，未注入的目标 App 不会单列，需先 enable 才出现。
     func status(for bundleId: String) -> [String: Any] {
         guard let app = AppCatalog.list().first(where: { $0.bundleId == bundleId }) else {
             return ["bundle_id": bundleId, "injected": false,
-                    "hint": "未在已安装列表找到该 bundle_id（用 inject list 确认拼写）"]
+                    "hint": "bundle_id not found in installed list (use inject list to confirm spelling)"]
         }
         let modified = collectModifiedMachOs(app)
         let assets = injectedAssets(in: app)
@@ -1912,7 +1912,7 @@ final class InjectionManager {
         }
 
         // v3.1.1：安全限制——不能注入系统应用，防止白苹果
-        // 方法：检查 app 是否在系统目录（/Applications）下，而不是用户安装目录
+        // 方法：检查 app 是否在系统目录 (/Applications）下，而不是用户安装目录
         let isSystemApp = app.path.hasPrefix("/Applications/") ||
                            app.path.hasPrefix("/System/Library/CoreServices/")
         if isSystemApp {
@@ -1970,7 +1970,7 @@ final class InjectionManager {
             """)
     }
 
-    // MARK: - v3.0.89：iOS 17 兼容的静态注入（insert_dylib + trollstorehelper 重装）
+    // MARK: - v3.0.89：iOS 17 兼容的静态injected (insert_dylib + trollstorehelper 重装）
     /// 原理：复制 App bundle → 把 dylib 放进去 → insert_dylib 改主二进制 → 删旧签名 → 打包 IPA → trollstorehelper 重装
     /// 为什么 iOS 17 能用：TrollStore 安装时自动用它的漏洞重签，不需要 ct_bypass 运行时改签名
     func injectStatic(bundleId: String, dylibPath: String) -> (Bool, String) {
@@ -2009,7 +2009,7 @@ final class InjectionManager {
         }
         let mainBin = destApp + "/" + execName
 
-        // 4. 用 insert_dylib 修改主二进制（添加 load command）
+        // 4. 用 insert_dylib 修改主二进制 (添加 load command）
         let dylibLoadPath = "@executable_path/Frameworks/" + dylibName
         guard let insertDylib = binaryPath("insert_dylib") else {
             return (false, "insert_dylib not bundled")
@@ -2019,7 +2019,7 @@ final class InjectionManager {
             return (false, "insert_dylib failed: \(insOut.prefix(300))")
         }
 
-        // 5. 删除旧签名（TrollStore 安装时会重新签名）
+        // 5. 删除旧签名 (TrollStore 安装时会重新签名）
         let codeSign = destApp + "/_CodeSignature"
         if fm.fileExists(atPath: codeSign) {
             _ = spawnRoot("/bin/rm", args: ["-rf", codeSign])
@@ -2029,7 +2029,7 @@ final class InjectionManager {
             _ = spawnRoot("/bin/rm", args: ["-rf", codeResources])
         }
 
-        // 6. 打包成 IPA（Payload/App.app 结构）
+        // 6. 打包成 IPA (Payload/App.app 结构）
         let ipaName = bundleId + "_injected.ipa"
         let ipaPath = injectRoot + "/" + ipaName
         let payloadRoot = injectRoot + "/Payload-" + bundleId
@@ -2048,7 +2048,7 @@ final class InjectionManager {
         _ = try? fm.removeItem(atPath: payloadRoot)
         _ = try? fm.removeItem(atPath: destApp)
 
-        // 7. TrollStore 静默安装（自动重签）
+        // 7. TrollStore 静默安装 (自动重签）
         let helper = "/var/usr/bin/trollstorehelper"
         guard fm.isExecutableFile(atPath: helper) else {
             return (false, "trollstorehelper not available. IPA generated at: \(ipaPath)")

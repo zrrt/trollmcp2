@@ -1,11 +1,11 @@
 import Foundation
 import EventKit
 
-// MARK: - 日历大工具（合并 list / create 两个子命令）
+// MARK: - 日历大工具 (合并 list / create 两个子命令）
 
 final class CalendarExecTool: MCPTool {
     let definition = ToolDefinition(name: "calendar",
-        summary: "Calendar operations (list upcoming events / create new event). Use for: check what meetings are coming up, schedule a new meeting/appointment. Don't use for: create reminder (use reminder.*), search contacts (use contacts.search). Example: user says '我这周有什么安排' → calendar list; user says '明天下午3点加个会议' → calendar create.",
+        summary: "Calendar operations (list upcoming events / create new event). Use for: check what meetings are coming up, schedule a new meeting/appointment. Don't use for: create reminder (use reminder.*), search contacts (use contacts.search). Example: user says 'what are my plans this week' → calendar list; user says 'add a meeting at 3pm tomorrow' → calendar create.",
         parameters: ["action": "Subcommand: 'list' or 'create'", "days": "For list: how many days ahead (default 7)", "title": "For create: event title", "start": "For create: start time (ISO8601)", "end": "For create: end time (optional, default +1 hour)", "notes": "For create: optional notes"], verified: true, category: "system")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -49,7 +49,7 @@ final class CalendarExecTool: MCPTool {
         guard let title = params["title"] as? String else { throw MCPError.invalidParams("title required") }
         guard let startStr = params["start"] as? String,
               let start = ISO8601DateFormatter().date(from: startStr) else {
-            throw MCPError.invalidParams("start 需为 ISO8601")
+            throw MCPError.invalidParams("start must be ISO8601")
         }
         let end = (params["end"] as? String).flatMap { ISO8601DateFormatter().date(from: $0) }
             ?? Calendar.current.date(byAdding: .hour, value: 1, to: start)!
@@ -61,7 +61,7 @@ final class CalendarExecTool: MCPTool {
             store.requestAccess(to: .event) { granted, err in
                 defer { sem.signal() }
                 guard granted else {
-                    result = ["action": "create", "created": false, "error": "日历未授权: \(err?.localizedDescription ?? "")"]
+                    result = ["action": "create", "created": false, "error": "calendar not authorized: \(err?.localizedDescription ?? "")"]
                     return
                 }
                 let ev = EKEvent(eventStore: store)

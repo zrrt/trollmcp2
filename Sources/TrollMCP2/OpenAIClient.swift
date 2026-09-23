@@ -6,12 +6,12 @@ enum ChatResult {
     case toolCalls([ToolCall], thinking: String?)
 }
 
-/// 网络调试日志（最近 100 条，环形覆盖），用于排查中转站兼容性问题。
+/// 网络调试日志 (最近 100 条，环形覆盖），用于排查中转站兼容性问题。
 /// 界面上在「设置 → 关于 → 网络兼容日志」查看。
 final class NetworkLog: ObservableObject {
     static let shared = NetworkLog()
 
-    /// 最近一条兼容性日志（供设置页副标题展示）
+    /// 最近一条兼容性日志 (供设置页副标题展示）
     static var lastCompatNote: String?
 
     @Published private(set) var entries: [String] = []
@@ -28,28 +28,28 @@ final class NetworkLog: ObservableObject {
     }
 }
 
-/// 兼容 API 客户端（OpenAI / DeepSeek / Anthropic / 任意兼容端点）。
+/// 兼容 API 客户端 (OpenAI / DeepSeek / Anthropic / 任意兼容端点）。
 ///
-/// v2.8.4：针对中转站（new-api 系）"Invalid request parameter" 报错实现**自适应兼容降级**。
-/// 不同中转站 / 不同模型对参数的支持差异极大（部分不认 max_completion_tokens、
+/// v2.8.4：针对中转站 (new-api 系）"Invalid request parameter" 报错实现**自适应兼容降级**。
+/// 不同中转站 / 不同模型对参数的支持差异极大 (部分不认 max_completion_tokens、
 /// 部分不支持 tool_choice、部分模型族在 chat/completions 上拒绝 tools），
 /// 与其猜测，不如让客户端自己逐级试探并记住可用级别：
 ///
 /// | 级别 | 载荷 |
 /// |------|------|
-/// | 0 | 完整载荷（tools + tool_choice + 推理模型参数适配） |
-/// | 1 | 0 基础上互换 token key（max_completion_tokens ↔ max_tokens） |
+/// | 0 | 完整载荷 (tools + tool_choice + 推理模型参数适配） |
+/// | 1 | 0 基础上互换 token key (max_completion_tokens ↔ max_tokens） |
 /// | 2 | 1 基础上去掉 tool_choice |
-/// | 3 | 1 基础上去掉 tools（纯对话；历史中的 tool 消息降级为普通文本） |
-/// | 4 | 最小载荷（仅 model + messages） |
+/// | 3 | 1 基础上去掉 tools (纯对话；历史中的 tool 消息降级为普通文本） |
+/// | 4 | 最小载荷 (仅 model + messages） |
 ///
-/// 成功后把可用级别持久化到 ModelConfig.compatLevel，下次直接从该级别发起。
+/// OK后把可用级别持久化到 ModelConfig.compatLevel，下次直接从该级别发起。
 final class OpenAIClient {
     let config: ModelConfig
     /// v2.9.0：级别 5 = Responses API + 工具
     private let maxLevel = 5
-    /// v2.9.10：自定义 session——waitsForConnectivity 让切后台/网络抖动时不立即失败，
-    /// 资源超时放宽到 5 分钟（配合后台恢复后继续请求）。
+    /// v2.9.10：自定义 session——waitsForConnectivity 让切后台/网络抖动时不立即failed，
+    /// 资源超时放宽到 5 分钟 (配合后台恢复后继续请求）。
     private lazy var session: URLSession = {
         let cfg = URLSessionConfiguration.default
         cfg.waitsForConnectivity = true
@@ -60,18 +60,18 @@ final class OpenAIClient {
     /// v2.9.13：取消支持——置位标志 + 取消当前 in-flight 任务
     private var cancelled = false
     private weak var activeTask: URLSessionDataTask?
-    /// v2.9.15：本轮请求起始时间（用于耗时统计，写入网络兼容日志）
+    /// v2.9.15：本轮请求起始时间 (用于耗时统计，写入网络兼容日志）
     private var requestStart = Date()
-    /// v2.9.107：本轮是否占用 HalfOpen 探测名额（熔断记录时释放）
+    /// v2.9.107：本轮是否占用 HalfOpen 探测名额 (熔断记录时释放）
     private var usedHalfOpenPermit = false
-    /// v2.9.299：当前请求是否已因"模型非视觉"剥离图片（防止无限重试）
+    /// v2.9.299：当前请求是否已因"模型非视觉"剥离图片 (防止无限重试）
     private var imagesStrippedForVLM = false
     /// v2.9.87：多级降级总预算——全链串行最坏 7 分钟+，用户感知"一直请求中"。
-    /// v2.9.96：试探级（L0-L4）超时已压到 25s，预算放宽到 220s 给 L5 流式留足时间。
+    /// v2.9.96：试探级 (L0-L4）超时已压到 25s，预算放宽到 220s 给 L5 流式留足时间。
     private var overallDeadline = Date.distantFuture
     private let overallBudget: TimeInterval = 220
-    /// v2.9.20：本轮推理强度（0=低 1=中 2=高），由 ChatView 传入并真实作用于请求。
-    var currentReasoningLevel = 0  // v2.9.49：默认 low（medium/high 推理显著增加延迟，对标 Codex CLI 默认 low）
+    /// v2.9.20：本轮推理强度 (0=低 1=中 2=高），由 ChatView 传入并真实作用于请求。
+    var currentReasoningLevel = 0  // v2.9.49：默认 low (medium/high 推理显著增加延迟，对标 Codex CLI 默认 low）
 
     init(_ config: ModelConfig) {
         self.config = config
@@ -79,7 +79,7 @@ final class OpenAIClient {
 
     // MARK: - 对外入口
 
-    /// v2.9.13：取消当前请求（ChatView 停止按钮调用）
+    /// v2.9.13：取消当前请求 (ChatView 停止按钮调用）
     func cancel() {
         cancelled = true
         activeTask?.cancel()
@@ -89,49 +89,49 @@ final class OpenAIClient {
         cancelled = false
         requestStart = Date()
         overallDeadline = Date().addingTimeInterval(overallBudget)
-        // v2.9.107：熔断检查（对齐 cc-switch circuit_breaker）——供应商连续失败过多时直接拒绝，
-        // 不再傻等超时（用户痛点"一直请求中"）
+        // v2.9.107：熔断检查 (对齐 cc-switch circuit_breaker）——供应商连续failed过多时直接拒绝，
+        // 不再傻等超时 (用户痛点"一直请求中"）
         let gate = ModelStore.shared.breaker(for: config.id).allowRequest()
         usedHalfOpenPermit = gate.usedHalfOpenPermit
         if !gate.allowed {
             let el = Int(Date().timeIntervalSince(requestStart) * 1000)
-            NetworkLog.shared.log("\(config.name) 已熔断，请求被拒绝（\(el)ms）")
+            NetworkLog.shared.log("\(config.name) 已熔断，请求被拒绝 (\(el)ms)")
             completion(.failure(NSError(domain: "OpenAIClient", code: -503,
-                userInfo: [NSLocalizedDescriptionKey: "供应商「\(config.name)」已熔断（连续失败过多，已暂停请求以免卡死）。可在模型管理页点击该模型重置，或约 60 秒后自动恢复探测。"])))
+                userInfo: [NSLocalizedDescriptionKey: "供应商「\(config.name)」已熔断 (连续failed过多，已暂停请求以免卡死)。可在模型管理页点击该模型重置，或约 60 秒后自动恢复探测。"])))
             return
         }
         UsageRecorder.shared.begin(messages: messages)
-        // v2.9.0：级别 5 = Responses API + 工具调用（Codex 走的端点，GPT-5.6 家族
+        // v2.9.0：级别 5 = Responses API + 工具调用 (Codex 走的端点，GPT-5.6 家族
         // 在 chat/completions 上无法用 function tools，但 /v1/responses 可以）
         // v2.9.299：VLM 错误图片剥离标志——遇到"模型不是视觉模型"时只剥离一次
         self.imagesStrippedForVLM = false
         var start = min(max(config.compatLevel, 0), maxLevel)
         // 历史被记忆为"纯对话"(L3/L4) 的旧配置，给一次恢复工具调用的机会：
-        // 先试 L5（Responses API + 工具），失败自动回落 L3。
+        // 先试 L5 (Responses API + 工具），failed自动回落 L3。
         if start == 3 || start == 4 {
             NetworkLog.shared.log("\(config.name): 当前记忆级别为纯对话，先尝试 Responses API 恢复工具调用…")
             start = 5
         }
         if start > 0 {
-            NetworkLog.shared.log("\(config.name): 使用已记忆的兼容级别 \(start)（\(levelName(start))）")
+            NetworkLog.shared.log("\(config.name): 使用已记忆的兼容级别 \(start) (\(levelName(start)))")
         } else {
-            NetworkLog.shared.log("\(config.name): 发起请求（级别 0 完整载荷）")
+            NetworkLog.shared.log("\(config.name): 发起请求 (级别 0 完整载荷)")
         }
         // v2.9.88：请求全链路耗时可视化 —— 在外层包一层 completion，
-        // 无论成功/失败/降级多少次，最终只上报一次总耗时（首字节→流式→工具调用全含在内）。
-        // 先调用原 completion（内部会清 statusText），再补报耗时，让用户看到"完成用了多久"。
+        // 无论OK/failed/降级多少次，最终只上报一次总耗时 (首字节→流式→工具调用全含在内）。
+        // 先调用原 completion (内部会清 statusText），再补报耗时，让用户看到"done用了多久"。
         let wrappedCompletion: (Result<ChatResult, Error>) -> Void = { result in
             let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
             completion(result)
             switch result {
             case .success:
                 let secs = String(format: "%.1f", Double(el) / 1000.0)
-                NetworkLog.shared.log("\(self.config.name) 请求完成（\(el)ms）")
-                onStatus?("响应完成 · 总耗时 \(secs)s（含降级重试）")
+                NetworkLog.shared.log("\(self.config.name) 请求done (\(el)ms)")
+                onStatus?("响应done · 总耗时 \(secs)s (含降级重试)")
                 ModelStore.shared.breaker(for: self.config.id).recordSuccess(usedHalfOpenPermit: self.usedHalfOpenPermit)
                 UsageRecorder.shared.end(config: self.config, ok: true, elapsedMs: el)
             case .failure(let e):
-                NetworkLog.shared.log("\(self.config.name) 请求失败（\(el)ms）: \(e.localizedDescription)")
+                NetworkLog.shared.log("\(self.config.name) 请求failed (\(el)ms): \(e.localizedDescription)")
                 ModelStore.shared.breaker(for: self.config.id).recordFailure(usedHalfOpenPermit: self.usedHalfOpenPermit)
                 UsageRecorder.shared.end(config: self.config, ok: false, elapsedMs: el, error: e.localizedDescription)
             }
@@ -139,7 +139,7 @@ final class OpenAIClient {
         attempt(level: start, isFirst: true, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking, completion: wrappedCompletion)
     }
 
-    /// 降级顺序：L0→L1→L2→（带 tools 时优先 L5 Responses API，保住工具调用）→L3→L4→结束
+    /// 降级顺序：L0→L1→L2→ (带 tools 时优先 L5 Responses API，保住工具调用）→L3→L4→结束
     /// 返回 > maxLevel 的哨兵值表示降级链走完，无下一级可试。
     private func nextLevel(after level: Int, hasTools: Bool, avoidL5: Bool = false) -> Int {
         if level == 2, hasTools, !avoidL5 { return 5 }
@@ -151,12 +151,12 @@ final class OpenAIClient {
     // MARK: - 逐级试探
 
     private func attempt(level: Int, isFirst: Bool, messages: [ChatMessage], tools: [[String: Any]]?, onStatus: ((String) -> Void)?, onDelta: ((String) -> Void)?, onThinking: ((String) -> Void)? = nil, avoidL5: Bool = false, completion: @escaping (Result<ChatResult, Error>) -> Void) {
-        // v2.9.87：总预算检查——降级链整体超时直接失败，不再无限串行等
+        // v2.9.87：总预算检查——降级链整体超时直接failed，不再无限串行等
         if Date() > overallDeadline {
             let el = Int(Date().timeIntervalSince(requestStart) * 1000)
-            NetworkLog.shared.log("\(config.name) 多级降级总预算耗尽（\(Int(overallBudget))s，\(el)ms）")
+            NetworkLog.shared.log("\(config.name) 多级降级总预算耗尽 (\(Int(overallBudget))s，\(el)ms)")
             completion(.failure(NSError(domain: "OpenAIClient", code: -1001,
-                userInfo: [NSLocalizedDescriptionKey: "请求超时：已按 6 个兼容级别逐级尝试仍无响应（共 \(Int(overallBudget)) 秒）。可能是中转站负载过高或模型名错误，请稍后重试或检查模型配置。"])))
+                userInfo: [NSLocalizedDescriptionKey: "请求超时：已按 6 个兼容级别逐级尝试仍无响应 (total \(Int(overallBudget)) 秒)。可能是中转站负载过高或模型名错误，请稍后重试或检查模型配置。"])))
             return
         }
         if config.apiProtocol == "Anthropic Messages" {
@@ -164,20 +164,20 @@ final class OpenAIClient {
             return
         }
         // v2.9.0：手动选择 Responses 协议，或降级链走到 L5
-        // v2.9.53：L5 默认走流式（SSE），逐字显示 + 完成后解析
+        // v2.9.53：L5 默认走流式 (SSE），逐字显示 + done后解析
         if level == 5 || config.apiProtocol == "OpenAI Responses" {
-            // 手动选择协议时不回落；经降级链进入（L5）失败后回落 L3 纯对话
+            // 手动选择协议时不回落；经降级链进入 (L5）failed后回落 L3 纯对话
             let viaLadder = level == 5 && config.apiProtocol != "OpenAI Responses"
             performResponsesStream(messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking) { [weak self] result in
                 guard let self = self else { return }
                 if case .failure(let err) = result, viaLadder {
                     let nsErr = err as NSError
-                    // v2.9.297：空响应（中转不支持 Responses API）→ 回落 L2 带工具 chat/completions 并跳过 L5，避免死循环
+                    // v2.9.297：空响应 (中转不支持 Responses API）→ 回落 L2 带工具 chat/completions 并跳过 L5，避免死循环
                     if nsErr.code == -3040 || nsErr.code == -3041 {
                         self.attempt(level: 2, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking, avoidL5: true, completion: completion)
                         return
                     }
-                    // 其他失败：回落到已验证可用的纯对话模式
+                    // 其他failed：回落到已验证可用的纯对话模式
                     self.attempt(level: 3, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking, completion: completion)
                     return
                 }
@@ -194,10 +194,10 @@ final class OpenAIClient {
         }
 
         // v2.8.6：首次请求 45s；降级重试 30s。
-        // 中转对完整载荷（tools + reasoning_effort）处理极慢/卡死，尽早超时并降级。
-        // v2.9.12：长会话请求体大，放宽超时——首次 90s / 降级重试 60s（配合 session 90s）
+        // 中转对完整载荷 (tools + reasoning_effort）处理极慢/卡死，尽早超时并降级。
+        // v2.9.12：长会话请求体大，放宽超时——首次 90s / 降级重试 60s (配合 session 90s）
         // v2.9.96：试探级统一 25s——正常中转 5s 内响应，卡死就是永远卡死，
-        // 25s 判定足够，把时间预算留给 L5 Responses 流式（Codex 同款端点）。
+        // 25s 判定足够，把时间预算留给 L5 Responses 流式 (Codex 同款端点）。
         var request = URLRequest(url: url, timeoutInterval: 25)
         setHTTPMethod("POST", on: &request)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -206,12 +206,12 @@ final class OpenAIClient {
         let body = buildBody(level: level, messages: messages, tools: tools)
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
-        // 记录发送的载荷摘要（不含 apiKey），便于排查
+        // 记录发送的载荷摘要 (不含 apiKey），便于排查
         NetworkLog.shared.log("\(config.name) L\(level) \(levelName(level)) → POST \(endpoint)，字段: \(body.keys.sorted().joined(separator: ","))")
         if isFirst {
             onStatus?("正在等待模型响应…")
         } else {
-            onStatus?("请求被拒绝，正在尝试简化参数（级别 \(level)/\(maxLevel)）…")
+            onStatus?("请求被拒绝，正在尝试简化参数 (级别 \(level)/\(maxLevel))…")
         }
 
         let task = session.dataTask(with: request) { data, response, error in
@@ -222,8 +222,8 @@ final class OpenAIClient {
             }
             if let error = error {
                 let err = error as NSError
-                // v2.8.6：网络超时（不是 408 HTTP 状态，而是 URLSession 的 -1001）
-                // 也可能是中转对完整载荷处理太慢/卡死，降级到轻量载荷很可能成功。
+                // v2.8.6：网络超时 (不是 408 HTTP 状态，而是 URLSession 的 -1001）
+                // 也可能是中转对完整载荷处理太慢/卡死，降级到轻量载荷很可能OK。
                 let isTimeout = (err.code == NSURLErrorTimedOut
                     || err.domain == NSURLErrorDomain && err.code == -1001
                     || error.localizedDescription.contains("超时")
@@ -232,15 +232,15 @@ final class OpenAIClient {
                     let next = self.nextLevel(after: level, hasTools: tools != nil && !(tools?.isEmpty ?? true), avoidL5: avoidL5)
                     if next <= self.maxLevel {
                         let remain = max(0, Int(self.overallDeadline.timeIntervalSinceNow))
-                        NetworkLog.shared.log("\(self.config.name) L\(level) 请求超时 → 自动降级到 L\(next)（\(self.levelName(next))）")
-                        onStatus?("请求超时，正在尝试简化参数（级别 \(next)/\(self.maxLevel)）· 总预算剩余 \(remain)s…")
+                        NetworkLog.shared.log("\(self.config.name) L\(level) 请求超时 → 自动降级到 L\(next) (\(self.levelName(next)))")
+                        onStatus?("请求超时，正在尝试简化参数 (级别 \(next)/\(self.maxLevel))· 总预算剩余 \(remain)s…")
                         self.attempt(level: next, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking, avoidL5: avoidL5, completion: completion)
                         return
                     }
                 }
-                // 其它网络错误（断网等）降级无意义
+                // 其它网络错误 (断网等）降级无意义
                 let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
-                NetworkLog.shared.log("\(self.config.name) L\(level) 网络错误（\(el)ms）: \(error.localizedDescription)")
+                NetworkLog.shared.log("\(self.config.name) L\(level) 网络错误 (\(el)ms): \(error.localizedDescription)")
                 completion(.failure(error))
                 return
             }
@@ -259,28 +259,28 @@ final class OpenAIClient {
                 }
             }
 
-            // 成功解析 choices
+            // OK解析 choices
             if errorPayload == nil,
                let json = try? JSONSerialization.jsonObject(with: data ?? Data()) as? [String: Any],
                let choices = json["choices"] as? [[String: Any]],
                let firstChoice = choices.first {
                 if level != self.config.compatLevel {
                     let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
-                    NetworkLog.shared.log("\(self.config.name) 级别 \(level)（\(self.levelName(level))）请求成功（\(el)ms），已记忆该级别")
-                    NetworkLog.lastCompatNote = "模型「\(self.config.name)」当前兼容级别: \(level)（\(self.levelName(level))）"
+                    NetworkLog.shared.log("\(self.config.name) 级别 \(level) (\(self.levelName(level)))请求OK (\(el)ms)，已记忆该级别")
+                    NetworkLog.lastCompatNote = "模型「\(self.config.name)」当前兼容级别: \(level) (\(self.levelName(level)))"
                     self.persist(level: level)
                 }
                 completion(.success(self.parseChoice(firstChoice)))
                 return
             }
 
-            // 失败：判断是否可通过降级重试挽救
+            // failed：判断是否可通过降级重试挽救
             let retryable = self.isRetryable(status: status, errorPayload: errorPayload)
             let failMsg = errorPayload ?? raw
             let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
-            NetworkLog.shared.log("\(self.config.name) L\(level) 失败 (HTTP \(status)，耗时 \(el)ms): \(String(failMsg.prefix(200)))")
+            NetworkLog.shared.log("\(self.config.name) L\(level) failed (HTTP \(status)，耗时 \(el)ms): \(String(failMsg.prefix(200)))")
 
-            // v2.9.299：模型非视觉（VLM）错误——剥离全部图片后同级别重试一次
+            // v2.9.299：模型非视觉 (VLM）错误——剥离全部图片后同级别重试一次
             let lowerErr = (errorPayload ?? "").lowercased()
             let isVLMError = lowerErr.contains("not a vlm") || lowerErr.contains("vision language model") || lowerErr.contains("vlm")
             if isVLMError, !self.imagesStrippedForVLM, messages.contains(where: { !($0.imageDataURLs ?? []).isEmpty }) {
@@ -289,7 +289,7 @@ final class OpenAIClient {
                 for i in stripped.indices {
                     if !(stripped[i].imageDataURLs ?? []).isEmpty {
                         stripped[i].imageDataURLs = nil
-                        stripped[i].content += "\n[📎 图片已自动移除：当前模型不支持看图（非视觉模型）]"
+                        stripped[i].content += "\n[📎 图片已自动移除：当前模型不支持看图 (非视觉模型)]"
                     }
                 }
                 NetworkLog.shared.log("\(self.config.name): 模型非视觉，剥离图片后重试 L\(level)")
@@ -301,7 +301,7 @@ final class OpenAIClient {
             if retryable {
                 let next = self.nextLevel(after: level, hasTools: tools != nil && !(tools?.isEmpty ?? true), avoidL5: avoidL5)
                 if next <= self.maxLevel {
-                    NetworkLog.shared.log("\(self.config.name) 自动降级 → 级别 \(next)（\(self.levelName(next))）")
+                    NetworkLog.shared.log("\(self.config.name) 自动降级 → 级别 \(next) (\(self.levelName(next)))")
                     self.attempt(level: next, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking, avoidL5: avoidL5, completion: completion)
                     return
                 }
@@ -342,15 +342,15 @@ final class OpenAIClient {
         if level < 3, config.sendsTemperature {
             body["temperature"] = config.temperature
         }
-        // v2.9.20：推理强度由 UI 真实控制（0低=low 1中=medium 2高=high）。
+        // v2.9.20：推理强度由 UI 真实控制 (0低=low 1中=medium 2高=high）。
         // 低档仍比 none 有思考但显著提速；中档为默认。
-        // 级别 4（最小载荷）不带该字段——若中转连这个字段都不认，还有最后一级兜底。
+        // 级别 4 (最小载荷）不带该字段——若中转连这个字段都不认，还有最后一级兜底。
         if config.isReasoningModel {
             body["reasoning_effort"] = reasoningEffortName()
-            // v3.1.74：思考/回复语言跟随 App 设置（设置 → 语言），不再硬编码中文
+            // v3.1.74：思考/回复语言跟随 App 设置 (设置 → 语言），不再硬编码中文
             // v3.1.33 曾强制简体中文思考；现在按 LanguageManager.shared.language 动态下发
             if LanguageManager.shared.isZh {
-                body["instructions"] = "你的思考过程（reasoning/thinking）请始终使用简体中文输出。最终回复也使用简体中文，除非用户明确要求其他语言。"
+                body["instructions"] = "你的思考过程 (reasoning/thinking)请始终使用简体中文输出。最终回复也使用简体中文，除非用户明确要求其他语言。"
             } else {
                 body["instructions"] = "Always think and reply in English unless the user explicitly asks for another language."
             }
@@ -366,14 +366,14 @@ final class OpenAIClient {
         return body
     }
 
-    /// 级别 0 用模型偏好的 key；级别 1 互换（中转站可能只认其中一个）
+    /// 级别 0 用模型偏好的 key；级别 1 互换 (中转站可能只认其中一个）
     private func tokenKey(level: Int) -> String {
         let preferred = config.maxTokensKey
         if level == 1 { return preferred == "max_completion_tokens" ? "max_tokens" : "max_completion_tokens" }
         return preferred
     }
 
-    /// v2.9.20：推理强度名。0=low 1=medium 2=high 3=none（完全不思考）
+    /// v2.9.20：推理强度名。0=low 1=medium 2=high 3=none (完全不思考）
     private func reasoningEffortName() -> String {
         switch currentReasoningLevel {
         case 0: return "low"
@@ -396,14 +396,14 @@ final class OpenAIClient {
     }
 
     /// 4xx 参数类错误可通过降级挽救；
-    /// 5xx 网关/上游超时（尤其 tools 过多导致 relay/gpt-5.6 超时或 500）降级到轻量载荷可能成功；
+    /// 5xx 网关/上游超时 (尤其 tools 过多导致 relay/gpt-5.6 超时或 500）降级到轻量载荷可能OK；
     /// 鉴权(401/402/403)、配额(429) 不降级。
     private func isRetryable(status: Int, errorPayload: String?) -> Bool {
         if status == 401 || status == 402 || status == 403 || status == 429 { return false }
         if status >= 400 && status < 500 { return true }
         // 502/503/504：网关错误 / 上游处理超时；500：terra 处理 tools 超限时报 server_error
         if status == 500 || status == 502 || status == 503 || status == 504 { return true }
-        // HTTP 200 + error body（new-api 中转常见）：只有参数类错误才降级
+        // HTTP 200 + error body (new-api 中转常见）：只有参数类错误才降级
         if let msg = errorPayload?.lowercased() {
             let keywords = ["invalid request parameter", "invalid_request", "unsupported parameter", "not supported",
                             "unknown parameter", "extra inputs", "参数", "invalid request"]
@@ -427,7 +427,7 @@ final class OpenAIClient {
                     return .toolCalls(calls, thinking: nil)
                 }
             }
-            // v2.9.297：content 兼容 字符串 / 数组（[{"type":"text","text":"..."}] / [{"type":"output_text","text":"..."}]）
+            // v2.9.297：content 兼容 字符串 / 数组 ([{"type":"text","text":"..."}] / [{"type":"output_text","text":"..."}]）
             var text = ""
             if let content = message["content"] {
                 if let str = content as? String {
@@ -450,10 +450,10 @@ final class OpenAIClient {
                     }
                 }
             }
-            // v3.1.25：同时读取 reasoning_content 存到 thinking（之前被完全忽略了）
+            // v3.1.25：同时读取 reasoning_content 存到 thinking (之前被完全忽略了）
             let thinking = (message["reasoning_content"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             // v3.1.33：去重——部分中转/模型把完整回答写进 reasoning_content，与 content 完全相同
-            // （表现：思考内容和发送内容一模一样）。此时丢弃 thinking，避免重复展示。
+            //  (表现：思考内容和发送内容一模一样）。此时丢弃 thinking，避免重复展示。
             var hasThinking = (thinking != nil && !thinking!.isEmpty)
             if hasThinking {
                 let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -461,7 +461,7 @@ final class OpenAIClient {
                 if !trimmedText.isEmpty && (trimmedText == t || t.contains(trimmedText) || trimmedText.contains(t)) {
                     hasThinking = false
                 }
-                // 正文为空但 thinking 是完整回答（模型把回答全放 reasoning）→ 转成正文
+                // 正文为空但 thinking 是完整回答 (模型把回答全放 reasoning）→ 转成正文
                 if trimmedText.isEmpty, t.count > 40 {
                     text = t
                     hasThinking = false
@@ -486,12 +486,12 @@ final class OpenAIClient {
         }
     }
 
-    // MARK: - Responses API（v2.9.0）
+    // MARK: - Responses API (v2.9.0）
 
-    /// OpenAI /v1/responses 端点（Codex 同款）。
+    /// OpenAI /v1/responses 端点 (Codex 同款）。
     /// GPT-5.6 家族的 function tools 在 chat/completions 上不可用/极慢，
     /// 但 Responses API 正常——用户在相同中转上 Codex 可运行即为证据。
-    /// v2.9.48：加自动重试（最多3次，指数退避 1s/2s）——网络错误/5xx/解析失败自动重试，不再需要手动点"继续"。
+    /// v2.9.48：加自动重试 (最多3次，指数退避 1s/2s）——网络错误/5xx/解析failed自动重试，不再需要手动点"继续"。
     private func performResponses(messages: [ChatMessage], tools: [[String: Any]]?, onStatus: ((String) -> Void)?, onThinking: ((String) -> Void)? = nil, completion: @escaping (Result<ChatResult, Error>) -> Void) {
         let base = config.baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         guard let url = URL(string: base + "/responses") else {
@@ -499,7 +499,7 @@ final class OpenAIClient {
             return
         }
 
-        /// 判断某次失败是否值得重试（网络抖动/5xx/解析失败属于瞬时错误；4xx 参数/鉴权错误不重试）
+        /// 判断某次failed是否值得重试 (网络抖动/5xx/解析failed属于瞬时错误；4xx 参数/鉴权错误不重试）
         func shouldRetry(_ err: NSError, _ statusCode: Int) -> Bool {
             if err.domain == NSURLErrorDomain {
                 let c = err.code
@@ -508,7 +508,7 @@ final class OpenAIClient {
             }
             if statusCode >= 500 { return true }
             let d = err.localizedDescription
-            if d.contains("解析失败") || d.contains("无法解析") { return true }
+            if d.contains("解析failed") || d.contains("无法解析") { return true }
             return false
         }
 
@@ -534,9 +534,9 @@ final class OpenAIClient {
 
             NetworkLog.shared.log("\(config.name) L5 Responses API+工具 → POST /responses，字段: \(body.keys.sorted().joined(separator: ","))")
             if attempt > 0 {
-                onStatus?("正在重试 Responses API（第 \(attempt + 1)/3 次）…")
+                onStatus?("正在重试 Responses API (第 \(attempt + 1)/3 次)…")
             } else {
-                onStatus?("正在通过 Responses API 请求（保留工具调用）…")
+                onStatus?("正在通过 Responses API 请求 (保留工具调用)…")
             }
 
             let task = session.dataTask(with: request) { [weak self] data, response, error in
@@ -562,7 +562,7 @@ final class OpenAIClient {
                 }
                 let raw = String(data: data ?? Data(), encoding: .utf8) ?? "(no data)"
 
-                // 2) 解析 JSON（v2.9.46 兜底：标准 JSON / 截取 {..} / SSE data: 行）
+                // 2) 解析 JSON (v2.9.46 兜底：标准 JSON / 截取 {..} / SSE data: 行）
                 if let json = Self.extractJSONObject(raw) {
                     // 2a) API 显式 error
                     if let err = json["error"] as? [String: Any],
@@ -574,7 +574,7 @@ final class OpenAIClient {
                             return
                         }
                         let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
-                        NetworkLog.shared.log("\(self.config.name) L5 失败 (HTTP \(status)，耗时 \(el)ms): \(msg)")
+                        NetworkLog.shared.log("\(self.config.name) L5 failed (HTTP \(status)，耗时 \(el)ms): \(msg)")
                         completion(.failure(nsErr))
                         return
                     }
@@ -607,8 +607,8 @@ final class OpenAIClient {
                             }
                         }
                         let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
-                        NetworkLog.shared.log("\(self.config.name) L5（Responses API+工具）请求成功（\(el)ms），已记忆该级别")
-                        NetworkLog.lastCompatNote = "模型「\(self.config.name)」当前兼容级别: 5（Responses API+工具）"
+                        NetworkLog.shared.log("\(self.config.name) L5 (Responses API+工具)请求OK (\(el)ms)，已记忆该级别")
+                        NetworkLog.lastCompatNote = "模型「\(self.config.name)」当前兼容级别: 5 (Responses API+工具)"
                         self.persist(level: 5)
                         if !calls.isEmpty {
                             let t = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -621,9 +621,9 @@ final class OpenAIClient {
                     }
                 }
 
-                // 3) 解析失败（非标准 JSON / 无 output）
+                // 3) 解析failed (非标准 JSON / 无 output）
                 let nsErr = NSError(domain: "OpenAIClient", code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "Responses 解析失败: \(raw.prefix(300))"])
+                    userInfo: [NSLocalizedDescriptionKey: "Responses parse failed: \(raw.prefix(300))"])
                 if attempt < 2 && shouldRetry(nsErr, status) {
                     DispatchQueue.global().asyncAfter(deadline: .now() + Double(1 << attempt)) { fire(attempt: attempt + 1) }
                     return
@@ -636,17 +636,17 @@ final class OpenAIClient {
         fire(attempt: 0)
     }
 
-    /// v2.9.46：从原始响应体中提取 JSON 对象（兜底解析，解决"无法解析响应"）。
-    /// 兼容：①标准 JSON；②前后夹带日志/空白；③SSE 流（收集 data: 行拼成 JSON）。
+    /// v2.9.46：从原始响应体中提取 JSON 对象 (兜底解析，解决"无法解析响应"）。
+    /// 兼容：①标准 JSON；②前后夹带日志/空白；③SSE 流 (collected data: 行拼成 JSON）。
     private static func extractJSONObject(_ raw: String) -> [String: Any]? {
         // 1) 直接解析
         if let j = try? JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any] { return j }
-        // 2) 截取第一个 { 到最后一个 }（夹带前缀/后缀）
+        // 2) 截取第一个 { 到最后一个 } (夹带前缀/后缀）
         if let i = raw.firstIndex(of: "{"), let j = raw.lastIndex(of: "}"), i < j {
             let sub = String(raw[i...j])
             if let jj = try? JSONSerialization.jsonObject(with: Data(sub.utf8)) as? [String: Any] { return jj }
         }
-        // 3) SSE：收集 "data: {...}" 或 "data:{...}" 行，拼接后重试
+        // 3) SSE：collected "data: {...}" 或 "data:{...}" 行，拼接后重试
         var sseAccum = ""
         for line in raw.components(separatedBy: "\n") {
             var l = line.trimmingCharacters(in: .whitespaces)
@@ -695,7 +695,7 @@ final class OpenAIClient {
         var items: [[String: Any]] = []
         // v2.9.292：历史图片裁剪——只保留最近 2 条带图消息的图片，
         // 更早的图片替换为文字占位。否则历史里每张 base64 图每次请求全量重发，
-        // body 越积越大 → AI 回消息/看图卡住（用户实证：新对话发文字才正常）。
+        // body 越积越大 → AI 回消息/看图卡住 (用户实证：新对话发文字才正常）。
         var imgBudget = 2
         for m in messages {
             if m.role == "tool" {
@@ -770,7 +770,7 @@ final class OpenAIClient {
             "max_tokens": config.maxTokens,
             "messages": trimmedMessages(messages).map { messageDict($0) }
         ]
-        // v2.9.175：Anthropic 协议也传工具（此前完全没传 tools，AI 一个 schema 都看不到，
+        // v2.9.175：Anthropic 协议也传工具 (此前完全没传 tools，AI 一个 schema 都看不到，
         // 只能靠 system prompt 文字描述脑补工具名——"app.decrypt 够不到"的根因之一）。
         // OpenAI function schema → Anthropic tools 格式转换。
         if let tools, !tools.isEmpty {
@@ -792,7 +792,7 @@ final class OpenAIClient {
                 body["tools"] = anthropicTools
             }
         }
-        // v2.9.107：Anthropic 标准协议 system 提至顶层（此前 role=system 混在 messages 里，
+        // v2.9.107：Anthropic 标准协议 system 提至顶层 (此前 role=system 混在 messages 里，
         // 部分严格中转会拒；同时为 cache_control 断点注入提供 system 块）
         if var msgs = body["messages"] as? [[String: Any]] {
             let systemMsgs = msgs.filter { ($0["role"] as? String) == "system" }
@@ -809,7 +809,7 @@ final class OpenAIClient {
                     body["messages"] = msgs
                 }
             }
-            // v2.9.107：cache_control 断点注入（对齐 cc-switch cache_injector 4 断点策略）
+            // v2.9.107：cache_control 断点injected (对齐 cc-switch cache_injector 4 断点策略）
             CacheInjector.injectAnthropic(body: &body)
         }
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
@@ -827,7 +827,7 @@ final class OpenAIClient {
             let raw = String(data: data ?? Data(), encoding: .utf8) ?? "(no data)"
             guard let json = try? JSONSerialization.jsonObject(with: data ?? Data()) as? [String: Any] else {
                 completion(.failure(NSError(domain: "OpenAIClient", code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "解析失败: \(raw.prefix(300))"])))
+                    userInfo: [NSLocalizedDescriptionKey: "parse failed: \(raw.prefix(300))"])))
                 return
             }
             if let err = json["error"] as? [String: Any],
@@ -840,7 +840,7 @@ final class OpenAIClient {
                   let first = content.first,
                   let text = first["text"] as? String else {
                 completion(.failure(NSError(domain: "OpenAIClient", code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "解析失败: \(raw.prefix(300))"])))
+                    userInfo: [NSLocalizedDescriptionKey: "parse failed: \(raw.prefix(300))"])))
                 return
             }
             completion(.success(.text(text, thinking: nil)))
@@ -931,7 +931,7 @@ final class OpenAIClient {
     }
 
     /// 解析单个 SSE 事件，返回 (type, delta, fullJson)。
-    /// 兼容：event: xxx + data: {...}，或只有 data: {...}（type 在 JSON 里）。
+    /// 兼容：event: xxx + data: {...}，或只有 data: {...} (type 在 JSON 里）。
     private func parseSSEEvent(_ raw: String) -> (type: String, delta: String, json: [String: Any])? {
         var eventType = ""
         var dataJson = ""
@@ -950,9 +950,9 @@ final class OpenAIClient {
         return (type, delta, json)
     }
 
-    /// v2.9.53：Responses API 流式请求（SSE）。
-    /// - onDelta: 文本增量回调（逐字显示）
-    /// - completion: 响应完成后回调（完整 output 解析为 .text / .toolCalls）
+    /// v2.9.53：Responses API 流式请求 (SSE）。
+    /// - onDelta: 文本增量回调 (逐字显示）
+    /// - completion: 响应done后回调 (完整 output 解析为 .text / .toolCalls）
     private func performResponsesStream(messages: [ChatMessage], tools: [[String: Any]]?,
                                         onStatus: ((String) -> Void)?,
                                         onDelta: ((String) -> Void)?,
@@ -985,7 +985,7 @@ final class OpenAIClient {
         }
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
-        onStatus?("正在流式请求（Responses API）…")
+        onStatus?("正在流式请求 (Responses API)…")
 
         // 累积状态
         var fullText = ""
@@ -1002,8 +1002,8 @@ final class OpenAIClient {
 
         // v2.9.87：修复流式/非流式双 completion 竞态——
         // firstByteTimer 跑主线程、SSE 回调跑 URLSession 内部队列，
-        // 10s 边界上可能两条路径都调 completion（后到覆盖先到 → 回复被吞/重复）。
-        // 统一走 guardedCompletion，任何路径只能完成一次。
+        // 10s 边界上可能两条路径都调 completion (后到覆盖先到 → 回复被吞/重复）。
+        // 统一走 guardedCompletion，任何路径只能done一次。
         let completionLock = NSLock()
         var completionCalled = false
         let guardedCompletion: (Result<ChatResult, Error>) -> Void = { r in
@@ -1017,14 +1017,14 @@ final class OpenAIClient {
         let delegate = SSEStreamDelegate()
         let streamSession = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
 
-        // 首字节超时定时器（10 秒）
+        // 首字节超时定时器 (10 秒）
         let firstByteTimer = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
             if !firstByteReceived && !fellBackToNonStream {
                 fellBackToNonStream = true
-                NetworkLog.shared.log("\(self.config.name): 流式首字节超时（10s），自动降级非流式")
+                NetworkLog.shared.log("\(self.config.name): 流式首字节超时 (10s)，自动降级非流式")
                 streamSession.invalidateAndCancel()
-                // 切回非流式 performResponses（completion 走 guardedCompletion，防双完成）
+                // 切回非流式 performResponses (completion 走 guardedCompletion，防双done）
                 self.performResponses(messages: messages, tools: tools, onStatus: onStatus, onThinking: onThinking, completion: guardedCompletion)
             }
         }
@@ -1037,7 +1037,7 @@ final class OpenAIClient {
                 firstByteTimer.cancel()
                 // v2.9.88：链路可视化 —— 首字节到达即上报"已连接，开始流式接收"
                 let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
-                NetworkLog.shared.log("\(self.config.name): 流式首字节（\(el)ms）")
+                NetworkLog.shared.log("\(self.config.name): 流式首字节 (\(el)ms)")
                 onStatus?("已连接 · 首字节 \(String(format: "%.1f", Double(el) / 1000.0))s，开始接收…")
             }
             if fellBackToNonStream { return }
@@ -1049,7 +1049,7 @@ final class OpenAIClient {
                 fullText += ev.delta
                 DispatchQueue.main.async { onDelta?(ev.delta) }
             }
-            // 推理增量 → v2.9.127 实时思考（打字机式逐句显示）
+            // 推理增量 → v2.9.127 实时思考 (打字机式逐句显示）
             if type == "response.reasoning.delta", !ev.delta.isEmpty {
                 fullThinking += ev.delta
                 let d = ev.delta
@@ -1069,7 +1069,7 @@ final class OpenAIClient {
             if type == "response.function_call_arguments.delta", !ev.delta.isEmpty {
                 currentCallArgs += ev.delta
             }
-            // 工具调用完成
+            // 工具调用done
             if type == "response.output_item.done",
                let item = ev.json["item"] as? [String: Any],
                item["type"] as? String == "function_call" {
@@ -1080,7 +1080,7 @@ final class OpenAIClient {
                 currentCallName = ""
                 currentCallArgs = ""
             }
-            // 响应完成（包含完整 response 对象）
+            // 响应done (包含完整 response 对象）
             if type == "response.completed",
                let response = ev.json["response"] as? [String: Any] {
                 completedResponse = response
@@ -1099,7 +1099,7 @@ final class OpenAIClient {
                 return
             }
 
-            // 如果 response.completed 里有完整 output，优先用它（更准确）
+            // 如果 response.completed 里有完整 output，优先用它 (更准确）
             if let resp = completedResponse, let output = resp["output"] as? [[String: Any]] {
                 var calls: [ToolCall] = []
                 var text = ""
@@ -1126,15 +1126,15 @@ final class OpenAIClient {
                         }
                     }
                 }
-                // v2.9.297：L5 空响应（output 无文本无工具调用）判为失败——中转站可能不支持 Responses API
+                // v2.9.297：L5 空响应 (output 无文本无工具调用）判为failed——中转站可能不支持 Responses API
                 if calls.isEmpty && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && thinking.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     NetworkLog.shared.log("\(self.config.name): Responses API 返回空 output，判定不支持，回落 chat/completions")
                     guardedCompletion(.failure(NSError(domain: "OpenAIClient", code: -3040,
-                        userInfo: [NSLocalizedDescriptionKey: "模型返回空响应（中转站可能不支持 Responses API）"])))
+                        userInfo: [NSLocalizedDescriptionKey: "模型返回空响应 (中转站可能不支持 Responses API)"])))
                     return
                 }
                 self.persist(level: 5)
-                NetworkLog.lastCompatNote = "模型「\(self.config.name)」当前兼容级别: 5（Responses API+工具，流式）"
+                NetworkLog.lastCompatNote = "模型「\(self.config.name)」当前兼容级别: 5 (Responses API+工具，流式)"
                 if !calls.isEmpty {
                     guardedCompletion(.success(.toolCalls(calls, thinking: nil)))
                 } else {
@@ -1149,7 +1149,7 @@ final class OpenAIClient {
                        thinking.trimmingCharacters(in: .whitespacesAndNewlines).count > 40 {
                         text = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
                     }
-                    // v2.9.127：非流式兜底——整段思考一次性推送（降级场景也能显示思考）
+                    // v2.9.127：非流式兜底——整段思考一次性推送 (降级场景也能显示思考）
                     if !th.isEmpty {
                         let whole = th
                         DispatchQueue.main.async { onThinking?(whole) }
@@ -1160,11 +1160,11 @@ final class OpenAIClient {
             }
 
             // fallback：用流式过程中累积的数据
-            // v2.9.297：流式零增量且无 completedResponse 输出 → 判失败回落
+            // v2.9.297：流式零增量且无 completedResponse 输出 → 判failed回落
             if fullText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && toolCalls.isEmpty && fullThinking.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 NetworkLog.shared.log("\(self.config.name): Responses 流式无任何文本/工具增量，判定不支持，回落 chat/completions")
                 guardedCompletion(.failure(NSError(domain: "OpenAIClient", code: -3041,
-                    userInfo: [NSLocalizedDescriptionKey: "模型返回空响应（中转站可能不支持 Responses API）"])))
+                    userInfo: [NSLocalizedDescriptionKey: "模型返回空响应 (中转站可能不支持 Responses API)"])))
                 return
             }
             self.persist(level: 5)
@@ -1187,8 +1187,8 @@ final class OpenAIClient {
     }
 }
 
-// MARK: - Anthropic cache_control 断点注入（v2.9.107，对齐 cc-switch cache_injector 4 断点策略）
-// Anthropic 缓存上限 4 个断点；已存在的标记保留（caller-owned），budget = 4 - existing。
+// MARK: - Anthropic cache_control 断点injected (v2.9.107，对齐 cc-switch cache_injector 4 断点策略）
+// Anthropic 缓存上限 4 个断点；已存在的标记保留 (caller-owned），budget = 4 - existing。
 
 enum CacheInjector {
     static func injectAnthropic(body: inout [String: Any]) {
@@ -1216,7 +1216,7 @@ enum CacheInjector {
                     break
                 }
             }
-            // (d) 更早的第 2 个 user 锚点（应对长工具循环超出 20-block lookback）
+            // (d) 更早的第 2 个 user 锚点 (应对长工具循环超出 20-block lookback）
             if budget > 0, messages.count >= 4 {
                 var userCount = 0
                 for i in stride(from: messages.count - 1, through: 0, by: -1) {
@@ -1253,7 +1253,7 @@ enum CacheInjector {
     }
 }
 
-// MARK: - 用量记录（v2.9.107，本地 JSONL，供「用量统计」页聚合）
+// MARK: - 用量记录 (v2.9.107，本地 JSONL，供「用量统计」页聚合）
 
 final class UsageRecorder {
     static let shared = UsageRecorder()

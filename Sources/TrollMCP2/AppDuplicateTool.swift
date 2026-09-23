@@ -2,14 +2,14 @@ import Foundation
 
 // v2.9.136：改包名双开工具
 // 原理：复制目标 App bundle → 改 Info.plist 的 CFBundleIdentifier / 显示名 →
-//       删 _CodeSignature（交给 TrollStore 重签）→ 打包 ipa → trollstorehelper 静默安装。
-// 双开后的 App 拥有全新数据容器（登录态/缓存独立），与 TrollFools / 注入完全兼容。
-// 限制：仅对"未加密"的侧载 App 有效（App Store 加密 App 复制后主二进制加密，装不上）。
+//       删 _CodeSignature (交给 TrollStore 重签）→ 打包 ipa → trollstorehelper 静默安装。
+// 双开后的 App 拥有全新数据容器 (登录态/缓存独立），与 TrollFools / 注入完全兼容。
+// 限制：仅对"未加密"的侧载 App 有效 (App Store 加密 App 复制后主二进制加密，装不上）。
 
 final class AppDuplicateTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.duplicate",
-        summary: "Clone an app to create a parallel copy (two versions side by side). Use for: run two accounts at once, test without affecting original. Don't use for: just install app (use app.install), duplicate data (use backup.restore). Note: doesn't work on encrypted apps (decrypt first). Example: user says '装两个微信，两个号同时登' → clone app.",
+        summary: "Clone an app to create a parallel copy (two versions side by side). Use for: run two accounts at once, test without affecting original. Don't use for: just install app (use app.install), duplicate data (use backup.restore). Note: doesn't work on encrypted apps (decrypt first). Example: user says 'install two WeChat copies, log into both' → clone app.",
         parameters: [
             "bundle_id": "Source App bundle ID to clone (required)",
             "new_name": "New display name (optional)",
@@ -18,13 +18,13 @@ final class AppDuplicateTool: MCPTool {
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String, !bid.isEmpty else {
-            throw MCPError.invalidParams("app.duplicate 需要 bundle_id 参数")
+            throw MCPError.invalidParams("app.duplicate requires bundle_id param")
         }
         guard let app = AppCatalog.find(bid) else {
-            return ["ok": false, "error": "App 不存在: \(bid)", "next_step": "用 injection.list 搜索正确的 bundle_id"]
+            return ["ok": false, "error": "App does not exist: \(bid)", "next_step": "use injection.list to find the correct bundle_id"]
         }
 
-        // 高危护栏：敏感 App 提醒（不阻断，AI 需看到风险）
+        // 高危护栏：敏感 App 提醒 (不阻断，AI 需看到风险）
         let sensitive = InjectionManager.isSensitive(bid)
 
         let fm = FileManager.default
@@ -43,19 +43,19 @@ final class AppDuplicateTool: MCPTool {
 
         // 2. 显示名
         var newName = (params["new_name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if newName.isEmpty { newName = (app.name.isEmpty ? bid : app.name) + " 双开" }
+        if newName.isEmpty { newName = (app.name.isEmpty ? bid : app.name) + " Clone" }
 
-        // 3. 复制 bundle（root cp -a，源在系统容器只读）
+        // 3. 复制 bundle (root cp -a，源在系统容器只读）
         let appDirName = (app.path as NSString).lastPathComponent
         let destApp = dupRoot + "/" + appDirName.replacingOccurrences(of: ".app", with: ".dup.app")
         try? fm.removeItem(atPath: destApp)
         let (c, out) = im.spawnRoot("/bin/cp", args: ["-a", app.path, destApp], timeout: 180)
         guard c == 0 else {
-            return ["ok": false, "error": "复制 App 失败: \(out.prefix(200))",
-                    "next_step": "检查工作区磁盘空间与 App 容器读取权限（AppDataContainers）"]
+            return ["ok": false, "error": "copy App failed: \(out.prefix(200))",
+                    "next_step": "check workspace disk space and App container read permission (AppDataContainers)"]
         }
 
-        // 4. 删除旧签名（TrollStore 安装时会重新签名；保留旧签名可能导致安装后无法启动）
+        // 4. 删除旧签名 (TrollStore 安装时会重新签名；保留旧签名可能导致安装后无法启动）
         let codeSign = destApp + "/_CodeSignature"
         if fm.fileExists(atPath: codeSign) {
             _ = im.spawnRoot("/bin/rm", args: ["-rf", codeSign])
@@ -65,10 +65,10 @@ final class AppDuplicateTool: MCPTool {
             _ = im.spawnRoot("/bin/rm", args: ["-rf", codeResources])
         }
 
-        // 5. 改 Info.plist（复制件在工作区可写，直接 Foundation 读写）
+        // 5. 改 Info.plist (复制件在工作区可写，直接 Foundation 读写）
         let plistPath = destApp + "/Info.plist"
         guard let plist = NSMutableDictionary(contentsOfFile: plistPath) else {
-            return ["ok": false, "error": "读取副本 Info.plist 失败", "next_step": "该 App 的 Info.plist 无法解析（可能加密/损坏）"]
+            return ["ok": false, "error": "failed to read copy Info.plist", "next_step": "App Info.plist cannot be parsed (may be encrypted/corrupted)"]
         }
         plist["CFBundleIdentifier"] = newBid
         plist["CFBundleDisplayName"] = newName
@@ -76,10 +76,10 @@ final class AppDuplicateTool: MCPTool {
         // 双开副本不参与原版更新检测；移除可能的自动更新 URL
         plist.removeObject(forKey: "CFBundleVersion")
         guard plist.write(toFile: plistPath, atomically: true) else {
-            return ["ok": false, "error": "写入副本 Info.plist 失败", "next_step": "检查工作区写入权限"]
+            return ["ok": false, "error": "failed to write copy Info.plist", "next_step": "check workspace write permission"]
         }
 
-        // 6. 打包 ipa（Payload/App.app 结构 + 纯 Swift Zip）
+        // 6. 打包 ipa (Payload/App.app 结构 + 纯 Swift Zip）
         let ipaName = newBid + "_duplicate.ipa"
         let ipaPath = dupRoot + "/" + ipaName
         let payloadRoot = dupRoot + "/Payload-" + newBid
@@ -89,17 +89,17 @@ final class AppDuplicateTool: MCPTool {
         try? fm.removeItem(atPath: payloadApp)
         let (c2, out2) = im.spawnRoot("/bin/cp", args: ["-a", destApp, payloadApp], timeout: 180)
         guard c2 == 0 else {
-            return ["ok": false, "error": "组装 Payload 失败: \(out2.prefix(200))",
-                    "next_step": "工作区磁盘空间不足或权限异常"]
+            return ["ok": false, "error": "assemble Payload failed: \(out2.prefix(200))",
+                    "next_step": "workspace disk space insufficient or permission error"]
         }
         try? fm.removeItem(atPath: ipaPath)
         guard ZipStorer.createZip(at: ipaPath, fromDirectory: payloadRoot) else {
-            return ["ok": false, "error": "打包 ipa 失败", "next_step": "ZipStorer 写入错误，检查磁盘空间"]
+            return ["ok": false, "error": "packaging ipa failed", "next_step": "ZipStorer write error, check disk space"]
         }
         try? fm.removeItem(atPath: payloadRoot)
         try? fm.removeItem(atPath: destApp)
 
-        // 7. TrollStore 静默安装（自动重签）
+        // 7. TrollStore 静默安装 (自动重签）
         let helper = "/var/usr/bin/trollstorehelper"
         if fm.isExecutableFile(atPath: helper) {
             let (c3, out3) = im.spawnRoot(helper, args: ["install", ipaPath], timeout: 180)
@@ -107,15 +107,15 @@ final class AppDuplicateTool: MCPTool {
                 AppCatalog.invalidateCache()
                 return ["ok": true, "new_bundle_id": newBid, "new_name": newName,
                         "ipa_path": ipaPath, "method": "trollstorehelper",
-                        "sensitive_warning": sensitive ? "目标 App 属敏感应用（小红书/支付宝/银行等），双开副本独立运行，请确认使用合规。" : "",
-                        "message": "双开成功：\(newName)（\(newBid)），已安装，数据容器独立"]
+                        "sensitive_warning": sensitive ? "target App is sensitive (Xiaohongshu/Alipay/banking etc.), clone runs independently, confirm compliant use." : "",
+                        "message": "clone OK: \(newName) (\(newBid)), installed, independent data container"]
             }
-            return ["ok": false, "error": "trollstorehelper 安装失败: \(out3.prefix(200))",
+            return ["ok": false, "error": "trollstorehelper install failed: \(out3.prefix(200))",
                     "ipa_path": ipaPath,
-                    "next_step": "ipa 已生成在 \(ipaPath)，可手动用 TrollStore 打开安装（TrollStore 会自动重签）"]
+                    "next_step": "ipa generated at \(ipaPath), install manually via TrollStore (auto re-sign)"]
         }
-        return ["ok": false, "error": "trollstorehelper 不可用",
+        return ["ok": false, "error": "trollstorehelper unavailable",
                 "ipa_path": ipaPath,
-                "next_step": "ipa 已生成在 \(ipaPath)，请手动在 TrollStore 中打开安装"]
+                "next_step": "ipa generated at \(ipaPath), open and install manually in TrollStore"]
     }
 }

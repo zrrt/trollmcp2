@@ -267,26 +267,26 @@ enum DebReader {
         } else if let member = ArReader.member(data, name: "data.tar.bz2") {
             // 构建环境 Compression SDK 无 COMPRESSION_BZIP2 常量，明确降级（bzip2 deb 极少见）
             _ = member
-            throw ArchiveError.format("data.tar.bz2 暂不支持（SDK 缺 COMPRESSION_BZIP2），请用 gzip 打包的 deb")
+            throw ArchiveError.format("data.tar.bz2 not supported (SDK lacks COMPRESSION_BZIP2); use a gzip-packed deb")
         } else if let member = ArReader.member(data, name: "data.tar.lzma") {
             guard let d = decompressCompression(member, algorithm: COMPRESSION_LZMA) else {
-                throw ArchiveError.format("data.tar.lzma 解压失败（raw lzma）")
+                throw ArchiveError.format("data.tar.lzma extraction failed (raw lzma)")
             }
             tarData = d
         } else if let member = ArReader.member(data, name: "data.tar.xz") {
             guard let d = decompressXZ(member) else {
-                throw ArchiveError.format("data.tar.xz 解压失败（liblzma）")
+                throw ArchiveError.format("data.tar.xz extraction failed (liblzma)")
             }
             tarData = d
         } else {
             for alt in ["data.tar.zst", "data.tar.lz4"] {
                 if ArReader.member(data, name: alt) != nil {
-                    throw ArchiveError.format("deb 含 \(alt)，iOS 平台无内置解压器。请用 gzip 重新打包 deb（dpkg-deb -Zgzip）后再注入。")
+                    throw ArchiveError.format("deb contains \(alt), no built-in extractor on iOS. Repack the deb with gzip (dpkg-deb -Zgzip) before injection.")
                 }
             }
-            throw ArchiveError.format("deb 中找不到 data.tar.gz/bz2/lzma/xz")
+            throw ArchiveError.format("no data.tar.gz/bz2/lzma/xz found in deb")
         }
-        guard let tar = tarData else { throw ArchiveError.format("deb 解压后为空") }
+        guard let tar = tarData else { throw ArchiveError.format("deb empty after extraction") }
         let entries = TarReader.entries(tar)
         var processedBundles = Set<String>()
         for entry in entries {

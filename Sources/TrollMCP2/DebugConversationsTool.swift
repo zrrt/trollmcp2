@@ -5,7 +5,7 @@ import Foundation
 final class DebugDumpConversationsTool: MCPTool {
     let definition = ToolDefinition(
         name: "debug.dump_conversations",
-        summary: "Debug: export list of chat conversations. Use for: debug conversation issues, see what chats exist internally. Don't use for: read a specific conversation (use debug.dump_messages), list skills (use skills.list). Example: user says '导出一下对话列表' → dump conversations.",
+        summary: "Debug: export list of chat conversations. Use for: debug conversation issues, see what chats exist internally. Don't use for: read a specific conversation (use debug.dump_messages), list skills (use skills.list). Example: user says 'export conversation list' → dump conversations.",
         parameters: ["limit": "How many conversations to export (default: 5, max: 30)"], verified: true, category: "debug")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -34,8 +34,8 @@ final class DebugDumpConversationsTool: MCPTool {
 final class DebugDumpConversationTool: MCPTool {
     let definition = ToolDefinition(
         name: "debug.dump_conversation",
-        summary: "Debug: export full messages of one conversation. Use for: debug AI behavior, see how AI thinks and calls tools. Don't use for: list all conversations (use debug.dump_conversations), send a message (use chat.send). Example: user says '看看刚才的对话记录' → dump conversation messages.",
-        parameters: ["title": "Conversation title to export (e.g. '您好')", "limit": "Max messages to return (default: 50, max: 200)"], verified: true, category: "debug", remoteOnly: true)
+        summary: "Debug: export full messages of one conversation. Use for: debug AI behavior, see how AI thinks and calls tools. Don't use for: list all conversations (use debug.dump_conversations), send a message (use chat.send). Example: user says 'see the recent conversation' → dump conversation messages.",
+        parameters: ["title": "Conversation title to export (e.g. 'Hello')", "limit": "Max messages to return (default: 50, max: 200)"], verified: true, category: "debug", remoteOnly: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let title = params["title"] as? String, !title.isEmpty else {
@@ -73,7 +73,7 @@ final class DebugDumpConversationTool: MCPTool {
 final class ChatSendTool: MCPTool {
     let definition = ToolDefinition(
         name: "chat.send",
-        summary: "Send a message to the chat window. Use for: remote test AI behavior, send a message and see how AI responds. Don't use for: read chat history (use debug.dump_conversation), search web (use web.search). Example: user says '帮我测试一下，发个消息给 AI' → send chat message.",
+        summary: "Send a message to the chat window. Use for: remote test AI behavior, send a message and see how AI responds. Don't use for: read chat history (use debug.dump_conversation), search web (use web.search). Example: user says 'test it for me, send a message to AI' → send chat message.",
         parameters: ["message": "Message text to send", "conversationTitle": "Optional: create new conversation with this title"], verified: true, category: "debug", remoteOnly: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -100,7 +100,7 @@ final class ChatSendTool: MCPTool {
 final class ChatReplyTool: MCPTool {
     let definition = ToolDefinition(
         name: "chat.reply",
-        summary: "Simulate AI reply to chat. Use for: test chat UI without calling real model API. Don't use for: send user message (use chat.send), dump conversation (use debug.dump_conversation). Example: user says '帮我测试一下聊天界面，模拟 AI 回复' → chat.reply.",
+        summary: "Simulate AI reply to chat. Use for: test chat UI without calling real model API. Don't use for: send user message (use chat.send), dump conversation (use debug.dump_conversation). Example: user says 'test the chat UI, simulate AI reply' → chat.reply.",
         parameters: ["message": "AI reply text", "role": "Message role (assistant / tool / system, default: assistant)"], verified: true, category: "debug", remoteOnly: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -126,7 +126,7 @@ final class ChatReplyTool: MCPTool {
 final class ModelListTool: MCPTool {
     let definition = ToolDefinition(
         name: "model.list",
-        summary: "List all AI model configurations. Use for: see what models are available, debug model switching. Don't use for: change model (use model.switch), dump debug info (use debug.dump_model_configs). Example: user says '有哪些模型可以选' → list models.",
+        summary: "List all AI model configurations. Use for: see what models are available, debug model switching. Don't use for: change model (use model.switch), dump debug info (use debug.dump_model_configs). Example: user says 'which models are available' → list models.",
         parameters: [:], verified: true, category: "debug", remoteOnly: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -151,7 +151,7 @@ final class ModelListTool: MCPTool {
 final class ModelSwitchTool: MCPTool {
     let definition = ToolDefinition(
         name: "model.switch",
-        summary: "Switch current AI model. Use for: test different models, switch to a faster/smaller model. Don't use for: list models (use model.list), edit model settings (use settings). Example: user says '切换到 DeepSeek 模型' → switch model.",
+        summary: "Switch current AI model. Use for: test different models, switch to a faster/smaller model. Don't use for: list models (use model.list), edit model settings (use settings). Example: user says 'switch to DeepSeek model' → switch model.",
         parameters: ["name": "Model name to switch to (e.g. 'DeepSeek V4')"], verified: true, category: "debug", remoteOnly: true)
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -172,11 +172,11 @@ final class ModelSwitchTool: MCPTool {
     }
 }
 
-/// v2.9.297：调试工具——导出网络日志（最近100条请求/降级/错误记录），排查AI不回消息
+/// v2.9.297：调试工具——导出网络日志 (最近100条请求/降级/错误记录），排查AI不回消息
 final class DebugDumpNetworkLogTool: MCPTool {
     let definition = ToolDefinition(
         name: "debug.dump_network_log",
-        summary: "Debug: export AI API request logs. Use for: diagnose why AI is not replying, see API errors. Don't use for: capture app network traffic (use network.capture), collect app crash logs (use log.collect). Example: user says 'AI 怎么不回复我，看看网络日志' → dump network log.",
+        summary: "Debug: export AI API request logs. Use for: diagnose why AI is not replying, see API errors. Don't use for: capture app network traffic (use network.capture), collect app crash logs (use log.collect). Example: user says 'why is AI not replying, check network log' → dump network log.",
         parameters: ["limit": "How many log entries to show (default: 50, max: 100)"], verified: true, category: "debug")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -186,11 +186,11 @@ final class DebugDumpNetworkLogTool: MCPTool {
     }
 }
 
-/// v2.9.296：调试工具——导出模型配置（key 掩码）与当前请求状态
+/// v2.9.296：调试工具——导出模型配置 (key 掩码）与当前请求状态
 final class DebugDumpModelConfigsTool: MCPTool {
     let definition = ToolDefinition(
         name: "debug.dump_model_configs",
-        summary: "Debug: export AI model configuration. Use for: check what model is configured, debug AI connection issues. Don't use for: change model (use model.selectedProfileID), update model settings (use model.update). Example: user says '看看模型配置对不对' → dump model configs.",
+        summary: "Debug: export AI model configuration. Use for: check what model is configured, debug AI connection issues. Don't use for: change model (use model.selectedProfileID), update model settings (use model.update). Example: user says 'check if model config is correct' → dump model configs.",
         parameters: [:], verified: true, category: "debug")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -226,7 +226,7 @@ final class DebugDumpModelConfigsTool: MCPTool {
     }
 }
 
-// MARK: - v3.1.53: debug 大工具 + 子命令（合并 4 个 debug.* 工具）
+// MARK: - v3.1.53: debug 大工具 + 子命令 (合并 4 个 debug.* 工具）
 
 final class DebugExecTool: MCPTool {
     let definition = ToolDefinition(
