@@ -1073,7 +1073,7 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.55: 删旧的 device 工具（已合并到 DeviceExecTool）
         // 已删：DeviceFakeTool / DeviceRestoreTool
         // v2.9.95：设备指纹 / 容器 / entitlements（对齐 Fuck 工具箱 + 绿盾式）
-        register(AppEntitlementsTool())
+        // v3.1.59: 删 AppEntitlementsTool（已合并到 app 大工具：app entitlements）
         register(KeychainWipeTool())
         register(AdvertisingTool())
         register(IdfvTool())
@@ -1091,9 +1091,7 @@ public final class ToolRegistry: ObservableObject {
         register(SshExecTool())
         // v3.1.45: 删旧的 2 个 ssh.* 工具（已合并到 ssh 大工具）
         // 已删：SSHTool / SCPTool
-        register(AppDecryptTool())
-        register(AppReplaceDecryptedTool())
-        register(AppEncryptInfoTool())
+        // v3.1.59: 删 AppDecryptTool / AppReplaceDecryptedTool / AppEncryptInfoTool（已合并到 app 大工具）
 
         // v2.9.69：质量与诊断工具
         register(IPAInspectTool())
@@ -1167,12 +1165,10 @@ public final class ToolRegistry: ObservableObject {
         // 已删：BrowserScrollTool / BrowserEvalTool / BrowserFormFieldsTool
         // 已删：BrowserFillFormTool / BrowserWaitForTool
         // v2.9.131：AI 安装/卸载 App（trollstorehelper 优先）——补全下载→安装→注入→控制链路
-        register(AppInstallTool())
-        register(AppUninstallTool())
-        register(AppDuplicateTool())
+        // v3.1.59: 删 AppInstallTool / AppUninstallTool / AppDuplicateTool（已合并到 app 大工具）
         // v2.9.132：失败边界一条龙——注入健康检查 + 启动失败判因
         register(InjectionVerifyTool())
-        register(AppDiagnoseTool())
+        // v3.1.59: 删 AppDiagnoseTool（已合并到 app 大工具：app diagnose）
         // v3.1.55: 删 BrowserNavigateTool（已合并到 BrowserExecTool）
 
         // M6 编译模式 + 模型配置 + 工作区输出（原版命名）

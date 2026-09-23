@@ -514,10 +514,11 @@ func findPid(by bundleId: String) -> Int32 {
 final class AppExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "app",
-        summary: "Manage apps (launch/stop/restart/status/stats/cache/deps). Use subcommand to specify action. Use for: manage apps, check cache, see dependencies. Don't use for: inject dylib (use inject.*), UI control (use control.*). Example: launch → app launch bundle_id:com.xxx; cache_inspect → app cache_inspect bundle_id:com.xxx. Subcommands: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps.",
+        summary: "Manage apps (launch/stop/restart/status/stats/cache/deps/install/uninstall/duplicate/diagnose/encrypt_info/entitlements/decrypt). Use subcommand to specify action. Use for: manage apps, install/uninstall, diagnose, check encryption, view entitlements. Don't use for: inject dylib (use inject.*), UI control (use control.*). Example: launch → app launch bundle_id:com.xxx; install → app install path:/path/to.ipa. Subcommands: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps / install / uninstall / duplicate / diagnose / encrypt_info / entitlements / decrypt.",
         parameters: [
-            "command": "Subcommand: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps",
+            "command": "Subcommand: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps / install / uninstall / duplicate / diagnose / encrypt_info / entitlements / decrypt",
             "bundle_id": "App bundle ID (e.g. com.xingin.discover)",
+            "path": "IPA file path (for install)",
             "duration": "Duration seconds (for stats)",
             "text": "Text to input (for open_and_input)"
         ],
@@ -587,9 +588,51 @@ final class AppExecTool: MCPTool {
                 throw MCPError.invalidParams("bundle_id required")
             }
             return try AppDepsTool().invoke(["bundle_id": bundleId])
-            
+
+        case "install":
+            guard let path = params["path"] as? String else {
+                throw MCPError.invalidParams("path required (IPA file path)")
+            }
+            return try AppInstallTool().invoke(["path": path])
+
+        case "uninstall":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try AppUninstallTool().invoke(["bundle_id": bundleId])
+
+        case "duplicate":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try AppDuplicateTool().invoke(["bundle_id": bundleId])
+
+        case "diagnose":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try AppDiagnoseTool().invoke(["bundle_id": bundleId])
+
+        case "encrypt_info":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try AppEncryptInfoTool().invoke(["bundle_id": bundleId])
+
+        case "entitlements":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try AppEntitlementsTool().invoke(["bundle_id": bundleId])
+
+        case "decrypt":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try AppDecryptTool().invoke(["bundle_id": bundleId])
+
         default:
-            throw MCPError.invalidParams("Unknown command: \(command). Available: launch/stop/restart/status/stats/cache_inspect/cache_clear/open_and_input/deps")
+            throw MCPError.invalidParams("Unknown command: \(command). Available: launch/stop/restart/status/stats/cache_inspect/cache_clear/open_and_input/deps/install/uninstall/duplicate/diagnose/encrypt_info/entitlements/decrypt")
         }
     }
 }
