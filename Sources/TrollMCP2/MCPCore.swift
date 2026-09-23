@@ -1217,24 +1217,14 @@ public final class ToolRegistry: ObservableObject {
         register(ToolSearchTool())   // v2.9.16：渐进式披露元工具
         register(ClipboardReadTool())   // v2.9.108：剪贴板读取（ios-mcp 借鉴）
         register(ClipboardWriteTool())  // v2.9.108：剪贴板写入（ios-mcp 借鉴）
-        // v3.1.31: 刚才想删 fs.* 工具改用 shell，结果发现 shell 是 Alpine Linux 环境
-        // 根本访问不到 iOS 文件系统！所以又加回来了
-        // 保留所有 fs.* 工具，shell 只能在 Alpine 里跑，访问不到 iOS
-        register(FSTreeTool())
-        register(FSReadTool())
-        register(FSHexdumpTool())
+        // v3.1.31: 之前 shell 是 Alpine，访问不到 iOS 文件系统，所以 fs.* 工具加回来了
+        // v3.1.46: 现在 shell.exec 已经做了 iOS 原生命令，可以访问 iOS 文件系统了！
+        // 删掉 12 个 fs.* 工具（shell.exec 可以实现）
+        // 已删：FSTreeTool / FSReadTool / FSHexdumpTool / FSSQLTool / FSGrepTool
+        // 已删：FSWriteTool / FSEditTool / FSDiffTool / FSHashTool / FSFindTool
+        // 已删：FSDownloadTool / FSPropertyListTool
+        // 保留：FSZipTool（需要 ZIP 库） / FSImageInfoTool（需要图片解析）
         register(FSZipTool())
-        register(FSSQLTool())
-        register(FSGrepTool())
-        register(FSWriteTool())
-        register(FSEditTool())
-        register(FSDiffTool())
-        register(FSHashTool())
-        register(FSFindTool())
-        register(FSDownloadTool())
-        register(FSPropertyListTool())
-        // v3.1.33: 删 FSContainerTool（用 shell ls 代替）
-        // v3.1.33: 删 FSCrashTool（用 shell cat 代替）
         register(FSImageInfoTool())
 
         // v2.9.139：AI 控制任意 App（HID 触摸注入 + 进度横幅 + 控制会话）
