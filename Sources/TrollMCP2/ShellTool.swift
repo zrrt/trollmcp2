@@ -79,6 +79,15 @@ final class ShellExecTool: MCPTool {
         // 这样就能访问整个 iOS 文件系统了！
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
         
+        // v3.1.33: shell 语法识别——含管道/分号/重定向/逻辑符的命令不再裸前缀匹配（iOS 原生朴素分词会把 | ; 当参数），
+        // 统一走 iOS 原生管道执行器：首段 iOS 原生执行 + Swift 过滤器 + 顺序拼接。
+        // 这修复了"同一命令有时跑 iOS 有时跑 Alpine、结果随机"的病根。
+        if ShellExecTool.containsShellSyntax(trimmed) {
+            let result = ShellExecTool.runIOSPipeline(trimmed)
+            AuditLog.shared.log("shell.exec (ios pipeline)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
         // 1. ls 命令——iOS 原生实现
         if trimmed.hasPrefix("ls ") || trimmed == "ls" {
             let result = ShellExecTool.runIOSls(trimmed)
@@ -357,6 +366,502 @@ final class ShellExecTool: MCPTool {
             result["hint"] = "命令超过 \(Int(timeout)) 秒未完成，已 SIGKILL 进程组回收。"
         }
         return result
+    }
+    
+    // MARK: - v3.1.33 shell 语法识别 + iOS 原生管道执行器
+    // 修复"同一命令路由随机（iOS vs Alpine）"和"iOS 原生不支持 | ; && >"两个根因：
+    // 含 shell 语法的命令统一在此处理：首段是 iOS 原生命令 → iOS 原生执行 + Swift 过滤器；
+    // 首段非 iOS 命令（python 等）→ 交给 Alpine 全功能 shell。路由从此确定。
+    
+    /// 检测命令是否含 shell 元字符（管道/分号/逻辑符/重定向/命令替换），跳过引号内内容
+    static func containsShellSyntax(_ command: String) -> Bool {
+        var inSingle = false
+        var inDouble = false
+        var chars = Array(command)
+        var i = 0
+        while i < chars.count {
+            let c = chars[i]
+            if c == "'" && !inDouble { inSingle.toggle() }
+            else if c == "\"" && !inSingle { inDouble.toggle() }
+            else if !inSingle && !inDouble {
+                switch c {
+                case "|", ";", "&", ">", "<", "`":
+                    return true
+                case "$":
+                    // $() 命令替换或 ${} 参数展开也算 shell 语法
+                    if i + 1 < chars.count, chars[i+1] == "(" || chars[i+1] == "{" { return true }
+                default:
+                    break
+                }
+            }
+            i += 1
+        }
+        return false
+    }
+    
+    /// 按管道/分号/逻辑符拆分命令（尊重引号），返回 [(命令段, 连接符)]，连接符: | ; && ||
+    private static func splitShellSegments(_ command: String) -> [(cmd: String, sep: String)] {
+        var segments: [(String, String)] = []
+        var current = ""
+        var inSingle = false
+        var inDouble = false
+        var chars = Array(command)
+        var i = 0
+        while i < chars.count {
+            let c = chars[i]
+            if c == "'" && !inDouble { inSingle.toggle(); current.append(c); i += 1; continue }
+            if c == "\"" && !inSingle { inDouble.toggle(); current.append(c); i += 1; continue }
+            if !inSingle && !inDouble {
+                if c == "|" {
+                    segments.append((current.trimmingCharacters(in: .whitespaces), "|"))
+                    current = ""
+                    i += 1
+                    continue
+                }
+                if c == ";" {
+                    segments.append((current.trimmingCharacters(in: .whitespaces), ";"))
+                    current = ""
+                    i += 1
+                    continue
+                }
+                if c == "&" && i + 1 < chars.count && chars[i+1] == "&" {
+                    segments.append((current.trimmingCharacters(in: .whitespaces), "&&"))
+                    current = ""
+                    i += 2
+                    continue
+                }
+                if c == "|" && i + 1 < chars.count && chars[i+1] == "|" {
+                    segments.append((current.trimmingCharacters(in: .whitespaces), "||"))
+                    current = ""
+                    i += 2
+                    continue
+                }
+            }
+            current.append(c)
+            i += 1
+        }
+        let last = current.trimmingCharacters(in: .whitespaces)
+        if !last.isEmpty || segments.isEmpty {
+            segments.append((last, ""))
+        }
+        return segments
+    }
+    
+    /// 提取命令首词（跳过引号），用于判断是否 iOS 原生命令
+    private static func firstWord(_ segment: String) -> String {
+        let t = segment.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty else { return "" }
+        var word = ""
+        for c in t {
+            if c == " " || c == "\t" { break }
+            if c == "'" || c == "\"" { continue }
+            word.append(c)
+        }
+        return word
+    }
+    
+    /// iOS 原生命令集合（36 个，与上方拦截清单一致）
+    private static let iosNativeCommands: Set<String> = [
+        "ls", "cat", "find", "grep", "echo", "mkdir", "rm", "mv", "cp",
+        "tail", "head", "sed", "pwd", "cd", "touch", "wc", "md5sum",
+        "sha256sum", "diff", "hexdump", "curl", "wget", "plutil", "sqlite3",
+        "unzip", "df", "free", "uname", "uptime", "hostname", "ps", "top",
+        "kill", "ifconfig", "netstat", "nslookup", "tar", "gzip", "gunzip"
+    ]
+    
+    /// 执行单段 iOS 原生命令（首段），返回 [String: Any]
+    private static func runIOSNativeSegment(_ segment: String) -> [String: Any] {
+        let trimmed = segment.trimmingCharacters(in: .whitespaces)
+        let word = firstWord(trimmed)
+        switch word {
+        case "ls": return runIOSls(trimmed)
+        case "cat": return runIOSCat(trimmed)
+        case "find": return runIOSFind(trimmed)
+        case "grep": return runIOSGrep(trimmed)
+        case "echo": return runIOSEcho(trimmed)
+        case "mkdir": return runIOSMkdir(trimmed)
+        case "rm": return runIOSRm(trimmed)
+        case "mv": return runIOSMv(trimmed)
+        case "cp": return runIOCp(trimmed)
+        case "tail": return runIOSTail(trimmed)
+        case "head": return runIOSHead(trimmed)
+        case "sed": return runIOSSed(trimmed)
+        case "pwd": return runIOSPwd(trimmed)
+        case "cd": return runIOSCd(trimmed)
+        case "touch": return runIOSTouch(trimmed)
+        case "wc": return runIOSWc(trimmed)
+        case "md5sum", "sha256sum": return runIOSHash(trimmed)
+        case "diff": return runIOSDiff(trimmed)
+        case "hexdump": return runIOSHexdump(trimmed)
+        case "curl", "wget": return runIOSDownload(trimmed)
+        case "plutil": return runIOSPlutil(trimmed)
+        case "sqlite3": return runIOSSqlite(trimmed)
+        case "unzip": return runIOSUnzip(trimmed)
+        case "df": return runIOSDf(trimmed)
+        case "free": return runIOSFree(trimmed)
+        case "uname": return runIOSUname(trimmed)
+        case "uptime": return runIOSUptime(trimmed)
+        case "hostname": return runIOSHostname(trimmed)
+        case "ps": return runIOSPs(trimmed)
+        case "top": return runIOSTop(trimmed)
+        case "kill": return runIOSKill(trimmed)
+        case "ifconfig": return runIOSIfconfig(trimmed)
+        case "netstat": return runIOSNetstat(trimmed)
+        case "nslookup": return runIOSNslookup(trimmed)
+        case "tar": return runIOStar(trimmed)
+        case "gzip", "gunzip": return runIOSGzip(trimmed)
+        default:
+            return [
+                "command": segment,
+                "exit_code": 1,
+                "stdout": "iOS 原生模式不支持该命令: \(word)（请用 Alpine 全功能 shell 或换用支持的 36 个 iOS 原生命令）",
+                "ios_native": true
+            ]
+        }
+    }
+    
+    /// 主执行器：处理整条含 shell 语法的命令
+    /// 结构：先按非管道分隔符（; && ||）切分成"链"，每条链内按 | 分生产段+过滤段；
+    /// 逐链执行：生产段输出 → 过滤段逐个过滤 → 追加到 stdoutChunks；&& / || 按上链 exit 短路。
+    static func runIOSPipeline(_ command: String) -> [String: Any] {
+        let segments = splitShellSegments(command)
+        guard !segments.isEmpty else {
+            return ["command": command, "exit_code": 1, "stdout": "空命令", "ios_native": true]
+        }
+        
+        // 切链：[(链内段列表, 本链进入前的分隔符)]
+        var chains: [(cmds: [String], enterSep: String)] = []
+        var currentChain: [String] = []
+        var currentEnterSep = ""
+        var prevSep = ""
+        for seg in segments {
+            let cmd = seg.cmd.trimmingCharacters(in: .whitespaces)
+            if cmd.isEmpty { continue }
+            currentChain.append(cmd)
+            currentEnterSep = prevSep
+            prevSep = seg.sep
+            if seg.sep != "|" {
+                chains.append((currentChain, currentEnterSep))
+                currentChain = []
+            }
+        }
+        if !currentChain.isEmpty { chains.append((currentChain, currentEnterSep)) }
+        
+        var stdoutChunks: [String] = []
+        var lastExit = 0
+        var anyIOS = false
+        
+        for chain in chains {
+            // && / || 短路：上一条链的 exit 决定本链是否执行
+            if chain.enterSep == "&&" && lastExit != 0 { continue }
+            if chain.enterSep == "||" && lastExit == 0 { continue }
+            
+            var text = ""
+            var exit = 0
+            for (cidx, c) in chain.cmds.enumerated() {
+                let word = firstWord(c)
+                let isIOSCmd = iosNativeCommands.contains(word)
+                if isIOSCmd { anyIOS = true }
+                let (body, redirect, append, outFile) = extractRedirect(c)
+                
+                if cidx == 0 {
+                    // 生产段：iOS 原生执行 或 Alpine
+                    var result: [String: Any]
+                    if isIOSCmd {
+                        result = runIOSNativeSegment(body)
+                        result["ios_native"] = true
+                    } else {
+                        let (output, outputExit, timedOut) = ISHEngine.exec(body, timeout: 30)
+                        var out = ShellExecTool.filterNoise(output)
+                        if out.count > 2000 { out = String(out.prefix(2000)) + "\n... (输出太长，已截断)" }
+                        result = [
+                            "command": body, "exit_code": outputExit, "stdout": out,
+                            "cwd": ISHEngine.cwd,
+                            "hint": "Alpine Linux 环境（复合命令中非 iOS 段）：全套命令支持"
+                        ]
+                        if timedOut { result["timed_out"] = true }
+                    }
+                    text = result["stdout"] as? String ?? ""
+                    exit = result["exit_code"] as? Int ?? 0
+                } else {
+                    // 过滤段：Swift 过滤器作用于前段输出
+                    text = applySwiftFilter(body, to: text)
+                }
+                
+                // 重定向（段内 > / >>）：写文件并把输出改为提示
+                if redirect {
+                    text = ShellExecTool.writeRedirected(text, append: append, outFile: outFile)
+                }
+            }
+            
+            stdoutChunks.append(text)
+            lastExit = exit
+        }
+        
+        let joined = stdoutChunks.joined(separator: "\n")
+        return [
+            "command": command,
+            "exit_code": lastExit,
+            "stdout": joined,
+            "ios_native": anyIOS,
+            "hint": anyIOS
+                ? "iOS 原生复合命令：支持管道/分号/重定向（Swift 过滤器 head/tail/grep/wc/sed/awk/sort/uniq/cut/tr）"
+                : "复合命令（含 Alpine 段）：管道/分号/重定向已正确解析"
+        ]
+    }
+    
+    /// 重定向写文件辅助：把输出写入目标文件（覆盖/追加），返回提示文本
+    private static func writeRedirected(_ out: String, append: Bool, outFile: String) -> String {
+        do {
+            if append {
+                if FileManager.default.fileExists(atPath: outFile) {
+                    let existing = try String(contentsOfFile: outFile, encoding: .utf8)
+                    try (existing + "\n" + out).write(toFile: outFile, atomically: true, encoding: .utf8)
+                } else {
+                    try out.write(toFile: outFile, atomically: true, encoding: .utf8)
+                }
+            } else {
+                try out.write(toFile: outFile, atomically: true, encoding: .utf8)
+            }
+            return "Written to \(outFile)"
+        } catch {
+            return "Error writing \(outFile): \(error.localizedDescription)"
+        }
+    }
+    
+    /// v3.1.33: iOS 原生 echo 命令——输出文本（支持 -n 不换行、引号剥离）
+    private static func runIOSEcho(_ command: String) -> [String: Any] {
+        var t = command
+        var newline = true
+        if t.hasPrefix("echo -n") { newline = false; t = String(t.dropFirst("echo -n".count)) }
+        else if t.hasPrefix("echo") { t = String(t.dropFirst("echo".count)) }
+        t = t.trimmingCharacters(in: .whitespaces)
+        // 剥离首尾成对引号
+        if t.count >= 2,
+           (t.first == "\"" && t.last == "\"") || (t.first == "'" && t.last == "'") {
+            t = String(t.dropFirst().dropLast())
+        }
+        return [
+            "command": command,
+            "exit_code": 0,
+            "stdout": newline ? t : t,
+            "ios_native": true,
+            "hint": "iOS 原生 echo"
+        ]
+    }
+    
+    /// 从段内提取重定向：cmd > file / cmd >> file（支持引号路径），返回 (主体, 是否重定向, 是否追加, 目标文件)
+    private static func extractRedirect(_ segment: String) -> (body: String, redirect: Bool, append: Bool, outFile: String) {
+        var inSingle = false
+        var inDouble = false
+        var chars = Array(segment)
+        var i = 0
+        var redirectIdx: Int? = nil
+        var isAppend = false
+        while i < chars.count {
+            let c = chars[i]
+            if c == "'" && !inDouble { inSingle.toggle(); i += 1; continue }
+            if c == "\"" && !inSingle { inDouble.toggle(); i += 1; continue }
+            if !inSingle && !inDouble && c == ">" {
+                if i + 1 < chars.count && chars[i+1] == ">" {
+                    isAppend = true
+                    redirectIdx = i
+                    i += 2
+                    continue
+                }
+                redirectIdx = i
+                i += 1
+                continue
+            }
+            i += 1
+        }
+        guard let idx = redirectIdx else {
+            return (segment, false, false, "")
+        }
+        let body = String(chars[0..<idx]).trimmingCharacters(in: .whitespaces)
+        var filePart = String(chars[(idx + (isAppend ? 2 : 1))..<chars.count]).trimmingCharacters(in: .whitespaces)
+        filePart = filePart.trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+        filePart = (filePart as NSString).expandingTildeInPath
+        return (body, true, isAppend, filePart)
+    }
+    
+    // MARK: - Swift 管道过滤器（iOS 原生管道右侧）
+    
+    /// 对 stdout 应用过滤器命令（head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/cat），返回过滤后文本
+    private static func applySwiftFilter(_ filterCmd: String, to input: String) -> String {
+        let parts = filterCmd.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        guard let word = parts.first else { return input }
+        var lines = input.components(separatedBy: .newlines)
+        if lines.last == "" { lines.removeLast() }
+        
+        switch word {
+        case "head":
+            var n = 10
+            if let idx = parts.firstIndex(of: "-n"), idx + 1 < parts.count, let v = Int(parts[idx+1]) { n = v }
+            return lines.prefix(n).joined(separator: "\n")
+        case "tail":
+            var n = 10
+            if let idx = parts.firstIndex(of: "-n"), idx + 1 < parts.count, let v = Int(parts[idx+1]) { n = v }
+            return lines.suffix(n).joined(separator: "\n")
+        case "grep":
+            var invert = false
+            var pattern = ""
+            for p in parts.dropFirst() {
+                if p == "-v" { invert = true; continue }
+                if p == "-i" { continue }
+                pattern = p.trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+                break
+            }
+            guard !pattern.isEmpty else { return input }
+            let matched = lines.filter { line in
+                let hit = line.range(of: pattern, options: .caseInsensitive) != nil
+                return invert ? !hit : hit
+            }
+            return matched.joined(separator: "\n")
+        case "wc":
+            let opts = Set(parts.dropFirst())
+            var result: [String] = []
+            if opts.contains("-l") || !opts.contains("-w") && !opts.contains("-c") {
+                result.append(String(lines.count))
+            }
+            if opts.contains("-w") {
+                let words = lines.reduce(0) { $0 + $1.components(separatedBy: .whitespaces).filter { !$0.isEmpty }.count }
+                result.append(String(words))
+            }
+            if opts.contains("-c") {
+                result.append(String(input.utf8.count))
+            }
+            return result.joined(separator: " ")
+        case "sed":
+            // 支持 sed 's/from/to/g'（简化）
+            if parts.count >= 2 {
+                let expr = parts[1].trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+                if expr.hasPrefix("s") {
+                    var e = expr
+                    if e.hasPrefix("s") { e.removeFirst() }
+                    // e 形如 /from/to/g 或 s/from/to/
+                    if e.hasPrefix("/") { e.removeFirst() }
+                    let comps = e.components(separatedBy: "/")
+                    if comps.count >= 2 {
+                        let from = comps[0]
+                        let to = comps.count >= 2 ? comps[1] : ""
+                        let global = comps.count > 2 && comps[2].contains("g")
+                        let replaced = lines.map { line -> String in
+                            if global {
+                                return line.replacingOccurrences(of: from, with: to)
+                            } else {
+                                guard let r = line.range(of: from) else { return line }
+                                return line.replacingCharacters(in: r, with: to)
+                            }
+                        }
+                        return replaced.joined(separator: "\n")
+                    }
+                }
+            }
+            return input
+        case "awk":
+            // 支持 awk '{print $1}' / $NF / $0（简化）
+            if parts.count >= 2 {
+                let prog = parts[1].trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+                if prog.contains("print") {
+                    var field: Int? = nil
+                    var isNF = false
+                    // 提取 $数字 或 $NF
+                    var scan = Array(prog)
+                    var k = 0
+                    while k < scan.count {
+                        if scan[k] == "$", k + 1 < scan.count {
+                            let next = scan[k+1]
+                            if next.isNumber {
+                                var num = ""
+                                var j = k + 1
+                                while j < scan.count, scan[j].isNumber { num.append(scan[j]); j += 1 }
+                                field = Int(num)
+                                k = j
+                                continue
+                            }
+                            if next == "N" && k + 2 < scan.count && scan[k+2] == "F" {
+                                isNF = true
+                            }
+                        }
+                        k += 1
+                    }
+                    let out = lines.map { line -> String in
+                        if isNF {
+                            let cols = line.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+                            return cols.last ?? ""
+                        }
+                        if let f = field {
+                            let cols = line.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+                            return f <= cols.count ? cols[f-1] : ""
+                        }
+                        return line
+                    }
+                    return out.joined(separator: "\n")
+                }
+            }
+            return input
+        case "sort":
+            return lines.sorted().joined(separator: "\n")
+        case "uniq":
+            var out: [String] = []
+            var prev: String? = nil
+            for line in lines {
+                if line != prev { out.append(line) }
+                prev = line
+            }
+            return out.joined(separator: "\n")
+        case "cut":
+            // cut -d' ' -f2 / cut -d: -f1 / cut -f1 / cut -c1-5（支持紧凑写法 -d: -f2）
+            var delim: Character = "\t"
+            var field = 0
+            var chars: (Int, Int)? = nil
+            for p in parts.dropFirst() {
+                if p.hasPrefix("-d") && p.count > 2 {
+                    delim = p.dropFirst(2).first ?? "\t"
+                } else if p.hasPrefix("-f") && p.count > 2, let v = Int(p.dropFirst(2)) {
+                    field = v
+                } else if p.hasPrefix("-c") && p.count > 2 {
+                    let spec = String(p.dropFirst(2))
+                    let cs = spec.components(separatedBy: "-")
+                    if cs.count == 2, let a = Int(cs[0]), let b = Int(cs[1]) {
+                        chars = (a, b)
+                    }
+                }
+            }
+            let out = lines.map { line -> String in
+                if let (a, b) = chars {
+                    let arr = Array(line)
+                    guard a >= 1, a <= arr.count else { return "" }
+                    let end = min(b, arr.count)
+                    return String(arr[a-1..<end])
+                }
+                if field > 0 {
+                    let cols = line.split(separator: delim, omittingEmptySubsequences: true)
+                    return field <= cols.count ? String(cols[field-1]) : ""
+                }
+                return line
+            }
+            return out.joined(separator: "\n")
+        case "tr":
+            if parts.count >= 3 {
+                let from = parts[1].trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+                let to = parts[2].trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+                var mapping: [Character: Character] = [:]
+                for (idx, c) in from.enumerated() {
+                    if idx < to.count { mapping[c] = to[to.index(to.startIndex, offsetBy: idx)] }
+                }
+                let mapped = input.map { c -> Character in mapping[c] ?? c }
+                return String(mapped)
+            }
+            return input
+        case "rev":
+            return lines.map { String($0.reversed()) }.joined(separator: "\n")
+        case "cat":
+            return input
+        default:
+            return "iOS 原生管道暂不支持过滤器: \(word)（可用 head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev）\n原输出:\n\(input)"
+        }
     }
     
     /// v3.1.32: iOS 原生 ls 命令——直接访问 iOS 文件系统
