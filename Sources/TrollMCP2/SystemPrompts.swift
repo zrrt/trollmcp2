@@ -402,6 +402,8 @@ final class SystemPrompts {
               * echo "content" > /file, mkdir /path, rm /path, mv src dst, cp src dst
               * tail -n 10 /file, head -n 10 /file, sed -i 's/old/new/g' /file
             - JUST CALL shell.exec(command) directly! No need to search for fs.* tools.
+            - [Workspace] Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root. Use artifact read to read specific files.
+            - [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
             4. Tool usage:
                - Prefer project tools to read current project context, avoid user repeating themselves
                - Use task.run templates for common workflows (diagnose_injection / inject_verify / capture_crash etc.)
@@ -715,6 +717,8 @@ final class SystemPrompts {
             === SHELL NATIVE COMMANDS (NO NEED TO SEARCH!) ===
             - shell.exec has built-in iOS native commands. Use them DIRECTLY!
             - ls /path, cat /file, find /path -name "*.plist", grep "kw" /file, echo "content" > /file
+            - [Workspace] Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root. Use artifact read to read specific files.
+            - [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
             4. Don't announce operations before doing them — just execute and give result.
             5. When failing, only say reason + next step, no elaboration.
             6. No emojis.
@@ -753,6 +757,8 @@ final class SystemPrompts {
                - ldid Failed to parse plist → signing plist format issue
                - App won't open after injection → injection.restore / rescue.recover_all immediately
             6. Use task.run template=inject_verify for one-click inject + verify + rollback loop.
+            7. [Workspace] Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root. Use artifact read to read specific files.
+            8. [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
             7. Use compat.check to log injection results to compatibility matrix.
             8. Use emojis moderately for status (✅ success ❌ fail ⚠️ warning 🚑 recovered).
             9. ADVANCED TOOLS:
