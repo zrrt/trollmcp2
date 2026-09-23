@@ -231,3 +231,85 @@ struct BrowserNavigateTool: MCPTool {
         return ["ok": true, "message": msg]
     }
 }
+
+// MARK: - v3.1.47: browser 大工具 + 子命令（合并 13 个 browser.* 工具）
+
+final class BrowserExecTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "browser",
+        summary: "Control built-in browser (navigate/screenshot/snapshot/click/type/scroll/wait). Use subcommand to specify action. Use for: open web pages, click buttons, fill forms. Don't use for: read app container files (use shell.exec). Example: navigate → browser navigate url:https://xxx.com; click → browser click idx:5. Subcommands: status / navigate / screenshot / snapshot / text / click / type / form_fields / fill_form / submit / scroll / wait / wait_for.",
+        parameters: [
+            "command": "Subcommand: status / navigate / screenshot / snapshot / text / click / type / form_fields / fill_form / submit / scroll / wait / wait_for",
+            "url": "URL (for navigate)",
+            "idx": "Element index (for click/type)",
+            "text": "Text to input (for type)",
+            "selector": "CSS selector (for wait_for)"
+        ],
+        verified: true, category: "browser")
+    
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let command = params["command"] as? String else {
+            throw MCPError.invalidParams("command required")
+        }
+        
+        AuditLog.shared.log("browser", detail: command)
+        
+        switch command {
+        case "status":
+            return try BrowserStatusTool().invoke([:])
+            
+        case "navigate":
+            var p: [String: Any] = [:]
+            if let url = params["url"] as? String { p["url"] = url }
+            return try BrowserNavigateTool().invoke(p)
+            
+        case "screenshot":
+            return try BrowserScreenshotTool().invoke([:])
+            
+        case "snapshot":
+            return try BrowserSnapshotTool().invoke([:])
+            
+        case "text":
+            return try BrowserTextTool().invoke([:])
+            
+        case "click":
+            guard let idx = params["idx"] as? Int else {
+                throw MCPError.invalidParams("idx required")
+            }
+            return try BrowserClickTool().invoke(["idx": idx])
+            
+        case "type":
+            guard let idx = params["idx"] as? Int else {
+                throw MCPError.invalidParams("idx required")
+            }
+            guard let text = params["text"] as? String else {
+                throw MCPError.invalidParams("text required")
+            }
+            return try BrowserTypeTool().invoke(["idx": idx, "text": text])
+            
+        case "form_fields":
+            return try BrowserFormFieldsTool().invoke([:])
+            
+        case "fill_form":
+            return try BrowserFillFormTool().invoke([:])
+            
+        case "submit":
+            return try BrowserSubmitTool().invoke([:])
+            
+        case "scroll":
+            return try BrowserScrollTool().invoke([:])
+            
+        case "wait":
+            return try BrowserWaitTool().invoke([:])
+            
+        case "wait_for":
+            guard let selector = params["selector"] as? String else {
+                throw MCPError.invalidParams("selector required")
+            }
+            return try BrowserWaitForTool().invoke(["selector": selector])
+            
+        default:
+            throw MCPError.invalidParams("Unknown command: \(command). Available: status/navigate/screenshot/snapshot/text/click/type/form_fields/fill_form/submit/scroll/wait/wait_for")
+        }
+    }
+}

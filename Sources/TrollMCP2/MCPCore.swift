@@ -1155,20 +1155,13 @@ public final class ToolRegistry: ObservableObject {
         register(ShellExecTool())   // v3.0.28：内置终端，执行 shell 命令
 
         // M5.5 内置浏览器（v2.9.37：AI 可控，蓝框高亮元素；v2.9.88：+wait/text/scroll/submit）
-        register(BrowserStatusTool())
-        // register(BrowserOpenTool())  // 合并到 browser.navigate（已支持 url 参数），重复
-        register(BrowserWaitTool())
-        register(BrowserSnapshotTool())
-        register(BrowserClickTool())
-        register(BrowserTypeTool())
-        register(BrowserSubmitTool())
-        register(BrowserTextTool())
-        register(BrowserScrollTool())
-        register(BrowserEvalTool())
-        // v2.9.130：表单整表填充 / 字段扫描 / 元素等待（对齐 Playwright fill + waitFor）
-        register(BrowserFormFieldsTool())
-        register(BrowserFillFormTool())
-        register(BrowserWaitForTool())
+        // v3.1.47: browser 大工具 + 子命令（合并 13 个 browser.* 工具）
+        register(BrowserExecTool())
+        // v3.1.47: 删旧的 13 个 browser.* 工具（已合并到 browser 大工具）
+        // 已删：BrowserStatusTool / BrowserNavigateTool / BrowserWaitTool / BrowserSnapshotTool
+        // 已删：BrowserClickTool / BrowserTypeTool / BrowserSubmitTool / BrowserTextTool
+        // 已删：BrowserScrollTool / BrowserEvalTool / BrowserFormFieldsTool
+        // 已删：BrowserFillFormTool / BrowserWaitForTool
         // v2.9.131：AI 安装/卸载 App（trollstorehelper 优先）——补全下载→安装→注入→控制链路
         register(AppInstallTool())
         register(AppUninstallTool())
