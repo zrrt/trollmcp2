@@ -255,7 +255,6 @@ final class TaskTemplateRunner {
         case performanceRegression = "perf_regression"
         case emergencyRecover = "emergency_recover"
         case networkProbe = "network_probe"
-        case newDevice = "new_device"
         case aiAnalyze = "ai_analyze"
         case crashTriage = "crash_triage"
     }
@@ -277,7 +276,6 @@ final class TaskTemplateRunner {
             ["id": "perf_regression", "name": "performance regression test", "desc": "launch -> sample 30s -> compare history -> output regression verdict"],
             ["id": "emergency_recover", "name": "紧急恢复", "desc": "扫描注入状态→恢复全部备份→Verify launch (App 打不开时的保命流程)"],
             ["id": "network_probe", "name": "抓包分析", "desc": "injected NetworkTweak→打开App采集→stop→Request list→Statistical analysis"],
-            ["id": "new_device", "name": "一键新机", "desc": "重置keychain+刷新广告符+设备伪装写入 (⚠️ 清空所有App登录态)"],
             ["id": "ai_analyze", "name": "AI分析App", "desc": "采集类结构→当前模型LLM生成hook方案→自动应用 (VIP/去广告/绕过检测)"],
             ["id": "crash_triage", "name": "闪退诊断", "desc": "启动诊断→崩溃分析→Log collection→给出原因与修复建议"]
         ]
@@ -522,17 +520,6 @@ final class TaskTemplateRunner {
                 steps.append(["step": "Statistical analysis", "success": true, "detail": "done"])
                 summary = "抓包done：\(reqCount) entries请求。\n" + ((anaResult["summary"] as? String) ?? "")
                 success = reqCount > 0
-            }
-
-        case .newDevice:
-            let ndTool = NewDeviceTool()
-            if let result = try? ndTool.invoke(options) {
-                steps.append(["step": "一键新机", "success": (result["status"] as? String) == "done",
-                              "detail": "see steps"])
-                summary = "已执行：keychain 重置 + 广告符刷新 + 伪装写入" + (((result["warnings"] as? [String])?.isEmpty) == false ? " (部分step 有警告，见报告)" : "")
-                success = true
-            } else {
-                summary = "一键新机执行failed"
             }
 
         case .aiAnalyze:

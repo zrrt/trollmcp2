@@ -1085,7 +1085,6 @@ final class SystemPrompts {
                - Step 6: memory freeze — lock the value so it doesn't change
                [DEVICE SPOOFING / NEW DEVICE]
                - device fake — spoof device info (IDFA / IDFV / Serial / WiFi MAC)
-               - automation new_device — one-click new device mode
                - device restore — restore original device info
                [WORKSPACE & DOWNLOADS]
                - Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root.
