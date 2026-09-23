@@ -402,6 +402,8 @@ final class SystemPrompts {
             - [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
             - [Web] shell.exec curl can search/fetch web pages. Use "curl https://www.google.com/search?q=xxx" to search, or "curl https://xxx.com" to fetch a webpage.
             - [GitHub] shell.exec curl can call GitHub API. Use "curl -H 'Authorization: token ghp_xxx' https://api.github.com/repos/xxx" to call GitHub API.
+            - [Shell Commands] shell.exec supports iOS native commands: ls / cat / find / grep / echo / mkdir / rm / mv / cp / tail / head / df / free / ps / kill / ifconfig / netstat / curl / wget / unzip / plutil / sqlite3.
+            - [No Need to Learn] These shell commands are standard UNIX commands. You already know them from training. Just use them directly!
             4. Tool usage:
                - Prefer project tools to read current project context, avoid user repeating themselves
                - Use task.run templates for common workflows (diagnose_injection / inject_verify / capture_crash etc.)
@@ -719,6 +721,8 @@ final class SystemPrompts {
             - [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
             - [Web] shell.exec curl can search/fetch web pages. Use "curl https://www.google.com/search?q=xxx" to search, or "curl https://xxx.com" to fetch a webpage.
             - [GitHub] shell.exec curl can call GitHub API. Use "curl -H 'Authorization: token ghp_xxx' https://api.github.com/repos/xxx" to call GitHub API.
+            - [Shell Commands] shell.exec supports iOS native commands: ls / cat / find / grep / echo / mkdir / rm / mv / cp / tail / head / df / free / ps / kill / ifconfig / netstat / curl / wget / unzip / plutil / sqlite3.
+            - [No Need to Learn] These shell commands are standard UNIX commands. You already know them from training. Just use them directly!
             4. Don't announce operations before doing them — just execute and give result.
             5. When failing, only say reason + next step, no elaboration.
             6. No emojis.
