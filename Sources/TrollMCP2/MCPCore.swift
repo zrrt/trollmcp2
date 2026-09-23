@@ -1103,9 +1103,10 @@ public final class ToolRegistry: ObservableObject {
         // 已删：AppStartTool / AppStopTool / AppRestartTool / AppStatusTool / AppStatsTool
         register(TestRunTool())
 
-        // v2.9.71：自动诊断 + 本地 HTTP 服务
-        register(DiagnoseStartupTool())
-        // v3.1.33: 删 DiagnoseCrashTool（用 shell cat 代替）
+        // v3.1.42: diagnose 大工具 + 子命令（合并 2 个 diagnose.* 工具）
+        register(DiagnoseExecTool())
+        // v3.1.42: 删旧的 2 个 diagnose.* 工具（已合并到 diagnose 大工具）
+        // 已删：DiagnoseStartupTool / InjectionDiagnoseTool
         // v3.1.36: server 大工具 + 子命令（合并 3 个 server.* 工具）
         register(ServerExecTool())
         // v3.1.36: 删旧的 3 个 server.* 工具（已合并到 server 大工具）

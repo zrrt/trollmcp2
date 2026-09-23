@@ -466,3 +466,41 @@ final class ContainerExecTool: MCPTool {
         }
     }
 }
+
+// MARK: - v3.1.42: diagnose 大工具 + 子命令（合并 2 个 diagnose.* 工具）
+
+final class DiagnoseExecTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "diagnose",
+        summary: "Diagnose app/injection issues (startup/injection). Use subcommand to specify action. Use for: diagnose why app won't launch, why injection failed. Don't use for: fix issues (use inject.*), restart app (use app restart). Example: startup → diagnose startup bundle_id:com.xxx; injection → diagnose injection bundle_id:com.xxx. Subcommands: startup / injection.",
+        parameters: [
+            "command": "Subcommand: startup / injection",
+            "bundle_id": "App bundle ID"
+        ],
+        verified: true, category: "diagnose")
+    
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let command = params["command"] as? String else {
+            throw MCPError.invalidParams("command required")
+        }
+        
+        AuditLog.shared.log("diagnose", detail: command)
+        
+        switch command {
+        case "startup":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try DiagnoseStartupTool().invoke(["bundle_id": bundleId])
+            
+        case "injection":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try InjectionDiagnoseTool().invoke(["bundle_id": bundleId])
+            
+        default:
+            throw MCPError.invalidParams("Unknown command: \(command). Available: startup/injection")
+        }
+    }
+}
