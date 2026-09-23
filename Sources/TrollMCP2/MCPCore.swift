@@ -1195,8 +1195,8 @@ public final class ToolRegistry: ObservableObject {
         register(ReminderScheduleTool())
         register(ReminderScheduleRecurringTool())
         register(DeviceSnapshotTool())
-        register(WebSearchTool())
-        register(WebFetchTool())   // v2.9.79：网页抓取（搜索后读原文）
+        // v3.1.54: 删 WebSearchTool / WebFetchTool（shell.exec curl 可以实现）
+        // 已删：WebSearchTool / WebFetchTool
         // v3.1.50: knowledge 大工具 + 子命令（合并 4 个 knowledge.* 工具）
         register(KnowledgeExecTool())
         // v3.1.50: 删旧的 4 个 knowledge.* 工具（已合并到 knowledge 大工具）

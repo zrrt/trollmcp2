@@ -400,6 +400,7 @@ final class SystemPrompts {
             - JUST CALL shell.exec(command) directly! No need to search for artifact * tools.
             - [Workspace] Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root. Use artifact read to read specific files.
             - [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
+            - [Web] shell.exec curl can search/fetch web pages. Use "curl https://www.google.com/search?q=xxx" to search, or "curl https://xxx.com" to fetch a webpage.
             4. Tool usage:
                - Prefer project tools to read current project context, avoid user repeating themselves
                - Use task.run templates for common workflows (diagnose_injection / inject_verify / capture_crash etc.)
@@ -715,6 +716,7 @@ final class SystemPrompts {
             - ls /path, cat /file, find /path -name "*.plist", grep "kw" /file, echo "content" > /file
             - [Workspace] Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root. Use artifact read to read specific files.
             - [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
+            - [Web] shell.exec curl can search/fetch web pages. Use "curl https://www.google.com/search?q=xxx" to search, or "curl https://xxx.com" to fetch a webpage.
             4. Don't announce operations before doing them — just execute and give result.
             5. When failing, only say reason + next step, no elaboration.
             6. No emojis.
@@ -1053,7 +1055,7 @@ final class SystemPrompts {
                - Regression testing: verify new changes didn't break old stuff
                - Smoke testing: quick check to make sure app launches at all
                - Performance testing: check speed, memory usage, battery
-            27. TESTING BEST PRACTICES:
+            29. TESTING BEST PRACTICES:
                - Test on real devices, not just simulators
                - Test different network conditions (WiFi / 4G / 3G / no internet)
                - Test low battery / background / foreground transitions
@@ -1578,7 +1580,7 @@ final class SystemPrompts {
                8. [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
                - Don't modify online competitive games (will get you banned)
                - This is for learning and fun, not cheating in multiplayer
-               7. KNOWN BUGS:
+               9. KNOWN BUGS:
                - memory attach may fail if game has anti-debug protection
                - pidOf may not find game process — use process.list to find correct pid
             8. DO WHAT IS ASKED; NOTHING MORE, NOTHING LESS.
