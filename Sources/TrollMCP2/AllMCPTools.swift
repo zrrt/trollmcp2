@@ -1129,10 +1129,11 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
 final class InjectionExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "inject",
-        summary: "Manage dylib injection (enable/disable/status/list/remove/restore/mem). Use subcommand to specify action. Use for: inject/remove dylib into apps, check injection status. Don't use for: launch app (use app launch), UI control (use control). Example: enable → inject enable bundle_id:com.xxx; status → inject status; list → inject list query:小红书. Subcommands: enable / disable / static / enable_persisted / status / inspect / list / remove / restore / mem.",
+        summary: "Manage dylib injection & reverse engineering (enable/disable/status/list/remove/restore/mem/diagnose/verify/ipa_inspect/dylib_inspect/binary_symbols/hook_apply/probe_inspect/plugin_list/keychain_wipe/load_dylib). Use subcommand to specify action. Use for: inject/remove dylib, check injection status, inspect IPA/dylib/binary, apply hooks, wipe keychain. Don't use for: launch app (use app launch), UI control (use control). Example: enable → inject enable bundle_id:com.xxx; status → inject status; list → inject list query:小红书. Subcommands: enable / disable / static / enable_persisted / status / inspect / list / remove / restore / mem / diagnose / verify / ipa_inspect / dylib_inspect / binary_symbols / hook_apply / probe_inspect / plugin_list / keychain_wipe / load_dylib.",
         parameters: [
-            "command": "Subcommand: enable / disable / static / enable_persisted / status / inspect / list",
+            "command": "Subcommand: enable / disable / static / enable_persisted / status / inspect / list / remove / restore / mem / diagnose / verify / ipa_inspect / dylib_inspect / binary_symbols / hook_apply / probe_inspect / plugin_list / keychain_wipe / load_dylib",
             "bundle_id": "App bundle ID",
+            "path": "File path (IPA/dylib/binary)",
             "dylib_path": "Dylib path (for enable)",
             "query": "Search query (for list)"
         ],
@@ -1203,9 +1204,66 @@ final class InjectionExecTool: MCPTool {
                 throw MCPError.invalidParams("bundle_id required")
             }
             return try InjectionMemTool().invoke(["bundle_id": bundleId])
-            
+
+        case "diagnose":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try InjectionDiagnoseTool().invoke(["bundle_id": bundleId])
+
+        case "verify":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try InjectionVerifyTool().invoke(["bundle_id": bundleId])
+
+        case "ipa_inspect":
+            guard let path = params["path"] as? String else {
+                throw MCPError.invalidParams("path required (IPA file path)")
+            }
+            return try IPAInspectTool().invoke(["path": path])
+
+        case "dylib_inspect":
+            guard let path = params["path"] as? String else {
+                throw MCPError.invalidParams("path required (dylib file path)")
+            }
+            return try DylibInspectTool().invoke(["path": path])
+
+        case "binary_symbols":
+            guard let path = params["path"] as? String else {
+                throw MCPError.invalidParams("path required (binary file path)")
+            }
+            return try BinarySymbolsTool().invoke(["path": path])
+
+        case "hook_apply":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try HookApplyTool().invoke(["bundle_id": bundleId])
+
+        case "probe_inspect":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try ProbeInspectTool().invoke(["bundle_id": bundleId])
+
+        case "plugin_list":
+            return try PluginTool().invoke([:])
+
+        case "keychain_wipe":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try KeychainWipeTool().invoke(["bundle_id": bundleId])
+
+        case "load_dylib":
+            guard let path = params["path"] as? String else {
+                throw MCPError.invalidParams("path required (dylib file path)")
+            }
+            return try ToolLoadDylibTool().invoke(["path": path])
+
         default:
-            throw MCPError.invalidParams("Unknown command: \(command). Available: enable/disable/static/enable_persisted/status/inspect/list/remove/restore/mem")
+            throw MCPError.invalidParams("Unknown command: \(command). Available: enable/disable/static/enable_persisted/status/inspect/list/remove/restore/mem/diagnose/verify/ipa_inspect/dylib_inspect/binary_symbols/hook_apply/probe_inspect/plugin_list/keychain_wipe/load_dylib")
         }
     }
 }

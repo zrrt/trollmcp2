@@ -1068,13 +1068,12 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.38: 删旧的 3 个 rescue.* 工具（已合并到 rescue 大工具）
         // 已删：RescueScanTool / RescueRecoverAllTool / RescueCleanupTool
         // v2.9.90：高级工具组（类探测/配置化 Hook/设备伪装）
-        register(ProbeInspectTool())
-        register(HookApplyTool())
+        // v3.1.60: 删 ProbeInspectTool / HookApplyTool（已合并到 inject 大工具）
         // v3.1.55: 删旧的 device 工具（已合并到 DeviceExecTool）
         // 已删：DeviceFakeTool / DeviceRestoreTool
         // v2.9.95：设备指纹 / 容器 / entitlements（对齐 Fuck 工具箱 + 绿盾式）
         // v3.1.59: 删 AppEntitlementsTool（已合并到 app 大工具：app entitlements）
-        register(KeychainWipeTool())
+        // v3.1.60: 删 KeychainWipeTool（已合并到 inject 大工具：inject keychain_wipe）
         register(AdvertisingTool())
         register(IdfvTool())
         // v3.1.41: container 大工具 + 子命令（合并 3 个 container.* 工具）
@@ -1094,9 +1093,7 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.59: 删 AppDecryptTool / AppReplaceDecryptedTool / AppEncryptInfoTool（已合并到 app 大工具）
 
         // v2.9.69：质量与诊断工具
-        register(IPAInspectTool())
-        register(DylibInspectTool())
-        register(InjectionDiagnoseTool())
+        // v3.1.60: 删 IPAInspectTool / DylibInspectTool / InjectionDiagnoseTool（已合并到 inject 大工具）
         // v3.1.33: 删 LogCollectTool（用 shell cat 代替）
         register(NetworkCaptureTool())
 
@@ -1118,8 +1115,7 @@ public final class ToolRegistry: ObservableObject {
         // v2.9.72：知识库 + 清理 + 符号 + 插件 + 兼容矩阵 + 崩溃复现
         register(KnowledgeBaseTool())
         // v3.1.33: 删 WorkspaceCleanupTool（用 shell rm 代替）
-        register(BinarySymbolsTool())
-        register(PluginTool())
+        // v3.1.60: 删 BinarySymbolsTool / PluginTool（已合并到 inject 大工具）
         register(CompatibilityTool())
         // v3.1.33: 删 CrashReproTool（用 shell 代替）
 
@@ -1167,7 +1163,7 @@ public final class ToolRegistry: ObservableObject {
         // v2.9.131：AI 安装/卸载 App（trollstorehelper 优先）——补全下载→安装→注入→控制链路
         // v3.1.59: 删 AppInstallTool / AppUninstallTool / AppDuplicateTool（已合并到 app 大工具）
         // v2.9.132：失败边界一条龙——注入健康检查 + 启动失败判因
-        register(InjectionVerifyTool())
+        // v3.1.60: 删 InjectionVerifyTool（已合并到 inject 大工具：inject verify）
         // v3.1.59: 删 AppDiagnoseTool（已合并到 app 大工具：app diagnose）
         // v3.1.55: 删 BrowserNavigateTool（已合并到 BrowserExecTool）
 
@@ -1256,7 +1252,7 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.56: 删 toolchain 工具（shell.exec 可以实现：which clang / apt-get install clang）
         // 已删：ToolchainStatusTool / ToolchainInstallTool / ToolchainUninstallTool
         // v3.0.71：AI 自我进化——加载外部 dylib 注册新工具
-        register(ToolLoadDylibTool())
+        // v3.1.60: 删 ToolLoadDylibTool（已合并到 inject 大工具：inject load_dylib）
         // v3.0.72：语义化 UI 操作 + OCR
         register(ControlTapTextTool())
         register(ControlTypeTextTool())
