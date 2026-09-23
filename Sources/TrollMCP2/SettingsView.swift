@@ -102,6 +102,7 @@ struct SettingsView: View {
             SettingsItem(title: "抓包 VPN",
                          subtitle: vpnActiveSubtitle(),
                          icon: "antenna.radiowaves.left.and.right", color: .tmCyan,
+                         destination: AnyView(VpnCaptureView()),
                          isOn: { VpnManager.shared.vpnActive },
                          onToggle: { on in
                              VpnManager.shared.toggleVpn { err in
@@ -111,8 +112,7 @@ struct SettingsView: View {
                                      }
                                  }
                              }
-                         },
-                         destination: AnyView(VpnCaptureView())),
+                         }),
             SettingsItem(title: L10n.t("row_netlog"),
                          subtitle: NetworkLog.lastCompatNote ?? "中转站自适应降级记录",
                          icon: "network", color: .orange,
