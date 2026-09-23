@@ -157,6 +157,11 @@ struct SettingsView: View {
                              subtitle: devInstructionsSubtitle(),
                              icon: "doc.text.magnifyingglass", color: .orange,
                              destination: AnyView(DeveloperInstructionsView())),
+                // v3.3.0：MITM 抓包 VPN/代理（系统级抓包，覆盖自研栈 App）
+                SettingsItem(title: "抓包 VPN",
+                             subtitle: "MITM 代理 · 证书 · 抓小红书/抖音等自研栈",
+                             icon: "antenna.radiowaves.left.and.right", color: .tmCyan,
+                             destination: AnyView(VpnCaptureView())),
                 SettingsItem(title: L10n.t("row_tool_policy"),
                              subtitle: "工具权限 · 系统权限 · 自动化",
                              icon: "lock.shield.fill", color: .green,
