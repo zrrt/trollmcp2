@@ -347,6 +347,10 @@ final class OpenAIClient {
         // 级别 4（最小载荷）不带该字段——若中转连这个字段都不认，还有最后一级兜底。
         if config.isReasoningModel {
             body["reasoning_effort"] = reasoningEffortName()
+            // v3.1.33：思考语言强制中文——reasoning_content 直接来自模型，模型默认英文思考，
+            // 通过 instructions（Responses API 官方字段）要求用简体中文思考；chat/completions 中转
+            // 不认识该字段会忽略（不影响请求）。
+            body["instructions"] = "你的思考过程（reasoning/thinking）请始终使用简体中文输出。最终回复也使用简体中文，除非用户明确要求其他语言。"
         }
         if let tools = tools, !tools.isEmpty {
             if level < 3 {
@@ -445,7 +449,21 @@ final class OpenAIClient {
             }
             // v3.1.25：同时读取 reasoning_content 存到 thinking（之前被完全忽略了）
             let thinking = (message["reasoning_content"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let hasThinking = (thinking != nil && !thinking!.isEmpty)
+            // v3.1.33：去重——部分中转/模型把完整回答写进 reasoning_content，与 content 完全相同
+            // （表现：思考内容和发送内容一模一样）。此时丢弃 thinking，避免重复展示。
+            var hasThinking = (thinking != nil && !thinking!.isEmpty)
+            if hasThinking {
+                let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                let t = thinking!
+                if !trimmedText.isEmpty && (trimmedText == t || t.contains(trimmedText) || trimmedText.contains(t)) {
+                    hasThinking = false
+                }
+                // 正文为空但 thinking 是完整回答（模型把回答全放 reasoning）→ 转成正文
+                if trimmedText.isEmpty, t.count > 40 {
+                    text = t
+                    hasThinking = false
+                }
+            }
             if !text.isEmpty || hasThinking {
                 return .text(text, thinking: hasThinking ? thinking : nil)
             }
@@ -1117,7 +1135,17 @@ final class OpenAIClient {
                 if !calls.isEmpty {
                     guardedCompletion(.success(.toolCalls(calls, thinking: nil)))
                 } else {
-                    let th = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
+                    var th = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
+                    // v3.1.33：去重——reasoning 与正文相同时不展示思考
+                    let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !th.isEmpty, !trimmedText.isEmpty, (trimmedText == th || th.contains(trimmedText) || trimmedText.contains(th)) {
+                        th = ""
+                    }
+                    // 正文为空但 thinking 是完整回答 → 转成正文
+                    if th.isEmpty, trimmedText.isEmpty, !thinking.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                       thinking.trimmingCharacters(in: .whitespacesAndNewlines).count > 40 {
+                        text = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
                     // v2.9.127：非流式兜底——整段思考一次性推送（降级场景也能显示思考）
                     if !th.isEmpty {
                         let whole = th
@@ -1140,7 +1168,12 @@ final class OpenAIClient {
             if !toolCalls.isEmpty {
                 guardedCompletion(.success(.toolCalls(toolCalls, thinking: nil)))
             } else {
-                let th = fullThinking.trimmingCharacters(in: .whitespacesAndNewlines)
+                var th = fullThinking.trimmingCharacters(in: .whitespacesAndNewlines)
+                // v3.1.33：去重——思考与正文相同时不展示
+                let trimmedText = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !th.isEmpty, !trimmedText.isEmpty, (trimmedText == th || th.contains(trimmedText) || trimmedText.contains(th)) {
+                    th = ""
+                }
                 guardedCompletion(.success(.text(fullText, thinking: th.isEmpty ? nil : th)))
             }
         }
