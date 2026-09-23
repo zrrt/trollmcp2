@@ -35,7 +35,7 @@ final class VpnManager {
                 completion("load failed: \(e.localizedDescription)")
                 return
             }
-            let proto = NEVPNProtocol()
+            let proto = NETunnelProviderProtocol()
             proto.serverAddress = "trollagent-mitm"
             proto.username = "trollagent"
             proto.providerBundleIdentifier = "com.trollagent.app.VpnTunnel"
