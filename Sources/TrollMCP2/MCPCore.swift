@@ -1240,8 +1240,11 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.46: 删 6 个 bridge.* 工具（shell.exec 可以实现）
         // 已删：BridgeContainerTool / BridgeLsTool / BridgeReadTool
         // 已删：BridgeCopyTool / BridgeExportTool / BridgeImportTool
-        register(DebugDumpConversationsTool())
-        register(DebugDumpConversationTool())
+        // v3.1.53: debug 大工具 + 子命令（合并 4 个 debug.* 工具）
+        register(DebugExecTool())
+        // v3.1.53: 删旧的 4 个 debug.* 工具（已合并到 debug 大工具）
+        // 已删：DebugDumpConversationsTool / DebugDumpConversationTool
+        // 已删：DebugDumpModelConfigsTool / DebugDumpNetworkLogTool
         register(ChatSendTool())
         register(ChatReplyTool())
         // v3.1.49: model 大工具 + 子命令（合并 6 个 model.* 工具）

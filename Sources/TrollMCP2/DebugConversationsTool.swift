@@ -225,3 +225,44 @@ final class DebugDumpModelConfigsTool: MCPTool {
         ]
     }
 }
+
+// MARK: - v3.1.53: debug 大工具 + 子命令（合并 4 个 debug.* 工具）
+
+final class DebugExecTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "debug",
+        summary: "Debug tools (dump_conversations/dump_conversation/dump_model_configs/dump_network_log). Use subcommand to specify action. Use for: debug AI issues, check model config, check network log. Don't use for: normal tasks. Example: dump_conversations → debug dump_conversations. Subcommands: dump_conversations / dump_conversation / dump_model_configs / dump_network_log.",
+        parameters: [
+            "command": "Subcommand: dump_conversations / dump_conversation / dump_model_configs / dump_network_log",
+            "id": "Conversation ID (for dump_conversation)"
+        ],
+        verified: true, category: "debug")
+    
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let command = params["command"] as? String else {
+            throw MCPError.invalidParams("command required")
+        }
+        
+        AuditLog.shared.log("debug", detail: command)
+        
+        switch command {
+        case "dump_conversations":
+            return try DebugDumpConversationsTool().invoke([:])
+            
+        case "dump_conversation":
+            guard let id = params["id"] as? String else {
+                throw MCPError.invalidParams("id required")
+            }
+            return try DebugDumpConversationTool().invoke(["id": id])
+            
+        case "dump_model_configs":
+            return try DebugDumpModelConfigsTool().invoke([:])
+            
+        case "dump_network_log":
+            return try DebugDumpNetworkLogTool().invoke([:])
+            
+        default:
+            throw MCPError.invalidParams("Unknown command: \(command). Available: dump_conversations/dump_conversation/dump_model_configs/dump_network_log")
+        }
+    }
+}
