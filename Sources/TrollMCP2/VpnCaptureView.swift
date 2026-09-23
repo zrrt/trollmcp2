@@ -12,6 +12,42 @@ struct VpnCaptureView: View {
 
     var body: some View {
         List {
+            // 主开关（v3.3.2：类似系统设置里的大开关，一键开/关抓包）
+            Section {
+                HStack(spacing: 14) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color.tmCyan.opacity(0.15))
+                            .frame(width: 50, height: 50)
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundColor(.tmCyan)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("抓包 VPN")
+                            .font(.headline)
+                        Text(mainSwitchSubtitle())
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { vpnActive },
+                        set: { on in
+                            if on {
+                                connectVpn()
+                            } else {
+                                VpnManager.shared.stopVpn()
+                                VpnManager.shared.stopLocalProxy()
+                                refresh()
+                            }
+                        }))
+                    .labelsHidden()
+                    .tint(.tmCyan)
+                }
+                .padding(.vertical, 4)
+            }
+
             // 状态概览卡片（两行四块）
             Section {
                 VStack(spacing: 12) {
@@ -159,6 +195,18 @@ struct VpnCaptureView: View {
         case "connecting": return .orange
         default: return .gray
         }
+    }
+
+    /// v3.3.2：主开关状态与副标题
+    private var vpnActive: Bool {
+        vpnStatusText == "connected" || vpnStatusText == "connecting" || localProxyOn
+    }
+
+    private func mainSwitchSubtitle() -> String {
+        if vpnStatusText == "connected" { return "已连接 · 系统流量走 MITM 代理" }
+        if vpnStatusText == "connecting" { return "正在连接…" }
+        if localProxyOn { return "本地代理运行中 · WiFi 手动代理生效" }
+        return "未运行 · 打开后自动抓取 HTTPS 明文"
     }
 
     private func refresh() {

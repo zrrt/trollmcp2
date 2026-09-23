@@ -28,6 +28,8 @@ struct SettingsView: View {
     @State private var showLanguagePicker = false
     // v2.9.84：聊天框「在设置中管理模型」→ 打开设置并自动跳到模型 API 页
     @State private var jumpToModels = false
+    // v3.3.2：抓包 VPN 开关失败提示
+    @State private var vpnToggleError = ""
 
     var body: some View {
         // v2.9.247：GeometryReader 拿真实全屏尺寸——fullScreenCover+NavigationStack 组合下 List 高度被解析为内容高度(内容不满一屏时列表只占上半屏、下半空白),外层 frame 也无效;改用几何尺寸显式强制 List 与 NavigationStack 铺满全屏,所有机型一致
@@ -96,9 +98,20 @@ struct SettingsView: View {
 
         // 网络与抓包（v3.3.1：独立分组，不依赖开发者模式——普通用户也能直接看到抓包入口）
         groups.append(SettingsGroup(header: "网络与抓包", items: [
+            // v3.3.2：开关 + 点击进详情（Toggle 一键开/关，NavigationLink 进详情页）
             SettingsItem(title: "抓包 VPN",
-                         subtitle: "MITM 代理 · 证书 · 抓小红书/抖音等自研栈",
+                         subtitle: vpnActiveSubtitle(),
                          icon: "antenna.radiowaves.left.and.right", color: .tmCyan,
+                         isOn: { VpnManager.shared.vpnActive },
+                         onToggle: { on in
+                             VpnManager.shared.toggleVpn { err in
+                                 if let e = err {
+                                     DispatchQueue.main.async {
+                                         vpnToggleError = e
+                                     }
+                                 }
+                             }
+                         },
                          destination: AnyView(VpnCaptureView())),
             SettingsItem(title: L10n.t("row_netlog"),
                          subtitle: NetworkLog.lastCompatNote ?? "中转站自适应降级记录",
@@ -283,19 +296,33 @@ struct SettingsView: View {
                 } + [.cancel(Text(L10n.t("cancel")))]
             )
         }
+        .alert("抓包 VPN", isPresented: Binding(
+            get: { !vpnToggleError.isEmpty },
+            set: { if !$0 { vpnToggleError = "" } }
+        )) {
+            Button("好", role: .cancel) { vpnToggleError = "" }
+        } message: {
+            Text(vpnToggleError)
+        }
     }
 
     @ViewBuilder
     private func listRow(_ item: SettingsItem) -> some View {
-        if let dest = item.destination {
-            NavigationLink(destination: dest) {
-                SettingRowContent(item: item)
-            }
-        } else if let isOn = item.isOn, let onToggle = item.onToggle {
-            Toggle(isOn: Binding(get: isOn, set: onToggle)) {
+        // 开关优先：Toggle 项同时带 destination 时用 NavigationLink 包 Toggle（如抓包 VPN 开关）
+        if let isOn = item.isOn, let onToggle = item.onToggle {
+            let toggle = Toggle(isOn: Binding(get: isOn, set: onToggle)) {
                 SettingRowContent(item: item)
             }
             .accentColor(.tmCyan)
+            if let dest = item.destination {
+                NavigationLink(destination: dest) { toggle }
+            } else {
+                toggle
+            }
+        } else if let dest = item.destination {
+            NavigationLink(destination: dest) {
+                SettingRowContent(item: item)
+            }
         } else if let action = item.action {
             Button(action: action) {
                 SettingRowContent(item: item)
@@ -369,6 +396,11 @@ struct SettingsView: View {
 
     private func updateSubtitle() -> String {
         UpdateManager.shared.updateAvailable ? "发现新版本" : "已是最新"
+    }
+
+    // v3.3.2：抓包 VPN 开关副标题
+    private func vpnActiveSubtitle() -> String {
+        VpnManager.shared.vpnActive ? "运行中 · 点击右侧开关关闭" : "未运行 · 点击右侧开关开启"
     }
 }
 

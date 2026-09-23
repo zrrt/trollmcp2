@@ -21,6 +21,23 @@ final class VpnManager {
     var vpnStatus: NEVPNStatus { manager.connection.status }
     var vpnConfigured: Bool { manager.protocolConfiguration != nil }
 
+    /// v3.3.2：开关状态 = VPN 已连接/连接中 或 本地代理运行中
+    var vpnActive: Bool {
+        let s = manager.connection.status
+        return s == .connected || s == .connecting || localProxyRunning
+    }
+
+    /// v3.3.2：一键开/关（AI 的 vpn.capture start/stop 走同一底层；开关失败回调 err）
+    func toggleVpn(completion: @escaping (String?) -> Void = { _ in }) {
+        if vpnActive {
+            stopVpn()
+            stopLocalProxy()
+            completion(nil)
+        } else {
+            startVpn(completion: completion)
+        }
+    }
+
     func loadPreferences(completion: @escaping (Bool) -> Void) {
         manager.loadFromPreferences { err in
             completion(err == nil)
@@ -99,15 +116,16 @@ final class VpnManager {
             guard mitm_ca_export_der(MitmProxy.shared.certDir) == 0 else { return nil }
         }
         guard let der = try? Data(contentsOf: URL(fileURLWithPath: derPath)) else { return nil }
-        let b64 = der.base64EncodedString()
 
+        // ⚠️ PayloadContent 必须是 <data>（DER 二进制）类型，iOS 才认：
+        // 传 base64 字符串会输出 <string> 导致安装时报 "字段 PayloadContent 无效"。
         let certPayload: [String: Any] = [
             "PayloadType": "com.apple.security.root",
             "PayloadVersion": 1,
             "PayloadIdentifier": "com.trollagent.app.mitmca",
             "PayloadUUID": UUID().uuidString,
             "PayloadDisplayName": "TrollAgent MITM CA",
-            "PayloadContent": b64,
+            "PayloadContent": der,
             "PayloadCertificateFileName": "TrollAgentCA.der"
         ]
         let profile: [String: Any] = [
