@@ -957,39 +957,40 @@ final class ConversationStore: ObservableObject {
                     // v3.1.70：整条请求链（含工具递归）结束——解除活动会话绑定
                     self.activeConvId = nil
                 case .success(.toolCalls(let calls, let thinking)):
-                    // v2.9.322：保留流式文本作为工具调用思考说明
-                    var thinkText = ""
+                    // v3.1.72：思考(reasoning)与可见输出(content)分开存放——
+                    // 旧逻辑把流式可见文本+思考合并成 thinkText 塞进 assistant.content，
+                    // 又把同一 thinkText 塞进 tool 消息 thinking，导致 UI 上"回复内容"和
+                    // "思考内容"显示一模一样、每轮工具调用重复一次（用户实测反馈）。
+                    var visibleText = ""
+                    var reasoningText = self.thinkBuffer
+                    if let th = thinking, !th.isEmpty {
+                        reasoningText = reasoningText.isEmpty ? th : "\(reasoningText)\n\(th)"
+                    }
                     if let sid = self.streamingMessageId,
                        let ci = self.activeConvIndex,
                        let mi = self.conversations[ci].messages.firstIndex(where: { $0.id == sid }) {
-                        thinkText = self.conversations[ci].messages[mi].content
-                        self.conversations[ci].messages.remove(at: mi)
-                    }
-                    // v3.0.3：把 onThinking 累积的思考内容也加进去（DeepSeek 等模型的 reasoning 在 thinking 字段）
-                    if !self.thinkBuffer.isEmpty {
-                        thinkText = thinkText.isEmpty ? self.thinkBuffer : "\(self.thinkBuffer)\n\(thinkText)"
-                    }
-                    // v3.0.28：把 toolCalls 枚举里带的 thinking 也加进去
-                    if let th = thinking, !th.isEmpty {
-                        thinkText = thinkText.isEmpty ? th : "\(th)\n\(thinkText)"
+                        // 保留流式可见文本作为回复内容，思考进 thinking 字段，toolCalls 挂上（不删除重建）
+                        visibleText = self.conversations[ci].messages[mi].content
+                        self.conversations[ci].messages[mi].toolCalls = calls
+                        if !reasoningText.isEmpty {
+                            self.conversations[ci].messages[mi].thinking = reasoningText
+                        }
+                    } else {
+                        // 无流式消息（流式未开始就被 toolCalls 打断）：新建 assistant 消息
+                        var am = ChatMessage(role: "assistant", content: visibleText, toolCalls: calls)
+                        if !reasoningText.isEmpty { am.thinking = reasoningText }
+                        self.appendToCurrent(am)
                     }
                     self.thinkBuffer = "" // 重置缓冲区
                     self.streamingMessageId = nil
-                    // v3.0.2e：assistant 消息只保留思考内容，不要"调用工具 xxx"（避免和 toolBubble 重复）
-                    // "调用工具 xxx" 已经在 toolBubble 里显示了
-                    if !thinkText.isEmpty {
-                        self.appendToCurrent(ChatMessage(role: "assistant", content: thinkText, toolCalls: calls))
-                    } else {
-                        // 没有思考内容就不显示 assistant 消息，直接进 toolBubble
-                        self.appendToCurrent(ChatMessage(role: "assistant", content: "", toolCalls: calls))
-                    }
                     // v2.9.127：轨迹——AI 决定调用一批工具
                     self.trailStep(.done(.tool, "AI 选择调用 \(calls.count) 个工具",
                                          detail: calls.map { $0.name }.joined(separator: "、")))
                     // v2.9.31：递归处理一批工具调用（后台执行，无授权弹窗）
+                    // v3.1.72：thinkText 传可见文本（工具调用前的说明），不再写入 tool 消息 thinking
                     self.processToolCalls(calls, index: 0, toolMessages: [], newlyDisclosed: [],
                                           config: config, tools: tools, disclosed: disclosed, depth: depth,
-                                          reasoningLevel: reasoningLevel, thinkText: thinkText)
+                                          reasoningLevel: reasoningLevel, thinkText: visibleText)
                 case .failure(let error):
                     self.isLoading = false
                     self.currentClient = nil
@@ -1126,8 +1127,8 @@ final class ConversationStore: ObservableObject {
             var toolMsg = ChatMessage(role: "tool", content: content, toolCallId: call.id, toolName: call.name)
             // v3.1.26：存参数摘要，UI 里用特殊颜色显示
             toolMsg.toolArgs = Self.summarizeArgs(call.arguments)
-            // v3.0.2：把思考说明传到 tool 消息里，前端在 toolBubble 顶部显示
-            if !thinkText.isEmpty { toolMsg.thinking = thinkText }
+            // v3.1.72：不再写 toolMsg.thinking——思考已在 assistant 消息的 thinking 字段显示一次，
+            // 旧逻辑把同一文本又塞进 tool 消息导致"回复内容和思考内容一模一样"（用户实测反馈）
             next.append(toolMsg)
             // v2.9.127：轨迹——工具执行成功（结果摘要 200 字符，完整结果在 tool 消息里）
             self.trailStep(.done(.result, call.name,
@@ -1150,7 +1151,7 @@ final class ConversationStore: ObservableObject {
             }
             let content = Self.jsonString(failureBody)
             var failMsg = ChatMessage(role: "tool", content: content, isError: true, toolCallId: call.id, toolName: call.name)
-            if !thinkText.isEmpty { failMsg.thinking = thinkText }
+            // v3.1.72：不再写 failMsg.thinking（思考只在 assistant 消息显示一次，避免重复）
             next.append(failMsg)
             // v2.9.127：轨迹——工具执行失败（四分类错误摘要）
             self.trailStep(.done(.result, call.name,
@@ -1190,7 +1191,7 @@ final class ConversationStore: ObservableObject {
             ]
             var errMsg = ChatMessage(role: "tool", content: Self.jsonString(errBody),
                                     isError: true, toolCallId: call.id, toolName: call.name)
-            if !thinkText.isEmpty { errMsg.thinking = thinkText }
+            // v3.1.72：不再写 errMsg.thinking（思考只在 assistant 消息显示一次，避免重复）
             next.append(errMsg)
             self.trailStep(.done(.result, call.name,
                                  detail: "❌ \(err.localizedDescription.prefix(200))",
