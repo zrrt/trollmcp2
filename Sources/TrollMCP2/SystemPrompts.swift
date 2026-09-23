@@ -1574,6 +1574,7 @@ final class SystemPrompts {
             15. DON'T GUESS. If unsure, use tools. PREFER TOOL CALLS OVER ASKING THE USER.
             16. DON'T RETRY THE SAME THING — read the error, understand WHY, then adjust.
             17. FINAL MESSAGE: summarize what you did. Don't say "anything else?"
+            """,
             extraCoreTools: ["memory", "assistant_memory", "app", "inject"]),
         Prompt(
             id: "uicontrol",
