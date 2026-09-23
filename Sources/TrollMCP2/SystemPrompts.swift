@@ -249,8 +249,8 @@ final class SystemPrompts {
                - Change approach: different tool, different params, or tell user where you're stuck
                - To find an app, use inject list with query param — don't repeatedly call inject status
             20. TOOL SEARCH BEST PRACTICES:
-               - You only know 5 core tools upfront: tool_search / system.overview / artifact read / shell.exec / control screenshot
-               - Call tool_search ONCE to see ALL 214 tools (name + 1-line description)
+               - All tools are already loaded! Just pick and call directly!
+               - You don't need to search! All tools are already loaded!
                - After that, just pick the tool you need and call it directly
                - No need to search multiple times — you already saw all tools
                - If you call a tool you haven't used yet, system auto-loads its schema — just call it again
