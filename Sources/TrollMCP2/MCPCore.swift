@@ -1037,12 +1037,8 @@ public final class ToolRegistry: ObservableObject {
         register(AssistantMemoryDeleteTool())
 
         // M2 应用与设备
-        register(AppCacheInspectTool())
-        register(AppCacheClearTool())
-        // register(AppOpenTool())  // 合并到 app.start（多级策略更可靠），重复
-        register(AppOpenAndInputTool())
-        register(AppDepsTool())
-        // register(WeChatPrepareMessageTool())  // 去掉，半自动粘贴没用
+        // v3.1.37: 删旧的 4 个 app.* 工具（已合并到 app 大工具）
+        // 已删：AppCacheInspectTool / AppCacheClearTool / AppOpenAndInputTool / AppDepsTool
 
         // v3.0.90：系统概览工具（AI 全局视角目录）
         register(SystemOverviewTool())

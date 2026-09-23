@@ -514,11 +514,12 @@ func findPid(by bundleId: String) -> Int32 {
 final class AppExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "app",
-        summary: "Manage apps (start/stop/restart/status/stats). Use subcommand to specify action. Use for: launch/close/restart/check apps. Don't use for: inject dylib (use injection.*), UI control (use control.*). Example: launch → app launch bundle_id:com.xxx; stop → app stop bundle_id:com.xxx; status → app status bundle_id:com.xxx. Subcommands: launch / stop / restart / status / stats.",
+        summary: "Manage apps (launch/stop/restart/status/stats/cache/deps). Use subcommand to specify action. Use for: manage apps, check cache, see dependencies. Don't use for: inject dylib (use inject.*), UI control (use control.*). Example: launch → app launch bundle_id:com.xxx; cache_inspect → app cache_inspect bundle_id:com.xxx. Subcommands: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps.",
         parameters: [
-            "command": "Subcommand: launch / stop / restart / status / stats",
+            "command": "Subcommand: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps",
             "bundle_id": "App bundle ID (e.g. com.xingin.discover)",
-            "duration": "Duration seconds (for stats)"
+            "duration": "Duration seconds (for stats)",
+            "text": "Text to input (for open_and_input)"
         ],
         verified: true, category: "app_control")
     
@@ -561,8 +562,34 @@ final class AppExecTool: MCPTool {
             let duration = (params["duration"] as? Double) ?? 5.0
             return try AppStatsTool().invoke(["bundle_id": bundleId, "duration": duration])
             
+        case "cache_inspect":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try AppCacheInspectTool().invoke(["bundle_id": bundleId])
+            
+        case "cache_clear":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try AppCacheClearTool().invoke(["bundle_id": bundleId])
+            
+        case "open_and_input":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            var p: [String: Any] = ["bundle_id": bundleId]
+            if let text = params["text"] as? String { p["text"] = text }
+            return try AppOpenAndInputTool().invoke(p)
+            
+        case "deps":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try AppDepsTool().invoke(["bundle_id": bundleId])
+            
         default:
-            throw MCPError.invalidParams("Unknown command: \(command). Available: launch/stop/restart/status/stats")
+            throw MCPError.invalidParams("Unknown command: \(command). Available: launch/stop/restart/status/stats/cache_inspect/cache_clear/open_and_input/deps")
         }
     }
 }
