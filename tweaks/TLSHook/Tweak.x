@@ -104,6 +104,5 @@ static void tlsHookInit() {
     binds[1].replacement = (void *)my_ssl_write;
     binds[1].replaced = (void **)&orig_ssl_write;
 
-    int r = rebind_symbols(binds, 2);
-    // r==0 成功；失败不致命，SSL 符号名在 iOS16 的 libboringssl 是公开导出的
+    rebind_symbols(binds, 2);
 }
