@@ -1106,6 +1106,8 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.33: 删 LogCollectTool（用 shell cat 代替）
         register(NetworkCaptureTool())
 
+        // v3.1.34: app 大工具 + 子命令（合并 5 个 app.* 工具）
+        register(AppExecTool())
         // v2.9.70：进程管理 + 测试编排器
         register(AppStartTool())
         register(AppStopTool())

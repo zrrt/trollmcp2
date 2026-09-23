@@ -508,3 +508,61 @@ func findPid(by bundleId: String) -> Int32 {
     }
     return 0
 }
+
+// MARK: - v3.1.34: app 大工具 + 子命令（合并 5 个 app.* 工具）
+
+final class AppExecTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "app",
+        summary: "Manage apps (start/stop/restart/status/stats). Use subcommand to specify action. Use for: launch/close/restart/check apps. Don't use for: inject dylib (use injection.*), UI control (use control.*). Example: launch → app launch bundle_id:com.xxx; stop → app stop bundle_id:com.xxx; status → app status bundle_id:com.xxx. Subcommands: launch / stop / restart / status / stats.",
+        parameters: [
+            "command": "Subcommand: launch / stop / restart / status / stats",
+            "bundle_id": "App bundle ID (e.g. com.xingin.discover)",
+            "duration": "Duration seconds (for stats)"
+        ],
+        verified: true, category: "app_control")
+    
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let command = params["command"] as? String else {
+            throw MCPError.invalidParams("command required")
+        }
+        
+        AuditLog.shared.log("app", detail: command)
+        
+        switch command {
+        case "launch":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try AppStartTool().invoke(["bundle_id": bundleId])
+            
+        case "stop":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try AppStopTool().invoke(["bundle_id": bundleId])
+            
+        case "restart":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try AppRestartTool().invoke(["bundle_id": bundleId])
+            
+        case "status":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try AppStatusTool().invoke(["bundle_id": bundleId])
+            
+        case "stats":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            let duration = (params["duration"] as? Double) ?? 5.0
+            return try AppStatsTool().invoke(["bundle_id": bundleId, "duration": duration])
+            
+        default:
+            throw MCPError.invalidParams("Unknown command: \(command). Available: launch/stop/restart/status/stats")
+        }
+    }
+}
