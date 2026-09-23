@@ -1045,7 +1045,7 @@ public final class ToolRegistry: ObservableObject {
         // 已删：AppCacheInspectTool / AppCacheClearTool / AppOpenAndInputTool / AppDepsTool
 
         // v3.0.90：系统概览工具（AI 全局视角目录）
-        register(SystemOverviewTool())
+        // v3.1.64: 删 SystemOverviewTool（用 shell.exec("uname -a") / shell.exec("df -h") / shell.exec("free") 代替）
         register(SystemLessonsTool())  // v3.0.90：AI 经验教训库
         register(TaskProgressTool())   // v3.0.90：任务进度跟踪
         register(VerifyInjectTool())   // v3.0.90：结果验证
@@ -1074,14 +1074,13 @@ public final class ToolRegistry: ObservableObject {
         // v2.9.95：设备指纹 / 容器 / entitlements（对齐 Fuck 工具箱 + 绿盾式）
         // v3.1.59: 删 AppEntitlementsTool（已合并到 app 大工具：app entitlements）
         // v3.1.60: 删 KeychainWipeTool（已合并到 inject 大工具：inject keychain_wipe）
-        register(AdvertisingTool())
-        register(IdfvTool())
+        // v3.1.62: 删 AdvertisingTool / IdfvTool（已合并到 DeviceExecTool）
         // v3.1.41: container 大工具 + 子命令（合并 3 个 container.* 工具）
         register(ContainerExecTool())
         // v3.1.41: 删旧的 3 个 container.* 工具（已合并到 container 大工具）
         // 已删：RefreshContainerTool / ContainerWriteTextTool / ContainerDeleteTool
         // v2.9.99：一键新机（绿盾式组合）
-        register(NewDeviceTool())
+        // v3.1.62: 删 NewDeviceTool（已合并到 DeviceExecTool：device new_device）
         // v2.9.100：AI 分析引擎
         // v3.1.59: 删 AiAnalyzeTool（已合并到 app 大工具：app ai_analyze）
 
@@ -1113,15 +1112,15 @@ public final class ToolRegistry: ObservableObject {
         // 已删：ServerStartTool / ServerStopTool / ServerStatusTool
 
         // v2.9.72：知识库 + 清理 + 符号 + 插件 + 兼容矩阵 + 崩溃复现
-        register(KnowledgeBaseTool())
+        // v3.1.63: 删 KnowledgeBaseTool（用 shell.exec 写文件/读文件/搜索文件代替）
         // v3.1.33: 删 WorkspaceCleanupTool（用 shell rm 代替）
         // v3.1.60: 删 BinarySymbolsTool / PluginTool（已合并到 inject 大工具）
-        register(CompatibilityTool())
+        // v3.1.63: 删 CompatibilityTool（用 shell.exec 写文件/读文件代替）
         // v3.1.33: 删 CrashReproTool（用 shell 代替）
 
         // v2.9.73：项目上下文 + 任务模板
         register(ProjectTool())
-        register(TaskTool())
+        // v3.1.63: 删 TaskTool（用 shell.exec 直接运行命令代替）
 
         // M4 Gateway + 自动化（含原版命名）
         // register(GatewayStatusTool())  // 和远程终端重复，去掉
@@ -1131,7 +1130,7 @@ public final class ToolRegistry: ObservableObject {
         // register(GatewayCronCreateTool())
         // register(GatewayCronRunTool())
         // register(GatewayCronCancelTool())
-        register(CronFireTool())
+        // v3.1.62: 删 CronFireTool（已合并到 AutomationExecTool：automation cron_fire）
         // v3.1.35: automation 大工具 + 子命令（合并 7 个 automation.* 工具）
         register(AutomationExecTool())
         // v3.1.35: 删旧的 7 个 automation.* 工具（已合并到 automation 大工具）
@@ -1139,8 +1138,8 @@ public final class ToolRegistry: ObservableObject {
         // 已删：AutomationStopTool / AutomationHistoryTool / AutomationSetEnabledTool / AutomationStatusTool
 
         // M5 系统能力
-        register(ContactsSearchTool())
-        register(CalendarExecTool())   // v3.1.57: 日历大工具（合并 list/create）
+        // v3.1.64: 删 ContactsSearchTool（用得少，隐私敏感，用系统电话 App 搜索联系人）
+        // v3.1.64: 删 CalendarExecTool（用得少，用系统日历 App）
         // v3.1.57: 删旧的日历工具（已合并到 CalendarExecTool）
         // 已删：CalendarListTool / CalendarCreateEventTool
         register(ReminderExecTool())   // v3.1.57: 提醒事项大工具（合并 create/schedule/recurring）
@@ -1148,7 +1147,7 @@ public final class ToolRegistry: ObservableObject {
         // 已删：ReminderCreateTool / ReminderScheduleTool / ReminderScheduleRecurring
         // v3.1.61: 删 LocationGetTool（已合并到 LocationExecTool：location get）
         register(NotificationSendTool())
-        register(ScanQRTool())
+        // v3.1.64: 删 ScanQRTool（AI 是文字对话，不能扫码）
         // v3.1.33: 删 ProcessListTool（用 shell ps 代替）
         register(ShellExecTool())   // v3.0.28：内置终端，执行 shell 命令
 
@@ -1169,7 +1168,7 @@ public final class ToolRegistry: ObservableObject {
 
         // M6 编译模式 + 模型配置 + 工作区输出（原版命名）
         // v3.1.56: 删 BuildRunnerTokenTool（shell.exec curl 可以实现）
-        register(ProjectGenerateTweakTool())
+        // v3.1.62: 删 ProjectGenerateTweakTool（已合并到 ProjectTool：project generate_tweak）
         // v3.1.55: 删旧的 model 工具（已合并到 ModelExecTool）
         // 已删：ModelConfigTool / ModelUpdateTool / ModelAuthenticationTool / ModelSelectedProfileIDTool
         // v3.1.62: 删 WorkspaceOutputBookmarkTool / WorkspaceOutputNameTool（已合并到 ArtifactExecTool）
@@ -1186,7 +1185,7 @@ public final class ToolRegistry: ObservableObject {
         // M7 补齐缺失设备端工具
         // v3.1.57: 删 CalendarCreateEventTool（已合并到 CalendarExecTool）
         // v3.1.57: 删 ReminderScheduleTool / ReminderScheduleRecurringTool（已合并到 ReminderExecTool）
-        register(DeviceSnapshotTool())
+        // v3.1.62: 删 DeviceSnapshotTool（已合并到 DeviceExecTool：device snapshot）
         // v3.1.54: 删 WebSearchTool / WebFetchTool（shell.exec curl 可以实现）
         // 已删：WebSearchTool / WebFetchTool
         // v3.1.50: knowledge 大工具 + 子命令（合并 4 个 knowledge.* 工具）
@@ -1194,10 +1193,10 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.50: 删旧的 4 个 knowledge.* 工具（已合并到 knowledge 大工具）
         // 已删：KnowledgeImportTextTool / KnowledgeImportFileTool
         // 已删：KnowledgeSearchTool / KnowledgeDeleteTool
-        register(PhoneExecTool())   // v3.1.61: 电话大工具（合并 call/schedule_call）
+        // v3.1.64: 删 PhoneExecTool（用得少，用系统电话 App 打电话）
         // v3.1.61: 删旧的电话工具（已合并到 PhoneExecTool）
         // 已删：PhoneCallTool / PhoneScheduleCallTool
-        register(SkillsSetEnabledTool())
+        // v3.1.64: 删 SkillsSetEnabledTool（用 shell.exec 修改配置文件代替）
         register(SkillsListTool())    // v2.9.17：技能可被 AI 发现
         register(SkillsReadTool())    // v2.9.17：技能可被 AI 读取
         register(ToolSearchTool())   // v2.9.16：渐进式披露元工具
@@ -1209,9 +1208,8 @@ public final class ToolRegistry: ObservableObject {
         // 已删：FSTreeTool / FSReadTool / FSHexdumpTool / FSSQLTool / FSGrepTool
         // 已删：FSWriteTool / FSEditTool / FSDiffTool / FSHashTool / FSFindTool
         // 已删：FSDownloadTool / FSPropertyListTool
-        // 保留：FSZipTool（需要 ZIP 库） / FSImageInfoTool（需要图片解析）
-        register(FSZipTool())
-        register(FSImageInfoTool())
+        // v3.1.64: 删 FSZipTool（用 shell.exec("zip/unzip") 代替）
+        // v3.1.64: 删 FSImageInfoTool（用 shell.exec("file 图片路径") 代替）
 
         // v2.9.139：AI 控制任意 App（HID 触摸注入 + 进度横幅 + 控制会话）
         // v3.1.55: 删旧的 control 工具（已合并到 ControlExecTool）
@@ -1236,7 +1234,7 @@ public final class ToolRegistry: ObservableObject {
         register(ChatSendTool())
         register(ChatReplyTool())
         // v3.1.49: model 大工具 + 子命令（合并 6 个 model.* 工具）
-        register(ModelExecTool())
+        // v3.1.64: 删 ModelExecTool（是测试用的）
         // v3.1.49: 删旧的 6 个 model.* 工具（已合并到 model 大工具）
         // 已删：ModelConfigTool / ModelUpdateTool / ModelAuthenticationTool
         // 已删：ModelSelectedProfileIDTool / ModelListTool / ModelSwitchTool
