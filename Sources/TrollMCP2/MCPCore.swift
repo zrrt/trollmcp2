@@ -1198,10 +1198,11 @@ public final class ToolRegistry: ObservableObject {
         register(DeviceSnapshotTool())
         register(WebSearchTool())
         register(WebFetchTool())   // v2.9.79：网页抓取（搜索后读原文）
-        register(KnowledgeImportTextTool())
-        register(KnowledgeImportFileTool())
-        register(KnowledgeSearchTool())
-        register(KnowledgeDeleteTool())
+        // v3.1.50: knowledge 大工具 + 子命令（合并 4 个 knowledge.* 工具）
+        register(KnowledgeExecTool())
+        // v3.1.50: 删旧的 4 个 knowledge.* 工具（已合并到 knowledge 大工具）
+        // 已删：KnowledgeImportTextTool / KnowledgeImportFileTool
+        // 已删：KnowledgeSearchTool / KnowledgeDeleteTool
         register(PhoneCallTool())
         register(PhoneScheduleCallTool())
         register(SkillsSetEnabledTool())

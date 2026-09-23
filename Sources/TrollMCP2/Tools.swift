@@ -738,3 +738,56 @@ final class ModelExecTool: MCPTool {
         }
     }
 }
+
+// MARK: - v3.1.50: knowledge 大工具 + 子命令（合并 4 个 knowledge.* 工具）
+
+final class KnowledgeExecTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "knowledge",
+        summary: "Manage knowledge base (import_text/import_file/search/delete). Use subcommand to specify action. Use for: save/search/delete knowledge entries. Don't use for: chat memory (use memory.*). Example: search → knowledge search query:xxx; import_text → knowledge import_text text:xxx. Subcommands: import_text / import_file / search / delete.",
+        parameters: [
+            "command": "Subcommand: import_text / import_file / search / delete",
+            "text": "Text to import (for import_text)",
+            "path": "File path (for import_file)",
+            "query": "Search query (for search)",
+            "id": "Knowledge ID (for delete)"
+        ],
+        verified: true, category: "knowledge")
+    
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let command = params["command"] as? String else {
+            throw MCPError.invalidParams("command required")
+        }
+        
+        AuditLog.shared.log("knowledge", detail: command)
+        
+        switch command {
+        case "import_text":
+            guard let text = params["text"] as? String else {
+                throw MCPError.invalidParams("text required")
+            }
+            return try KnowledgeImportTextTool().invoke(["text": text])
+            
+        case "import_file":
+            guard let path = params["path"] as? String else {
+                throw MCPError.invalidParams("path required")
+            }
+            return try KnowledgeImportFileTool().invoke(["path": path])
+            
+        case "search":
+            guard let query = params["query"] as? String else {
+                throw MCPError.invalidParams("query required")
+            }
+            return try KnowledgeSearchTool().invoke(["query": query])
+            
+        case "delete":
+            guard let id = params["id"] as? String else {
+                throw MCPError.invalidParams("id required")
+            }
+            return try KnowledgeDeleteTool().invoke(["id": id])
+            
+        default:
+            throw MCPError.invalidParams("Unknown command: \(command). Available: import_text/import_file/search/delete")
+        }
+    }
+}
