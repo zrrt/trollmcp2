@@ -1021,15 +1021,9 @@ public final class ToolRegistry: ObservableObject {
         register(MemoryTweakTool())   // v2.9.60：H5GG式内存修改（需先注入MemoryTweak.dylib）
         // v3.1.34: control 大工具 + 子命令（合并 10 个 control.* 工具）
         register(ControlExecTool())
-        // v2.9.75：ControlAgent 通用 UI 控制（注入后 AI 可控制任意 App UI）
-        register(ControlInjectTool())
-        register(ControlStatusTool())
-        register(ControlUITreeTool())
-        register(ControlScreenshotTool())
-        register(ControlTapTool())
-        register(ControlSwipeTool())
-        register(ControlTypeTool())
-        register(ControlKeyTool())
+        // v3.1.34: 删旧的 10 个 control.* 工具（已合并到 control 大工具）
+        // 已删：ControlInjectTool / ControlStatusTool / ControlUITreeTool / ControlScreenshotTool
+        // 已删：ControlTapTool / ControlSwipeTool / ControlTypeTool / ControlKeyTool
         register(WorkspaceInfoTool())
         register(ToolHealthTool())   // v2.9.128：工具健康度自查
         // v3.1.33: 清理工具已删（用 shell 代替）
@@ -1060,13 +1054,9 @@ public final class ToolRegistry: ObservableObject {
 
         // v3.1.34: inject 大工具 + 子命令（合并 7 个 injection.* 工具）
         register(InjectionExecTool())
-        // M3 注入管理 + 容器
-        register(InjectionEnableTool())
-        register(InjectionDisableTool())
-        register(InjectionStaticTool())  // v3.0.89：iOS 17 兼容静态注入
-        register(InjectionStatusTool())
-        register(InjectionInspectTool())
-        register(InjectionListTool())
+        // v3.1.34: 删旧的 7 个 injection.* 工具（已合并到 inject 大工具）
+        // 已删：InjectionEnableTool / InjectionDisableTool / InjectionStaticTool
+        // 已删：InjectionStatusTool / InjectionInspectTool / InjectionListTool
         register(JailbreakStatusTool())  // v3.1.1：Jailbreak 状态检测
         register(JailbreakInjectTool())   // v3.1.1：ElleKit 运行时注入
         register(InjectionRemoveTool())
@@ -1110,12 +1100,8 @@ public final class ToolRegistry: ObservableObject {
 
         // v3.1.34: app 大工具 + 子命令（合并 5 个 app.* 工具）
         register(AppExecTool())
-        // v2.9.70：进程管理 + 测试编排器
-        register(AppStartTool())
-        register(AppStopTool())
-        register(AppRestartTool())
-        register(AppStatusTool())
-        register(AppStatsTool())
+        // v3.1.34: 删旧的 5 个 app.* 工具（已合并到 app 大工具）
+        // 已删：AppStartTool / AppStopTool / AppRestartTool / AppStatusTool / AppStatsTool
         register(TestRunTool())
 
         // v2.9.71：自动诊断 + 本地 HTTP 服务
