@@ -36,7 +36,7 @@ jobs:
           export THEOS="$THEOS"
           export THEOS_PACKAGE_SCHEME=rootless
           # v2.9.315：合并精简——FakeDevice→ConfigHook v2，TrollMCPAgent→ControlAgent v1
-          for t in ProbeAgent ConfigHook NetworkTweak MemoryTweak ControlAgent; do
+          for t in ProbeAgent ConfigHook NetworkTweak TLSHook MemoryTweak ControlAgent; do
             echo ">>> building $t"
             (cd "tweaks/$t" && make package) || { echo "FAILED: $t"; exit 1; }
             cp "tweaks/$t/.theos/obj/debug/$t.dylib" "Resources/tweaks/$t.dylib" || { echo "NO DYLIB: $t"; exit 1; }

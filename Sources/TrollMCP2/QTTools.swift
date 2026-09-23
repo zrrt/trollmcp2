@@ -502,7 +502,7 @@ final class NetworkCaptureTool: MCPTool {
             "bundle_id": "Target App bundle_id — REQUIRED for start. e.g. com.xingin.discover",
             "limit": "Max requests to show (default 50)"
         ],
-        verified: true, category: "diagnose", prerequisites: ["inject enable NetworkTweak into target App before start", "start first and let the App generate network traffic before requests/analyze", "0 hits on custom-stack apps (小红书/抖音 etc.) is expected: they use QUIC/protobuf/private networking beyond NSURLSession — report this to user, do NOT retry endlessly"])
+        verified: true, category: "diagnose", prerequisites: ["inject enable NetworkTweak into target App before start", "start first and let the App generate network traffic before requests/analyze", "0 hits on custom-stack apps (小红书/抖音 etc.) is expected: they use QUIC/protobuf/private networking beyond NSURLSession — report this to user, do NOT retry endlessly", "TLS-layer capture: inject enable TLSHook — decrypts SSL_read/SSL_write plaintext to Workspace/network_capture/tls/*.log (hex+TEXT); works even where NSURLSession hook fails; read with fs.read/artifact read, analyze via shell grep"])
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = (params["action"] as? String) ?? "status"
