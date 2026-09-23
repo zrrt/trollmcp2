@@ -209,7 +209,7 @@ final class MemoryTweakTool: MCPTool {
         name: "memory",
         summary: "Game memory modification (like GameGuardian/H5GG). Use for: modify game values like coins, HP, lives, scores. Don't use for: read app files (use shell.exec cat), network capture (use network.capture). Prerequisite: inject MemoryTweak.dylib into target game first. Workflow: 1) search for current value, 2) change value in game, 3) refine search, 4) write new value. Example: user says '改金币' → search coin count in game memory.",
         parameters: [
-            "action": "search (first scan) / refine (filter results) / write (set new value) / freeze (lock value) / unfreeze / status / frozen (list locked values)",
+            "action": "attach (确认已注入并连接，注入 dylib 后服务即已 attach，等价 status) / search (first scan) / refine (filter results) / write (set new value) / freeze (lock value) / unfreeze / status / frozen (list locked values)",
             "value": "Value to search/write/freeze. e.g. 1000 coins, 50 HP",
             "type": "Data type: int (integer, default) / int64 / float (decimal) / double / byte / short",
             "address": "Memory address (0x hex format, required for write/freeze)"
@@ -228,6 +228,11 @@ final class MemoryTweakTool: MCPTool {
         var body: [String: Any] = [:]
 
         switch action {
+        // v3.1.69: attach —— 指引里反复提 "memory attach"，但此前无此动作（AI 反馈属实）。
+        // MemoryTweak.dylib 被注入目标进程后 HTTP 服务即已 attach（无独立 attach 端点），
+        // attach 动作等价确认服务在线/进程已注入，转发 /status。
+        case "attach":
+            method = "GET"; path = "/status"
         case "search":
             guard let value = params["value"] else { throw MCPError.invalidParams("value required for search") }
             method = "POST"; path = "/search"

@@ -457,6 +457,10 @@ public final class ToolRegistry: ObservableObject {
             for (k, v) in def.parameters {
                 props[k] = ["type": "string", "description": v]
             }
+            // v3.1.66：required 只保留子命令选择器（command/action），其余参数按子命令按需提供。
+            // v3.1.69：显式找 command/action 键——Dictionary.keys 是哈希顺序，prefix(1) 可能
+            // 落到任意参数（如 artifact 的 name），导致 AI 被迫填无关参数（AI 反馈实锤）。
+            let selectorKey = def.parameters.keys.first { $0 == "command" || $0 == "action" }
             result.append([
                 "type": "function",
                 "function": [
@@ -465,9 +469,7 @@ public final class ToolRegistry: ObservableObject {
                     "parameters": [
                         "type": "object",
                         "properties": props,
-                        // v3.1.66：required 只保留子命令选择器（第一个参数 command/action），
-                        // 其余参数按子命令按需提供——全部标 required 会让 AI 被迫填无关参数。
-                        "required": [String](def.parameters.keys.prefix(1))
+                        "required": selectorKey.map { [$0] } ?? []
                     ]
                 ]
             ])
@@ -677,6 +679,8 @@ public final class ToolRegistry: ObservableObject {
         for (k, v) in def.parameters {
             props[k] = ["type": "string", "description": v]
         }
+        // v3.1.69：显式找 command/action 键（见 enabledOpenAIToolSchema 注释——哈希顺序问题）
+        let selectorKey = def.parameters.keys.first { $0 == "command" || $0 == "action" }
         return [
             "type": "function",
             "function": [
@@ -685,8 +689,7 @@ public final class ToolRegistry: ObservableObject {
                 "parameters": [
                     "type": "object",
                     "properties": props,
-                    // v3.1.66：同 enabledOpenAIToolSchema，只保留子命令选择器为 required
-                    "required": [String](def.parameters.keys.prefix(1))
+                    "required": selectorKey.map { [$0] } ?? []
                 ]
             ]
         ]
