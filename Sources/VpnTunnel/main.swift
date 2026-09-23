@@ -9,7 +9,7 @@ import MitmCore
 
 @objc public class TunnelProvider: NEPacketTunnelProvider {
 
-    public override func startTunnel(options: [String: NSObject]?) throws {
+    public override func startTunnel(options: [String: NSObject]?, completionHandler: @escaping (Error?) -> Void) {
         NSLog("[VpnTunnel] startTunnel begin")
         let started = MitmProxy.shared.start(port: 18180)
         NSLog("[VpnTunnel] mitm proxy started=\(started)")
@@ -17,7 +17,7 @@ import MitmCore
         let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "127.0.0.1")
         let proxy = NEProxySettings()
         let server = NEProxyServer(address: "127.0.0.1", port: 18180)
-        proxy.server = server
+        proxy.httpServer = server
         proxy.httpsServer = server
         proxy.httpEnabled = true
         proxy.httpsEnabled = true
@@ -29,9 +29,11 @@ import MitmCore
 
         let ipv4 = NEIPv4Settings(addresses: ["172.16.0.2"], subnetMasks: ["255.255.255.0"])
         ipv4.includedRoutes = [NEIPv4Route.default()]
-        ipv4.excludedRoutes = [NEIPv4Route(address: "127.0.0.1", subnetMask: "255.0.0.0")]
+        ipv4.excludedRoutes = [NEIPv4Route(destinationAddress: "127.0.0.1", subnetMask: "255.0.0.0")]
         settings.ipv4Settings = ipv4
 
+        // 先完成隧道启动，再异步设置网络参数（系统代理生效）
+        completionHandler(nil)
         setTunnelNetworkSettings(settings) { error in
             if let e = error {
                 NSLog("[VpnTunnel] setTunnelNetworkSettings error: \(e.localizedDescription)")
