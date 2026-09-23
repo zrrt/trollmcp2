@@ -1253,9 +1253,8 @@ public final class ToolRegistry: ObservableObject {
         // 已删：MacroRunTool / MacroDeleteTool / MacroExportTool
 
         // v3.0.67：toolchain 工具
-        register(ToolchainStatusTool())
-        register(ToolchainInstallTool())
-        register(ToolchainUninstallTool())
+        // v3.1.56: 删 toolchain 工具（shell.exec 可以实现：which clang / apt-get install clang）
+        // 已删：ToolchainStatusTool / ToolchainInstallTool / ToolchainUninstallTool
         // v3.0.71：AI 自我进化——加载外部 dylib 注册新工具
         register(ToolLoadDylibTool())
         // v3.0.72：语义化 UI 操作 + OCR
