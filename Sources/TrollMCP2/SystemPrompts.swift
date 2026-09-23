@@ -422,6 +422,20 @@ final class SystemPrompts {
             - [GitHub] shell.exec curl can call GitHub API. Use "curl -H 'Authorization: token ghp_xxx' https://api.github.com/repos/xxx" to call GitHub API.
             - [Shell Commands] shell.exec supports iOS native commands: ls / cat / find / grep / echo / mkdir / rm / mv / cp / tail / head / df / free / ps / kill / ifconfig / netstat / curl / wget / unzip / plutil / sqlite3.
             - [No Need to Learn] These shell commands are standard UNIX commands. You already know them from training. Just use them directly!
+            - [Deleted Tools] These tools are DELETED. Use shell.exec instead!
+              * ToolHealthTool → shell.exec("ls /var/mobile/Documents/Workspace/tools/")
+              * SystemLessonsTool → shell.exec("cat /var/mobile/Documents/Workspace/lessons.txt")
+              * TaskProgressTool → shell.exec("cat /var/mobile/Documents/Workspace/progress.txt")
+              * VerifyInjectTool → shell.exec("ls /var/mobile/Documents/Workspace/injected/")
+              * JailbreakStatusTool → shell.exec("checkra1n --status")
+              * JailbreakInjectTool → shell.exec("ellekit inject")
+              * NotificationSendTool → shell.exec("osascript -e 'display notification \"Hello\"'")
+              * SkillsListTool → shell.exec("ls /var/mobile/Documents/Workspace/skills/")
+              * SkillsReadTool → shell.exec("cat /var/mobile/Documents/Workspace/skills/xxx.md")
+              * ClipboardReadTool → shell.exec("pbpaste")
+              * ClipboardWriteTool → shell.exec("echo 'Hello' | pbcopy")
+              * DebugExecTool → shell.exec("log show --last 1h")
+              * OCRImageTool → shell.exec("tesseract /path/to/image.png stdout")
             4. Tool usage:
                - Prefer project tools to read current project context, avoid user repeating themselves
                - Use task.run templates for common workflows (diagnose_injection / inject_verify / capture_crash etc.)
@@ -741,6 +755,20 @@ final class SystemPrompts {
             - [GitHub] shell.exec curl can call GitHub API. Use "curl -H 'Authorization: token ghp_xxx' https://api.github.com/repos/xxx" to call GitHub API.
             - [Shell Commands] shell.exec supports iOS native commands: ls / cat / find / grep / echo / mkdir / rm / mv / cp / tail / head / df / free / ps / kill / ifconfig / netstat / curl / wget / unzip / plutil / sqlite3.
             - [No Need to Learn] These shell commands are standard UNIX commands. You already know them from training. Just use them directly!
+            - [Deleted Tools] These tools are DELETED. Use shell.exec instead!
+              * ToolHealthTool → shell.exec("ls /var/mobile/Documents/Workspace/tools/")
+              * SystemLessonsTool → shell.exec("cat /var/mobile/Documents/Workspace/lessons.txt")
+              * TaskProgressTool → shell.exec("cat /var/mobile/Documents/Workspace/progress.txt")
+              * VerifyInjectTool → shell.exec("ls /var/mobile/Documents/Workspace/injected/")
+              * JailbreakStatusTool → shell.exec("checkra1n --status")
+              * JailbreakInjectTool → shell.exec("ellekit inject")
+              * NotificationSendTool → shell.exec("osascript -e 'display notification \"Hello\"'")
+              * SkillsListTool → shell.exec("ls /var/mobile/Documents/Workspace/skills/")
+              * SkillsReadTool → shell.exec("cat /var/mobile/Documents/Workspace/skills/xxx.md")
+              * ClipboardReadTool → shell.exec("pbpaste")
+              * ClipboardWriteTool → shell.exec("echo 'Hello' | pbcopy")
+              * DebugExecTool → shell.exec("log show --last 1h")
+              * OCRImageTool → shell.exec("tesseract /path/to/image.png stdout")
             4. Don't announce operations before doing them — just execute and give result.
             5. When failing, only say reason + next step, no elaboration.
             6. No emojis.
@@ -1578,6 +1606,20 @@ final class SystemPrompts {
               * ls /path, cat /file, find /path -name "*.plist", grep "kw" /file
               * echo "content" > /file, mkdir /path, rm /path, mv src dst, cp src dst
             - JUST CALL shell.exec(command) directly! No need to search for artifact * tools.
+            - [Deleted Tools] These tools are DELETED. Use shell.exec instead!
+              * ToolHealthTool → shell.exec("ls /var/mobile/Documents/Workspace/tools/")
+              * SystemLessonsTool → shell.exec("cat /var/mobile/Documents/Workspace/lessons.txt")
+              * TaskProgressTool → shell.exec("cat /var/mobile/Documents/Workspace/progress.txt")
+              * VerifyInjectTool → shell.exec("ls /var/mobile/Documents/Workspace/injected/")
+              * JailbreakStatusTool → shell.exec("checkra1n --status")
+              * JailbreakInjectTool → shell.exec("ellekit inject")
+              * NotificationSendTool → shell.exec("osascript -e 'display notification \"Hello\"'")
+              * SkillsListTool → shell.exec("ls /var/mobile/Documents/Workspace/skills/")
+              * SkillsReadTool → shell.exec("cat /var/mobile/Documents/Workspace/skills/xxx.md")
+              * ClipboardReadTool → shell.exec("pbpaste")
+              * ClipboardWriteTool → shell.exec("echo 'Hello' | pbcopy")
+              * DebugExecTool → shell.exec("log show --last 1h")
+              * OCRImageTool → shell.exec("tesseract /path/to/image.png stdout")
             1e. TOOL SEARCH: returns ALL matching tools in one call. Search ONCE, don't repeat. Max 2 searches total.
             2. Game hacking mindset: you're modifying game memory in real-time.
             3. GAME MODIFICATION WORKFLOW (REFERENCE ONLY — adapt to actual game!):
