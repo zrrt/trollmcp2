@@ -514,9 +514,9 @@ func findPid(by bundleId: String) -> Int32 {
 final class AppExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "app",
-        summary: "Manage apps (launch/stop/restart/status/stats/cache/deps/install/uninstall/duplicate/diagnose/encrypt_info/entitlements/decrypt). Use subcommand to specify action. Use for: manage apps, install/uninstall, diagnose, check encryption, view entitlements. Don't use for: inject dylib (use inject.*), UI control (use control.*). Example: launch → app launch bundle_id:com.xxx; install → app install path:/path/to.ipa. Subcommands: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps / install / uninstall / duplicate / diagnose / encrypt_info / entitlements / decrypt.",
+        summary: "Manage apps (launch/stop/restart/status/stats/cache/deps/install/uninstall/duplicate/diagnose/encrypt_info/entitlements/decrypt/launch_options/ai_analyze). Use subcommand to specify action. Use for: manage apps, install/uninstall, diagnose, check encryption, view entitlements, AI analyze app. Don't use for: inject dylib (use inject.*), UI control (use control.*). Example: launch → app launch bundle_id:com.xxx; install → app install path:/path/to.ipa. Subcommands: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps / install / uninstall / duplicate / diagnose / encrypt_info / entitlements / decrypt / launch_options / ai_analyze.",
         parameters: [
-            "command": "Subcommand: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps / install / uninstall / duplicate / diagnose / encrypt_info / entitlements / decrypt",
+            "command": "Subcommand: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps / install / uninstall / duplicate / diagnose / encrypt_info / entitlements / decrypt / launch_options / ai_analyze",
             "bundle_id": "App bundle ID (e.g. com.xingin.discover)",
             "path": "IPA file path (for install)",
             "duration": "Duration seconds (for stats)",
@@ -631,8 +631,20 @@ final class AppExecTool: MCPTool {
             }
             return try AppDecryptTool().invoke(["bundle_id": bundleId])
 
+        case "launch_options":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try AppLaunchOptionsTool().invoke(["bundle_id": bundleId])
+
+        case "ai_analyze":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try AiAnalyzeTool().invoke(["bundle_id": bundleId])
+
         default:
-            throw MCPError.invalidParams("Unknown command: \(command). Available: launch/stop/restart/status/stats/cache_inspect/cache_clear/open_and_input/deps/install/uninstall/duplicate/diagnose/encrypt_info/entitlements/decrypt")
+            throw MCPError.invalidParams("Unknown command: \(command). Available: launch/stop/restart/status/stats/cache_inspect/cache_clear/open_and_input/deps/install/uninstall/duplicate/diagnose/encrypt_info/entitlements/decrypt/launch_options/ai_analyze")
         }
     }
 }

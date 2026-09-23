@@ -1084,7 +1084,7 @@ public final class ToolRegistry: ObservableObject {
         // v2.9.99：一键新机（绿盾式组合）
         register(NewDeviceTool())
         // v2.9.100：AI 分析引擎
-        register(AiAnalyzeTool())
+        // v3.1.59: 删 AiAnalyzeTool（已合并到 app 大工具：app ai_analyze）
 
         // v2.9.68：SSH 远程连接 + 应用解密
         // v3.1.45: ssh 大工具 + 子命令（合并 2 个 ssh.* 工具）
@@ -1222,7 +1222,7 @@ public final class ToolRegistry: ObservableObject {
         // 已删：UITapTool / UISwipeTool / UILongPressTool / UIClipboardTool / UIScreenshotTool
         // 已删：ProgressNotifyTool / ControlBeginTool / ControlUpdateTool / ControlFinishTool
         // v2.9.139：启动带参数 + 定位模拟
-        register(AppLaunchOptionsTool())
+        // v3.1.59: 删 AppLaunchOptionsTool（已合并到 app 大工具：app launch_options）
         // v3.1.51: location 大工具 + 子命令（合并 4 个 location.* 工具）
         register(LocationExecTool())
         // v3.1.51: 删旧的 4 个 location.* 工具（已合并到 location 大工具）
