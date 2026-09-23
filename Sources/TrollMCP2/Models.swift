@@ -585,6 +585,9 @@ final class ConversationStore: ObservableObject {
     private var currentClient: OpenAIClient?
     /// v2.9.53：当前流式输出的消息 ID（逐字显示时跟踪，完成后更新或清理）
     private var streamingMessageId: UUID?
+    /// v3.1.70：活动请求绑定的会话 ID——请求由哪个会话发起就写回哪个会话。
+    /// 修复"请求进行中切换会话，AI 输出错位/写错会话"（用户实测：老会话未暂停，切换新会话后输出仍乱）。
+    private var activeConvId: UUID?
 
     private let key = "trollmcp2.conversations"
 
@@ -592,6 +595,14 @@ final class ConversationStore: ObservableObject {
 
     var selectedIndex: Int? {
         conversations.firstIndex { $0.id == selectedId }
+    }
+
+    /// v3.1.70：活动请求的会话 index（优先活动会话，兜底当前选中会话）
+    private var activeConvIndex: Int? {
+        if let id = activeConvId, let i = conversations.firstIndex(where: { $0.id == id }) {
+            return i
+        }
+        return selectedIndex
     }
 
     var currentMessages: [ChatMessage] {
@@ -622,8 +633,9 @@ final class ConversationStore: ObservableObject {
         sortAndSave()
     }
 
+    /// v3.1.70：写入活动请求的会话（无活动请求时写入当前选中会话）
     func appendToCurrent(_ message: ChatMessage) {
-        guard let idx = selectedIndex else { return }
+        guard let idx = activeConvIndex else { return }
         var conv = conversations[idx]
         if conv.messages.isEmpty {
             conv.title = title(from: message.content)
@@ -634,17 +646,17 @@ final class ConversationStore: ObservableObject {
         sortAndSave()
     }
 
-    /// v2.9.53：流式输出时更新已有消息的 content（逐字显示）
+    /// v3.1.70：更新活动请求会话内消息内容（无活动请求时用当前选中会话）
     func updateMessageContent(id: UUID, content: String) {
-        guard let idx = selectedIndex,
+        guard let idx = activeConvIndex,
               let mi = conversations[idx].messages.firstIndex(where: { $0.id == id }) else { return }
         conversations[idx].messages[mi].content = content
         conversations[idx].updatedAt = Date()
     }
 
-    /// v2.9.53：删除指定消息（流式输出被工具调用替换时清理）
+    /// v3.1.70：删除活动请求会话内的消息（无活动请求时用当前选中会话）
     func removeMessage(id: UUID) {
-        guard let idx = selectedIndex,
+        guard let idx = activeConvIndex,
               let mi = conversations[idx].messages.firstIndex(where: { $0.id == id }) else { return }
         conversations[idx].messages.remove(at: mi)
     }
@@ -658,6 +670,8 @@ final class ConversationStore: ObservableObject {
         statusText = nil
         // v2.9.82：回收后台任务
         TaskNotify.shared.endBackground()
+        // v3.1.70：停止——解除活动会话绑定
+        activeConvId = nil
     }
 
     func clearCurrent() {
@@ -688,6 +702,8 @@ final class ConversationStore: ObservableObject {
         // v2.9.87：新一轮请求重置网络重试状态
         retriedNetworkOnce = false
         cancelNetworkRetry()
+        // v3.1.70：请求绑定到发起时的会话——中途切换会话，输出仍写回该会话（修复输出错位）
+        activeConvId = selectedId
         var msg = ChatMessage(role: "user", content: text)
         if let imgs = imageDataURLs, !imgs.isEmpty {
             msg.imageDataURLs = imgs
@@ -786,7 +802,7 @@ final class ConversationStore: ObservableObject {
     func attachTrail(to messageId: UUID?, thinking: String? = nil) {
         guard let sid = messageId, !liveTrail.isEmpty else { return }
         DispatchQueue.main.async {
-            if let idx = self.selectedIndex,
+            if let idx = self.activeConvIndex,
                let mi = self.conversations[idx].messages.firstIndex(where: { $0.id == sid }) {
                 var trail = self.liveTrail
                 let isErr = self.conversations[idx].messages[mi].isError
@@ -879,8 +895,8 @@ final class ConversationStore: ObservableObject {
             // v2.9.53：流式逐字显示
             DispatchQueue.main.async {
                 if let sid = self.streamingMessageId {
-                    // 追加到已有流式消息
-                    guard let idx = self.selectedIndex,
+                    // 追加到已有流式消息（v3.1.70：按活动会话定位，切换会话不丢增量）
+                    guard let idx = self.activeConvIndex,
                           let mi = self.conversations[idx].messages.firstIndex(where: { $0.id == sid }) else { return }
                     self.conversations[idx].messages[mi].content += delta
                 } else {
@@ -908,7 +924,7 @@ final class ConversationStore: ObservableObject {
                     self.runningTool = nil
                     self.thinkBuffer = "" // 重置缓冲区
                     // v2.9.138：自动会话记忆——一轮完整回复后落库（供下会话 BM25 检索）
-                    if let idx = self.selectedIndex {
+                    if let idx = self.activeConvIndex {
                         let msgs = self.conversations[idx].messages
                         let lastUser = msgs.last { $0.role == "user" }?.content ?? ""
                         let usedTools = msgs.compactMap { $0.toolName }
@@ -925,7 +941,7 @@ final class ConversationStore: ObservableObject {
                     if let sid = self.streamingMessageId {
                         // 流式已显示，更新最终文本 + thinking
                         self.updateMessageContent(id: sid, content: text)
-                        if let idx = self.selectedIndex,
+                        if let idx = self.activeConvIndex,
                            let mi = self.conversations[idx].messages.firstIndex(where: { $0.id == sid }),
                            let th = thinking, !th.isEmpty {
                             self.conversations[idx].messages[mi].thinking = th
@@ -938,11 +954,13 @@ final class ConversationStore: ObservableObject {
                         self.appendToCurrent(am)
                         self.attachTrail(to: am.id, thinking: thinking)
                     }
+                    // v3.1.70：整条请求链（含工具递归）结束——解除活动会话绑定
+                    self.activeConvId = nil
                 case .success(.toolCalls(let calls, let thinking)):
                     // v2.9.322：保留流式文本作为工具调用思考说明
                     var thinkText = ""
                     if let sid = self.streamingMessageId,
-                       let ci = self.selectedIndex,
+                       let ci = self.activeConvIndex,
                        let mi = self.conversations[ci].messages.firstIndex(where: { $0.id == sid }) {
                         thinkText = self.conversations[ci].messages[mi].content
                         self.conversations[ci].messages.remove(at: mi)
@@ -985,6 +1003,8 @@ final class ConversationStore: ObservableObject {
                         self.streamingMessageId = nil
                         // v2.9.82：取消也算结束，回收后台任务但不通知
                         TaskNotify.shared.endBackground()
+                        // v3.1.70：用户取消——解除活动会话绑定
+                        self.activeConvId = nil
                         return
                     }
                     // v2.9.87：网络类错误 + 当前确认断网 → 等网络恢复自动重试一次
@@ -1004,6 +1024,8 @@ final class ConversationStore: ObservableObject {
                     self.appendToCurrent(errMsg)
                     self.trailStep(.done(.note, "请求失败", detail: String(error.localizedDescription.prefix(200)), ok: false))
                     self.attachTrail(to: errMsg.id)
+                    // v3.1.70：请求链结束——解除活动会话绑定
+                    self.activeConvId = nil
                 }
             }
         }

@@ -121,10 +121,15 @@ struct ChatView: View {
         // v2.9.31：授权弹窗已整体移除（工具搜索即自动授权，无弹窗）。
         .sheet(item: $attachmentSheet, onDismiss: {
             // v3.1.67：面板完全关闭后再触发文件选择（UIKit 从顶层 VC present，真机稳定）
+            // v3.1.70：延迟 0.6s 再 present——onDismiss 触发时 SwiftUI sheet 的关闭动画
+            // （约 0.5s）还没完全结束，立即 present 的 UIDocumentPicker 会被 sheet 收尾逻辑
+            // 顶掉，表现为"弹出 0.5 秒后自动退回聊天界面"（真机实测 bug）
             if pendingFilePick {
                 pendingFilePick = false
-                Self.presentDocumentPicker { urls in
-                    handlePickedFiles(urls)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    Self.presentDocumentPicker { urls in
+                        handlePickedFiles(urls)
+                    }
                 }
             }
         }) { sheet in
