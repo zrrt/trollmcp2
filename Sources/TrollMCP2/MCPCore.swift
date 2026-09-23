@@ -1027,7 +1027,7 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.34: 删旧的 10 个 control.* 工具（已合并到 control 大工具）
         // 已删：ControlInjectTool / ControlStatusTool / ControlUITreeTool / ControlScreenshotTool
         // 已删：ControlTapTool / ControlSwipeTool / ControlTypeTool / ControlKeyTool
-        register(WorkspaceInfoTool())
+        // v3.1.46: 删 WorkspaceInfoTool（shell.exec 可以实现：shell.exec("pwd")）
         register(ToolHealthTool())   // v2.9.128：工具健康度自查
         // v3.1.33: 清理工具已删（用 shell 代替）
         // 已删：CleanupScanTool / CleanupExecuteTool / CleanupAiTool
