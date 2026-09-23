@@ -1106,7 +1106,7 @@ public final class ToolRegistry: ObservableObject {
         register(AppExecTool())
         // v3.1.34: 删旧的 5 个 app.* 工具（已合并到 app 大工具）
         // 已删：AppStartTool / AppStopTool / AppRestartTool / AppStatusTool / AppStatsTool
-        register(TestRunTool())
+        // v3.1.56: 删 TestRunTool（shell.exec 可以实现）
 
         // v3.1.42: diagnose 大工具 + 子命令（合并 2 个 diagnose.* 工具）
         register(DiagnoseExecTool())
@@ -1172,7 +1172,7 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.55: 删 BrowserNavigateTool（已合并到 BrowserExecTool）
 
         // M6 编译模式 + 模型配置 + 工作区输出（原版命名）
-        register(BuildRunnerTokenTool())
+        // v3.1.56: 删 BuildRunnerTokenTool（shell.exec curl 可以实现）
         register(ProjectGenerateTweakTool())
         // v3.1.55: 删旧的 model 工具（已合并到 ModelExecTool）
         // 已删：ModelConfigTool / ModelUpdateTool / ModelAuthenticationTool / ModelSelectedProfileIDTool
@@ -1181,7 +1181,7 @@ public final class ToolRegistry: ObservableObject {
 
         // M8 本机编译/构建（v2.9.3，设备端编译桥）
         // v3.1.46: 删 BuildEnvironmentTool（shell.exec 可以实现：shell.exec("which clang")）
-        register(BuildRunTool())
+        // v3.1.56: 删 BuildRunTool（shell.exec curl 可以实现 GitHub API）
 
         // M9 GitHub 线上编译（v2.9.9：账号状态 / 触发编译 / 查进度 / 下载产物）
         // v3.1.52: 删 github 大工具（shell.exec 可以实现：shell.exec("curl https://api.github.com/...")）
