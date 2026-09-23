@@ -332,3 +332,48 @@ final class ClipboardWriteTool: MCPTool {
         return ["ok": true, "length": text.count]
     }
 }
+
+// MARK: - v3.1.39: artifact 大工具 + 子命令（合并 3 个 artifact.* 工具）
+
+final class ArtifactExecTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "artifact",
+        summary: "Manage workspace files (read/write/list). Use subcommand to specify action. Use for: read/write/list files in workspace. Don't use for: read app container files (use fs.*), system files (use shell.exec). Example: read → artifact read filename:report.txt; list → artifact list. Subcommands: read / write / list.",
+        parameters: [
+            "command": "Subcommand: read / write / list",
+            "filename": "File name (for read/write)",
+            "text": "Text to write (for write)"
+        ],
+        verified: true, category: "fs")
+    
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let command = params["command"] as? String else {
+            throw MCPError.invalidParams("command required")
+        }
+        
+        AuditLog.shared.log("artifact", detail: command)
+        
+        switch command {
+        case "read":
+            guard let filename = params["filename"] as? String else {
+                throw MCPError.invalidParams("filename required")
+            }
+            return try ArtifactReadTextTool().invoke(["filename": filename])
+            
+        case "write":
+            guard let filename = params["filename"] as? String else {
+                throw MCPError.invalidParams("filename required")
+            }
+            guard let text = params["text"] as? String else {
+                throw MCPError.invalidParams("text required")
+            }
+            return try ArtifactWriteTextTool().invoke(["filename": filename, "text": text])
+            
+        case "list":
+            return try ArtifactListTool().invoke([:])
+            
+        default:
+            throw MCPError.invalidParams("Unknown command: \(command). Available: read/write/list")
+        }
+    }
+}

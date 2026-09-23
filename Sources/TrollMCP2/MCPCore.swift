@@ -1011,9 +1011,10 @@ public final class ToolRegistry: ObservableObject {
     /// 全量内置工具集
     public func registerBuiltinTools() {
         // M1 文件桥 + 基础
-        register(ArtifactReadTextTool())
-        register(ArtifactWriteTextTool())
-        register(ArtifactListTool())
+        // v3.1.39: artifact 大工具 + 子命令（合并 3 个 artifact.* 工具）
+        register(ArtifactExecTool())
+        // v3.1.39: 删旧的 3 个 artifact.* 工具（已合并到 artifact 大工具）
+        // 已删：ArtifactReadTextTool / ArtifactWriteTextTool / ArtifactListTool
         register(ArtifactFindTool())   // v2.9.33：递归查找下载产物 dylib/deb
         register(PingTool())
         register(DeviceInfoTool())
