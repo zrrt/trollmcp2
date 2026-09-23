@@ -8,6 +8,7 @@ import Foundation
 import NetworkExtension
 import Security
 import MitmCore
+import CMitm
 
 final class VpnManager {
     static let shared = VpnManager()
