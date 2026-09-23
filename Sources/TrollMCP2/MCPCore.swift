@@ -1247,12 +1247,11 @@ public final class ToolRegistry: ObservableObject {
         register(ModelSwitchTool())
         register(DebugDumpModelConfigsTool())
         register(DebugDumpNetworkLogTool())
-        register(MacroRecordTool())
-        register(MacroStopTool())
-        register(MacroListTool())
-        register(MacroRunTool())
-        register(MacroDeleteTool())
-        register(MacroExportTool())
+        // v3.1.48: macro 大工具 + 子命令（合并 6 个 macro.* 工具）
+        register(MacroExecTool())
+        // v3.1.48: 删旧的 6 个 macro.* 工具（已合并到 macro 大工具）
+        // 已删：MacroRecordTool / MacroStopTool / MacroListTool
+        // 已删：MacroRunTool / MacroDeleteTool / MacroExportTool
 
         // v3.0.67：toolchain 工具
         register(ToolchainStatusTool())

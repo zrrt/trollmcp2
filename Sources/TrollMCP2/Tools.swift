@@ -631,3 +631,59 @@ final class SshExecTool: MCPTool {
         }
     }
 }
+
+// MARK: - v3.1.48: macro 大工具 + 子命令（合并 6 个 macro.* 工具）
+
+final class MacroExecTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "macro",
+        summary: "Manage operation macros (record/stop/run/list/delete/export). Use subcommand to specify action. Use for: record and replay UI operations. Don't use for: one-off UI control (use control.*). Example: record → macro record name:login; run → macro run name:login. Subcommands: record / stop / run / list / delete / export.",
+        parameters: [
+            "command": "Subcommand: record / stop / run / list / delete / export",
+            "name": "Macro name"
+        ],
+        verified: true, category: "automation")
+    
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let command = params["command"] as? String else {
+            throw MCPError.invalidParams("command required")
+        }
+        
+        AuditLog.shared.log("macro", detail: command)
+        
+        switch command {
+        case "record":
+            guard let name = params["name"] as? String else {
+                throw MCPError.invalidParams("name required")
+            }
+            return try MacroRecordTool().invoke(["name": name])
+            
+        case "stop":
+            return try MacroStopTool().invoke([:])
+            
+        case "run":
+            guard let name = params["name"] as? String else {
+                throw MCPError.invalidParams("name required")
+            }
+            return try MacroRunTool().invoke(["name": name])
+            
+        case "list":
+            return try MacroListTool().invoke([:])
+            
+        case "delete":
+            guard let name = params["name"] as? String else {
+                throw MCPError.invalidParams("name required")
+            }
+            return try MacroDeleteTool().invoke(["name": name])
+            
+        case "export":
+            guard let name = params["name"] as? String else {
+                throw MCPError.invalidParams("name required")
+            }
+            return try MacroExportTool().invoke(["name": name])
+            
+        default:
+            throw MCPError.invalidParams("Unknown command: \(command). Available: record/stop/run/list/delete/export")
+        }
+    }
+}
