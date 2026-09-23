@@ -1149,7 +1149,9 @@ public final class ToolRegistry: ObservableObject {
         register(CalendarExecTool())   // v3.1.57: 日历大工具（合并 list/create）
         // v3.1.57: 删旧的日历工具（已合并到 CalendarExecTool）
         // 已删：CalendarListTool / CalendarCreateEventTool
-        register(ReminderCreateTool())
+        register(ReminderExecTool())   // v3.1.57: 提醒事项大工具（合并 create/schedule/recurring）
+        // v3.1.57: 删旧的提醒事项工具（已合并到 ReminderExecTool）
+        // 已删：ReminderCreateTool / ReminderScheduleTool / ReminderScheduleRecurring
         register(LocationGetTool())
         register(NotificationSendTool())
         register(ScanQRTool())
@@ -1192,8 +1194,7 @@ public final class ToolRegistry: ObservableObject {
 
         // M7 补齐缺失设备端工具
         // v3.1.57: 删 CalendarCreateEventTool（已合并到 CalendarExecTool）
-        register(ReminderScheduleTool())
-        register(ReminderScheduleRecurringTool())
+        // v3.1.57: 删 ReminderScheduleTool / ReminderScheduleRecurringTool（已合并到 ReminderExecTool）
         register(DeviceSnapshotTool())
         // v3.1.54: 删 WebSearchTool / WebFetchTool（shell.exec curl 可以实现）
         // 已删：WebSearchTool / WebFetchTool
