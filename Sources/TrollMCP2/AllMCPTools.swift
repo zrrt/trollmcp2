@@ -1123,3 +1123,71 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
         }
     }
 }
+
+// MARK: - v3.1.34: inject 大工具 + 子命令（合并 7 个 injection.* 工具）
+
+final class InjectionExecTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "inject",
+        summary: "Manage dylib injection (enable/disable/status/list/inspect). Use subcommand to specify action. Use for: inject/remove dylib into apps, check injection status. Don't use for: launch app (use app launch), UI control (use control). Example: enable → inject enable bundle_id:com.xxx; status → inject status; list → inject list query:小红书. Subcommands: enable / disable / static / enable_persisted / status / inspect / list.",
+        parameters: [
+            "command": "Subcommand: enable / disable / static / enable_persisted / status / inspect / list",
+            "bundle_id": "App bundle ID",
+            "dylib_path": "Dylib path (for enable)",
+            "query": "Search query (for list)"
+        ],
+        verified: true, category: "injection")
+    
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let command = params["command"] as? String else {
+            throw MCPError.invalidParams("command required")
+        }
+        
+        AuditLog.shared.log("inject", detail: command)
+        
+        switch command {
+        case "enable":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            var p: [String: Any] = ["bundle_id": bundleId]
+            if let dylib = params["dylib_path"] as? String { p["dylib_path"] = dylib }
+            return try InjectionEnableTool().invoke(p)
+            
+        case "disable":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try InjectionDisableTool().invoke(["bundle_id": bundleId])
+            
+        case "static":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try InjectionStaticTool().invoke(["bundle_id": bundleId])
+            
+        case "enable_persisted":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try InjectionEnablePersistedTool().invoke(["bundle_id": bundleId])
+            
+        case "status":
+            return InjectionStatusTool().invoke([:])
+            
+        case "inspect":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            return try InjectionInspectTool().invoke(["bundle_id": bundleId])
+            
+        case "list":
+            var p: [String: Any] = [:]
+            if let query = params["query"] as? String { p["query"] = query }
+            return try InjectionListTool().invoke(p)
+            
+        default:
+            throw MCPError.invalidParams("Unknown command: \(command). Available: enable/disable/static/enable_persisted/status/inspect/list")
+        }
+    }
+}

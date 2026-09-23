@@ -1058,6 +1058,8 @@ public final class ToolRegistry: ObservableObject {
         register(VerifyFileTool())
         register(VerifyAppRunningTool())
 
+        // v3.1.34: inject 大工具 + 子命令（合并 7 个 injection.* 工具）
+        register(InjectionExecTool())
         // M3 注入管理 + 容器
         register(InjectionEnableTool())
         register(InjectionDisableTool())
