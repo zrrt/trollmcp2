@@ -401,7 +401,6 @@ final class SystemPrompts {
             - [Workspace] Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root. Use artifact read to read specific files.
             - [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
             - [Web] shell.exec curl can search/fetch web pages. Use "curl https://www.google.com/search?q=xxx" to search, or "curl https://xxx.com" to fetch a webpage.
-            - [Web] shell.exec curl can search/fetch web pages. Use "curl https://www.google.com/search?q=xxx" to search, or "curl https://xxx.com" to fetch a webpage.
             4. Tool usage:
                - Prefer project tools to read current project context, avoid user repeating themselves
                - Use task.run templates for common workflows (diagnose_injection / inject_verify / capture_crash etc.)
@@ -718,7 +717,6 @@ final class SystemPrompts {
             - [Workspace] Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root. Use artifact read to read specific files.
             - [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
             - [Web] shell.exec curl can search/fetch web pages. Use "curl https://www.google.com/search?q=xxx" to search, or "curl https://xxx.com" to fetch a webpage.
-            - [Web] shell.exec curl can search/fetch web pages. Use "curl https://www.google.com/search?q=xxx" to search, or "curl https://xxx.com" to fetch a webpage.
             4. Don't announce operations before doing them — just execute and give result.
             5. When failing, only say reason + next step, no elaboration.
             6. No emojis.
@@ -759,6 +757,7 @@ final class SystemPrompts {
             6. Use task.run template=inject_verify for one-click inject + verify + rollback loop.
             7. [Workspace] Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root. Use artifact read to read specific files.
             8. [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
+            9. [Web] shell.exec curl can search/fetch web pages. Use "curl https://www.google.com/search?q=xxx" to search, or "curl https://xxx.com" to fetch a webpage.
             9. Use compat.check to log injection results to compatibility matrix.
             10. Use emojis moderately for status (✅ success ❌ fail ⚠️ warning 🚑 recovered).
             11. ADVANCED TOOLS:
@@ -1054,6 +1053,7 @@ final class SystemPrompts {
                - UI testing: test user flows, click through the app
             27. [Workspace] Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root. Use artifact read to read specific files.
             28. [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
+            29. [Web] shell.exec curl can search/fetch web pages. Use "curl https://www.google.com/search?q=xxx" to search, or "curl https://xxx.com" to fetch a webpage.
                - Regression testing: verify new changes didn't break old stuff
                - Smoke testing: quick check to make sure app launches at all
                - Performance testing: check speed, memory usage, battery
@@ -1580,6 +1580,7 @@ final class SystemPrompts {
                - Don't cheat in online multiplayer (ruins others' experience)
                7. [Workspace] Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root. Use artifact read to read specific files.
                8. [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
+            9. [Web] shell.exec curl can search/fetch web pages. Use "curl https://www.google.com/search?q=xxx" to search, or "curl https://xxx.com" to fetch a webpage.
                - Don't modify online competitive games (will get you banned)
                - This is for learning and fun, not cheating in multiplayer
                9. KNOWN BUGS:
@@ -1879,6 +1880,7 @@ final class SystemPrompts {
                - tap_text may fail if text is small or blurry — fall back to tap coordinates
                10. [Workspace] Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root. Use artifact read to read specific files.
                11. [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
+               12. [Web] shell.exec curl can search/fetch web pages. Use "curl https://www.google.com/search?q=xxx" to search, or "curl https://xxx.com" to fetch a webpage.
                - Keyboard may not dismiss automatically — tap somewhere empty area
             10. DO WHAT IS ASKED; NOTHING MORE, NOTHING LESS.
             11. NEVER create files unless absolutely necessary.
@@ -2109,6 +2111,7 @@ final class SystemPrompts {
             19. VERIFY YOUR WORK. Don't just say "done" — actually verify.
             20. [Workspace] Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root. Use artifact read to read specific files.
             21. [Downloads] shell.exec wget/curl downloads to current working directory. To make file visible in "Download Manager", use artifact write to copy file to workspace.
+            22. [Web] shell.exec curl can search/fetch web pages. Use "curl https://www.google.com/search?q=xxx" to search, or "curl https://xxx.com" to fetch a webpage.
             20. NO OVER-ENGINEERING. Keep solutions simple.
             21. READ BEFORE YOU EDIT. Don't guess file contents.
             22. DON'T RETRY THE SAME THING. Think about why it failed.
