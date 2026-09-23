@@ -216,8 +216,7 @@ public final class ToolRegistry: ObservableObject {
     private var apiNameToOriginal: [String: String] = [:]
     private let lock = NSLock()
     private let disabledKey = "trollmcp2.disabled_tools"
-    /// v2.9.22：会话内已授权工具（AI 通过 tool_search 搜索到并决定调用即自动放行，
-    /// 无需用户手动开 Toggle）。新会话时清空。
+    /// v2.9.22：会话内已授权工具（AI 调用即自动放行，无需用户手动开 Toggle）。新会话时清空。
     private var sessionApproved: Set<String> = []
     /// v2.9.26：策略版本号。setEnabled 时递增，通过 @Published 可靠触发
     /// 工具权限策略页刷新（修复 iOS16 List 内 Toggle 只靠 objectWillChange.send()
@@ -353,7 +352,6 @@ public final class ToolRegistry: ObservableObject {
     /// 根因：80+ 工具全量进 schema 导致每次请求载荷巨大，中转/gpt-5.6 处理极慢甚至超时。
     /// 未显式设置的工具按此白名单决定默认启用；用户显式开/关过的仍以用户为准。
     private static let defaultEnabledTools: Set<String> = [
-        "tool_search",   // v2.9.16：渐进式披露元工具，必须始终可用
         "ping", "device.probe",
         "web.search", "web.fetch", "knowledge.search",
         // v3.1.33: 大部分工具已被 shell 代替，只保留 shell 做不到的
@@ -381,16 +379,8 @@ public final class ToolRegistry: ObservableObject {
         return extra.contains(name)
     }
 
-    /// v2.9.31：常驻核心工具（借鉴 Anthropic `defer_loading: false` 设计）。
-    /// **初始请求只带这些工具**，其余全部工具靠 tool_search 按需搜索加载。
-    /// 即使权限策略页全量勾选，初始请求载荷也恒定极小 → 彻底解决"全勾选后变慢"。
-    // v3.0.99: 按大厂最佳实践（Claude Code / Cursor），只预加载 5 个最核心工具
-    // 其他 200+ 工具全部靠 tool_search 按需发现
+    /// v2.9.31：常驻核心工具（历史渐进披露设计，tool_search 已删，现仅作 UI 参考）。
     private static let _coreToolNames: Set<String> = [
-        // 元工具（必须）
-        "tool_search",
-        // 全局视角（让 AI 知道有什么工具类别）
-        "system.overview",
         // 最常用：终端（代替了 fs.read）
         "shell.exec",
         // 最常用：截图
@@ -406,7 +396,7 @@ public final class ToolRegistry: ObservableObject {
     }
 
     /// v2.9.22：授权某工具在本会话内可调用（绕过策略禁用）。
-    /// v2.9.31：tool_search 搜索命中即调用本方法自动授权，AI 搜索后即可调用，无弹窗。
+    /// v2.9.31：AI 调用即自动授权，无弹窗。
     public func approveForSession(_ name: String) {
         lock.lock()
         sessionApproved.insert(name)
@@ -414,8 +404,8 @@ public final class ToolRegistry: ObservableObject {
     }
 
     /// v2.9.175：本会话已授权工具名（原名，仅返回已注册的），
-    /// 供跨消息持久披露——AI 每轮新消息都能看到搜过/授权过的工具 schema，
-    /// 根治"tool_search 搜到 app.decrypt 但下一轮够不到"。
+    /// 供跨消息持久注入——AI 每轮新消息都能看到调用过的工具 schema，
+    /// 根治"调用过 app.decrypt 但下一轮够不到"。
     public func approvedToolNames() -> [String] {
         // v3.0.90：去掉锁——只读操作
         return Array(sessionApproved).filter { tools[$0] != nil }
@@ -452,13 +442,12 @@ public final class ToolRegistry: ObservableObject {
 
     /// v2.9.1：生成给 OpenAI API 用的工具 schema，同时建立 apiName → 原名映射，
     /// 供 dispatch 把模型返回的安全名转回真实工具名。
-    /// v2.9.31：**只返回常驻核心工具**（coreToolNames），不再全量返回已启用工具。
-    /// 其余工具靠 tool_search 按需披露（Anthropic defer_loading 同款设计），
-    /// 初始请求载荷恒定极小，全量勾选不影响速度。
+    /// v3.1.66：全量加载所有已启用工具（tool_search 已删除，不再按 isCore 渐进披露）。
+    /// 工具已精简为约 23 个大工具，全量 schema token 占用可控，AI 一次即可看到全部工具。
     public func enabledOpenAIToolSchema() -> [[String: Any]] {
         lock.lock()
         defer { lock.unlock() }
-        let defs = tools.values.map { $0.definition }.filter { isCore($0.name) && isEnabled(name: $0.name) }
+        let defs = tools.values.map { $0.definition }.filter { isEnabled(name: $0.name) }
         var used = Set<String>()
         var map = [String: String]()
         var result: [[String: Any]] = []
@@ -533,7 +522,7 @@ public final class ToolRegistry: ObservableObject {
         return dotProduct / (normA.squareRoot() * normB.squareRoot())
     }
 
-    /// v2.9.16：tool_search 渐进式披露——按关键词搜索工具名/摘要，返回紧凑清单（不带完整 schema）
+    /// 按关键词搜索工具名/摘要，返回紧凑清单（供 UI 搜索，历史 API 保留）
     /// v3.0.90：去重——已会话授权的工具不再重复返回，避免 AI 反复搜以为能找到新工具
     public func searchTools(query: String, limit: Int = 0) -> [[String: String]] {
         // v3.0.90：去掉锁——只读操作，不需要锁，避免死锁
@@ -685,7 +674,7 @@ public final class ToolRegistry: ObservableObject {
         return hits.prefix(limit).map { ["name": $0.0, "summary": $0.1] }
     }
 
-    /// v2.9.16：返回单个工具的完整 OpenAI function schema（供 tool_search 命中后动态注入下一轮）
+    /// 返回单个工具的完整 OpenAI function schema（供模型按名动态注入）
     public func openAISchema(for name: String) -> [String: Any]? {
         // v3.0.90：去掉锁——只读操作
         guard let tool = tools[name] else { return nil }
@@ -716,18 +705,15 @@ public final class ToolRegistry: ObservableObject {
             tool = tools[original]
         }
         // v2.9.28：兜底解析——按 apiName（下划线安全名）反向匹配所有注册工具。
-        // 修复：tool_search 披露的未启用/敏感工具（如 injection.enable）不在
-        // enabledOpenAIToolSchema 的 apiNameToOriginal 映射里（该映射只含已启用工具），
-        // 模型按披露 schema 返回 injection_enable 时 dispatch 找不到 → unknown tool。
+        // 修复：未启用/敏感工具不在 enabledOpenAIToolSchema 的 apiNameToOriginal 映射里，
+        // 模型按 schema 返回 injection_enable 时 dispatch 找不到 → unknown tool。
         if tool == nil {
             tool = tools.values.first { $0.definition.apiName == name }
         }
         // v3.0.90：去掉 lock.unlock()，因为已经去掉了 lock.lock()
         guard let t = tool else { throw MCPError.unknownTool(name) }
-        // v2.9.31：去掉授权弹窗。放行 = 策略启用（isEnabled）或会话已授权
-        // （tool_search 搜索命中即 approveForSession 自动授权）。
-        // 未加载工具（不在常驻、也未搜索过）直接返回错误，提示 AI 先用 tool_search
-        // 搜索加载，而不是弹窗打扰用户。
+        // v2.9.31：去掉授权弹窗。放行 = 策略启用（isEnabled）或会话已授权。
+        // 未加载/未启用工具直接返回错误，提示 AI 换用已加载工具，而不是弹窗打扰用户。
         let originalName = t.definition.name
         // v2.9.34：放行 = 策略启用 或 会话已授权 或 常驻核心工具。
         // 修复 bug：coreToolNames 里的工具（如 artifact.find）schema 已发给模型，
@@ -844,8 +830,8 @@ public final class ToolRegistry: ObservableObject {
                 if callCount >= loopThreshold {
                     data["_loop_hint"] = "⚠️ You've called this tool \(callCount) times with the same params in the last \(Int(loopWindow))s. If the result is the same, you're probably looping. Try a different approach or ask the user."
                 }
-                // v2.9.167：_noMessage 标记——高频元工具（如 tool_search）返回里
-                // 明确不需要顶层 message（total/tools 已自解释），省 ~10 token/次
+                // v2.9.167：_noMessage 标记——数据自解释的工具返回里明确不需要顶层
+                // message（total/tools 已自解释），省 ~10 token/次
                 if result["_noMessage"] as? Bool == true {
                     data.removeValue(forKey: "_noMessage")
                     return ["ok": true, "data": data]
@@ -879,7 +865,7 @@ public final class ToolRegistry: ObservableObject {
             }
         }
         // v3.1.9: 工具未授权 → 自动授权 + 返回"已加载，请重新调用"
-        // 这样 AI 不用反复搜 tool_search，直接调用时自动加载
+        // AI 直接调用即自动加载，无需先搜索
         approveForSession(originalName)
         throw MCPError.failed("tool \(originalName) 已加载，schema 已注入下一轮，请重新调用")
     }
@@ -899,7 +885,7 @@ public final class ToolRegistry: ObservableObject {
     /// 大字符串截断并附总长度。返回后 AI 仍能读结论字段，细节可带 limit 重取。
     /// `content` 字段（fs.read/artifact.read_text 的文件内容）保留完整——
     /// 它们已由 max_bytes 参数控制读取量，不能再截断。
-    /// v2.9.168：通用字段瘦身（全部工具生效，向 tool_search 看齐）——
+    /// v2.9.168：通用字段瘦身（全部工具生效）——
     /// hint 截 60、summary 截 30、删空字符串值。结构信息不删，只去冗余。
     static func slim(_ d: [String: Any]) -> [String: Any] {
         var nd = d
@@ -1269,103 +1255,6 @@ public final class ToolRegistry: ObservableObject {
     }
 }
 
-// MARK: - tool_search 元工具（v2.9.16 渐进式披露）
-
-/// 模型用此工具按关键词搜索全部可用工具，返回名称+摘要清单。
-/// 命中后 App 会把对应工具的完整 schema 注入下一轮请求，从而
-/// 不必把 80+ 工具全量塞进每次请求（学 OpenClaw / OpenAI Tool Search）。
-final class ToolSearchTool: MCPTool {
-    // v3.1.8：tool_search 调用计数——告诉 AI 已经搜了几次
-    static var searchCount: Int = 0
-    let definition = ToolDefinition(
-        name: "tool_search",
-        summary: "Search for tools. Use for: you need a tool but don't know its exact name. First call returns ALL tools (name + one-line desc) so you can see everything at once. Subsequent calls search by keyword. Don't use for: you already know the tool name (call it directly). Example: user says '帮我抓包' → first call shows all tools → find network.capture.",
-        parameters: ["query": "Search keyword (e.g. '抓包', 'injection', 'file')", "limit": "Max results (default 8)"], verified: true, category: "system")
-
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let query = (params["query"] as? String) ?? ""
-        let limit = (params["limit"] as? NSNumber)?.intValue ?? 0
-        ToolSearchTool.searchCount += 1
-        
-        var hits: [[String: String]]
-        var isCategoryList = false
-        
-        if ToolSearchTool.searchCount == 1 {
-            // v3.1.65: 第一次调用直接返回所有工具（全量加载）！
-            let allTools = ToolRegistry.shared.definitions
-            hits = allTools.map { def in
-                let shortDesc = def.summary.components(separatedBy: ". Use for:").first ?? def.summary
-                let trimmed = shortDesc.count > 60 ? String(shortDesc.prefix(60)) + "..." : shortDesc
-                return ["name": def.name, "summary": trimmed]
-            }
-            for def in allTools {
-                ToolRegistry.shared.approveForSession(def.name)
-            }
-        } else if !query.isEmpty {
-            // 按关键词搜索
-            hits = ToolRegistry.shared.searchTools(query: query, limit: limit)
-            for hit in hits {
-                if let name = hit["name"] {
-                    ToolRegistry.shared.approveForSession(name)
-                }
-            }
-        } else {
-            // 按关键词搜索
-            hits = ToolRegistry.shared.searchTools(query: query, limit: limit)
-        }
-        
-        let totalTools = ToolRegistry.shared.toolCount
-        let approvedCount = ToolRegistry.shared.approvedToolNames().count
-        var hint = "✅ These tools are now authorized and ready to call directly."
-        hint += "\n🔍 Search #\(ToolSearchTool.searchCount) | 📊 Total: \(totalTools) tools | \(approvedCount) approved"
-        
-        if isCategoryList {
-            hint += "\n📁 This is the CATEGORY LIST. Each folder = one category of tools."
-            hint += "\n💡 Pick the MOST relevant category based on user's request. Search only ONCE - don't browse multiple categories."
-            hint += "\n   Examples:"
-            hint += "\n   - User wants to read/edit files → search 'filesystem'"
-            hint += "\n   - User wants to control browser → search 'browser'"
-            hint += "\n   - User wants to launch/stop apps → search 'app_control'"
-            hint += "\n   - User wants to inject/hook → search 'injection'"
-            hint += "\n   - User wants to check device info → search 'device'"
-            hint += "\n   - User wants to clean junk → search 'cleanup'"
-        } else if !query.isEmpty, hits.count > 15, hits.first?["name"]?.hasPrefix("📁") == true {
-            hint += "\n💡 You selected '\(query)'. Pick the most relevant sub-category and search again ONCE."
-        } else if !query.isEmpty {
-            hint += "\n💡 You selected '\(query)'. These are the tools. Pick one and call it directly - no need to search again."
-        }
-        
-        if ToolSearchTool.searchCount >= 4 {
-            hint += "\n⚠️ Stop searching. Use what you have or tell the user what you can do."
-        }
-        
-        if hits.isEmpty {
-            hint += "\n⚠️ No tools found for '\(query)'."
-        }
-        
-        // 显示所有结果（分类列表或分类下的工具）
-        for h in hits {
-            if let n = h["name"], let s = h["summary"] {
-                hint += "\n  - \(n): \(s)"
-            }
-        }
-        
-        return [
-            "_noMessage": true,
-            "total": hits.count,
-            "authorized": hits.map { $0["name"] ?? "" },
-            "hint": hint,
-            "tools": hits.map { h -> [String: String] in
-                var d = h
-                if let s = d["summary"] {
-                    d["desc"] = s
-                    d.removeValue(forKey: "summary")
-                }
-                return d
-            }
-        ]
-    }
-}
 
 // MARK: - 工作区
 

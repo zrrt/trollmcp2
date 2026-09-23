@@ -695,8 +695,7 @@ final class ConversationStore: ObservableObject {
         appendToCurrent(msg)
         isLoading = true
 
-        // v2.9.16：渐进式披露——初始只带白名单工具 + tool_search 元工具，
-        // 模型搜索命中后按需注入其余工具，避免 80+ 工具全量进请求导致慢/超时
+        // v3.1.66：全量加载所有工具（tool_search 已删除，不再渐进式披露）
         var baseTools = config.apiProtocol == "Anthropic Messages" ? nil : ToolRegistry.shared.enabledOpenAIToolSchema()
         // v2.9.20：智能搜索开关真实生效——关闭时从工具集移除 web.search / knowledge.search / web.fetch
         if !smartSearch {
@@ -708,10 +707,8 @@ final class ConversationStore: ObservableObject {
                 return true
             }
         }
-        // v2.9.175：初始 disclosed = 本会话已授权工具（跨消息持久披露）。
-        // 旧版每轮重置为 []，AI 只能看到 coreToolNames；tool_search 搜到
-        // app.decrypt 授权后，下一轮新消息又"够不到"（schema 不再注入）。
-        // 现在每轮把会话内已授权的工具 schema 一并注入，AI 可随时直接调用。
+        // v3.1.66：全量加载，disclosed 机制已不再新增工具（tool_search 已删），
+        // 保留仅为兼容会话内已授权工具 schema 的持久注入。
         let preDisclosed = ToolRegistry.shared.approvedToolNames()
         runLoop(config: config, tools: baseTools, disclosed: preDisclosed, depth: 0, reasoningLevel: reasoningLevel)
     }
@@ -1115,25 +1112,7 @@ final class ConversationStore: ObservableObject {
                                  detail: Self.trailSummary(rawContent),
                                  ok: true))
             var nextDisclosed = newlyDisclosed
-            // v2.9.16：tool_search 命中后，把搜到的工具名加入待披露集合
-            // v2.9.27：修复披露 bug——ToolSearchTool 返回 [[String: String]]，
-            // 原 as? [[String: Any]] 因 Dictionary Value 泛型不同永远失败，
-            // 导致搜到的工具下一轮从不注入 schema（AI 永远拿不到接口）。
-            if call.name == "tool_search" {
-                if let arr = r["tools"] as? [[String: String]] {
-                    for item in arr {
-                        if let n = item["name"], !n.isEmpty {
-                            nextDisclosed.append(n)
-                        }
-                    }
-                } else if let arr = r["tools"] as? [[String: Any]] {
-                    for item in arr {
-                        if let n = item["name"] as? String, !n.isEmpty {
-                            nextDisclosed.append(n)
-                        }
-                    }
-                }
-            }
+            // v3.1.66：tool_search 已删除，全量加载所有工具，无需披露机制。
             self.processToolCalls(calls, index: index + 1, toolMessages: next, newlyDisclosed: nextDisclosed,
                                   config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel,
                                   thinkText: thinkText)
@@ -1351,8 +1330,6 @@ final class ConversationStore: ObservableObject {
     }
 
     // v2.9.171：工具结果序列化去掉 prettyPrinted → 紧凑 JSON（无缩进空格）。
-    // 之前每层缩进 4 空格，一条 tool_search 结果缩进就占几十~上百 token，
-    // 且该字符串既展示在聊天界面又作为 tool 消息发给模型，双重烧 token。
     private static func jsonString(_ dict: [String: Any]) -> String {
         guard let data = try? JSONSerialization.data(withJSONObject: dict),
               let s = String(data: data, encoding: .utf8) else { return "{}" }

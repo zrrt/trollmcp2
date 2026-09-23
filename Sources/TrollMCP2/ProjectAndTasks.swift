@@ -151,7 +151,7 @@ final class ProjectContext: ObservableObject {
 final class ProjectTool: MCPTool {
     let definition = ToolDefinition(
         name: "project",
-        summary: "Manage project context (current/list/create/select/delete/history/generate_tweak). Use for: switch between projects (different target apps/dylibs), save project state, generate tweak template. Don't use for: run task template (use task.run), list tools (use tool_search). Example: user says '切换到小红书项目' → select project; user says '创建一个新的 tweak 项目' → generate_tweak.",
+        summary: "Manage project context (current/list/create/select/delete/history/generate_tweak). Use for: switch between projects (different target apps/dylibs), save project state, generate tweak template. Don't use for: run task template (use shell.exec directly). Example: user says '切换到小红书项目' → select project; user says '创建一个新的 tweak 项目' → generate_tweak.",
         parameters: [
             "action": "current | list | create | select | delete | history | generate_tweak",
             "name": "Project name (for create/select/generate_tweak)",

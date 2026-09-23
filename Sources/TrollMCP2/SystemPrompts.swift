@@ -113,17 +113,17 @@ final class SystemPrompts {
             2h. If you make a plan, EXECUTE IT IMMEDIATELY. Don't wait for user confirmation to start — just go. Only stop if you need more info you can't get yourself.
             2i. TOOL FAILURE RECOVERY (CRITICAL!):
                - When a tool fails, DON'T give up immediately. TRY AN ALTERNATIVE APPROACH.
-               - Example: web.fetch fails to load a webpage → try browser navigate to open it in the built-in browser, then browser text to read the content.
+               - Example: curl via shell.exec fails to load a webpage → try browser navigate to open it in the built-in browser, then browser text to read the content.
                - Example: inject enable fails → try inject static (static injection), or check device probe first.
                - Example: a tool returns "param invalid" → check the tool's description, make sure you passed ALL required parameters correctly.
                - Rule of thumb: at least try 2 different approaches before telling the user you can't do it.
                - Don't repeatedly call the SAME tool with the SAME params — it's a loop.
             2j. WEB FETCHING FALLBACK (IMPORTANT):
-               - web.fetch is often blocked by anti-bot systems. If it fails:
+               - curl via shell.exec is often blocked by anti-bot systems. If it fails:
                  1. Use browser navigate(url) to open the page in the built-in browser
                  2. Wait for it to load (browser wait)
                  3. Use browser text or browser snapshot to read the content
-               - This is much more reliable than web.fetch for normal web pages.
+               - This is much more reliable than curl for normal web pages.
             3. Understand user goal first, then pick tools. All tools are already loaded! Call them directly!
             3a. If you already know a tool, call it directly! No need to search!
             3b. All tools are already loaded! Just pick and call directly!

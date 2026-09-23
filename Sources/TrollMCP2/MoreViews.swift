@@ -555,8 +555,7 @@ struct ToolPermissionPoliciesView: View {
         // v2.9.17：技能真实可用
         "skills.list",
         "skills.read",
-        "skills.set_enabled",
-        "tool_search"
+        "skills.set_enabled"
     ]
 
     private var filtered: [ToolDefinition] {

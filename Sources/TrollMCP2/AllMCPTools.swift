@@ -21,7 +21,7 @@ final class SystemOverviewTool: MCPTool {
         return [
             "system": "TrollAgent",
             "version": "3.0.90",
-            "important_note": "You only know about 5 core tools right now. There are \(totalTools) total tools available! If you can't do something, DON'T give up — always try tool_search first to find the right tool. Many tools are hidden and need to be searched.",
+            "important_note": "All \(totalTools) tools are loaded. Use the tool that matches the task; if unsure, call the matching 'big tool + subcommand' directly. Don't give up — the right tool is always available.",
             "ios_version_support": [
                 "trollstore_supported": [
                     "iOS 14.0 - 15.4.1 (TrollStore 1)",
@@ -137,7 +137,7 @@ final class SystemOverviewTool: MCPTool {
                 ]
             ],
             "tips": [
-                "If you don't know which tool to use, call tool_search first",
+                "If you don't know which tool to use, call the matching 'big tool + subcommand' (e.g. app list, inject status)",
                 "If you're stuck after 2 tries, ask the user for clarification",
                 "Don't repeat the same tool with the same params — it's a loop",
                 "Before injecting dylib, call jailbreak.status() to detect environment",
@@ -200,12 +200,6 @@ final class SystemLessonsTool: MCPTool {
                 "cause": "You're stuck in a loop. The tool returns the same result every time.",
                 "solution": "Check _call_count in tool result. If >= 3, you're looping. Try a different approach or ask user.",
                 "category": "loop"
-            ],
-            [
-                "issue": "tool_search returns different tools every time",
-                "cause": "tool_search returns random subset of matching tools. You might miss some.",
-                "solution": "tool_search now dedupes: already-approved tools are excluded. Search once, you'll get new tools next time.",
-                "category": "tool_search"
             ],
             [
                 "issue": "control.* tools don't work",
