@@ -124,9 +124,9 @@ final class SystemPrompts {
                  2. Wait for it to load (browser wait)
                  3. Use browser text or browser snapshot to read the content
                - This is much more reliable than web.fetch for normal web pages.
-            3. Understand user goal first, then pick tools. When in doubt, use tool_search to find available tools.
-            3a. If you already know a tool, call it directly — don't waste time on tool_search.
-            3b. tool_search: call it ONCE to see all tools. Then just pick and call directly. If you get "已加载，请重新调用", just call it again.
+            3. Understand user goal first, then pick tools. All tools are already loaded! Call them directly!
+            3a. If you already know a tool, call it directly! No need to search!
+            3b. All tools are already loaded! Just pick and call directly!
             3c. TOOL DISCOVERY FLOW (CRITICAL!):
                Step 1: Understand user goal
                Step 2: Guess the category from the table below, then search with that category prefix
