@@ -36,7 +36,7 @@ enum ShellDiag {
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "Run a shell command (terminal/command line/sh). Has 36 iOS native commands that work DIRECTLY on the REAL iOS system: file ops (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/curl/plutil/sqlite3/unzip) + system info (df/free/uname/uptime/hostname/ps/top/kill) + network (ifconfig/netstat/nslookup). Plus full Alpine Linux (iSH engine) for advanced scripting. Use for: file operations, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*). Example: 'read file' → cat /path; 'disk space' → df; 'processes' → ps; 'download' → curl -O url.",
+        summary: "Run a shell command (terminal/command line/sh). Has 36 iOS native commands that work DIRECTLY on the REAL iOS system: file ops (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/curl/plutil/sqlite3/unzip) + system info (df/free/uname/uptime/hostname/ps/top/kill) + network (ifconfig/netstat/nslookup). Plus full Alpine Linux (iSH engine) for advanced scripting. Supports pipes/semicolons/redirection (e.g. 'ls /var/mobile | head -5', 'cat a.txt; echo done', 'echo hi > f.txt') via iOS-native pipeline executor. Run 'env' to probe current execution environment. Use for: file operations, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*). Example: 'read file' → cat /path; 'disk space' → df; 'processes' → ps; 'download' → curl -O url.",
         parameters: [
             "command": "Shell command to execute (required)",
             "timeout": "Timeout seconds (default 30, max 120)",
@@ -78,6 +78,33 @@ final class ShellExecTool: MCPTool {
         // v3.1.32: iOS 原生命令拦截——直接用 iOS FileManager 执行，不经过 Alpine
         // 这样就能访问整个 iOS 文件系统了！
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // v3.1.33: env 探针命令——一键返回当前执行环境（后端/cwd/路径可见性），
+        // 任何"时灵时不灵"异常第一步用它定位（AI 诊断 P4）
+        if trimmed == "env" || trimmed == "env " || trimmed.hasPrefix("env ") && trimmed.count <= 5 {
+            let home = NSHomeDirectory()
+            let docs = home + "/Documents"
+            var iosContainers = false
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: "/var/containers", isDirectory: &isDir), isDir.boolValue {
+                iosContainers = true
+            }
+            return [
+                "command": command,
+                "exit_code": 0,
+                "stdout": [
+                    "执行环境: iOS 原生（FileManager 直连）",
+                    "HOME: \(home)",
+                    "Documents: \(docs)",
+                    "cwd: \(ISHEngine.cwd)",
+                    "iOS 系统路径可见(/var/containers): \(iosContainers)",
+                    "Alpine 后端: iSH 引擎（/workspace 映射 iOS Documents/Workspace）",
+                    "提示: 含 | ; && > 的复合命令走 iOS 原生管道执行器；非 iOS 命令段走 Alpine"
+                ].joined(separator: "\n"),
+                "ios_native": true,
+                "hint": "env 探针：定位执行环境问题"
+            ]
+        }
         
         // v3.1.33: shell 语法识别——含管道/分号/重定向/逻辑符的命令不再裸前缀匹配（iOS 原生朴素分词会把 | ; 当参数），
         // 统一走 iOS 原生管道执行器：首段 iOS 原生执行 + Swift 过滤器 + 顺序拼接。
