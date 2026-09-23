@@ -347,10 +347,13 @@ final class OpenAIClient {
         // 级别 4（最小载荷）不带该字段——若中转连这个字段都不认，还有最后一级兜底。
         if config.isReasoningModel {
             body["reasoning_effort"] = reasoningEffortName()
-            // v3.1.33：思考语言强制中文——reasoning_content 直接来自模型，模型默认英文思考，
-            // 通过 instructions（Responses API 官方字段）要求用简体中文思考；chat/completions 中转
-            // 不认识该字段会忽略（不影响请求）。
-            body["instructions"] = "你的思考过程（reasoning/thinking）请始终使用简体中文输出。最终回复也使用简体中文，除非用户明确要求其他语言。"
+            // v3.1.74：思考/回复语言跟随 App 设置（设置 → 语言），不再硬编码中文
+            // v3.1.33 曾强制简体中文思考；现在按 LanguageManager.shared.language 动态下发
+            if LanguageManager.shared.isZh {
+                body["instructions"] = "你的思考过程（reasoning/thinking）请始终使用简体中文输出。最终回复也使用简体中文，除非用户明确要求其他语言。"
+            } else {
+                body["instructions"] = "Always think and reply in English unless the user explicitly asks for another language."
+            }
         }
         if let tools = tools, !tools.isEmpty {
             if level < 3 {
