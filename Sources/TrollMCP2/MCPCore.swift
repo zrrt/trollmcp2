@@ -1255,8 +1255,7 @@ public final class ToolRegistry: ObservableObject {
         // v3.0.71：AI 自我进化——加载外部 dylib 注册新工具
         // v3.1.60: 删 ToolLoadDylibTool（已合并到 inject 大工具：inject load_dylib）
         // v3.0.72：语义化 UI 操作 + OCR
-        register(ControlTapTextTool())
-        register(ControlTypeTextTool())
+        // v3.1.62: 删 ControlTapTextTool / ControlTypeTextTool（已合并到 ControlExecTool）
         register(OCRImageTool())
 
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
