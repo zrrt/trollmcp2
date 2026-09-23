@@ -1,0 +1,8 @@
+Package: com.trollagent.tlshook
+Name: TLSHook
+Version: 1.0
+Architecture: iphoneos-arm
+Description: TLS plaintext probe dylib, decrypts SSL_read/SSL_write to Workspace/network_capture/tls
+Maintainer: TrollAgent
+Section: Tweaks
+Priority: optional
