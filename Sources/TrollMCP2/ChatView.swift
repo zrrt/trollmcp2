@@ -540,7 +540,8 @@ struct ChatView: View {
                                 }
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 8)
-                                .background(Color(.tertiarySystemBackground).opacity(0.9))
+                                // v3.1.66：tertiarySystemBackground 浅色模式≈白看不见，改 systemGray5
+                                .background(Color(.systemGray5).opacity(0.9))
                                 .cornerRadius(14)
                                 .padding(.trailing, 16)
                             }
@@ -1369,7 +1370,9 @@ struct MessageBubble: View {
                 toolResultMiniBubble
             }
             .padding(10)
-            .background(Color(.tertiarySystemBackground))
+            // v3.1.66：修复"工具气泡浅色模式不显示"——tertiarySystemBackground 在浅色模式≈纯白，
+            // 与聊天背景融为一体；改用 systemGray5（浅色=浅灰/深色=深灰，两种模式都有区分度）
+            .background(Color(.systemGray5))
             .cornerRadius(10)
         }
     }
@@ -1503,7 +1506,8 @@ struct FileCardRow: View {
                     .foregroundColor(.tmCyan)
             }
             .padding(10)
-            .background(Color(.tertiarySystemBackground))
+            // v3.1.66：同 toolBubble——tertiarySystemBackground 浅色模式≈白色看不见，改 systemGray5
+            .background(Color(.systemGray5))
             .cornerRadius(10)
         }
         .buttonStyle(PlainButtonStyle())
@@ -1570,7 +1574,8 @@ struct LiveTrailCard: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.tertiarySystemBackground).opacity(0.85))
+        // v3.1.66：同 toolBubble——tertiarySystemBackground 浅色模式≈白色看不见，改 systemGray5
+        .background(Color(.systemGray5).opacity(0.85))
         .cornerRadius(12)
     }
 }
