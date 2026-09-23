@@ -40,7 +40,9 @@ final class ShellExecTool: MCPTool {
         parameters: [
             "command": "Shell command to execute (required)",
             "timeout": "Timeout seconds (default 30, max 120)",
-            "reset_cwd": "Optional Bool: reset working dir to default (default false)"
+            "reset_cwd": "Optional Bool: reset working dir to default (default false)",
+            "limit": "Optional Int: 结果字符串截断上限（默认4000字符）。诊断时输出被修剪看不到主体，可传 limit=20000 或更大；full=true 则不截断返回完整结果",
+            "full": "Optional Bool: true=返回完整结果不截断（慎用，大输出占满上下文）"
         ],
         verified: true
     )

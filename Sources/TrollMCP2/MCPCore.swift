@@ -818,7 +818,16 @@ public final class ToolRegistry: ObservableObject {
                 // AI 读 message 一眼判成败；需要排障才展开 data。
                 // v2.9.137：结果摘要化——data 内大数组（>20）/大字符串（>4000）
                 // 递归压缩，复合工具诊断结论前置、细节按需取，防大结果占满上下文。
-                var data = Self.compactResult(result)
+                // v3.1.33：截断可配置——AI 可在参数里传 limit（覆盖字符串上限，默认4000）
+                // 或 full=true（不截断，返回完整结果），解决"结果被修剪看不到主体"的痛点。
+                var data: [String: Any]
+                if let fullFlag = params["full"] as? Bool, fullFlag {
+                    data = Self.slim(result)
+                } else if let lim = params["limit"] as? Int, lim > 0 {
+                    data = Self.compactResult(result, strLimit: min(lim, 100_000), keepHeadTail: true)
+                } else {
+                    data = Self.compactResult(result)
+                }
                 data.removeValue(forKey: "message")
                 // v3.0.90：告诉 AI 它调了几次，让 AI 自己判断是不是在循环
                 data["_call_count"] = callCount
@@ -902,7 +911,7 @@ public final class ToolRegistry: ObservableObject {
         return url.path
     }
 
-    static func compactResult(_ root: [String: Any], arrLimit: Int = 20, strLimit: Int = 4000) -> [String: Any] {
+    static func compactResult(_ root: [String: Any], arrLimit: Int = 20, strLimit: Int = 4000, keepHeadTail: Bool = true) -> [String: Any] {
         var out: [String: Any] = [:]
         for (k, v) in root {
             switch v {
@@ -916,9 +925,17 @@ public final class ToolRegistry: ObservableObject {
                 if k == "content" || t.count <= strLimit {
                     out[k] = t
                 } else {
-                    // 截断 + 落盘：完整内容写工作区 tool_spill/，AI 需要细节可再读文件
+                    // v3.1.33：截断策略——保留头+尾（默认），不只留开头（AI 诊断 P3：
+                    // "只留开头最没用"）。完整内容仍落盘 tool_spill/，AI 可 cat 全量。
                     let spillPath = Self.spillLarge(k, t)
-                    out[k] = String(t.prefix(strLimit)) + "\n…[截断 共\(t.count)字符，完整内容: \(spillPath)]"
+                    if keepHeadTail, strLimit >= 200 {
+                        let half = strLimit / 2
+                        let head = String(t.prefix(half))
+                        let tail = String(t.suffix(half))
+                        out[k] = head + "\n…[中间省略 共\(t.count - strLimit + 40)字符，完整内容: \(spillPath)]…\n" + tail
+                    } else {
+                        out[k] = String(t.prefix(strLimit)) + "\n…[截断 共\(t.count)字符，完整内容: \(spillPath)]"
+                    }
                 }
             case let arr as [[String: Any]]:
                 if arr.count > arrLimit {

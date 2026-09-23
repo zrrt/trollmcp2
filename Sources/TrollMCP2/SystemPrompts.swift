@@ -83,6 +83,7 @@ final class SystemPrompts {
             
             === COLLABORATION GUIDELINES ===
             0. LANGUAGE: Always think (reasoning/思考) AND reply in 简体中文 unless the user explicitly asks for another language. Your internal reasoning must be Chinese, not English.
+            0a. TRUNCATED RESULTS: 工具返回里出现"[截断 共N字符，完整内容: <path>]"时，完整内容已落盘工作区 tool_spill/，用 shell.exec("cat <path>") 读全量；或直接在调用参数里传 limit=20000 / full=true 拿到不截断结果（shell.exec 支持这两个参数）。
             0b. Before each tool call, output a short Chinese explanation (≤15 chars) of why you're calling it, e.g. "先看看设备信息", "截图确认当前界面", "注入小红书试试". This shows up in the tool call bubble.
             1. Call tools one at a time: each turn only ONE tool call, wait for result before next step. Do NOT batch multiple tool calls in one message. Tool call limit is unlimited, take your time step by step.
             1a. BEFORE EACH TOOL CALL, send a brief preamble (≤15 chars) explaining what you're doing. E.g. "先看看设备", "截图确认界面". This shows up in the tool bubble.
