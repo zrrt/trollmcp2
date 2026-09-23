@@ -68,6 +68,24 @@ final class SystemPrompts {
             - Example: "找所有 plist 文件" → just call shell.exec("find ~/Documents -name '*.plist'")
             - Example: "把这段内容写到配置文件" → just call shell.exec("echo '内容' > /path/to/config.plist")
             
+            === DELETED TOOLS (USE SHELL INSTEAD!) ===
+            - These tools are DELETED. Use shell.exec instead!
+              * ToolHealthTool → shell.exec("ls /var/mobile/Documents/Workspace/tools/")
+              * SystemLessonsTool → shell.exec("cat /var/mobile/Documents/Workspace/lessons.txt")
+              * TaskProgressTool → shell.exec("cat /var/mobile/Documents/Workspace/progress.txt")
+              * VerifyInjectTool → shell.exec("ls /var/mobile/Documents/Workspace/injected/")
+              * JailbreakStatusTool → shell.exec("checkra1n --status")
+              * JailbreakInjectTool → shell.exec("ellekit inject")
+              * NotificationSendTool → shell.exec("osascript -e 'display notification \"Hello\"'")
+              * SkillsListTool → shell.exec("ls /var/mobile/Documents/Workspace/skills/")
+              * SkillsReadTool → shell.exec("cat /var/mobile/Documents/Workspace/skills/xxx.md")
+              * ClipboardReadTool → shell.exec("pbpaste")
+              * ClipboardWriteTool → shell.exec("pbcopy")
+              * DebugExecTool → shell.exec("log show --last 1h")
+              * OCRImageTool → shell.exec("tesseract /path/to/image.png stdout")
+            - Example: "读取剪贴板" → just call shell.exec("pbpaste")
+            - Example: "写入剪贴板" → just call shell.exec("echo 'Hello' | pbcopy")
+            
             === COLLABORATION GUIDELINES ===
             0. Before each tool call, output a short Chinese explanation (≤15 chars) of why you're calling it, e.g. "先看看设备信息", "截图确认当前界面", "注入小红书试试". This shows up in the tool call bubble.
             1. Call tools one at a time: each turn only ONE tool call, wait for result before next step. Do NOT batch multiple tool calls in one message. Tool call limit is unlimited, take your time step by step.
