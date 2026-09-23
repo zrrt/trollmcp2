@@ -1210,12 +1210,16 @@ final class ConversationStore: ObservableObject {
         // v2.9.138：工具结果修剪（Claude Code Precision Forgetting Layer 1）——
         // 非最近 3 条 tool 消息、内容 > 300 字符的旧工具结果替换为紧凑占位符。
         // 零 LLM 成本回收上下文：AI 需要细节时可重新调用该工具。
+        // v3.1.68：阈值 300 → 2000（AI 实测"377 字符不该被截"属实，小结果不再替换）；
+        // 替换时保留原内容前 500 字符（"截空看不到主体"根因——占位符不再整条顶替，
+        // 且后续预算裁剪/sanitize 删占位符时头部仍在，AI 不至于完全失去线索）。
         let toolIdx = all.enumerated().filter { $0.element.isTool }.map { $0.offset }
         let keepTool = Set(toolIdx.suffix(3))
-        for (i, m) in all.enumerated() where m.isTool && !keepTool.contains(i) && m.content.count > 300 {
+        for (i, m) in all.enumerated() where m.isTool && !keepTool.contains(i) && m.content.count > 2000 {
             var nm = m
             let toolName = m.toolName ?? "tool"
-            nm.content = "[工具结果已修剪: \(toolName)，原\(m.content.count)字符。如需完整结果请重新调用该工具并带 limit/范围参数]"
+            let head = String(m.content.prefix(500))
+            nm.content = "[工具结果已修剪: \(toolName)，原\(m.content.count)字符，以下为头部]\n\(head)\n…如需完整结果请重新调用该工具并带 limit=20000 或 full=true"
             all[i] = nm
         }
         // v2.9.87：预算预留 30% 给 tools schema + 系统/开发者指令 + 请求开销。

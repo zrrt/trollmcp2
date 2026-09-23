@@ -1062,8 +1062,14 @@ final class ShellExecTool: MCPTool {
         
         do {
             let content = try String(contentsOfFile: path, encoding: .utf8)
-            // 限制输出长度，防止太长
-            let truncated = content.count > 5000 ? String(content.prefix(5000)) + "\n... (输出太长，已截断，共 \(content.count) 字符)" : content
+            // 限制输出长度，防止太长（v3.1.68：截断附精确 spill 路径，可 cat 全量）
+            let truncated: String
+            if content.count > 5000 {
+                let spillPath = ToolRegistry.spillLarge("cat", content)
+                truncated = String(content.prefix(2500)) + "\n…[输出太长共 \(content.count) 字符，已截断；完整内容: \(spillPath)]…\n" + String(content.suffix(2500))
+            } else {
+                truncated = content
+            }
             return [
                 "command": command,
                 "exit_code": 0,
@@ -1082,63 +1088,99 @@ final class ShellExecTool: MCPTool {
     }
     
     /// v3.1.32: iOS 原生 find 命令——找文件
+    /// v3.1.68: 支持 -iname（忽略大小写）与 -maxdepth N（任意参数顺序），
+    /// 修复"只认 find <path> -name '<pattern>'、参数顺序敏感"（AI 诊断 4，2026-09-23 实测确认）
     private static func runIOSFind(_ command: String) -> [String: Any] {
         let fm = FileManager.default
         let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
         
-        guard parts.count >= 3 else {
+        guard parts.count >= 2 else {
             return [
                 "command": command,
                 "exit_code": 1,
-                "stdout": "Usage: find <path> -name '<pattern>'",
+                "stdout": "Usage: find <path> [-name|-iname '<pattern>'] [-maxdepth N]",
                 "ios_native": true
             ]
         }
         
-        let searchPath = ShellExecTool.normalizePath((parts[1] as NSString).expandingTildeInPath)
-        guard searchPath == "." || searchPath.hasPrefix("/") else {
-            return [
-                "command": command,
-                "exit_code": 1,
-                "stdout": "Usage: find <path> -name '<pattern>'",
-                "ios_native": true
-            ]
-        }
-        
-        var namePattern = ""
-        
-        // 解析 -name 参数
-        for i in 2..<parts.count {
-            if parts[i] == "-name", i + 1 < parts.count {
-                namePattern = parts[i+1].trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+        // 灵活解析：路径是第一个不以 - 开头的参数；-name/-iname/-maxdepth 任意位置
+        var searchPath: String? = nil
+        var namePattern: String? = nil
+        var ignoreCase = false
+        var maxDepth = 5
+        var i = 1
+        while i < parts.count {
+            let p = parts[i]
+            if p == "-name" || p == "-iname" {
+                ignoreCase = p == "-iname"
+                if i + 1 < parts.count {
+                    namePattern = parts[i+1].trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+                    i += 2
+                    continue
+                }
+                i += 1
+                continue
             }
+            if p == "-maxdepth" {
+                if i + 1 < parts.count, let d = Int(parts[i+1]) {
+                    maxDepth = min(max(d, 0), 20)
+                }
+                i += 2
+                continue
+            }
+            if !p.hasPrefix("-") && searchPath == nil {
+                searchPath = p
+            }
+            i += 1
         }
         
-        guard !namePattern.isEmpty else {
+        guard let rawPath = searchPath else {
             return [
                 "command": command,
                 "exit_code": 1,
-                "stdout": "Usage: find <path> -name '<pattern>'",
+                "stdout": "Usage: find <path> [-name|-iname '<pattern>'] [-maxdepth N]",
                 "ios_native": true
             ]
         }
+        let resolved = ShellExecTool.normalizePath((rawPath as NSString).expandingTildeInPath)
+        guard resolved == "." || resolved.hasPrefix("/") else {
+            return [
+                "command": command,
+                "exit_code": 1,
+                "stdout": "Usage: find <path> [-name|-iname '<pattern>'] [-maxdepth N]",
+                "ios_native": true
+            ]
+        }
+        
+        guard let pattern = namePattern, !pattern.isEmpty else {
+            return [
+                "command": command,
+                "exit_code": 1,
+                "stdout": "Usage: find <path> [-name|-iname '<pattern>'] [-maxdepth N]",
+                "ios_native": true
+            ]
+        }
+        
+        let searchPath = resolved
+        let nameRegex = pattern.replacingOccurrences(of: "*", with: ".*")
+        let compareOpts: String.CompareOptions = ignoreCase ? [.regularExpression, .caseInsensitive] : [.regularExpression]
         
         var results: [String] = []
         
         func findRecursive(dir: String, depth: Int) {
-            guard depth < 5 else { return } // 限制深度，防止无限递归
+            guard depth <= maxDepth else { return } // 用 -maxdepth 限制深度
             do {
                 let items = try fm.contentsOfDirectory(atPath: dir)
                 for item in items {
                     let fullPath = dir + "/" + item
-                    // 匹配文件名
-                    if item.range(of: namePattern.replacingOccurrences(of: "*", with: ".*"), options: .regularExpression) != nil {
+                    // 匹配文件名（-name 精确大小写；-iname 忽略大小写）
+                    if item.range(of: nameRegex, options: compareOpts) != nil {
                         results.append(fullPath)
                     }
                     // 递归子目录
                     var isDir: ObjCBool = false
                     fm.fileExists(atPath: fullPath, isDirectory: &isDir)
-                    if isDir.boolValue {
+                    if isDir.boolValue, depth < maxDepth {
                         findRecursive(dir: fullPath, depth: depth + 1)
                     }
                 }
@@ -2082,34 +2124,61 @@ final class ShellExecTool: MCPTool {
         return ["command": command, "exit_code": 0, "stdout": hostname, "ios_native": true]
     }
     
-    /// v3.1.33: iOS 原生 ps 命令——进程列表（简化版）
+    /// v3.1.33: iOS 原生 ps 命令——进程列表
+    /// v3.1.68: 真实进程表（sysctl KERN_PROC_ALL），替换此前假数据桩（AI 诊断 5："ps 是桩"属实）
     private static func runIOSPs(_ command: String) -> [String: Any] {
-        // 简化版：只显示当前进程
-        let output = """
-        PID  COMMAND
-        1    launchd
-        120  SpringBoard
-        156  TrollAgent
-        ... (简化版，完整 ps 用 Alpine shell)
-        """
-        return ["command": command, "exit_code": 0, "stdout": output, "ios_native": true, "hint": "提示：完整进程列表用 Alpine shell 的 ps"]
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0]
+        var size = 0
+        guard sysctl(&mib, u_int(mib.count), nil, &size, nil, 0) == 0, size > 0 else {
+            return ["command": command, "exit_code": 1, "stdout": "ps: 无法读取进程列表 (sysctl size)", "ios_native": true]
+        }
+        let count = size / MemoryLayout<kinfo_proc>.size
+        guard count > 0, count < 2000 else {
+            return ["command": command, "exit_code": 1, "stdout": "ps: 进程数异常 (\(count))", "ios_native": true]
+        }
+        var procList = [kinfo_proc](repeating: kinfo_proc(), count: count)
+        guard sysctl(&mib, u_int(mib.count), &procList, &size, nil, 0) == 0 else {
+            return ["command": command, "exit_code": 1, "stdout": "ps: 无法读取进程列表 (sysctl read)", "ios_native": true]
+        }
+        
+        var lines = ["PID   PPID  NAME"]
+        let n = min(count, 200)
+        for i in 0..<n {
+            let p = procList[i]
+            let pid = p.kp_proc.p_pid
+            let ppid = p.kp_eproc.e_ppid
+            let comm = withUnsafePointer(to: p.kp_proc.p_comm) { ptr in
+                String(cString: UnsafeRawPointer(ptr).assumingMemoryBound(to: CChar.self))
+            }
+            lines.append(String(format: "%5d  %5d  %@", pid, ppid, comm))
+        }
+        if count > n {
+            lines.append("... (共 \(count) 个进程，显示前 \(n) 个)")
+        }
+        return [
+            "command": command,
+            "exit_code": 0,
+            "stdout": lines.joined(separator: "\n"),
+            "ios_native": true,
+            "hint": "iOS 原生 ps：真实进程表（sysctl），最多显示 200 条"
+        ]
     }
     
-    /// v3.1.33: iOS 原生 top 命令——CPU/内存（简化版）
+    /// v3.1.33: iOS 原生 top 命令——CPU/内存
+    /// v3.1.68: 进程数与 ps 一致（真实 sysctl），删除假头部数据
     private static func runIOSTop(_ command: String) -> [String: Any] {
         let psResult = runIOSPs("ps")
-        var output = psResult["stdout"] as? String ?? ""
-        
-        // 加个头部
-        let header = """
-        Processes: 30 total
-        CPU usage: user 20%, sys 30%, idle 50%
-        PhysMem: 12800M used, 2000M free
-        Load Avg: 0.50 0.40 0.30
-        
-        """
-        
-        return ["command": command, "exit_code": 0, "stdout": header + output, "ios_native": true]
+        let psOut = psResult["stdout"] as? String ?? ""
+        // 从 ps 输出提取真实进程总数（最后一行 "共 N 个" 或行数）
+        var total = 0
+        let psLines = psOut.components(separatedBy: "\n")
+        if let lastLine = psLines.last, lastLine.contains("共"), let n = Int(lastLine.replacingOccurrences(of: "[^0-9]", with: "", options: .regularExpression)) {
+            total = n
+        } else {
+            total = max(psLines.count - 1, 0)
+        }
+        let header = "Processes: \(total) total (真实，sysctl)\n"
+        return ["command": command, "exit_code": 0, "stdout": header + psOut, "ios_native": true, "hint": "iOS 原生 top：进程来自真实 sysctl"]
     }
     
     /// v3.1.33: iOS 原生 kill 命令——杀进程
