@@ -34,16 +34,49 @@ let package = Package(
                 .linkedLibrary("z")
             ]
         ),
+        // v3.3.0：MITM 内核 C 桥接层（OpenSSL）。依赖 scripts/build-openssl.sh 产出的 openssl-stage/
+        .target(
+            name: "CMitm",
+            path: "CMitm",
+            cSettings: [
+                .headerSearchPath("../openssl-stage/include")
+            ],
+            linkerSettings: [
+                .unsafeFlags(["-L", "openssl-stage/lib"]),
+                .linkedLibrary("ssl"),
+                .linkedLibrary("crypto")
+            ]
+        ),
+        // v3.3.0：MITM 代理内核（主 App 本地代理模式 + VpnTunnel appex 共用）
+        .target(
+            name: "MitmCore",
+            dependencies: ["CMitm"],
+            path: "Sources/MitmCore"
+        ),
+        // v3.3.0：VPN 抓包模式 appex（PacketTunnelProvider）
+        .executableTarget(
+            name: "VpnTunnel",
+            dependencies: ["MitmCore", "CMitm"],
+            path: "Sources/VpnTunnel",
+            linkerSettings: [
+                .linkedFramework("NetworkExtension")
+            ]
+        ),
         .executableTarget(
             name: "TrollMCP2",
             dependencies: [
                 .product(name: "RSKGrowingTextView", package: "RSKGrowingTextView"),
                 .product(name: "ZIPFoundation", package: "ZIPFoundation"),
-                "CISH"
+                "CISH",
+                "MitmCore",
+                "CMitm"
             ],
             path: "Sources/TrollMCP2",
             exclude: ["Resources"],
-            linkerSettings: [.linkedLibrary("z")]
+            linkerSettings: [
+                .linkedLibrary("z"),
+                .linkedFramework("NetworkExtension")
+            ]
         ),
     ]
 )

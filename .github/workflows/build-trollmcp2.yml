@@ -129,6 +129,11 @@ jobs:
           mkdir -p CISH/include
           cp -R ish-stage/include/ish CISH/include/
 
+      - name: Build OpenSSL (MITM kernel)
+        # v3.3.0：MITM 抓包内核需要 OpenSSL 静态库（证书签发 + TLS 双端）
+        run: |
+          bash scripts/build-openssl.sh
+
       - name: Build unsigned IPA
         # v3.0.33: 不再覆盖 RELEASE_VERSION（此前用 v<run>.<sha> 导致装上看不清版本，
         # 且 v3.0.32 时误下旧 artifact，手机显示 3.0.31）。版本直接读 Support/Info.plist，

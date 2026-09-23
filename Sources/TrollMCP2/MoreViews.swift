@@ -683,6 +683,24 @@ struct ToolPermissionPoliciesView: View {
                                 .foregroundColor(.secondary)
                         }
                     }
+                    // v3.3.0：MITM 抓包 VPN/代理（系统级抓包，覆盖自研栈 App）
+                    NavigationLink(destination: VpnCaptureView()) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "antenna.radiowaves.left.and.right")
+                                .foregroundColor(.tmCyan)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("抓包 VPN")
+                                    .foregroundColor(.primary)
+                                Text("MITM 代理 · 证书 · 抓小红书/抖音等自研栈")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
 
                 Section(header: SettingSectionHeader(title: "策略")) {

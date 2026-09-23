@@ -1115,6 +1115,8 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.60: 删 IPAInspectTool / DylibInspectTool / InjectionDiagnoseTool (已合并到 inject 大工具）
         // v3.1.33: 删 LogCollectTool (用 shell cat 代替）
         register(NetworkCaptureTool())
+        // v3.3.0: MITM 抓包 VPN/代理（系统级抓包，覆盖自研栈 App）
+        register(VpnTool())
 
         // v3.1.34: app 大工具 + 子命令 (合并 5 个 app.* 工具）
         register(AppExecTool())

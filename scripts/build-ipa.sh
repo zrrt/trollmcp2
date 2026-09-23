@@ -16,6 +16,13 @@ if [ ! -f "ish-stage/libs/libish.a" ]; then
 fi
 echo ">>> iSH libs: $(du -sh ish-stage/libs | cut -f1)"
 
+# v3.3.0: MITM 内核依赖 OpenSSL 静态库——本地构建先跑 scripts/build-openssl.sh
+if [ ! -f "openssl-stage/lib/libssl.a" ]; then
+    echo "!!! openssl-stage/lib/libssl.a 缺失——本地构建请先运行 scripts/build-openssl.sh（仅 macOS；CI 已内置该步骤）" >&2
+    exit 1
+fi
+echo ">>> OpenSSL: $(du -sh openssl-stage/lib | cut -f1)"
+
 # v2.9.249: 部署目标 16→15 治本——按 ios16 编译会引用 iOS16+ 符号(URLRequest.httpMethod/timeoutInterval 等 availability 标注错误的 Swift setter),iOS 15.6 dyld 启动崩;降到 ios14 后编译器自动避免 iOS16+ API
 echo ">>> swift build (arm64-apple-ios15.0, release)"
 swift build -c release \
@@ -135,6 +142,40 @@ if [ -d "ish-stage/resources/RootfsPatch.bundle" ]; then
 fi
 
 # v3.0.41：ios_system 已删除，不再需要 @executable_path rpath 与 shellhelper 独立进程
+
+# v3.3.0: MITM VPN appex —— 编译 VpnTunnel target + 组装 PlugIns/VpnTunnel.appex + 签名
+if [ -d "openssl-stage/lib" ] && [ -f "openssl-stage/lib/libssl.a" ]; then
+    echo ">>> swift build VpnTunnel appex (openssl-stage present)"
+    if swift build -c release --product VpnTunnel \
+        -Xswiftc -sdk -Xswiftc "$SDK" \
+        -Xswiftc -target -Xswiftc arm64-apple-ios15.0 \
+        -Xcc -isysroot -Xcc "$SDK" \
+        -Xcc -target -Xcc arm64-apple-ios15.0 2>&1 | tail -5; then
+        VT_BIN=".build/release/VpnTunnel"
+        if [ -f "$VT_BIN" ]; then
+            mkdir -p "$APP/PlugIns/VpnTunnel.appex"
+            cp "$VT_BIN" "$APP/PlugIns/VpnTunnel.appex/VpnTunnel"
+            cp "Support/VpnTunnel-Info.plist" "$APP/PlugIns/VpnTunnel.appex/Info.plist"
+            if command -v ldid >/dev/null 2>&1; then
+                if ldid -S"Support/VpnTunnel.entitlements" "$APP/PlugIns/VpnTunnel.appex/VpnTunnel"; then
+                    echo ">>> signed VpnTunnel appex"
+                else
+                    echo "!!! VpnTunnel appex sign FAILED — removing (VPN mode unavailable)"
+                    rm -rf "$APP/PlugIns/VpnTunnel.appex"
+                fi
+            else
+                echo "!!! ldid missing; VpnTunnel appex unsigned — removing"
+                rm -rf "$APP/PlugIns/VpnTunnel.appex"
+            fi
+        else
+            echo "!!! VpnTunnel binary missing; VPN mode unavailable"
+        fi
+    else
+        echo "!!! VpnTunnel build FAILED — VPN mode unavailable (local proxy mode still works)"
+    fi
+else
+    echo "!!! openssl-stage missing — skipping VpnTunnel appex (VPN mode unavailable)"
+fi
 
 # 把特权 entitlements 签入主二进制，TrollStore 安装时才能继承 no-sandbox/no-container/task_for_pid 等权限
 # v2.9.64：强制用 ldid 签名（TrollStore 官方明确要求 ldid -S 格式；codesign ad-hoc 签名格式不同，可能导致 entitlements 不被保留）
