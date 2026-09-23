@@ -1132,6 +1132,10 @@ struct DevInstructionEditorView: View {
                         Text(L10n.t("ui_145"))
                             .font(.caption)
                             .foregroundColor(.secondary)
+                        // v3.3.0：隐藏标记说明——标记内的内容只给用户看，不注入 AI
+                        Text("用 <!--用户可见--> ... <!--/用户可见--> 包住的段落只显示给你，不会注入 AI 请求（适合放“为什么有效”这类说明）")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
                     }
                     // v2.9.22：iOS14 兼容的收起键盘按钮
                     Button(action: hideKeyboard) {
