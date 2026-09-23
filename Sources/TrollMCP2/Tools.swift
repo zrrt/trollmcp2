@@ -338,11 +338,12 @@ final class ClipboardWriteTool: MCPTool {
 final class ArtifactExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact",
-        summary: "Manage workspace files (read/write/list). Use subcommand to specify action. Use for: read/write/list files in workspace. Don't use for: read app container files (use fs.*), system files (use shell.exec). Example: read → artifact read filename:report.txt; list → artifact list. Subcommands: read / write / list.",
+        summary: "Manage workspace files (read/write/list/output_name/output_bookmark). Use subcommand to specify action. Use for: read/write/list files in workspace, set output name. Don't use for: read app container files (use fs.*), system files (use shell.exec). Example: read → artifact read filename:report.txt; list → artifact list. Subcommands: read / write / list / output_name_get / output_name_set / output_bookmark.",
         parameters: [
-            "command": "Subcommand: read / write / list",
+            "command": "Subcommand: read / write / list / output_name_get / output_name_set / output_bookmark",
             "filename": "File name (for read/write)",
-            "text": "Text to write (for write)"
+            "text": "Text to write (for write)",
+            "name": "Output name (for output_name_set)"
         ],
         verified: true, category: "fs")
     
@@ -371,9 +372,21 @@ final class ArtifactExecTool: MCPTool {
             
         case "list":
             return try ArtifactListTool().invoke([:])
-            
+
+        case "output_name_get":
+            return try WorkspaceOutputNameTool().invoke([:])
+
+        case "output_name_set":
+            guard let name = params["name"] as? String else {
+                throw MCPError.invalidParams("name required")
+            }
+            return try WorkspaceOutputNameTool().invoke(["name": name])
+
+        case "output_bookmark":
+            return try WorkspaceOutputBookmarkTool().invoke([:])
+
         default:
-            throw MCPError.invalidParams("Unknown command: \(command). Available: read/write/list")
+            throw MCPError.invalidParams("Unknown command: \(command). Available: read/write/list/output_name_get/output_name_set/output_bookmark")
         }
     }
 }

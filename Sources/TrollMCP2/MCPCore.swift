@@ -1172,8 +1172,7 @@ public final class ToolRegistry: ObservableObject {
         register(ProjectGenerateTweakTool())
         // v3.1.55: 删旧的 model 工具（已合并到 ModelExecTool）
         // 已删：ModelConfigTool / ModelUpdateTool / ModelAuthenticationTool / ModelSelectedProfileIDTool
-        register(WorkspaceOutputBookmarkTool())
-        register(WorkspaceOutputNameTool())
+        // v3.1.62: 删 WorkspaceOutputBookmarkTool / WorkspaceOutputNameTool（已合并到 ArtifactExecTool）
 
         // M8 本机编译/构建（v2.9.3，设备端编译桥）
         // v3.1.46: 删 BuildEnvironmentTool（shell.exec 可以实现：shell.exec("which clang")）
