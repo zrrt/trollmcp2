@@ -1162,7 +1162,7 @@ final class InjectionExecTool: MCPTool {
             "dylib_path": "Dylib path (for enable)",
             "query": "Search query (for list)"
         ],
-        verified: true, category: "injection")
+        verified: true, category: "injection", prerequisites: ["enable/static/enable_persisted 前确认 App 已安装且 bundle_id 有效（先 app status 确认）", "iOS 17+ 注入依赖 ct_bypass 可能失效（先用 inject diagnose 确认环境）"])
     
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let command = params["command"] as? String else {

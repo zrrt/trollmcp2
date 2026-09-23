@@ -1494,7 +1494,7 @@ final class AiAnalyzeTool: MCPTool {
             "max_classes": "Max classes to collect (default 80, max 150)",
             "prefix": "Only collect classes starting with this prefix (reduces noise)"
         ],
-    verified: true, category: "automation")
+    verified: true, category: "automation", prerequisites: ["App 已注入 ProbeAgent（先 inject enable ProbeAgent）", "加密 App 需先 app.decrypt 砸壳（ai.analyze_app 依赖静态分析）"])
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {

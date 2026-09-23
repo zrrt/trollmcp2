@@ -25,8 +25,12 @@ public struct ToolDefinition {
     public let requiresTrollStore: Bool
     /// v3.1.26：是否仅远程终端可用（true = 内置 AI 看不到，只在远程 API 可用）
     public let remoteOnly: Bool
+    /// v3.2.0：前置条件/依赖顺序——调用本工具前必须先完成的操作或必须满足的条件。
+    /// 例：network.capture start 前置 "inject enable NetworkTweak"；memory search 前置 "attach 已注入 MemoryTweak"。
+    /// AI 规划任务时按此顺序执行，避免前置不满足就调用导致报错。
+    public let prerequisites: [String]
 
-    public init(name: String, summary: String, parameters: [String: String] = [:], returns: [String: String] = [:], verified: Bool = false, category: String = "misc", uiSummary: String = "", minIOSMajor: Int? = nil, maxIOSMajor: Int? = nil, requiresJailbreak: Bool = false, requiresTrollStore: Bool = false, remoteOnly: Bool = false) {
+    public init(name: String, summary: String, parameters: [String: String] = [:], returns: [String: String] = [:], verified: Bool = false, category: String = "misc", uiSummary: String = "", minIOSMajor: Int? = nil, maxIOSMajor: Int? = nil, requiresJailbreak: Bool = false, requiresTrollStore: Bool = false, remoteOnly: Bool = false, prerequisites: [String] = []) {
         self.name = name
         self.summary = summary
         self.parameters = parameters
@@ -39,6 +43,7 @@ public struct ToolDefinition {
         self.requiresJailbreak = requiresJailbreak
         self.requiresTrollStore = requiresTrollStore
         self.remoteOnly = remoteOnly
+        self.prerequisites = prerequisites
     }
 
     /// UI 显示用：优先 uiSummary（中文），否则 fallback 到 summary
@@ -461,11 +466,16 @@ public final class ToolRegistry: ObservableObject {
             // v3.1.69：显式找 command/action 键——Dictionary.keys 是哈希顺序，prefix(1) 可能
             // 落到任意参数（如 artifact 的 name），导致 AI 被迫填无关参数（AI 反馈实锤）。
             let selectorKey = def.parameters.keys.first { $0 == "command" || $0 == "action" }
+            // v3.2.0：description 追加前置条件——AI 看到工具定义即知依赖顺序，不用撞错误才知道
+            var desc = def.summary
+            if !def.prerequisites.isEmpty {
+                desc += " 前置条件: " + def.prerequisites.joined(separator: "; ") + "。不满足时先执行前置步骤再调用本工具，不要直接调用。"
+            }
             result.append([
                 "type": "function",
                 "function": [
                     "name": safe,
-                    "description": def.summary,
+                    "description": desc,
                     "parameters": [
                         "type": "object",
                         "properties": props,

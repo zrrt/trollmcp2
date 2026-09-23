@@ -530,6 +530,7 @@ final class ControlExecTool: MCPTool {
             "key": "Key name: home/back/enter — REQUIRED for key",
             "placeholder": "Field placeholder (for type_text)"
         ],
+        prerequisites: ["UI 控制前必须先 control inject 注入 ControlAgent 到目标 App 并启动", "tap/swipe 前先 control screenshot 确认坐标"]
         verified: true, category: "ui_control")
     
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

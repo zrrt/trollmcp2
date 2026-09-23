@@ -213,7 +213,8 @@ final class MemoryTweakTool: MCPTool {
             "value": "Value to search/write/freeze. e.g. 1000 coins, 50 HP",
             "type": "Data type: int (integer, default) / int64 / float (decimal) / double / byte / short",
             "address": "Memory address (0x hex format, required for write/freeze)"
-        ]
+        ],
+        prerequisites: ["目标游戏已注入 MemoryTweak.dylib（先 inject enable MemoryTweak 到目标 App）", "attach/status 确认连接成功（HTTP 127.0.0.1:8765 可达）后才 search/refine/write/freeze"]
     )
 
     private let port = 8765
@@ -457,7 +458,7 @@ final class ContainerExecTool: MCPTool {
             "path": "File path — REQUIRED for write/delete",
             "text": "Text to write — REQUIRED for write"
         ],
-        verified: true, category: "fs")
+        verified: true, category: "fs", prerequisites: ["resolve/write/delete 的 bundle_id 必须对应已安装 App（先 app status 确认）", "refresh 无需前置，可随时调用"])
     
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let command = params["command"] as? String else {
@@ -516,7 +517,7 @@ final class DiagnoseExecTool: MCPTool {
             "command": "Subcommand: startup / injection",
             "bundle_id": "App bundle ID"
         ],
-        verified: true, category: "diagnose")
+        verified: true, category: "diagnose", prerequisites: ["App 已安装且 bundle_id 有效（先 app status 确认）", "startup 诊断依赖 App 曾启动过（有崩溃日志才有意义）"])
     
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let command = params["command"] as? String else {
@@ -600,7 +601,7 @@ final class VerifyExecTool: MCPTool {
             "path": "File path (for file)",
             "bundle_id": "App bundle ID (for app_running)"
         ],
-        verified: true, category: "system")
+        verified: true, category: "system", prerequisites: ["app_running 前确认 bundle_id 已安装且曾启动过（app.launch 后验证才有意义）", "file 验证前 path 应为真实存在的绝对路径"])
     
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let command = params["command"] as? String else {

@@ -502,7 +502,7 @@ final class NetworkCaptureTool: MCPTool {
             "bundle_id": "Target App bundle_id — REQUIRED for start. e.g. com.xingin.discover",
             "limit": "Max requests to show (default 50)"
         ],
-        verified: true, category: "diagnose")
+        verified: true, category: "diagnose", prerequisites: ["start 前必须先 inject enable NetworkTweak 到目标 App", "requests/analyze 前必须先 start 并让 App 产生网络请求"])
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = (params["action"] as? String) ?? "status"

@@ -9,7 +9,7 @@ final class AppInstallTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.install",
         summary: "Install an IPA file to the iPhone. Use for: install app from IPA file, sideload. Don't use for: launch installed app (use apps.open), uninstall app (use app.uninstall). Example: user says '安装这个 IPA' → install it.",
-        parameters: ["ipa_path": "Absolute path to IPA file on device (required)"], verified: true, category: "app_control")
+        parameters: ["ipa_path": "Absolute path to IPA file on device (required)"], verified: true, category: "app_control", prerequisites: ["IPA 文件已存在于设备且 ipa_path 路径有效（先用 shell.exec ls 确认）"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let path = params["ipa_path"] as? String, !path.isEmpty else {
             throw MCPError.invalidParams("app.install 需要 ipa_path 参数")

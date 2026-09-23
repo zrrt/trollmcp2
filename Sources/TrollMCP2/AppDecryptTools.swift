@@ -136,7 +136,7 @@ final class AppDecryptTool: MCPTool {
             "bundle_id": "Target App bundle ID (required)",
             "output_name": "Output file name (optional, default: app name)"
         ],
-        verified: true, category: "app_control")
+        verified: true, category: "app_control", prerequisites: ["App 已安装（app status 确认 bundle_id）", "App 已启动运行（app.launch 启动后再 decrypt）"])
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bundleId = params["bundle_id"] as? String, !bundleId.isEmpty else {
