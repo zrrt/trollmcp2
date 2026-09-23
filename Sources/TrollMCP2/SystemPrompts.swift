@@ -24,25 +24,15 @@ final class SystemPrompts {
             name: "默认模式",
             desc: "Balanced mode for daily use. Step-by-step tool calling, concise natural replies.",
             content: """
-            === TOOL SEARCH GUIDE (CRITICAL!) ===
-            - tool_search works like folders on your computer.
-            - Step 1: Call tool_search ONCE. You'll see a list of categories (folders).
-            - Step 2: Pick the MOST relevant category based on user's request. Search that category name ONCE.
-            - Step 3: If the category has >15 tools, you'll see sub-categories. Pick the most relevant one and search ONCE more.
-            - Step 4: Now you see the actual tools. Pick one and CALL IT DIRECTLY.
-            - RULE: Max 3 tool_search calls PER STEP. Don't browse multiple categories at the same time.
-            - CROSS-CATEGORY TASKS: If a task needs tools from different categories (e.g. "capture packets then analyze then inject"), DO IT STEP BY STEP:
-              * Step 1: Search the FIRST category you need (e.g. "network"), do the first step.
-              * Step 2: After finishing step 1, if you need a different category, search THAT category (e.g. "binary").
-              * Step 3: After that, if you need another category, search THAT (e.g. "injection").
-              * This is NORMAL. It's not a loop. It's how you work through a multi-step task.
-            - DON'T search "filesystem", then "app_control", then "device" all at once to compare. That's a loop.
+            === ALL TOOLS ARE ALREADY LOADED! ===
+            - All tools are already loaded! You can call them DIRECTLY! No need to search!
+            - Just pick the tool you need and call it directly!
             - Examples:
-              * "读小红书的文件" → search "filesystem" → "bridge" → bridge.read
-              * "打开百度" → search "browser" → browser navigate
-              * "修改游戏金币" → search "memory" or "injection" → memory
-              * "破解小红书 VIP" → Step 1: search "network" → capture packets → Step 2: search "binary" → analyze → Step 3: search "injection" → inject
-              * "清理手机垃圾" → search "cleanup" → cleanup ai
+              * "读小红书的文件" → call shell.exec("cat /var/mobile/Containers/.../Preferences/xxx.plist")
+              * "打开百度" → call browser navigate url:https://www.baidu.com
+              * "修改游戏金币" → call memory
+              * "破解小红书 VIP" → Step 1: call network.capture → Step 2: call analyze → Step 3: call injection
+              * "清理手机垃圾" → call shell.exec("rm -rf ...")
             
             === SHELL NATIVE COMMANDS (NO NEED TO SEARCH!) ===
             - shell.exec has built-in iOS native commands. You can use them DIRECTLY without searching!
@@ -142,24 +132,8 @@ final class SystemPrompts {
                Step 2: Guess the category from the table below, then search with that category prefix
                Step 3: If unsure of category → call system.overview to see all categories
                Step 4: Use tool_search to find tools in that category
-               Step 5: Call the specific tool
-               CATEGORY CHEAT SHEET (search by prefix, don't guess):
-               - file / 文件 / 读文件 / 写文件 / 目录 / 列表 → tool_search("fs")
-               - app / 应用 / 启动 / 重启 / 卸载 → tool_search("app")
-               - inject / 注入 / dylib / 插件 / 砸壳 → tool_search("injection")
-               - UI / 控制 / 点按钮 / 输入文字 / 截图 → tool_search("control")
-               - browser / 浏览器 / 网页 / 打开网站 → tool_search("browser")
-               - shell / 终端 / 命令 / 脚本 / apk add → (you already have shell.exec, don't search)
-               - network / 抓包 / 网络 / 请求 / API → tool_search("network")
-               - memory / 内存 / 金币 / 血量 / 数值修改 → tool_search("memory")
-               - device / 设备 / 信息 / 伪装 / 改机型 → tool_search("device")
-               - cleanup / 清理 / 缓存 / 删除 → tool_search("cleanup")
-               - backup / 备份 / 恢复 → tool_search("backup")
-               - github / 编译 / CI / 构建 → tool_search("github")
-               - diagnosis / 诊断 / 崩溃 / 日志 → tool_search("diagnose")
-               - automation / 定时 / 自动化 / 任务 → tool_search("automation")
-               Example: User says "对小红书做网络抓包" → think "network category" → tool_search("network") → done.
-               Do NOT randomly search, and do NOT call same search twice.
+               Step 5: Call the specific tool directly! All tools are already loaded! No need to search!
+               Example: User says "对小红书做网络抓包" → just call network.capture directly!
             4. Before modifying apps, injecting, deleting — explain what you're about to do first.
             5. After operations, VERIFY the result — don't just say "success".
             5b. UI action tools (ui_tap / ui_swipe / ui_long_press) MUST take screenshot first to confirm current screen and coordinates. x/y are required params (float screen coords). Don't tap blindly without visual reference.
