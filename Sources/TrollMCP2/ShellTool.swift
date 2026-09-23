@@ -681,8 +681,18 @@ final class ShellExecTool: MCPTool {
         let body = String(chars[0..<idx]).trimmingCharacters(in: .whitespaces)
         var filePart = String(chars[(idx + (isAppend ? 2 : 1))..<chars.count]).trimmingCharacters(in: .whitespaces)
         filePart = filePart.trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
-        filePart = (filePart as NSString).expandingTildeInPath
+        filePart = ShellExecTool.normalizePath((filePart as NSString).expandingTildeInPath)
         return (body, true, isAppend, filePart)
+    }
+    
+    /// v3.1.33：路径归一——/private/var → /var（iOS 软链，访问等价），
+    /// 让同一目录无论用户/AI 写哪个前缀，输出都统一显示为 /var/...。
+    /// 只做前缀归一，不解析软链（保持速度与确定性）；相对路径原样返回。
+    static func normalizePath(_ p: String) -> String {
+        if p.hasPrefix("/private/var") {
+            return "/var" + p.dropFirst("/private/var".count)
+        }
+        return p
     }
     
     // MARK: - Swift 管道过滤器（iOS 原生管道右侧）
@@ -884,7 +894,7 @@ final class ShellExecTool: MCPTool {
         }
         
         // 解析路径
-        var resolvedPath = (path as NSString).expandingTildeInPath
+        var resolvedPath = ShellExecTool.normalizePath((path as NSString).expandingTildeInPath)
         if resolvedPath == "." || resolvedPath == "./" {
             resolvedPath = NSHomeDirectory() + "/Documents"
         }
@@ -966,8 +976,7 @@ final class ShellExecTool: MCPTool {
             ]
         }
         
-        let path = (parts[1] as NSString).expandingTildeInPath
-        
+        let path = ShellExecTool.normalizePath((parts[1] as NSString).expandingTildeInPath)
         guard fm.fileExists(atPath: path) else {
             return [
                 "command": command,
@@ -1012,7 +1021,7 @@ final class ShellExecTool: MCPTool {
             ]
         }
         
-        let searchPath = (parts[1] as NSString).expandingTildeInPath
+        let searchPath = ShellExecTool.normalizePath((parts[1] as NSString).expandingTildeInPath)
         guard searchPath == "." || searchPath.hasPrefix("/") else {
             return [
                 "command": command,
@@ -1091,8 +1100,7 @@ final class ShellExecTool: MCPTool {
         }
         
         let pattern = parts[1].trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
-        let filePath = (parts[2] as NSString).expandingTildeInPath
-        
+        let filePath = ShellExecTool.normalizePath((parts[2] as NSString).expandingTildeInPath)
         guard fm.fileExists(atPath: filePath) else {
             return [
                 "command": command,
@@ -1204,8 +1212,7 @@ final class ShellExecTool: MCPTool {
             return ["command": command, "exit_code": 1, "stdout": "Usage: mkdir <path>", "ios_native": true]
         }
         
-        let path = (parts[1] as NSString).expandingTildeInPath
-        
+        let path = ShellExecTool.normalizePath((parts[1] as NSString).expandingTildeInPath)
         do {
             try fm.createDirectory(atPath: path, withIntermediateDirectories: true, attributes: nil)
             return ["command": command, "exit_code": 0, "stdout": "Created directory: \(path)", "ios_native": true]
@@ -1223,8 +1230,7 @@ final class ShellExecTool: MCPTool {
             return ["command": command, "exit_code": 1, "stdout": "Usage: rm <path>", "ios_native": true]
         }
         
-        let path = (parts[1] as NSString).expandingTildeInPath
-        
+        let path = ShellExecTool.normalizePath((parts[1] as NSString).expandingTildeInPath)
         do {
             try fm.removeItem(atPath: path)
             return ["command": command, "exit_code": 0, "stdout": "Removed: \(path)", "ios_native": true]
@@ -1242,9 +1248,8 @@ final class ShellExecTool: MCPTool {
             return ["command": command, "exit_code": 1, "stdout": "Usage: mv <source> <destination>", "ios_native": true]
         }
         
-        let src = (parts[1] as NSString).expandingTildeInPath
-        let dst = (parts[2] as NSString).expandingTildeInPath
-        
+        let src = ShellExecTool.normalizePath((parts[1] as NSString).expandingTildeInPath)
+        let dst = ShellExecTool.normalizePath((parts[2] as NSString).expandingTildeInPath)
         do {
             try fm.moveItem(atPath: src, toPath: dst)
             return ["command": command, "exit_code": 0, "stdout": "Moved: \(src) -> \(dst)", "ios_native": true]
@@ -1262,9 +1267,8 @@ final class ShellExecTool: MCPTool {
             return ["command": command, "exit_code": 1, "stdout": "Usage: cp <source> <destination>", "ios_native": true]
         }
         
-        let src = (parts[1] as NSString).expandingTildeInPath
-        let dst = (parts[2] as NSString).expandingTildeInPath
-        
+        let src = ShellExecTool.normalizePath((parts[1] as NSString).expandingTildeInPath)
+        let dst = ShellExecTool.normalizePath((parts[2] as NSString).expandingTildeInPath)
         do {
             try fm.copyItem(atPath: src, toPath: dst)
             return ["command": command, "exit_code": 0, "stdout": "Copied: \(src) -> \(dst)", "ios_native": true]
@@ -1297,8 +1301,7 @@ final class ShellExecTool: MCPTool {
             return ["command": command, "exit_code": 1, "stdout": "Usage: tail -n <lines> <file>", "ios_native": true]
         }
         
-        let path = (filePath as NSString).expandingTildeInPath
-        
+        let path = ShellExecTool.normalizePath((filePath as NSString).expandingTildeInPath)
         do {
             let content = try String(contentsOfFile: path, encoding: .utf8)
             let allLines = content.components(separatedBy: .newlines)
@@ -1334,8 +1337,7 @@ final class ShellExecTool: MCPTool {
             return ["command": command, "exit_code": 1, "stdout": "Usage: head -n <lines> <file>", "ios_native": true]
         }
         
-        let path = (filePath as NSString).expandingTildeInPath
-        
+        let path = ShellExecTool.normalizePath((filePath as NSString).expandingTildeInPath)
         do {
             let content = try String(contentsOfFile: path, encoding: .utf8)
             let allLines = content.components(separatedBy: .newlines)
@@ -1358,8 +1360,7 @@ final class ShellExecTool: MCPTool {
         }
         
         let pattern = parts[2].trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
-        let filePath = (parts[3] as NSString).expandingTildeInPath
-        
+        let filePath = ShellExecTool.normalizePath((parts[3] as NSString).expandingTildeInPath)
         // 解析 s/old/new/g
         let sedPattern = #"^s/(.+)/(.+)/g?$"#
         guard let regex = try? NSRegularExpression(pattern: sedPattern),
@@ -1419,8 +1420,7 @@ final class ShellExecTool: MCPTool {
             return ["command": command, "exit_code": 1, "stdout": "Usage: touch <file>", "ios_native": true]
         }
         
-        let path = (parts[1] as NSString).expandingTildeInPath
-        
+        let path = ShellExecTool.normalizePath((parts[1] as NSString).expandingTildeInPath)
         fm.createFile(atPath: path, contents: nil, attributes: nil)
         
         return [
@@ -1440,8 +1440,7 @@ final class ShellExecTool: MCPTool {
             return ["command": command, "exit_code": 1, "stdout": "Usage: wc <file>", "ios_native": true]
         }
         
-        let filePath = (parts[parts.count - 1] as NSString).expandingTildeInPath
-        
+        let filePath = ShellExecTool.normalizePath((parts[parts.count - 1] as NSString).expandingTildeInPath)
         do {
             let content = try String(contentsOfFile: filePath, encoding: .utf8)
             let lines = content.components(separatedBy: .newlines).count
@@ -1469,8 +1468,7 @@ final class ShellExecTool: MCPTool {
             return ["command": command, "exit_code": 1, "stdout": "Usage: md5sum <file> 或 sha256sum <file>", "ios_native": true]
         }
         
-        let filePath = (parts[1] as NSString).expandingTildeInPath
-        
+        let filePath = ShellExecTool.normalizePath((parts[1] as NSString).expandingTildeInPath)
         guard fm.fileExists(atPath: filePath) else {
             return ["command": command, "exit_code": 1, "stdout": "\(parts[0]): \(filePath): No such file or directory", "ios_native": true]
         }
@@ -1513,9 +1511,8 @@ final class ShellExecTool: MCPTool {
             return ["command": command, "exit_code": 1, "stdout": "Usage: diff <file1> <file2>", "ios_native": true]
         }
         
-        let file1 = (parts[1] as NSString).expandingTildeInPath
-        let file2 = (parts[2] as NSString).expandingTildeInPath
-        
+        let file1 = ShellExecTool.normalizePath((parts[1] as NSString).expandingTildeInPath)
+        let file2 = ShellExecTool.normalizePath((parts[2] as NSString).expandingTildeInPath)
         do {
             let content1 = try String(contentsOfFile: file1, encoding: .utf8)
             let content2 = try String(contentsOfFile: file2, encoding: .utf8)
@@ -1572,8 +1569,7 @@ final class ShellExecTool: MCPTool {
             return ["command": command, "exit_code": 1, "stdout": "Usage: hexdump -C <file>", "ios_native": true]
         }
         
-        let path = (filePath as NSString).expandingTildeInPath
-        
+        let path = ShellExecTool.normalizePath((filePath as NSString).expandingTildeInPath)
         do {
             let data = try Data(contentsOf: URL(fileURLWithPath: path))
             let start = min(offset, data.count)
@@ -1674,8 +1670,7 @@ final class ShellExecTool: MCPTool {
             }
         }
         
-        let path = (filePath as NSString).expandingTildeInPath
-        
+        let path = ShellExecTool.normalizePath((filePath as NSString).expandingTildeInPath)
         guard fm.fileExists(atPath: path) else {
             return ["command": command, "exit_code": 1, "stdout": "plutil: \(path): No such file or directory", "ios_native": true]
         }
@@ -1720,8 +1715,7 @@ final class ShellExecTool: MCPTool {
             return ["command": command, "exit_code": 1, "stdout": "Usage: sqlite3 <db_file> \"SELECT * FROM table\"", "ios_native": true]
         }
         
-        let dbPath = (parts[1] as NSString).expandingTildeInPath
-        
+        let dbPath = ShellExecTool.normalizePath((parts[1] as NSString).expandingTildeInPath)
         guard fm.fileExists(atPath: dbPath) else {
             return ["command": command, "exit_code": 1, "stdout": "sqlite3: \(dbPath): No such file", "ios_native": true]
         }
@@ -1801,12 +1795,11 @@ final class ShellExecTool: MCPTool {
             }
         }
         
-        let path = (zipPath as NSString).expandingTildeInPath
+        let path = ShellExecTool.normalizePath((zipPath as NSString).expandingTildeInPath)
         if outputDir.isEmpty {
             outputDir = (path as NSString).deletingLastPathComponent
         }
-        let outDir = (outputDir as NSString).expandingTildeInPath
-        
+        let outDir = ShellExecTool.normalizePath((outputDir as NSString).expandingTildeInPath)
         guard fm.fileExists(atPath: path) else {
             return ["command": command, "exit_code": 1, "stdout": "unzip: \(path): No such file", "ios_native": true]
         }
