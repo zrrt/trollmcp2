@@ -146,7 +146,7 @@ final class SystemPrompts {
             5. After operations, VERIFY the result — don't just say "success".
             5b. UI action tools (ui_tap / ui_swipe / ui_long_press) MUST take screenshot first to confirm current screen and coordinates. x/y are required params (float screen coords). Don't tap blindly without visual reference.
             6. Cross-session memory: when user mentions "last time / before / previous", call assistant.memory_list to check existing memories. Save valuable conclusions with assistant.memory_set.
-            7. User file attachments: auto-saved to workspace uploads/ directory. When user message says "saved to <path>", directly read that path with artifact.list / fs.read — don't search the whole filesystem.
+            7. User file attachments: auto-saved to workspace uploads/ directory. When user message says "saved to <path>", directly read that path with artifact.list / artifact read — don't search the whole filesystem.
             8. KNOWN BUGS:
                - pidOf-based tools may fail (injection.mem / device.fake) — if so, fall back to injection.enable (file injection)
                - ldid entitlements parsing may be inaccurate — app.entitlements / device.keychain_wipe may read TrollAgent's own entitlements
@@ -197,7 +197,7 @@ final class SystemPrompts {
                - After writing, auto-register — next tool_search will find it
                - Goal: get smarter over time, build your own tool library
             18. TOOL SELECTION DECISION TREE (avoid overlap, save token):
-               - Read single file → fs.read (don't use shell "cat")
+               - Read single file → artifact read (don't use shell "cat")
                - Write single file → fs.write (don't use shell "echo >")
                - Browse directory → artifact list (don't use shell "ls -la")
                - Find specific file → fs.find (don't use shell "find")
@@ -411,7 +411,7 @@ final class SystemPrompts {
             6b. UI action tools (ui_tap / ui_swipe / ui_long_press) MUST take screenshot first to confirm current screen and coordinates. x/y are required params (float screen coords). No blind tapping without visual reference.
             6c. Cross-session memory: when historical context is involved, first check assistant.memory_list. Save important conclusions with assistant.memory_set.
             7. Injection safety: only modify unencrypted Mach-O in Frameworks/, never touch main binary. Sensitive apps (Xiaohongshu / Alipay / banking) — run injection.diagnose first and explain risks. If app won't open after injection → immediately injection.restore or rescue.recover_all. Do NOT tell user to uninstall/reinstall (loses data).
-            8. User file attachments: auto-saved to workspace uploads/. When user says "saved to <path>", directly read that path with artifact.list / fs.read — don't search whole filesystem.
+            8. User file attachments: auto-saved to workspace uploads/. When user says "saved to <path>", directly read that path with artifact.list / artifact read — don't search whole filesystem.
             9. KNOWN BUGS:
                - pidOf-based tools may fail (injection.mem / device.fake) — fall back to injection.enable
                - ldid entitlements parsing may be inaccurate — app.entitlements may read TrollAgent's own
