@@ -1,7 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 
-// NetworkTweak v1.1 — HTTP/HTTPS 抓包 dylib（零依赖版）
+// NetworkTweak v1.2 — HTTP/HTTPS 抓包 dylib（零依赖版）
 // v1.0 用 Logos %hook → 链接 CydiaSubstrate → TrollStore 无 substrate → 注入必闪退。
 // v1.1 改为 method swizzling（method_setImplementation），纯 ObjC runtime，零外部依赖，
 // 注入任何 App 都不会因缺依赖闪退。功能不变：记录到 /var/mobile/Documents/Workspace/network_capture/。
@@ -32,6 +32,30 @@ static NSString *timestamp() {
     return [fmt stringFromDate:[NSDate date]];
 }
 
+// v1.2: 递归清洗——header/body 里的 NSData(二进制) 等非 JSON 类型转 base64/描述，
+// 修复 "Invalid type in JSON write (__NSCFData)" 崩溃（自研网络栈会把二进制塞进 header）。
+static id sanitizeForJSON(id obj) {
+    if (obj == nil || [obj isKindOfClass:[NSNull class]]) return @"";
+    if ([obj isKindOfClass:[NSString class]]) return obj;
+    if ([obj isKindOfClass:[NSNumber class]]) return obj;
+    if ([obj isKindOfClass:[NSData class]]) {
+        return [(NSData *)obj base64EncodedStringWithOptions:0];
+    }
+    if ([obj isKindOfClass:[NSArray class]]) {
+        NSMutableArray *a = [NSMutableArray array];
+        for (id item in (NSArray *)obj) [a addObject:sanitizeForJSON(item)];
+        return a;
+    }
+    if ([obj isKindOfClass:[NSDictionary class]]) {
+        NSMutableDictionary *d = [NSMutableDictionary dictionary];
+        [(NSDictionary *)obj enumerateKeysAndObjectsUsingBlock:^(id k, id v, BOOL *stop){
+            d[[k description]] = sanitizeForJSON(v);
+        }];
+        return d;
+    }
+    return [obj description];
+}
+
 static void saveRecord(NSDictionary *record) {
     @synchronized (g_requests) {
         [g_requests addObject:record];
@@ -40,8 +64,12 @@ static void saveRecord(NSDictionary *record) {
         }
         if (g_requests.count % 10 == 0) {
             NSString *path = [kCaptureDir stringByAppendingPathComponent:@"capture_latest.json"];
-            NSData *data = [NSJSONSerialization dataWithJSONObject:g_requests options:NSJSONWritingPrettyPrinted error:nil];
-            [data writeToFile:path atomically:YES];
+            @try {
+                NSData *data = [NSJSONSerialization dataWithJSONObject:g_requests options:NSJSONWritingPrettyPrinted error:nil];
+                if (data) [data writeToFile:path atomically:YES];
+            } @catch (NSException *e) {
+                // 序列化保底：单个坏记录不影响抓包
+            }
         }
     }
 }
@@ -52,7 +80,7 @@ static NSMutableDictionary *buildRequestRecord(NSURLRequest *request, NSString *
     reqRecord[@"timestamp"] = timestamp();
     reqRecord[@"method"] = request.HTTPMethod ?: @"GET";
     reqRecord[@"url"] = request.URL.absoluteString ?: @"";
-    reqRecord[@"request_headers"] = request.allHTTPHeaderFields ?: @{};
+    reqRecord[@"request_headers"] = sanitizeForJSON(request.allHTTPHeaderFields ?: @{});
     reqRecord[@"request_body_size"] = @(request.HTTPBody.length);
     if (request.URL.host) reqRecord[@"host"] = request.URL.host;
     if (request.URL.scheme) reqRecord[@"scheme"] = request.URL.scheme;
@@ -75,7 +103,7 @@ static NSURLSessionDataTask *hook_dataTaskWithCompletion(id self, SEL _cmd, NSUR
         } else if ([response isKindOfClass:[NSHTTPURLResponse class]]) {
             NSHTTPURLResponse *httpResp = (NSHTTPURLResponse *)response;
             reqRecord[@"status"] = @(httpResp.statusCode);
-            reqRecord[@"response_headers"] = httpResp.allHeaderFields ?: @{};
+            reqRecord[@"response_headers"] = sanitizeForJSON(httpResp.allHeaderFields ?: @{});
             reqRecord[@"response_body_size"] = @(data.length);
             if (data.length > 0 && data.length < 65536) {
                 @try {

@@ -496,13 +496,13 @@ final class LogCollectTool: MCPTool {
 final class NetworkCaptureTool: MCPTool {
     let definition = ToolDefinition(
         name: "network.capture",
-        summary: "HTTP/HTTPS packet capture . Use for: see what network requests an app makes, analyze API calls, inspect request/response headers, debug app networking. Don't use for: browse web pages (use browser navigate), read local files (use shell.exec cat). Workflow: 1) inject NetworkTweak into app, 2) use the app normally, 3) query captured requests. Example: user says 'capture 小红书 network requests' → network.capture action:start bundle_id:com.xingin.discover. REQUIRED PARAMS: start→bundle_id; others optional. action: status / start / stop / requests / analyze.",
+        summary: "HTTP/HTTPS packet capture. Use for: see what network requests an app makes, analyze API calls, inspect request/response headers, debug app networking. Don't use for: browse web pages (use browser navigate), read local files (use shell.exec cat). Workflow: 1) inject NetworkTweak into app, 2) use the app normally, 3) query captured requests. Example: user says 'capture 小红书 network requests' → network.capture action:start bundle_id:com.xingin.discover. LIMITATIONS: only hooks NSURLSession stack (Apple networking); apps with custom network stacks (protobuf/gRPC/QUIC/HTTP3/TLS pinning, e.g. 小红书/抖音) may show 0 hits — expected, NOT a tool failure; binary request/response bodies are base64-encoded. REQUIRED PARAMS: start→bundle_id; others optional. action: status / start / stop / requests / analyze.",
         parameters: [
             "action": "Action (default status): status / start / stop / requests / analyze",
             "bundle_id": "Target App bundle_id — REQUIRED for start. e.g. com.xingin.discover",
             "limit": "Max requests to show (default 50)"
         ],
-        verified: true, category: "diagnose", prerequisites: ["inject enable NetworkTweak into target App before start", "start first and let the App generate network traffic before requests/analyze"])
+        verified: true, category: "diagnose", prerequisites: ["inject enable NetworkTweak into target App before start", "start first and let the App generate network traffic before requests/analyze", "0 hits on custom-stack apps (小红书/抖音 etc.) is expected: they use QUIC/protobuf/private networking beyond NSURLSession — report this to user, do NOT retry endlessly"])
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = (params["action"] as? String) ?? "status"
