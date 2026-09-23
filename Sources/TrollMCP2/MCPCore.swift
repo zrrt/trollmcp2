@@ -1240,6 +1240,7 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.53: 删旧的 4 个 debug.* 工具（已合并到 debug 大工具）
         // 已删：DebugDumpConversationsTool / DebugDumpConversationTool
         // 已删：DebugDumpModelConfigsTool / DebugDumpNetworkLogTool
+        // v3.1.58: Chat 工具（测试用，不是给用户用的！）
         register(ChatSendTool())
         register(ChatReplyTool())
         // v3.1.49: model 大工具 + 子命令（合并 6 个 model.* 工具）
