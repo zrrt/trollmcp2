@@ -1290,60 +1290,21 @@ final class ToolSearchTool: MCPTool {
         var isCategoryList = false
         
         if ToolSearchTool.searchCount == 1 {
-            // v3.1.30: 第一次调用返回大分类列表（第一层文件夹）
+            // v3.1.65: 第一次调用直接返回所有工具（全量加载）！
             let allTools = ToolRegistry.shared.definitions
-            var categoryMap: [String: Int] = [:]
-            for def in allTools {
-                var cat = def.category
-                if cat == "misc" || cat.isEmpty {
-                    cat = def.name.components(separatedBy: ".").first ?? "misc"
-                }
-                categoryMap[cat, default: 0] += 1
+            hits = allTools.map { def in
+                let shortDesc = def.summary.components(separatedBy: ". Use for:").first ?? def.summary
+                let trimmed = shortDesc.count > 60 ? String(shortDesc.prefix(60)) + "..." : shortDesc
+                return ["name": def.name, "summary": trimmed]
             }
-            hits = categoryMap.map { cat, count in
-                return ["name": "📁 \(cat)", "summary": "\(count) 个工具，搜索 '\(cat)' 查看详情"]
-            }
-            hits.sort { ($0["summary"] ?? "").count > ($1["summary"] ?? "").count }
-            isCategoryList = true
             for def in allTools {
                 ToolRegistry.shared.approveForSession(def.name)
             }
         } else if !query.isEmpty {
-            // v3.1.30: 判断是不是大分类
-            let allTools = ToolRegistry.shared.definitions
-            let catTools = allTools.filter { def in
-                var cat = def.category
-                if cat == "misc" || cat.isEmpty {
-                    cat = def.name.components(separatedBy: ".").first ?? "misc"
-                }
-                return cat.lowercased() == query.lowercased()
-            }
-            
-            if catTools.count > 15 {
-                // 大分类下工具太多，拆成子分类（根据工具名前缀）
-                var subCategoryMap: [String: Int] = [:]
-                for def in catTools {
-                    let prefix = def.name.components(separatedBy: ".").first ?? "misc"
-                    subCategoryMap[prefix, default: 0] += 1
-                }
-                hits = subCategoryMap.map { subcat, count in
-                    return ["name": "📁 \(subcat)", "summary": "\(count) 个工具，搜索 '\(subcat)' 查看详情"]
-                }
-                hits.sort { ($0["summary"] ?? "").count > ($1["summary"] ?? "").count }
-                isCategoryList = true
-                for def in catTools {
-                    ToolRegistry.shared.approveForSession(def.name)
-                }
-            } else {
-                // 工具不多，直接返回具体工具
-                hits = catTools.map { def in
-                    let shortDesc = def.summary.components(separatedBy: ". Use for:").first ?? def.summary
-                    let trimmed = shortDesc.count > 60 ? String(shortDesc.prefix(60)) + "..." : shortDesc
-                    return ["name": def.name, "summary": trimmed]
-                }
-                for def in catTools {
-                    ToolRegistry.shared.approveForSession(def.name)
-                }
+            // 按关键词搜索
+            hits = ToolRegistry.shared.searchTools(query: query, limit: limit)
+            for def in ToolRegistry.shared.searchTools(query: query, limit: limit) {
+                ToolRegistry.shared.approveForSession(def.name)
             }
         } else {
             // 按关键词搜索
