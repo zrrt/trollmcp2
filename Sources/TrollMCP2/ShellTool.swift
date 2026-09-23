@@ -1161,7 +1161,7 @@ final class ShellExecTool: MCPTool {
             ]
         }
         
-        let searchPath = resolved
+        let resolvedPath = resolved
         let nameRegex = pattern.replacingOccurrences(of: "*", with: ".*")
         let compareOpts: String.CompareOptions = ignoreCase ? [.regularExpression, .caseInsensitive] : [.regularExpression]
         
@@ -1187,7 +1187,7 @@ final class ShellExecTool: MCPTool {
             } catch {}
         }
         
-        findRecursive(dir: searchPath, depth: 0)
+        findRecursive(dir: resolvedPath, depth: 0)
         
         // 限制结果数量（v3.1.68: 截断时把全量落盘 tool_spill/，附精确路径——AI 可 cat 全量）
         var out: String
