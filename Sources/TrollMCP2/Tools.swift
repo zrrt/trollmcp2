@@ -445,10 +445,10 @@ final class DeviceExecTool: MCPTool {
 final class ContainerExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "container",
-        summary: "Manage app data container (refresh/write/delete). Use subcommand to specify action. Use for: read/write/delete files in app container. Don't use for: workspace files (use artifact.*), system files (use shell.exec). Example: write → container write bundle_id:com.xxx path:Documents/xxx.txt text:hello. Subcommands: refresh / write / delete. REQUIRED PARAMS per subcommand: write→bundle_id+path+text; delete→bundle_id+path; refresh→none.",
+        summary: "Manage app data container (refresh/resolve/write/delete). Use subcommand to specify action. Use for: read/write/delete files in app container, resolve app install+data paths. Don't use for: workspace files (use artifact.*), system files (use shell.exec). Example: write → container write bundle_id:com.xxx path:Documents/xxx.txt text:hello; resolve → container resolve bundle_id:com.xxx. Subcommands: refresh / resolve / write / delete. REQUIRED PARAMS per subcommand: write→bundle_id+path+text; delete→bundle_id+path; resolve→bundle_id; refresh→none.",
         parameters: [
-            "command": "Subcommand (required): refresh / write / delete",
-            "bundle_id": "App bundle ID — REQUIRED for write/delete",
+            "command": "Subcommand (required): refresh / resolve / write / delete",
+            "bundle_id": "App bundle ID — REQUIRED for resolve/write/delete",
             "path": "File path — REQUIRED for write/delete",
             "text": "Text to write — REQUIRED for write"
         ],
@@ -486,8 +486,17 @@ final class ContainerExecTool: MCPTool {
             }
             return try ContainerDeleteTool().invoke(["bundle_id": bundleId, "path": path])
             
+        // v3.1.68: container resolve —— bundle_id → 安装目录 + 数据容器 + 沙盒路径
+        // 此前 AI 为了找某 App 的数据目录要 loop 几百个目录跑 plutil（又慢又易崩），
+        // 一条 resolve 直接给出全部路径（D 项修复，2026-09-23 实测确认缺失）
+        case "resolve":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required. Usage: container resolve bundle_id:com.xxx")
+            }
+            return try ContainerResolveTool().invoke(["bundle_id": bundleId])
+            
         default:
-            throw MCPError.invalidParams("Unknown command: \(command). Available: refresh/write/delete")
+            throw MCPError.invalidParams("Unknown command: \(command). Available: refresh/resolve/write/delete")
         }
     }
 }

@@ -538,9 +538,10 @@ final class InjectionListTool: MCPTool {
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let apps = AppCatalog.list()
         let q = (params["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let limit = (params["limit"] as? Int) ?? 20
         let matched: [AppCatalog.AppEntry]
         if q.isEmpty {
-            matched = Array(apps.prefix(20))
+            matched = Array(apps.prefix(limit))
         } else {
             matched = apps.filter {
                 $0.name.localizedCaseInsensitiveContains(q) || $0.bundleId.localizedCaseInsensitiveContains(q)
@@ -550,8 +551,8 @@ final class InjectionListTool: MCPTool {
             "total": apps.count,
             "matched": matched.count,
             "query": q,
-            "hint": q.isEmpty ? "共 \(apps.count) 个 App，只返回前 20 条；请用 query 按名称/bundle_id 搜索目标（如 query=\"Troll\"）" : "命中 \(matched.count) 个，以下最多 20 条",
-            "apps": Array(matched.prefix(20)).map { ["bundle_id": $0.bundleId, "name": $0.name] }
+            "hint": q.isEmpty ? "共 \(apps.count) 个 App，只返回前 \(limit) 条；请用 query 按名称/bundle_id 搜索目标（如 query=\"Troll\"），或用 limit 控制条数" : "命中 \(matched.count) 个，以下最多 \(limit) 条",
+            "apps": Array(matched.prefix(limit)).map { ["bundle_id": $0.bundleId, "name": $0.name] }
         ]
     }
 }
@@ -631,6 +632,32 @@ final class ContainerWriteTextTool: MCPTool {
         try content.write(to: url, atomically: true, encoding: .utf8)
         AuditLog.shared.log("container.write_text", detail: "\(bid):\(path)")
         return ["written": true, "bytes": content.utf8.count]
+    }
+}
+
+// v3.1.68: container.resolve —— bundle_id → 安装目录 + 数据容器 + 沙盒路径
+// 此前 AI 为定位某 App 的数据目录要循环几百个目录跑 plutil（慢且易因环境问题崩），
+// 一条 resolve 直接给出全部路径（D 项修复，2026-09-23 真机实测确认缺失）
+final class ContainerResolveTool: MCPTool {
+    let definition = ToolDefinition(name: "container.resolve", summary: "Resolve an app's install path, data container and sandbox paths by bundle_id. Use for: find where an app lives on disk, get its data container path for reading/writing config. Don't use for: read/write files (use container write/delete or fs.read). Example: container resolve bundle_id:com.xingin.discover → install path + data container + executable.",
+        parameters: ["bundle_id": "App bundle ID to resolve"], returns: ["bundle_id": "Resolved bundle id", "app_name": "App display name", "install_path": "Bundle .app path", "data_container": "Data container path (nil if not accessible)", "executable": "Executable name", "version": "App version"], verified: true, category: "fs")
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let bid = params["bundle_id"] as? String else {
+            throw MCPError.invalidParams("bundle_id required. Usage: container resolve bundle_id:com.xxx")
+        }
+        guard let app = AppCatalog.find(bid) else {
+            throw MCPError.failed("app not found: \(bid)")
+        }
+        AuditLog.shared.log("container.resolve", detail: bid)
+        return [
+            "bundle_id": app.bundleId,
+            "app_name": app.name,
+            "install_path": app.path,
+            "data_container": app.containerPath ?? "",
+            "executable": app.execName,
+            "version": app.version,
+            "hint": app.containerPath == nil ? "数据容器不可访问（系统 App 或受限）" : "数据容器可直接 fs.read / container.write 访问"
+        ]
     }
 }
 
@@ -1179,6 +1206,7 @@ final class InjectionExecTool: MCPTool {
         case "list":
             var p: [String: Any] = [:]
             if let query = params["query"] as? String { p["query"] = query }
+            if let limit = params["limit"] as? Int { p["limit"] = limit }
             return try InjectionListTool().invoke(p)
             
         case "remove":

@@ -913,6 +913,7 @@ public final class ToolRegistry: ObservableObject {
 
     static func compactResult(_ root: [String: Any], arrLimit: Int = 20, strLimit: Int = 4000, keepHeadTail: Bool = true) -> [String: Any] {
         var out: [String: Any] = [:]
+        var truncatedAny = false
         for (k, v) in root {
             switch v {
             case let s as String:
@@ -927,6 +928,8 @@ public final class ToolRegistry: ObservableObject {
                 } else {
                     // v3.1.33：截断策略——保留头+尾（默认），不只留开头（AI 诊断 P3：
                     // "只留开头最没用"）。完整内容仍落盘 tool_spill/，AI 可 cat 全量。
+                    // v3.1.68：统一 truncated 标记——AI 读顶层即知结果被截断（E 项）
+                    truncatedAny = true
                     let spillPath = Self.spillLarge(k, t)
                     if keepHeadTail, strLimit >= 200 {
                         let half = strLimit / 2
@@ -939,6 +942,7 @@ public final class ToolRegistry: ObservableObject {
                 }
             case let arr as [[String: Any]]:
                 if arr.count > arrLimit {
+                    truncatedAny = true
                     var cut = Array(arr.prefix(arrLimit))
                     cut.append(["note": "…[共\(arr.count)项，已截断，仅显示前 \(arrLimit) 项]"])
                     out[k] = cut
@@ -947,6 +951,7 @@ public final class ToolRegistry: ObservableObject {
                 }
             case let arr as [Any]:
                 if arr.count > arrLimit {
+                    truncatedAny = true
                     var cut = Array(arr.prefix(arrLimit))
                     cut.append("…[共\(arr.count)项，已截断，仅显示前 \(arrLimit) 项]")
                     out[k] = cut
@@ -959,6 +964,7 @@ public final class ToolRegistry: ObservableObject {
                 out[k] = v
             }
         }
+        if truncatedAny { out["truncated"] = true }
         return out
     }
 

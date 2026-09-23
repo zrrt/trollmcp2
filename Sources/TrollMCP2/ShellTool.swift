@@ -42,7 +42,8 @@ final class ShellExecTool: MCPTool {
             "timeout": "Timeout seconds (default 30, max 120)",
             "reset_cwd": "Optional Bool: reset working dir to default (default false)",
             "limit": "Optional Int: 结果字符串截断上限（默认4000字符）。诊断时输出被修剪看不到主体，可传 limit=20000 或更大；full=true 则不截断返回完整结果",
-            "full": "Optional Bool: true=返回完整结果不截断（慎用，大输出占满上下文）"
+            "full": "Optional Bool: true=返回完整结果不截断（慎用，大输出占满上下文）",
+            "env": "Optional String: 显式选择执行环境——'alpine' 强制走 Alpine Linux（iSH），省略或 'ios' 按默认路由（iOS 原生优先）"
         ],
         verified: true
     )
@@ -106,6 +107,28 @@ final class ShellExecTool: MCPTool {
                 "ios_native": true,
                 "hint": "env 探针：定位执行环境问题"
             ]
+        }
+        
+        // v3.1.68: env 显式选择参数——AI 可传 env:"alpine" 强制走 Alpine（不猜路由），
+        // env:"ios" 或省略则按默认路由（iOS 原生优先）。修复"env 参数不生效"（E 项）。
+        if let envFlag = params["env"] as? String, envFlag.lowercased() == "alpine" {
+            let (output, exitCode, timedOut) = ISHEngine.exec(trimmed, timeout: timeout)
+            var stdout = ShellExecTool.filterNoise(output)
+            if stdout.count > 2000 {
+                let spillPath = ToolRegistry.spillLarge("alpine", stdout)
+                stdout = String(stdout.prefix(1000)) + "\n…[输出太长共 \(stdout.count) 字符，已截断；完整输出: \(spillPath)]\n" + String(stdout.suffix(1000))
+            }
+            var result: [String: Any] = [
+                "command": trimmed,
+                "exit_code": exitCode,
+                "stdout": stdout,
+                "cwd": ISHEngine.cwd,
+                "ios_native": false,
+                "hint": "Alpine Linux 环境（显式 env:alpine）：全套命令，可 apk add 装包"
+            ]
+            if timedOut { result["timed_out"] = true }
+            AuditLog.shared.log("shell.exec (alpine forced)", detail: String(trimmed.prefix(100)))
+            return result
         }
         
         // v3.1.33: shell 语法识别——含管道/分号/重定向/逻辑符的命令不再裸前缀匹配（iOS 原生朴素分词会把 | ; 当参数），
@@ -375,7 +398,8 @@ final class ShellExecTool: MCPTool {
         // 过滤杂散调试噪音
         var stdout = ShellExecTool.filterNoise(output)
         if stdout.count > 2000 {
-            stdout = String(stdout.prefix(2000)) + "\n... (输出太长，已截断，共 \(stdout.count) 字符)"
+            let spillPath = ToolRegistry.spillLarge("shell", stdout)
+            stdout = String(stdout.prefix(1000)) + "\n…[输出太长共 \(stdout.count) 字符，已截断；完整输出: \(spillPath)]\n" + String(stdout.suffix(1000))
         }
         
         // 会话目录：iSH guest 路径
@@ -602,7 +626,10 @@ final class ShellExecTool: MCPTool {
                     } else {
                         let (output, outputExit, timedOut) = ISHEngine.exec(body, timeout: 30)
                         var out = ShellExecTool.filterNoise(output)
-                        if out.count > 2000 { out = String(out.prefix(2000)) + "\n... (输出太长，已截断)" }
+                        if out.count > 2000 {
+                            let spillPath = ToolRegistry.spillLarge("alpine", out)
+                            out = String(out.prefix(1000)) + "\n…[输出太长共 \(out.count) 字符，已截断；完整输出: \(spillPath)]\n" + String(out.suffix(1000))
+                        }
                         result = [
                             "command": body, "exit_code": outputExit, "stdout": out,
                             "cwd": ISHEngine.cwd,
@@ -687,6 +714,9 @@ final class ShellExecTool: MCPTool {
         var i = 0
         var redirectIdx: Int? = nil
         var isAppend = false
+        // v3.1.68: stderr 重定向（2>&1 合并 / 2>/dev/null 丢弃）——从命令里剥掉，不写文件不报错。
+        // iOS 原生执行时 stderr 已经混入 stdout 文本，所以 2>&1 等效于去掉；2>/dev/null 也剥掉
+        // （真实 stderr 捕获需更大改造，剥掉至少不再报 "Error writing &1"）
         while i < chars.count {
             let c = chars[i]
             if c == "'" && !inDouble { inSingle.toggle(); i += 1; continue }
@@ -710,6 +740,17 @@ final class ShellExecTool: MCPTool {
         let body = String(chars[0..<idx]).trimmingCharacters(in: .whitespaces)
         var filePart = String(chars[(idx + (isAppend ? 2 : 1))..<chars.count]).trimmingCharacters(in: .whitespaces)
         filePart = filePart.trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+        
+        // v3.1.68: stderr 重定向识别——body 以 "2" 结尾（如 "ls /x 2"）且目标是 &1 或 /dev/null
+        let bodyHasStderrFd = body.hasSuffix("2")
+        let isStderrToNull = bodyHasStderrFd && (filePart == "/dev/null")
+        let isStderrToStdout = bodyHasStderrFd && (filePart == "&1" || filePart == "1")
+        if isStderrToNull || isStderrToStdout {
+            // 剥掉末尾的 "2"，把 stderr 重定向吞掉，命令主体继续执行
+            let trimmedBody = String(body.dropLast()).trimmingCharacters(in: .whitespaces)
+            return (trimmedBody, false, false, "")
+        }
+        
         filePart = ShellExecTool.normalizePath((filePart as NSString).expandingTildeInPath)
         return (body, true, isAppend, filePart)
     }
@@ -910,13 +951,16 @@ final class ShellExecTool: MCPTool {
         
         var showAll = false
         var showLong = false
+        var onePerLine = false
         var path = "."
         
         // 解析选项
         for part in parts.dropFirst() {
             if part.hasPrefix("-") {
-                showAll = part.contains("a")
-                showLong = part.contains("l")
+                showAll = showAll || part.contains("a")
+                showLong = showLong || part.contains("l")
+                // -1 / -C(反) / -m(逗号) 控制输出格式：-1 强制每条一行
+                onePerLine = onePerLine || part.contains("1")
             } else {
                 path = part
             }
@@ -968,15 +1012,16 @@ final class ShellExecTool: MCPTool {
                     "hint": "iOS 原生 ls：直接访问 iOS 文件系统"
                 ]
             } else {
-                // 短格式输出
+                // 短格式输出：默认每条一行（\n）——管道统计(wc -l/head/grep)依赖换行；
+                // 历史版本用双空格连接导致 ls | wc -l 恒为 1（C1 根因，2026-09-23 修复）
                 let visible = showAll ? sorted : sorted.filter { !$0.hasPrefix(".") }
                 return [
                     "command": command,
                     "exit_code": 0,
-                    "stdout": visible.joined(separator: "  "),
+                    "stdout": visible.joined(separator: "\n"),
                     "cwd": resolvedPath,
                     "ios_native": true,
-                    "hint": "iOS 原生 ls：直接访问 iOS 文件系统"
+                    "hint": "iOS 原生 ls：每条一行输出（支持管道统计）；-l 长格式；-a 含隐藏"
                 ]
             }
         } catch {
@@ -1102,68 +1147,154 @@ final class ShellExecTool: MCPTool {
         
         findRecursive(dir: searchPath, depth: 0)
         
-        // 限制结果数量
-        let truncated = results.count > 100 ? Array(results.prefix(100)) + ["... (共找到 \(results.count) 个，已截断)"] : results
+        // 限制结果数量（v3.1.68: 截断时把全量落盘 tool_spill/，附精确路径——AI 可 cat 全量）
+        var out: String
+        if results.count > 100 {
+            let spillPath = ToolRegistry.spillLarge("find", results.joined(separator: "\n"))
+            out = results.prefix(100).joined(separator: "\n") + "\n…[共找到 \(results.count) 个，已截断；完整列表: \(spillPath)]"
+        } else {
+            out = results.joined(separator: "\n")
+        }
         
         return [
             "command": command,
             "exit_code": 0,
-            "stdout": truncated.joined(separator: "\n"),
+            "stdout": out,
             "ios_native": true,
             "hint": "iOS 原生 find：直接在 iOS 文件系统找文件"
         ]
     }
     
     /// v3.1.32: iOS 原生 grep 命令——搜文本
+    /// v3.1.68: 支持 flags（-i 忽略大小写 / -r 递归 / -l 只列文件名 / -c 计数 / -n 带行号 / -v 反选），
+    /// 修复"任何 flag 把模式当文件"（C3 根因，2026-09-23 实测确认）
     private static func runIOSGrep(_ command: String) -> [String: Any] {
         let fm = FileManager.default
         let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
         
-        guard parts.count >= 3 else {
+        // 解析 flags 与位置参数
+        var flags = Set<Character>()
+        var positional: [String] = []
+        for p in parts.dropFirst() {
+            if p.hasPrefix("-") && p.count > 1 && !p.hasPrefix("-e") {
+                for ch in p.dropFirst() { flags.insert(ch) }
+            } else {
+                positional.append(p)
+            }
+        }
+        let ignoreCase = flags.contains("i")
+        let recursive = flags.contains("r")
+        let filesOnly = flags.contains("l")
+        let countOnly = flags.contains("c")
+        let lineNumbers = flags.contains("n")
+        let invert = flags.contains("v")
+        
+        guard positional.count >= 2 else {
             return [
                 "command": command,
                 "exit_code": 1,
-                "stdout": "Usage: grep '<pattern>' <file>",
+                "stdout": "Usage: grep [-i] [-r] [-l] [-c] [-n] [-v] '<pattern>' <file|dir>...",
                 "ios_native": true
             ]
         }
         
-        let pattern = parts[1].trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
-        let filePath = ShellExecTool.normalizePath((parts[2] as NSString).expandingTildeInPath)
-        guard fm.fileExists(atPath: filePath) else {
-            return [
-                "command": command,
-                "exit_code": 1,
-                "stdout": "grep: \(filePath): No such file or directory",
-                "ios_native": true
-            ]
+        let pattern = positional[0].trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+        let targets = positional.dropFirst().map { ShellExecTool.normalizePath(($0 as NSString).expandingTildeInPath) }
+        
+        // 收集要搜索的文件（支持 -r 递归目录）
+        var files: [String] = []
+        for t in targets {
+            var isDir: ObjCBool = false
+            if fm.fileExists(atPath: t, isDirectory: &isDir) {
+                if isDir.boolValue {
+                    if recursive {
+                        if let enumerator = fm.enumerator(atPath: t) {
+                            while let f = enumerator.nextObject() as? String {
+                                let full = (t as NSString).appendingPathComponent(f)
+                                var fIsDir: ObjCBool = false
+                                if fm.fileExists(atPath: full, isDirectory: &fIsDir), !fIsDir.boolValue {
+                                    files.append(full)
+                                }
+                            }
+                        }
+                    } else {
+                        return [
+                            "command": command,
+                            "exit_code": 1,
+                            "stdout": "grep: \(t): Is a directory (use -r to recurse)",
+                            "ios_native": true
+                        ]
+                    }
+                } else {
+                    files.append(t)
+                }
+            } else {
+                return [
+                    "command": command,
+                    "exit_code": 1,
+                    "stdout": "grep: \(t): No such file or directory",
+                    "ios_native": true
+                ]
+            }
         }
         
-        do {
-            let content = try String(contentsOfFile: filePath, encoding: .utf8)
+        guard !files.isEmpty else {
+            return ["command": command, "exit_code": 1, "stdout": "grep: no files matched", "ios_native": true]
+        }
+        
+        var matchedFiles: [String] = []
+        var matchedLines: [String] = []
+        var totalCount = 0
+        for file in files {
+            guard let content = try? String(contentsOfFile: file, encoding: .utf8) else { continue }
             let lines = content.components(separatedBy: .newlines)
-            var matches: [String] = []
-            for line in lines {
-                if line.range(of: pattern, options: .caseInsensitive) != nil {
-                    matches.append(line)
+            var fileMatched = false
+            var fileCount = 0
+            for (idx, line) in lines.enumerated() {
+                let found: Bool
+                if ignoreCase {
+                    found = line.range(of: pattern, options: [.caseInsensitive, .regularExpression]) != nil
+                } else {
+                    found = line.range(of: pattern, options: .regularExpression) != nil
+                }
+                let hit = invert ? !found : found
+                if hit {
+                    fileMatched = true
+                    fileCount += 1
+                    totalCount += 1
+                    if !filesOnly && !countOnly {
+                        let prefix = files.count > 1 ? "\(file):" : ""
+                        let num = lineNumbers ? "\(idx + 1):" : ""
+                        matchedLines.append("\(prefix)\(num)\(line)")
+                    }
                 }
             }
-            let truncated = matches.count > 50 ? Array(matches.prefix(50)) + ["... (共 \(matches.count) 行匹配，已截断)"] : matches
-            return [
-                "command": command,
-                "exit_code": 0,
-                "stdout": truncated.joined(separator: "\n"),
-                "ios_native": true,
-                "hint": "iOS 原生 grep：直接在 iOS 文件里搜文本"
-            ]
-        } catch {
-            return [
-                "command": command,
-                "exit_code": 1,
-                "stdout": "grep: \(filePath): \(error.localizedDescription)",
-                "ios_native": true
-            ]
+            if fileMatched { matchedFiles.append(file) }
+            if countOnly && fileMatched {
+                let prefix = files.count > 1 || targets.count > 1 ? "\(file):" : ""
+                matchedLines.append("\(prefix)\(fileCount)")
+            }
         }
+        
+        let out: String
+        if filesOnly {
+            out = matchedFiles.joined(separator: "\n")
+        } else if countOnly {
+            out = matchedLines.joined(separator: "\n")
+            if files.count == 1 && targets.count == 1 && matchedLines.isEmpty && totalCount == 0 {
+                out = "0"
+            }
+        } else {
+            let truncated = matchedLines.count > 200 ? Array(matchedLines.prefix(200)) + ["... (共 \(totalCount) 行匹配，已截断)"] : matchedLines
+            out = truncated.joined(separator: "\n")
+        }
+        return [
+            "command": command,
+            "exit_code": 0,
+            "stdout": out,
+            "ios_native": true,
+            "hint": "iOS 原生 grep：支持 -i(忽略大小写)/-r(递归)/-l(列文件名)/-c(计数)/-n(行号)/-v(反选)"
+        ]
     }
     
     /// v3.1.32: iOS 原生写文件命令（echo > / >>）
