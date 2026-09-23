@@ -1,6 +1,7 @@
 ﻿import SwiftUI
 import UIKit
 import RSKGrowingTextView
+import UniformTypeIdentifiers
 
 struct ChatView: View {
     @ObservedObject private var store = ConversationStore.shared
@@ -15,6 +16,7 @@ struct ChatView: View {
     @AppStorage("chat_think_enabled") private var thinkEnabled = true
     @State private var keyboardHeight: CGFloat = 0   // v2.9.234：键盘高度(消息列表跟随上移)
     @State private var attachmentSheet: AttachmentSheet?
+    @State private var showFileImporter = false  // v3.1.66：文件选择改用 .fileImporter（不再嵌 sheet 弹 UIDocumentPicker，嵌套呈现会打不开）
     @State private var showModelPicker = false  // v2.9.36：聊天框切换上游模型
 
     // v2.9.9：多模态图片（data URL）。选择相册图片后转 base64 暂存，发送时随消息传给模型
@@ -122,9 +124,16 @@ struct ChatView: View {
                 if #available(iOS 16.0, *) {
                     AttachmentPanelView(onPick: { pick in
                         // v2.9.39：浏览器入口直接开悬浮窗（不占 sheet）
+                        // v3.1.66：文件入口不再通过 attachmentSheet 弹嵌套 sheet（UIDocumentPicker 嵌 sheet 会打不开），
+                        // 改为关闭面板后触发 .fileImporter（SwiftUI 原生，呈现层级正确）
                         if pick == .browser {
                             self.attachmentSheet = nil
                             FloatingBrowser.shared.show()
+                        } else if pick == .documentPicker {
+                            self.attachmentSheet = nil
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                self.showFileImporter = true
+                            }
                         } else {
                             self.attachmentSheet = pick
                         }
@@ -135,6 +144,11 @@ struct ChatView: View {
                         if pick == .browser {
                             self.attachmentSheet = nil
                             FloatingBrowser.shared.show()
+                        } else if pick == .documentPicker {
+                            self.attachmentSheet = nil
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                self.showFileImporter = true
+                            }
                         } else {
                             self.attachmentSheet = pick
                         }
@@ -187,20 +201,44 @@ struct ChatView: View {
                     }
                 }
             case .documentPicker:
-                DocumentPickerView { urls in
-                    // v2.9.10：文件选择 → 附件预览
-                    for u in urls {
+                // v3.1.66：文件选择已改用 .fileImporter（面板 onPick 里触发 showFileImporter），
+                // 不再在这里弹嵌套 sheet 的 DocumentPickerView——嵌套呈现 UIDocumentPicker 会打不开
+                EmptyView()
+            }
+        }
+        // v3.1.66：文件选择改用 SwiftUI 原生 .fileImporter（修复"聊天界面选择文件打不开"——
+        // 之前用 sheet 嵌套 UIDocumentPickerViewController，文档选择器是独立进程，
+        // 嵌套呈现时经常白屏/无法交互；.fileImporter 由系统处理呈现层级，稳定可用）
+        .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
+            switch result {
+            case .success(let urls):
+                // v2.9.10：文件选择 → 附件预览
+                for u in urls {
+                    let att = PendingAttachment(
+                        kind: .file,
+                        displayName: u.lastPathComponent,
+                        dataURL: nil,
+                        thumbnail: nil,
+                        bundleId: nil,
+                        fileURL: u
+                    )
+                    // v3.1.66：选完立即复制到工作区 uploads/（复用发送时的 saveAttachmentToWorkspace），
+                    // 避免 fileImporter 关闭后临时 URL 失效；复制失败仍保留原 URL，发送时再兜底重试
+                    if let saved = Self.saveAttachmentToWorkspace(att) {
                         self.pendingAttachments.append(PendingAttachment(
                             kind: .file,
                             displayName: u.lastPathComponent,
                             dataURL: nil,
                             thumbnail: nil,
                             bundleId: nil,
-                            fileURL: u
+                            fileURL: URL(fileURLWithPath: saved)
                         ))
+                    } else {
+                        self.pendingAttachments.append(att)
                     }
-                    // v2.9.61：文件预览在预览条显示，不再往输入框塞 [📎文件] 标签
                 }
+            case .failure(let error):
+                print("File importer failed: \(error.localizedDescription)")
             }
         }
         // v2.9.36：聊天框切换上游模型（点"当前模型"弹出，老 MCP 风格半屏）
