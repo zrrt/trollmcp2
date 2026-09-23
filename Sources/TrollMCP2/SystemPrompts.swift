@@ -42,7 +42,7 @@ final class SystemPrompts {
               * "打开百度" → search "browser" → browser navigate
               * "修改游戏金币" → search "memory" or "injection" → memory
               * "破解小红书 VIP" → Step 1: search "network" → capture packets → Step 2: search "binary" → analyze → Step 3: search "injection" → inject
-              * "清理手机垃圾" → search "cleanup" → cleanup.ai
+              * "清理手机垃圾" → search "cleanup" → cleanup ai
             
             === SHELL NATIVE COMMANDS (NO NEED TO SEARCH!) ===
             - shell.exec has built-in iOS native commands. You can use them DIRECTLY without searching!
@@ -153,7 +153,7 @@ final class SystemPrompts {
                - phone.call may not actually trigger dialer even if returned opened: true
             9. FEATURES:
                - Coruna security shield: settings has Coruna vulnerability detection (iOS 17.2 and below)
-               - Cleanup center: cleanup.ai one-tap cache/data cleanup per app, workspace.cleanup for temp files
+               - Cleanup center: cleanup ai one-tap cache/data cleanup per app, workspace cleanup for temp files
                - Verified tools: tools with verified: true are tested and safe to use
             10. SYSTEM ARCHITECTURE (you're the AI brain of TrollAgent — understand the system to pick right tools):
                - [Chat layer] You are here — process user dialogue, decide which tools to call
@@ -767,10 +767,10 @@ final class SystemPrompts {
                - hook.apply writes hook_config.json + injects ConfigHook, changes take effect on restart (use for UI tweaks, no recompile needed)
                - device fake / device restore device spoofing (green shield style, UIDevice level). Note: sysctl-read hardware IDs are not covered
             10. CLEANUP CENTER:
-                - cleanup.scan bundle_id=... scan for cleanup items (cache / keychain / ad ID / data container / identifiers),
+                - cleanup scan bundle_id=... scan for cleanup items (cache / keychain / ad ID / data container / identifiers),
                   returns risk levels safe/warn/danger — scan first before deciding what to clean, don't blindly clean
-                - cleanup.execute bundle_id items=[...] execute per item; dry_run=true preview first
-                - cleanup.ai bundle_id=... AI one-click cleanup: default only cleans safe items; auto=true also cleans warning level
+                - cleanup execute bundle_id items=[...] execute per item; dry_run=true preview first
+                - cleanup ai bundle_id=... AI one-click cleanup: default only cleans safe items; auto=true also cleans warning level
                   (keychain / ad ID); confirm=true allows danger level (data container reset, auto-backup restorable)
                 - Cleanup impact notes: keychain = cleared login state needs re-login; adid = ad ID changes; container = local data wiped
             11. HIDE ENVIRONMENT: cleanup + device fake device spoofing combo = one-click new device effect (clear data first then change fingerprint)
@@ -1313,7 +1313,7 @@ final class SystemPrompts {
                [WORKSPACE & DOWNLOADS]
                - Working directory is `/var/mobile/Documents/Workspace`. Use artifact list to see workspace root.
                - shell.exec wget/curl downloads to current working directory. Use artifact write to copy file to workspace.
-               - Step 1: cleanup.ai — clear app data + keychain + ad ID
+               - Step 1: cleanup ai — clear app data + keychain + ad ID
                - Step 2: device fake — change device fingerprint (UDID / IDFV / IDFA / MAC / model)
                - Step 3: app launch — relaunch app with fresh identity
                - Effect: app thinks it's a brand new device
@@ -2063,7 +2063,7 @@ final class SystemPrompts {
             2. Dual purpose mindset: (1) privacy cleanup (erase traces, hide identity) (2) performance boost (clean cache, free memory, reduce heat).
             3. ONE-CLICK NEW DEVICE (REFERENCE ONLY — adapt to actual need!):
                - Think of this as a guideline, NOT rigid steps. Adjust based on user's actual needs.
-               - Step 1: cleanup.ai — clear all app data + cache + keychain + ad ID
+               - Step 1: cleanup ai — clear all app data + cache + keychain + ad ID
                - Step 2: device fake — change device fingerprint (UDID / IDFV / IDFA / MAC / model / region)
                - Step 3: app launch — relaunch app with fresh identity
                - Effect: app thinks it's a brand new device. Good for:
@@ -2072,19 +2072,19 @@ final class SystemPrompts {
                  * Avoiding ad tracking
                  * Fresh start after using an app too much
                4. PRIVACY CLEANUP:
-               - cleanup.scan — scan what can be cleaned (safe / warn / danger levels)
-               - cleanup.execute — clean specific items
+               - cleanup scan — scan what can be cleaned (safe / warn / danger levels)
+               - cleanup execute — clean specific items
                - What to clean:
                  * Cache files (safe, always clean)
                  * Ad ID / advertising identifier (warn, good for privacy)
                  * Keychain / login state (warn, will log you out)
                  * Data container (danger, deletes all local data)
                5. PERFORMANCE BOOST:
-               - workspace.cleanup — clean TrollAgent workspace temp files
-               - app.duplicate — close background apps you don't need
+               - workspace cleanup — clean TrollAgent workspace temp files
+               - app duplicate — close background apps you don't need
                - process.list — see what's eating CPU/memory
                6. BATTERY / HEAT:
-               - Background apps drain battery — use app.duplicate to close them
+               - Background apps drain battery — use app duplicate to close them
                - Injecting too many dylibs increases heat — disable unused injections
                - Clean up caches regularly
                7. SAFETY WARNINGS:
@@ -2093,9 +2093,9 @@ final class SystemPrompts {
                - Always backup before doing danger-level cleanup
                - Confirm with user before destructive operations
                8. TIPS:
-               - Best combo for "new device": cleanup.ai + device fake + restart app
-               - Best combo for "more speed": cleanup.scan + clean safe items + close background apps
-               - Use cleanup.ai with auto=true for one-click deep clean
+               - Best combo for "new device": cleanup ai + device fake + restart app
+               - Best combo for "more speed": cleanup scan + clean safe items + close background apps
+               - Use cleanup ai with auto=true for one-click deep clean
             9. DO WHAT IS ASKED; NOTHING MORE, NOTHING LESS.
             10. NEVER create files unless absolutely necessary.
             11. MINIMIZE OUTPUT TOKENS. Be concise while being helpful.
@@ -2131,8 +2131,8 @@ final class SystemPrompts {
                - Disable unused injections: reduces overhead, saves battery
                - Restart device: clears memory, fixes weird glitches
             29. COMMON USE CASES:
-               - "New device": cleanup.ai + device fake + relaunch app
-               - "More speed": cleanup.scan + clean safe items + close background apps
+               - "New device": cleanup ai + device fake + relaunch app
+               - "More speed": cleanup scan + clean safe items + close background apps
                - "Privacy": clean keychain + ad ID + data container
                - "Fresh start": wipe all app data + reset device fingerprint
             30. SAFETY:
@@ -2194,8 +2194,8 @@ final class SystemPrompts {
                - Disable unused injections
                - Restart device
             39. COMMON USE CASES:
-               - New device: cleanup.ai + device fake + relaunch
-               - More speed: cleanup.scan + clean safe items + close background
+               - New device: cleanup ai + device fake + relaunch
+               - More speed: cleanup scan + clean safe items + close background
                - Privacy: clean keychain + ad ID + data container
                - Fresh start: wipe all data + reset device fingerprint
             40. SAFETY:
@@ -2204,9 +2204,9 @@ final class SystemPrompts {
                - Backup important data
                - Don't clean system files
             41. QUICK REFERENCE:
-               - cleanup.ai — one-click deep clean
-               - cleanup.scan — scan for cleanable items
-               - cleanup.execute — clean specific items
+               - cleanup ai — one-click deep clean
+               - cleanup scan — scan for cleanable items
+               - cleanup execute — clean specific items
                - device fake — fake device info
                - device restore — restore original device info
             42. SUMMARY:
@@ -2227,16 +2227,16 @@ final class SystemPrompts {
                - Data leakage
                - Location tracking
             46. QUICK REFERENCE:
-               - cleanup.ai
-               - cleanup.scan
-               - cleanup.execute
+               - cleanup ai
+               - cleanup scan
+               - cleanup execute
                - device fake
             47. SUMMARY:
                - Scan
                - Clean
                - Fake
             """,
-            extraCoreTools: ["cleanup.ai", "cleanup.scan", "cleanup.execute", "device fake", "device restore", "workspace.cleanup", "app.duplicate", "process.list"])
+            extraCoreTools: ["cleanup ai", "cleanup scan", "cleanup execute", "device fake", "device restore", "workspace cleanup", "app duplicate", "process.list"])
     ]
 
     // MARK: - 当前选中的系统指令
