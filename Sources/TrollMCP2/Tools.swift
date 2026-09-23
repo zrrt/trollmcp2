@@ -836,3 +836,44 @@ final class LocationExecTool: MCPTool {
         }
     }
 }
+
+// MARK: - v3.1.52: github 大工具 + 子命令（合并 4 个 github.* 工具）
+
+final class GitHubExecTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "github",
+        summary: "Manage GitHub CI (account_status/trigger_build/fetch_runs/download_artifact). Use subcommand to specify action. Use for: trigger build, check status, download artifact. Don't use for: code search (use web.search). Example: trigger_build → github trigger_build; fetch_runs → github fetch_runs. Subcommands: account_status / trigger_build / fetch_runs / download_artifact.",
+        parameters: [
+            "command": "Subcommand: account_status / trigger_build / fetch_runs / download_artifact",
+            "run_id": "Run ID (for download_artifact)"
+        ],
+        verified: true, category: "system")
+    
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let command = params["command"] as? String else {
+            throw MCPError.invalidParams("command required")
+        }
+        
+        AuditLog.shared.log("github", detail: command)
+        
+        switch command {
+        case "account_status":
+            return try GitHubAccountStatusTool().invoke([:])
+            
+        case "trigger_build":
+            return try GitHubTriggerBuildTool().invoke([:])
+            
+        case "fetch_runs":
+            return try GitHubFetchRunsTool().invoke([:])
+            
+        case "download_artifact":
+            guard let runId = params["run_id"] as? Int else {
+                throw MCPError.invalidParams("run_id required")
+            }
+            return try GitHubDownloadArtifactTool().invoke(["run_id": runId])
+            
+        default:
+            throw MCPError.invalidParams("Unknown command: \(command). Available: account_status/trigger_build/fetch_runs/download_artifact")
+        }
+    }
+}

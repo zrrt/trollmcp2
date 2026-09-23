@@ -1186,10 +1186,11 @@ public final class ToolRegistry: ObservableObject {
         register(BuildRunTool())
 
         // M9 GitHub 线上编译（v2.9.9：账号状态 / 触发编译 / 查进度 / 下载产物）
-        register(GitHubAccountStatusTool())
-        register(GitHubTriggerBuildTool())
-        register(GitHubFetchRunsTool())
-        register(GitHubDownloadArtifactTool())
+        // v3.1.52: github 大工具 + 子命令（合并 4 个 github.* 工具）
+        register(GitHubExecTool())
+        // v3.1.52: 删旧的 4 个 github.* 工具（已合并到 github 大工具）
+        // 已删：GitHubAccountStatusTool / GitHubTriggerBuildTool
+        // 已删：GitHubFetchRunsTool / GitHubDownloadArtifactTool
 
         // M7 补齐缺失设备端工具
         register(CalendarCreateEventTool())
