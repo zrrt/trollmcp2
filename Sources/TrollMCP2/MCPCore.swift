@@ -1015,7 +1015,7 @@ public final class ToolRegistry: ObservableObject {
         register(ArtifactExecTool())
         // v3.1.39: 删旧的 3 个 artifact.* 工具（已合并到 artifact 大工具）
         // 已删：ArtifactReadTextTool / ArtifactWriteTextTool / ArtifactListTool
-        register(ArtifactFindTool())   // v2.9.33：递归查找下载产物 dylib/deb
+        // v3.1.46: 删 ArtifactFindTool（shell.exec 可以实现：shell.exec("find xxx")）
         // v3.1.46: 删 PingTool（shell.exec 可以实现：shell.exec("ping -c 4 xxx")）
         // v3.1.40: device 大工具 + 子命令（合并 4 个 device.* 工具）
         register(DeviceExecTool())
