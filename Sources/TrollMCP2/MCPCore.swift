@@ -1233,9 +1233,10 @@ public final class ToolRegistry: ObservableObject {
         register(ControlFinishTool())
         // v2.9.139：启动带参数 + 定位模拟
         register(AppLaunchOptionsTool())
-        register(LocationFakeTool())
-        register(LocationFakeStatusTool())
-        register(LocationFakeClearTool())
+        // v3.1.51: location 大工具 + 子命令（合并 4 个 location.* 工具）
+        register(LocationExecTool())
+        // v3.1.51: 删旧的 4 个 location.* 工具（已合并到 location 大工具）
+        // 已删：LocationGetTool / LocationFakeTool / LocationFakeStatusTool / LocationFakeClearTool
         // v2.9.141：跨 App 数据桥（沙箱破坏者）+ AI 操作宏录制/回放
         // v3.1.46: 删 6 个 bridge.* 工具（shell.exec 可以实现）
         // 已删：BridgeContainerTool / BridgeLsTool / BridgeReadTool

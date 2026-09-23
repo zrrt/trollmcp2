@@ -791,3 +791,48 @@ final class KnowledgeExecTool: MCPTool {
         }
     }
 }
+
+// MARK: - v3.1.51: location 大工具 + 子命令（合并 4 个 location.* 工具）
+
+final class LocationExecTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "location",
+        summary: "Manage location (get/fake/status/clear). Use subcommand to specify action. Use for: get current location, fake location. Don't use for: device info (use device info). Example: get → location get; fake → location fake lat:39.9 lng:116.4. Subcommands: get / fake / status / clear.",
+        parameters: [
+            "command": "Subcommand: get / fake / status / clear",
+            "lat": "Latitude (for fake)",
+            "lng": "Longitude (for fake)"
+        ],
+        verified: true, category: "device")
+    
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let command = params["command"] as? String else {
+            throw MCPError.invalidParams("command required")
+        }
+        
+        AuditLog.shared.log("location", detail: command)
+        
+        switch command {
+        case "get":
+            return try LocationGetTool().invoke([:])
+            
+        case "fake":
+            guard let lat = params["lat"] as? Double else {
+                throw MCPError.invalidParams("lat required")
+            }
+            guard let lng = params["lng"] as? Double else {
+                throw MCPError.invalidParams("lng required")
+            }
+            return try LocationFakeTool().invoke(["lat": lat, "lng": lng])
+            
+        case "status":
+            return try LocationFakeStatusTool().invoke([:])
+            
+        case "clear":
+            return try LocationFakeClearTool().invoke([:])
+            
+        default:
+            throw MCPError.invalidParams("Unknown command: \(command). Available: get/fake/status/clear")
+        }
+    }
+}
