@@ -1127,11 +1127,12 @@ struct QuickTabButton: View {
                     .font(.caption)
                     .lineLimit(1)
             }
-            .frame(maxWidth: .infinity)
             .frame(height: 32)
+            // v3.4.4：与 ChatChip 统一内边距/圆角，保证滑动模块比例一致
+            .padding(.horizontal, 8)
             .background(Color(.secondarySystemBackground))
             .foregroundColor(.secondary)
-            .cornerRadius(10)
+            .cornerRadius(12)
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -1280,8 +1281,8 @@ struct MessageBubble: View {
                 if selectionMode { selectionBadge }
             }
         }
-        // v3.4.2：AI/工具气泡仍近全宽，但左右各留 10 边距（不再贴死屏幕边缘）；用户气泡右侧留白 12
-        .padding(.horizontal, isUser ? 12 : 10)
+        // v3.4.4：AI/工具气泡左右各留 16 边距（用户反馈 10 仍太小）；用户气泡右侧留白 12
+        .padding(.horizontal, isUser ? 12 : 16)
         .contentShape(Rectangle())
         .onTapGesture {
             if selectionMode {
@@ -1422,8 +1423,8 @@ struct MessageBubble: View {
 
             // 🔧✅ 2. 工具调用 + 工具结果（同一个灰色大气泡）
             VStack(alignment: .leading, spacing: 6) {
-                        // 工具调用胶囊（工具名 + 耗时，对齐 OpenMinis 步骤样式；参数在下方结果里展开）
-                VStack(alignment: .leading, spacing: 2) {
+                        // 工具调用胶囊（工具名 + 耗时 + 执行命令，边做边说可见；结果在下方展开）
+                VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         Image(systemName: "wrench.and.screwdriver")
                             .font(.system(size: 13))
@@ -1439,6 +1440,14 @@ struct MessageBubble: View {
                                 .foregroundColor(.secondary)
                         }
                         Spacer()
+                    }
+                    // v3.4.4：工具执行的命令/参数摘要可见——用户要看清楚这步在干嘛
+                    if let args = message.toolArgs, !args.isEmpty {
+                        Text(String(args.prefix(60)))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
                     }
                 }
                 .padding(.horizontal, 10)

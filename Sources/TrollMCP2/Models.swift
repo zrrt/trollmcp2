@@ -968,6 +968,12 @@ final class ConversationStore: ObservableObject {
                     if let th = thinking, !th.isEmpty {
                         reasoningText = reasoningText.isEmpty ? th : "\(reasoningText)\n\(th)"
                     }
+                    // 先取流式可见文本（模型若已发解说则以其为准）
+                    if let sid = self.streamingMessageId,
+                       let ci = self.activeConvIndex,
+                       let mi = self.conversations[ci].messages.firstIndex(where: { $0.id == sid }) {
+                        visibleText = self.conversations[ci].messages[mi].content
+                    }
                     // v3.4.1：边做边说兜底——模型（尤其推理模型/中转）常不发可见解说文本就把 tool_calls 抛出来，
                     // 导致"边做边说"看不到。对齐 OpenMinis 的做法：App 层按工具名合成一句可见解说，
                     // 保证每次执行前用户都看得到这步在干嘛，不依赖模型是否主动发文本。
