@@ -54,8 +54,8 @@ final class VpnManager {
                 return
             }
             let proto = NETunnelProviderProtocol()
-            proto.serverAddress = "trollagent-mitm"
-            proto.username = "trollagent"
+            // v3.3.3：serverAddress 必须是合法地址（此前 "trollagent-mitm" 被系统判为 invalid protocol）
+            proto.serverAddress = "127.0.0.1"
             proto.providerBundleIdentifier = "com.trollagent.app.VpnTunnel"
             proto.disconnectOnSleep = false
             self.manager.protocolConfiguration = proto
