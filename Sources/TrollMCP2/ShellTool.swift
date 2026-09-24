@@ -36,7 +36,7 @@ enum ShellDiag {
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "Run a shell command (terminal/command line). iOS native mode (default): 36 个原生命令直通真实 iOS 系统——文件操作 (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/curl/plutil/sqlite3/unzip) + 系统信息 (df/free/uname/uptime/hostname/ps/top/kill) + 网络 (ifconfig/netstat/nslookup)。支持管道/分号/重定向/&&/|| (例：'ls /var/mobile | head -5'、'cat a.txt; echo done'、'echo hi > f.txt')，支持 VAR=value 赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat。限制：iOS 原生模式不支持 for/while/case/heredoc/多行脚本 (写复杂脚本或装包请 env:alpine 走 Alpine Linux 全功能 shell，如 env:alpine 下可 python/curl/tar/apk add)。'env' 可探测当前执行环境。Use for: file operations, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*). Example: 'read file' → cat /path; 'disk space' → df; 'processes' → ps; 'download' → curl -O url; 'complex script' -> env:alpine + command.",
+        summary: "Run a shell command (terminal/command line). iOS native mode (default): 36 个原生命令直通真实 iOS 系统——文件操作 (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/curl/plutil/sqlite3/unzip) + 系统信息 (df/free/uname/uptime/hostname/ps/top/kill) + 网络 (ifconfig/netstat/nslookup)。支持管道/分号/重定向/&&/|| (例：'ls /var/mobile | head -5'、'cat a.txt; echo done'、'echo hi > f.txt')，支持 VAR=value 赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat。限制：iOS 原生模式不支持 for/while/case/heredoc/多行脚本 (写复杂脚本或装包请 env:alpine 走 Alpine Linux 全功能 shell，如 env:alpine 下可 python/curl/tar/apk add)。'env' 可探测当前执行环境。Native Offload：`ta <tool> <key:value...>` 是全部原生工具的单一入口——先 `ta list` 看可用工具、`ta help <tool>` 看参数，再 `ta <tool> key:value` 直接调用 (例：ta app launch bundle_id:com.xxx；ta vpn.capture command:start)。Use for: file operations, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*). Example: 'read file' → cat /path; 'disk space' → df; 'processes' → ps; 'download' → curl -O url; 'complex script' -> env:alpine + command.",
         parameters: [
             "command": "Shell command to execute (required)",
             "timeout": "Timeout seconds (default 30, max 120)",
@@ -82,6 +82,14 @@ final class ShellExecTool: MCPTool {
         // v3.1.32: iOS 原生命令拦截——直接用 iOS FileManager 执行，不经过 Alpine
         // 这样就能访问整个 iOS 文件系统了！
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // v3.3.4: Native Offload —— `ta <tool> <key:value...>` 统一路由到全部原生 MCP 工具。
+        // AI 只需学一个入口 (ta list / ta help <tool>)，无需记忆 40+ 工具的参数 schema。
+        if trimmed == "ta" || trimmed.hasPrefix("ta ") {
+            let result = OffloadRouter.run(trimmed)
+            AuditLog.shared.log("shell.exec (ta offload)", detail: String(trimmed.prefix(100)))
+            return result
+        }
         
         // v3.1.33: env 探针命令——一键返回当前执行环境 (后端/cwd/路径可见性），
         // 任何"时灵时不灵"异常第一步用它定位 (AI 诊断 P4）
