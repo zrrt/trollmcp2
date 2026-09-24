@@ -598,6 +598,11 @@ final class ConversationStore: ObservableObject {
     private var pendingNarrationCorrection: String? = nil
     /// v3.5.5：连续纠正次数——同一 tool 决策最多纠正 2 次仍不解说就放行执行，避免死循环。
     private var narrationCorrectionCount = 0
+    /// v3.5.6：工具参数 schema 预校验——模型调工具但缺必填参数时，不执行，注入纠正消息重跑
+    /// 一轮逼它补齐再调（对齐 harness "机制决定行为"，治"invalid params required 盲试"老毛病）。
+    private var pendingParamCorrection: String? = nil
+    /// v3.5.6：参数纠正连续次数——同一 tool 决策最多纠正 2 次仍缺参就放行执行，避免死循环。
+    private var paramCorrectionCount = 0
     /// v3.1.70：活动请求绑定的会话 ID——请求由哪个会话发起就写回哪个会话。
     /// 修复"请求进行中切换会话，AI 输出错位/写错会话" (用户实测：老会话未暂停，切换新会话后输出仍乱）。
     private var activeConvId: UUID?
@@ -722,6 +727,9 @@ final class ConversationStore: ObservableObject {
         // v3.5.5：新任务开始，重置"先解说后执行"自适应纠正状态（避免跨任务计数器残留）
         narrationCorrectionCount = 0
         pendingNarrationCorrection = nil
+        // v3.5.6：重置工具参数预校验纠正状态
+        paramCorrectionCount = 0
+        pendingParamCorrection = nil
         var msg = ChatMessage(role: "user", content: text)
         if let imgs = imageDataURLs, !imgs.isEmpty {
             msg.imageDataURLs = imgs
@@ -886,6 +894,11 @@ final class ConversationStore: ObservableObject {
         if let correction = self.pendingNarrationCorrection, !correction.isEmpty {
             history.append(ChatMessage(role: "user", content: correction))
             self.pendingNarrationCorrection = nil
+        }
+        // v3.5.6：工具参数预校验纠正注入——上一轮调工具缺必填参数被拦，同样拼到请求末尾。
+        if let pcorr = self.pendingParamCorrection, !pcorr.isEmpty {
+            history.append(ChatMessage(role: "user", content: pcorr))
+            self.pendingParamCorrection = nil
         }
 
         client.send(messages: history, tools: effectiveTools, onStatus: { status in
@@ -1215,6 +1228,24 @@ final class ConversationStore: ObservableObject {
         }
         let call = calls[index]
         let params = Self.parseArgs(call.arguments)
+        // v3.5.6：工具参数 schema 预校验（机制级，治"缺参盲试"老毛病）——
+        // 调工具前先用工具 schema 校验必填参数，缺了就不执行，注入纠正消息重跑一轮逼模型补齐。
+        // 不再像以前那样直接执行→报"invalid params required"→靠提示词让模型自己改（常盲试好几次）。
+        if let schema = ToolRegistry.shared.openAISchema(for: call.name),
+           let fn = schema["function"] as? [String: Any],
+           let ps = fn["parameters"] as? [String: Any],
+           let required = ps["required"] as? [String] {
+            let missing = required.filter { params[$0] == nil }
+            if !missing.isEmpty && self.paramCorrectionCount < 2 {
+                self.paramCorrectionCount += 1
+                self.pendingParamCorrection = "你要调用的工具 \(call.name) 缺少必填参数: \(missing.joined(separator: "、"))。请补齐这些参数后再调用该工具，不要用同样方式反复重试同一个缺参调用。"
+                self.trailStep(.done(.note, "工具参数缺失被拦", detail: "\(call.name) 缺: \(missing.joined(separator: "、"))", ok: false))
+                // 不执行工具，回模型补齐参数（depth+1 防死循环；paramCorrectionCount 上限 2）
+                self.runLoop(config: config, tools: tools, disclosed: disclosed, depth: depth + 1, reasoningLevel: reasoningLevel)
+                return
+            }
+            self.paramCorrectionCount = 0
+        }
         // v2.9.34：展示"正在执行工具 xxx…"
         self.runningTool = call.name
         // v3.3.4：记录工具执行耗时（UI 气泡显示，对齐 OpenMinis 步骤耗时样式）
