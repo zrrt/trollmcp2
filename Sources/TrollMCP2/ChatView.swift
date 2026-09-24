@@ -681,27 +681,22 @@ struct ChatView: View {
             }
             .padding(.horizontal, 12)
 
-            // v3.0.83：第三行 ish终端图标 + 输入框 + 按钮
-            HStack(spacing: 8) {
+            // v3.0.83：第三行 输入栏 —— v3.3.4：终端键 + 输入框 + +号 + 发送键 统一放进同一个大圆角框
+            HStack(spacing: 6) {
                 Button(action: {
                     AppUIState.shared.quickTerminalPresented = true
                 }) {
                     Image(systemName: "terminal")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(.secondary)
                         .frame(width: 32, height: 32)
-                        .background(Color(.secondarySystemBackground))
-                        .cornerRadius(16)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(PlainButtonStyle())
 
-                HStack(spacing: 0) {
-                    ChatInputTextView(text: $inputText, onSend: { send() }, height: $inputHeight)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: inputHeight)
-                        .padding(.horizontal, 10)
-                }
-                .background(Color(.secondarySystemBackground))
-                .cornerRadius(16)
+                ChatInputTextView(text: $inputText, onSend: { send() }, height: $inputHeight)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: inputHeight)
 
                 // v3.3.4：+ 号 → 展开"应用/相册/文件/浏览器"快捷行；再点变 x 收起
                 Button(action: {
@@ -711,7 +706,7 @@ struct ChatView: View {
                 }) {
                     Image(systemName: attachExpanded ? "xmark" : "plus")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(attachExpanded ? .white : .white)
+                        .foregroundColor(.white)
                         .frame(width: 32, height: 32)
                         .background(attachExpanded ? Color.gray : Color.blue)
                         .clipShape(Circle())
@@ -726,7 +721,7 @@ struct ChatView: View {
                         Image(systemName: "stop.fill")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(.white)
-                            .frame(width: 36, height: 36)
+                            .frame(width: 32, height: 32)
                             .background(Color.red)
                             .clipShape(Circle())
                     }
@@ -734,9 +729,9 @@ struct ChatView: View {
                 } else {
                     Button(action: send) {
                         Image(systemName: "paperplane.fill")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(.white)
-                            .frame(width: 36, height: 36)
+                            .frame(width: 32, height: 32)
                             .background(inputText.isEmpty ? Color.gray : Color.blue)
                             .clipShape(Circle())
                     }
@@ -744,6 +739,11 @@ struct ChatView: View {
                     .disabled(inputText.isEmpty)
                 }
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            // v3.3.4：整行放进一个大圆角框（终端键/输入框/+号/发送键 一体）
+            .background(Color(.secondarySystemBackground))
+            .cornerRadius(20)
             .padding(.horizontal, 12)
         }
         .padding(.bottom, 8)
