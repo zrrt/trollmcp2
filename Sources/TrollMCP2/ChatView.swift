@@ -776,19 +776,22 @@ struct ChatView: View {
             .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        // v3.4.8：附件行与输入框之间留出明显间隔（参考图）
+        .padding(.top, 10)
+        .padding(.bottom, 6)
         .frame(maxWidth: .infinity)
     }
 
     private func attachQuickButton(_ icon: String, _ label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(spacing: 5) {
+            VStack(spacing: 6) {
+                // v3.4.8：方形圆角瓦片（参考图：相机/图片/文件/打电话样式），不再是圆形
                 Image(systemName: icon)
-                    .font(.system(size: 19, weight: .medium))
+                    .font(.system(size: 22, weight: .medium))
                     .foregroundColor(.blue)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 52, height: 52)
                     .background(Color.blue.opacity(0.12))
-                    .clipShape(Circle())
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 Text(label)
                     .font(.caption)
                     .foregroundColor(.secondary)
