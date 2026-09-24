@@ -740,18 +740,19 @@ struct ChatView: View {
     }
 
     /// v3.3.4：+ 展开的快捷附件行（应用 / 相册 / 文件 / 浏览器），对齐微信式附件栏
-    /// v3.4.0：改为底部右对齐、项间距 5，从底部弹出顶起聊天框
+    /// v3.4.2：从左屏幕边缘到右屏幕边缘均匀分布——四格等宽、间隙一致（含两侧边缘间隙）
     private var attachQuickRow: some View {
-        HStack(spacing: 5) {
-            Spacer(minLength: 0)
+        HStack(spacing: 12) {
             attachQuickButton("apps.iphone", "应用") {
                 withAnimation { attachExpanded = false }
                 attachmentSheet = .appPicker
             }
+            .frame(maxWidth: .infinity)
             attachQuickButton("photo.on.rectangle", "相册") {
                 withAnimation { attachExpanded = false }
                 attachmentSheet = .photoPicker
             }
+            .frame(maxWidth: .infinity)
             attachQuickButton("folder", "文件") {
                 withAnimation { attachExpanded = false }
                 // v3.3.4：快捷行直接弹 UIKit 文档选择器（无需半屏面板中转）
@@ -759,15 +760,17 @@ struct ChatView: View {
                     handlePickedFiles(urls)
                 }
             }
+            .frame(maxWidth: .infinity)
             attachQuickButton("globe", "浏览器") {
                 withAnimation { attachExpanded = false }
                 attachmentSheet = nil
                 FloatingBrowser.shared.show()
             }
+            .frame(maxWidth: .infinity)
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .frame(maxWidth: .infinity, alignment: .trailing)
+        .frame(maxWidth: .infinity)
     }
 
     private func attachQuickButton(_ icon: String, _ label: String, action: @escaping () -> Void) -> some View {
