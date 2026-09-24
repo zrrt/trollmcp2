@@ -1390,6 +1390,12 @@ struct MessageBubble: View {
                             .font(.caption)
                             .fontWeight(.medium)
                             .foregroundColor(.blue)
+                        // v3.3.4：工具执行耗时（对齐 OpenMinis 步骤耗时样式）
+                        if let dur = message.toolDuration {
+                            Text(String(format: "%.1fs", dur))
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
                         Spacer()
                     }
                 }

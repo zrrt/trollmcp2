@@ -512,6 +512,8 @@ struct ChatMessage: Codable, Identifiable, Hashable {
     var toolName: String?
     /// v3.1.26：工具调用参数摘要 (tool 消息专用），UI 里用特殊颜色显示
     var toolArgs: String? = nil
+    /// v3.3.4：工具执行耗时（秒），UI 气泡显示 (如 0.3s）
+    var toolDuration: Double? = nil
     /// v2.9.9：多模态附件。存 data URL (如 "data:image/jpeg;base64,..."）。
     /// 发送时若非空，OpenAIClient 把 content 序列化为多模态数组。
     var imageDataURLs: [String]? = nil
@@ -1082,6 +1084,8 @@ final class ConversationStore: ObservableObject {
         let params = Self.parseArgs(call.arguments)
         // v2.9.34：展示"正在执行工具 xxx…"
         self.runningTool = call.name
+        // v3.3.4：记录工具执行耗时（UI 气泡显示，对齐 OpenMinis 步骤耗时样式）
+        let toolStart = CFAbsoluteTimeGetCurrent()
         // v2.9.127：轨迹——单工具开始执行 (参数序列化展示）
         self.trailStep(.running(.tool, call.name, detail: Self.jsonString(params)))
         do {
@@ -1092,13 +1096,14 @@ final class ConversationStore: ObservableObject {
                 let result: Result<[String: Any], Error>
                 do { result = .success(try ToolRegistry.shared.dispatch(name: call.name, params: params)) }
                 catch { result = .failure(error) }
+                let toolDuration = CFAbsoluteTimeGetCurrent() - toolStart
                 DispatchQueue.main.async {
                     self.runningTool = nil
                     self.handleDispatchResult(result, call: call, calls: calls, index: index,
                                               toolMessages: toolMessages, newlyDisclosed: newlyDisclosed,
                                               config: config, tools: tools,
                                               disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel,
-                                              thinkText: thinkText)
+                                              thinkText: thinkText, toolDuration: toolDuration)
                 }
             }
         }
@@ -1111,7 +1116,7 @@ final class ConversationStore: ObservableObject {
                                       toolMessages: [ChatMessage], newlyDisclosed: [String],
                                       config: ModelConfig, tools: [[String: Any]]?,
                                       disclosed: [String], depth: Int, reasoningLevel: Int,
-                                      thinkText: String = "") {
+                                      thinkText: String = "", toolDuration: Double = 0) {
         switch result {
         case .success(let r):
             let rawContent = Self.jsonString(r)
@@ -1127,6 +1132,8 @@ final class ConversationStore: ObservableObject {
             var toolMsg = ChatMessage(role: "tool", content: content, toolCallId: call.id, toolName: call.name)
             // v3.1.26：存参数摘要，UI 里用特殊颜色显示
             toolMsg.toolArgs = Self.summarizeArgs(call.arguments)
+            // v3.3.4：耗时显示
+            toolMsg.toolDuration = toolDuration
             // v3.1.72：不再写 toolMsg.thinking——思考已在 assistant 消息的 thinking 字段显示一次，
             // 旧逻辑把同一文本又塞进 tool 消息导致"回复内容和思考内容一模一样" (用户实测反馈）
             next.append(toolMsg)
@@ -1152,6 +1159,8 @@ final class ConversationStore: ObservableObject {
             let content = Self.jsonString(failureBody)
             var failMsg = ChatMessage(role: "tool", content: content, isError: true, toolCallId: call.id, toolName: call.name)
             // v3.1.72：不再写 failMsg.thinking (思考只在 assistant 消息显示一次，避免重复）
+            // v3.3.4：耗时显示
+            failMsg.toolDuration = toolDuration
             next.append(failMsg)
             // v2.9.127：轨迹——工具执行failed (四分类错误摘要）
             self.trailStep(.done(.result, call.name,
