@@ -592,6 +592,12 @@ final class ConversationStore: ObservableObject {
     /// ChatView 用它给这些消息开打字机——它们 isStreaming=false 且内容在出现前已定好，
     /// 只能靠"本轮刚产出"这一信号触发逐字显示。请求整体结束后清空。
     var liveProducedID: UUID?
+    /// v3.5.5：自适应纠正（对齐 Codex/agent-harness "机制决定行为"）——
+    /// 模型直接发 tool_calls 但本轮没写可见正文解说时，不执行工具，注入纠正消息重跑一轮，
+    /// 逼模型先写"先解说后执行"的正文。此字段为待注入的纠正消息（仅进 API 请求，不显示为 UI 气泡）。
+    private var pendingNarrationCorrection: String? = nil
+    /// v3.5.5：连续纠正次数——同一 tool 决策最多纠正 2 次仍不解说就放行执行，避免死循环。
+    private var narrationCorrectionCount = 0
     /// v3.1.70：活动请求绑定的会话 ID——请求由哪个会话发起就写回哪个会话。
     /// 修复"请求进行中切换会话，AI 输出错位/写错会话" (用户实测：老会话未暂停，切换新会话后输出仍乱）。
     private var activeConvId: UUID?
@@ -713,6 +719,9 @@ final class ConversationStore: ObservableObject {
         activeConvId = selectedId
         // v3.4.9：新请求开始，清掉上一轮的"刚产出"标记（避免旧消息被重新打字）
         liveProducedID = nil
+        // v3.5.5：新任务开始，重置"先解说后执行"自适应纠正状态（避免跨任务计数器残留）
+        narrationCorrectionCount = 0
+        pendingNarrationCorrection = nil
         var msg = ChatMessage(role: "user", content: text)
         if let imgs = imageDataURLs, !imgs.isEmpty {
             msg.imageDataURLs = imgs
@@ -872,6 +881,12 @@ final class ConversationStore: ObservableObject {
         }
         // 动态状态块：最新信息放最后，不影响稳定前缀缓存
         history.insert(ChatMessage(role: "system", content: Self.dynamicStatePrompt()), at: 0)
+        // v3.5.5：自适应纠正注入——若上一轮模型漏了"先解说后执行"（直接发工具没写可见解说），
+        // 把纠正消息拼到本次请求末尾（最新指令，模型必须回应）。仅进请求、不显示为 UI 用户气泡。
+        if let correction = self.pendingNarrationCorrection, !correction.isEmpty {
+            history.append(ChatMessage(role: "user", content: correction))
+            self.pendingNarrationCorrection = nil
+        }
 
         client.send(messages: history, tools: effectiveTools, onStatus: { status in
             DispatchQueue.main.async {
@@ -989,6 +1004,28 @@ final class ConversationStore: ObservableObject {
                        let mi = self.conversations[ci].messages.firstIndex(where: { $0.id == sid }) {
                         visibleText = self.conversations[ci].messages[mi].content
                     }
+                    // v3.5.5：自适应纠正（对齐 Codex / agent-harness "机制决定行为"）——
+                    // 模型直接发 tool_calls 但本轮没写可见正文解说时，不执行工具，注入纠正消息
+                    // 重跑一轮逼它先写"先解说后执行"的正文。这不是提示词，是机制：模型不解说就不放行。
+                    let visibleTrim = visibleText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if visibleTrim.isEmpty && self.narrationCorrectionCount < 2 {
+                        self.narrationCorrectionCount += 1
+                        self.pendingNarrationCorrection = "你准备调用工具，但还没有向用户说明要做什么。请先用一两句自然语言（写在回复正文 content 里，不要放进思考）向用户说明你正要做什么、为什么，然后再调用工具。"
+                        // 清掉本轮只挂了思考、没写正文的孤立消息，避免"卡在思考中"的观感，再重跑
+                        if let sid = self.streamingMessageId,
+                           let ci = self.activeConvIndex,
+                           let mi = self.conversations[ci].messages.firstIndex(where: { $0.id == sid }),
+                           self.conversations[ci].messages[mi].content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            self.conversations[ci].messages.remove(at: mi)
+                        }
+                        self.thinkBuffer = ""
+                        self.streamingMessageId = nil
+                        self.liveProducedID = nil
+                        // 重跑下一轮（depth+1 防死循环；narrationCorrectionCount 上限 2 防无限纠正）
+                        self.runLoop(config: config, tools: tools, disclosed: disclosed, depth: depth + 1, reasoningLevel: reasoningLevel)
+                        return
+                    }
+                    self.narrationCorrectionCount = 0
                     // v3.5.4：正文解说只取模型自己写在 content 里的文本；模型若光思考没写正文解说，
                     // 正文就保持空(6.A)——不再用 reasoning 自动合成解说（用户明确：▶ 开始执行那种
                     // 机械合成是误解；思考归思考进黄泡，正文只放 AI 自己说的话，空就空着）。
