@@ -623,12 +623,13 @@ struct ChatView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
                 // v3.4.5：六个胶囊统一同宽同高（76×32），比例完全一致、长度略长
+                // v3.4.7：推理用"大脑"图标、思考用"灯泡"图标（用户指定，勿对调）
                 ChatChip(label: "推理·\(reasoningLabel())", action: {
                     reasoning = (reasoning + 1) % 3
-                }, accent: true, icon: "gauge.with.dots.needle.67percent").frame(width: 76, height: 32)
+                }, accent: true, icon: "brain").frame(width: 76, height: 32)
                 ChatChip(label: "思考·\(thinkEnabled ? "开" : "关")", action: {
                     thinkEnabled.toggle()
-                }, accent: thinkEnabled, icon: "brain").frame(width: 76, height: 32)
+                }, accent: thinkEnabled, icon: "lightbulb").frame(width: 76, height: 32)
                 ChatChip(label: "搜索·\(smartSearch ? "开" : "关")", action: {
                     smartSearch.toggle()
                 }, accent: smartSearch, icon: "magnifyingglass").frame(width: 76, height: 32)
@@ -656,7 +657,8 @@ struct ChatView: View {
             // 等距 16pt 间隙（上下对称，间距比之前加大）
             chatModeBar
                 .padding(.horizontal, 12)
-                .padding(.top, 16)
+                // v3.4.7：顶部间距减半(16→8)，用户反馈上方空太多；底部 16 保留(胶囊到输入框的加大间距)
+                .padding(.top, 8)
                 .padding(.bottom, 16)
 
             // v3.0.83：输入栏 —— 终端键 + 输入框 + +号 + 发送键 统一放进同一个大圆角框
@@ -723,9 +725,9 @@ struct ChatView: View {
             .background(Color(.secondarySystemBackground))
             .cornerRadius(20)
             // v3.4.5：输入框外阴影渐变，往外扩散越来越淡（多层 shadow 叠加模拟渐变发光）
-            .shadow(color: Color.blue.opacity(0.22), radius: 10, x: 0, y: 3)
-            .shadow(color: Color.blue.opacity(0.12), radius: 22, x: 0, y: 6)
-            .shadow(color: Color.blue.opacity(0.06), radius: 38, x: 0, y: 10)
+            // v3.4.7：改为灰色扩散、且收敛——用户反馈蓝色扩散太多，应偏灰
+            .shadow(color: Color.black.opacity(0.12), radius: 6, x: 0, y: 2)
+            .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 4)
             .padding(.horizontal, 12)
 
             // v3.4.2：点 + 底部弹出 应用/相册/文件/浏览器，把聊天框顶起来（位于输入框下方）
@@ -1136,6 +1138,8 @@ struct QuickTabButton: View {
                     .font(.caption)
                     .lineLimit(1)
             }
+            // v3.4.7：与 ChatChip 一致铺满整宽(76)——否则背景只包内容宽度，看起来比推理/思考/搜索窄
+            .frame(maxWidth: .infinity)
             .frame(height: 32)
             // v3.4.4：与 ChatChip 统一内边距/圆角，保证滑动模块比例一致
             .padding(.horizontal, 8)
@@ -1262,17 +1266,20 @@ struct MessageBubble: View {
 
     @State private var expanded = false
     @State private var expandedToolIds: Set<String> = []
-    // v3.4.5：打字机效果——已显示字符数 + 定时器（约 50 字/秒，显示与网络解耦）
+    // v3.4.5：打字机效果——已显示字符数 + 定时器（显示与网络解耦，逐字稳定刷出）
+    // v3.4.7：降速到 25 字/秒(0.04s/字)让打字感清晰可见；且不依赖 isStreaming——
+    // 只要内容在增长就持续打字到完整，兼容"整段一次性到达"的中转
     @State private var revealedCount = 0
     @State private var typeTimer: Timer?
 
     private func startTypeTimer() {
-        guard isStreaming else { return }
-        typeTimer?.invalidate()
-        typeTimer = Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { _ in
+        guard typeTimer == nil else { return }
+        typeTimer = Timer.scheduledTimer(withTimeInterval: 0.04, repeats: true) { _ in
             DispatchQueue.main.async {
-                if self.isStreaming, self.revealedCount < self.message.content.count {
+                if self.revealedCount < self.message.content.count {
                     self.revealedCount = min(self.message.content.count, self.revealedCount + 1)
+                } else {
+                    self.stopTypeTimer()
                 }
             }
         }
@@ -1330,21 +1337,16 @@ struct MessageBubble: View {
                 Label("分享", systemImage: "square.and.arrow.up")
             }
         }
-        // v3.4.5：打字机效果——流式消息进入时启动定时器逐字显示
+        // v3.4.5：打字机效果——内容增长即逐字显示，直到完整
         .onAppear {
-            if isStreaming { startTypeTimer() }
+            if isStreaming, revealedCount < message.content.count { startTypeTimer() }
         }
         .onDisappear { stopTypeTimer() }
         .onChange(of: isStreaming) { streaming in
-            if streaming {
-                startTypeTimer()
-            } else {
-                revealedCount = message.content.count
-                stopTypeTimer()
-            }
+            if streaming, revealedCount < message.content.count { startTypeTimer() }
         }
         .onChange(of: message.content) { _ in
-            if isStreaming, typeTimer == nil { startTypeTimer() }
+            if revealedCount < message.content.count { startTypeTimer() }
         }
     }
 

@@ -975,12 +975,12 @@ final class ConversationStore: ObservableObject {
                        let mi = self.conversations[ci].messages.firstIndex(where: { $0.id == sid }) {
                         visibleText = self.conversations[ci].messages[mi].content
                     }
-                    // v3.4.1：边做边说兜底——模型（尤其推理模型/中转）常不发可见解说文本就把 tool_calls 抛出来，
-                    // 导致"边做边说"看不到。对齐 OpenMinis 的做法：App 层按工具名合成一句可见解说，
-                    // 保证每次执行前用户都看得到这步在干嘛，不依赖模型是否主动发文本。
+                    // v3.4.7：边做边说——去掉"▶ 开始执行：工具名"机械合成。
+                    // 用户明确要求：AI 要像直播一样自然说明这步在干嘛（参考 OpenMinis 逐步解说）。
+                    // 推理模型常把解说写进 reasoning 而不发可见正文，这里把模型自己的思考(reasoning)
+                    // 提升为可见解说；仅当 reasoning 也为空时才退化为工具名。
                     if visibleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !calls.isEmpty {
-                        let names = calls.map { $0.name }.joined(separator: "、")
-                        visibleText = "▶ 开始执行：\(names)"
+                        visibleText = Self.narrationText(reasoningText, calls: calls)
                     }
                     if let sid = self.streamingMessageId,
                        let ci = self.activeConvIndex,
@@ -1077,6 +1077,25 @@ final class ConversationStore: ObservableObject {
             return "\(key): \(truncated)"
         }
         return entries.joined(separator: ", ")
+    }
+
+    /// v3.4.7：把模型的思考(reasoning)整理成一句可见的"逐步解说"。推理模型的解说通常在思考里而非正文，
+    /// 这里取其收尾结论段作为解说（工具调用前的最后一两句往往是"我先xxx"的说明）。
+    private static func narrationText(_ thinking: String, calls: [ToolCall]) -> String {
+        var t = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
+        if t.isEmpty { return calls.map { $0.name }.joined(separator: "、") }
+        // 压缩多余换行
+        t = t.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        // 推理常是长段 COT，取收尾（工具调用前的最后结论句）作为解说，限制长度
+        if t.count > 200 {
+            t = String(t.suffix(200))
+            if let dot = t.firstIndex(of: "\u{3002}") { t = String(t[t.index(after: dot)...]) } // 中文句号后开始
+            t = t.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return t
     }
 
     /// v2.9.31：递归处理一批工具调用。工具在后台线程执行 (避免耗时操作阻塞主线程），
