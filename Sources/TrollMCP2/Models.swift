@@ -922,21 +922,9 @@ final class ConversationStore: ObservableObject {
                 self.appendThinking(delta)
                 // v3.0.3：同时保存到 thinkBuffer，供 toolCalls 时传到 tool 消息
                 self.thinkBuffer += delta
-                // v3.5.1：边做边解说（OpenMinis 式）——reasoning 实时显示成可见正文解说。
-                // 之前 reasoning 只进折叠的"思考过程"，到 toolCalls 才一次性提升成解说，
-                // 用户"边做边看"看不到。现在正文为空时把思考逐字打进 content：
-                // 若还没有流式消息，在首个 thinking 上就建一个空消息，随思考逐字打字上屏。
-                if self.streamingMessageId == nil {
-                    let msg = ChatMessage(role: "assistant", content: delta)
-                    self.streamingMessageId = msg.id
-                    self.liveProducedID = msg.id
-                    self.appendToCurrent(msg)
-                } else if let sid = self.streamingMessageId,
-                          let idx = self.activeConvIndex,
-                          let mi = self.conversations[idx].messages.firstIndex(where: { $0.id == sid }),
-                          self.conversations[idx].messages[mi].content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    self.conversations[idx].messages[mi].content += delta
-                }
+                // v3.5.4：去掉 v3.5.1 的"reasoning 自动打进正文"——那会让思考内容混进主气泡、
+                // 黄色思考气泡反而为空 (用户实测反馈)。思考只进轨迹 + thinkBuffer，
+                // 最终由装配阶段写入 message.thinking(黄色气泡)；正文只放模型真正输出的文本。
             }
         }) { result in
             DispatchQueue.main.async {
@@ -1023,16 +1011,20 @@ final class ConversationStore: ObservableObject {
                             self.conversations[ci].messages[mi].content = visibleText
                         }
                         self.conversations[ci].messages[mi].toolCalls = calls
-                        // v3.5.1：reasoning 已实时打进正文(content=解说)，就不再重复塞 thinking，
-                        // 避免"回复内容与思考内容一模一样"的重复 (用户此前反馈)
-                        if !reasoningText.isEmpty,
-                           self.conversations[ci].messages[mi].content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        // v3.5.4：思考始终写入黄色气泡(message.thinking)，不再要求 content 为空——
+                        // 此前 reasoning 被 v3.5.1 打进正文使 content 非空，导致 thinking 永不写入、黄泡为空。
+                        // 与正文去重：部分中转把完整回答写进 reasoning_content，与 content 相同则不展示思考。
+                        let cText = self.conversations[ci].messages[mi].content.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let rTrim = reasoningText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !rTrim.isEmpty, !(cText == rTrim || rTrim.contains(cText) || cText.contains(rTrim)) {
                             self.conversations[ci].messages[mi].thinking = reasoningText
                         }
                     } else {
                         // 无流式消息 (流式未开始就被 toolCalls 打断）：新建 assistant 消息
                         var am = ChatMessage(role: "assistant", content: visibleText, toolCalls: calls)
-                        if !reasoningText.isEmpty, visibleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        let vTrim = visibleText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let rTrim2 = reasoningText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !rTrim2.isEmpty, !(vTrim == rTrim2 || rTrim2.contains(vTrim) || vTrim.contains(rTrim2)) {
                             am.thinking = reasoningText
                         }
                         self.appendToCurrent(am)

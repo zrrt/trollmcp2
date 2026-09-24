@@ -1379,7 +1379,10 @@ struct MessageBubble: View {
             // v3.0.2e：如果 content 是空的，就不显示气泡（避免空白气泡）
             if !message.content.isEmpty {
                 // v3.4.5：打字机——流式中按 revealedCount 逐字显示；完成后显示全文
-                let shown = isStreaming ? String(message.content.prefix(revealedCount)) : message.content
+                // v3.5.4：打字机——isStreaming 或 forceType 都按 revealedCount 逐字显示；
+                // 此前只有 isStreaming 才走前缀，forceType(内容在出现前已定好、isStreaming=false)走了全文分支，
+                // 导致"打字机一下有一下没有"(用户实测反馈)。修复后非流式完成的消息也逐字打出来。
+                let shown = (isStreaming || forceType) ? String(message.content.prefix(revealedCount)) : message.content
                 Text(shown)
                     .font(.body)
                     .textSelection(.enabled)
