@@ -40,16 +40,11 @@ struct ChatView: View {
     var body: some View {
         CompatNav {
             VStack(spacing: 0) {
-                // v3.3.4：模型选择器移到页面顶部（对齐 OpenMinis 顶部模型控制）
-                // v3.4.0：原输入框上方的"推理/思考/搜索/技能/指令/文件"功能行移到这里（模型栏下方），
-                // 输入区保持干净（+ 号底部弹出快捷附件行）
-                VStack(spacing: 4) {
-                    currentModelBar
-                    chatModeBar
-                }
-                .padding(.horizontal, 12)
-                .padding(.top, 4)
-                .padding(.bottom, 2)
+                // v3.4.2：顶部只保留模型名文字（🟢 deepseek v4 ▽），功能行移回底部聊天框上方
+                currentModelBar
+                    .padding(.horizontal, 14)
+                    .padding(.top, 6)
+                    .padding(.bottom, 2)
                 if modelStore.configs.isEmpty {
                     emptyState
                 } else if store.currentMessages.isEmpty {
@@ -604,76 +599,52 @@ struct ChatView: View {
     }
 
     private var currentModelBar: some View {
-        // v2.9.36：点击"当前模型"弹出模型选择 sheet（不再跳设置），直接切换上游模型
-        // v2.9.79：美化——渐变图标 + 胶囊卡片 + 上游模型名
-        // v2.9.93：按上游模型供应商换图标
+        // v3.4.2：顶部模型去掉胶囊卡片，改为纯文字"🟢 模型名 ▽"，点击弹出模型选择 sheet
         let currentCfg = modelStore.defaultConfig
         return Button(action: { showModelPicker = true }) {
-            HStack(spacing: 8) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(LinearGradient(colors: [.tmCyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 28, height: 28)
-                    Image(systemName: modelIcon(for: currentCfg?.model ?? ""))
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.white)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("当前模型")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                    if let cfg = currentCfg {
-                        Text(cfg.name)
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
-                    }
-                }
-                Spacer()
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.tmCyan)
+            HStack(spacing: 6) {
+                Image(systemName: "circle.fill")
+                    .font(.system(size: 8))
+                    .foregroundColor(.green)
+                Text(currentCfg?.name ?? "未选择模型")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.secondary)
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(.secondarySystemBackground))
-            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())
     }
 
-    /// v3.4.0：顶部模型栏下方的 AI 模式控制行（由输入框上方的功能行迁移而来，
-    /// 输入区保持干净）。含 推理/思考/搜索 开关 + 技能/指令/文件 快捷入口。
+    /// v3.4.2：AI 模式控制行（推理/思考/搜索/系统指令/技能/工作区），移回底部、聊天框上方，
+    /// 横向滑动模块（往左滑出更多）。
     private var chatModeBar: some View {
-        HStack(spacing: 6) {
-            ChatChip(label: "推理·\(reasoningLabel())", action: {
-                reasoning = (reasoning + 1) % 3
-            }, accent: true, icon: "gauge.with.dots.needle.67percent")
-            .frame(maxWidth: .infinity)
-            ChatChip(label: "思考·\(thinkEnabled ? "开" : "关")", action: {
-                thinkEnabled.toggle()
-            }, accent: thinkEnabled, icon: "brain")
-            .frame(maxWidth: .infinity)
-            ChatChip(label: "搜索·\(smartSearch ? "开" : "关")", action: {
-                smartSearch.toggle()
-            }, accent: smartSearch, icon: "magnifyingglass")
-            .frame(maxWidth: .infinity)
-            QuickTabButton(icon: "bolt", label: "技能") {
-                AppUIState.shared.quickSkillsPresented = true
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 5) {
+                ChatChip(label: "推理·\(reasoningLabel())", action: {
+                    reasoning = (reasoning + 1) % 3
+                }, accent: true, icon: "gauge.with.dots.needle.67percent").fixedSize()
+                ChatChip(label: "思考·\(thinkEnabled ? "开" : "关")", action: {
+                    thinkEnabled.toggle()
+                }, accent: thinkEnabled, icon: "brain").fixedSize()
+                ChatChip(label: "搜索·\(smartSearch ? "开" : "关")", action: {
+                    smartSearch.toggle()
+                }, accent: smartSearch, icon: "magnifyingglass").fixedSize()
+                QuickTabButton(icon: "bolt", label: "技能") {
+                    AppUIState.shared.quickSkillsPresented = true
+                }.fixedSize()
+                QuickTabButton(icon: "doc.text", label: "指令") {
+                    AppUIState.shared.settingsJumpToModels = false
+                    AppUIState.shared.settingsPresented = true
+                }.fixedSize()
+                QuickTabButton(icon: "folder", label: "工作区") {
+                    AppUIState.shared.quickFilesPresented = true
+                }.fixedSize()
             }
-            .frame(maxWidth: .infinity)
-            QuickTabButton(icon: "doc.text", label: "指令") {
-                AppUIState.shared.settingsJumpToModels = false
-                AppUIState.shared.settingsPresented = true
-            }
-            .frame(maxWidth: .infinity)
-            QuickTabButton(icon: "folder", label: "文件") {
-                AppUIState.shared.quickFilesPresented = true
-            }
-            .frame(maxWidth: .infinity)
         }
     }
 
@@ -683,14 +654,11 @@ struct ChatView: View {
             AttachmentPreviewStrip(attachments: pendingAttachments) { att in
                 withAnimation { pendingAttachments.removeAll { $0.id == att.id } }
             }
-            // v3.3.4：+ 展开的快捷行（应用 / 相册 / 文件 / 浏览器），点 + 变 x 时显示
-            if attachExpanded {
-                attachQuickRow
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
+            // v3.4.2：功能行（推理/思考/搜索/系统指令/技能/工作区）移回底部、位于聊天框上方，横向滑动
+            chatModeBar
+                .padding(.horizontal, 12)
 
-            // v3.0.83：输入栏 —— v3.3.4：终端键 + 输入框 + +号 + 发送键 统一放进同一个大圆角框
-            // （v3.4.0：原"推理/思考/搜索/技能/指令/文件"功能行已移到顶部模型栏下方）
+            // v3.0.83：输入栏 —— 终端键 + 输入框 + +号 + 发送键 统一放进同一个大圆角框
             HStack(spacing: 6) {
                 Button(action: {
                     AppUIState.shared.quickTerminalPresented = true
@@ -754,6 +722,12 @@ struct ChatView: View {
             .background(Color(.secondarySystemBackground))
             .cornerRadius(20)
             .padding(.horizontal, 12)
+
+            // v3.4.2：点 + 底部弹出 应用/相册/文件/浏览器，把聊天框顶起来（位于输入框下方）
+            if attachExpanded {
+                attachQuickRow
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
         .padding(.bottom, 8)
         .background(Color(.systemBackground))
@@ -1307,8 +1281,8 @@ struct MessageBubble: View {
                 if selectionMode { selectionBadge }
             }
         }
-        // v3.4.0：用户气泡保留右侧留白（12），AI/工具气泡 0 边距 → 真正占满左右屏边缘
-        .padding(.horizontal, isUser ? 12 : 0)
+        // v3.4.2：AI/工具气泡仍近全宽，但左右各留 10 边距（不再贴死屏幕边缘）；用户气泡右侧留白 12
+        .padding(.horizontal, isUser ? 12 : 10)
         .contentShape(Rectangle())
         .onTapGesture {
             if selectionMode {
@@ -1449,15 +1423,13 @@ struct MessageBubble: View {
 
             // 🔧✅ 2. 工具调用 + 工具结果（同一个灰色大气泡）
             VStack(alignment: .leading, spacing: 6) {
-                        // 工具调用（浅蓝色小气泡，显示工具名 + 命令摘要）
+                        // 工具调用胶囊（工具名 + 耗时，对齐 OpenMinis 步骤样式；参数在下方结果里展开）
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Image(systemName: "wrench.and.screwdriver")
-                            .font(.system(size: 14))
+                            .font(.system(size: 13))
                             .foregroundColor(.blue)
-                        // 显示工具名 + 命令前 60 个字符，一眼就知道在干嘛
-                        let displayArgs = (message.toolArgs ?? "").prefix(60)
-                        Text("调用工具：\(message.toolName ?? "") \(displayArgs)")
+                        Text(message.toolName ?? "工具")
                             .font(.subheadline)
                             .fontWeight(.medium)
                             .foregroundColor(.blue)
