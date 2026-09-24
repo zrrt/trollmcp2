@@ -1117,6 +1117,8 @@ public final class ToolRegistry: ObservableObject {
         register(NetworkCaptureTool())
         // v3.3.0: MITM 抓包 VPN/代理（系统级抓包，覆盖自研栈 App）
         register(VpnTool())
+        // v3.3.4: 解包查看别人的包（deb / ipa：列结构、解包到工作区）
+        register(PackageTool())
 
         // v3.1.34: app 大工具 + 子命令 (合并 5 个 app.* 工具）
         register(AppExecTool())
