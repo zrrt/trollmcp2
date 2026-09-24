@@ -36,7 +36,7 @@ enum ShellDiag {
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "Run a shell command (terminal/command line). iOS native mode (default): 36 个原生命令直通真实 iOS 系统——文件操作 (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/curl/plutil/sqlite3/unzip) + 系统信息 (df/free/uname/uptime/hostname/ps/top/kill) + 网络 (ifconfig/netstat/nslookup)。支持管道/分号/重定向/&&/|| (例：'ls /var/mobile | head -5'、'cat a.txt; echo done'、'echo hi > f.txt')，支持 VAR=value 赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr。限制：iOS 原生模式不支持 for/while/case/heredoc/多行脚本 (写复杂脚本或装包请 env:alpine 走 Alpine Linux 全功能 shell，如 env:alpine 下可 python/curl/tar/apk add)。'env' 可探测当前执行环境。Use for: file operations, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*). Example: 'read file' → cat /path; 'disk space' → df; 'processes' → ps; 'download' → curl -O url; 'complex script' -> env:alpine + command.",
+        summary: "Run a shell command (terminal/command line). iOS native mode (default): 36 个原生命令直通真实 iOS 系统——文件操作 (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/curl/plutil/sqlite3/unzip) + 系统信息 (df/free/uname/uptime/hostname/ps/top/kill) + 网络 (ifconfig/netstat/nslookup)。支持管道/分号/重定向/&&/|| (例：'ls /var/mobile | head -5'、'cat a.txt; echo done'、'echo hi > f.txt')，支持 VAR=value 赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat。限制：iOS 原生模式不支持 for/while/case/heredoc/多行脚本 (写复杂脚本或装包请 env:alpine 走 Alpine Linux 全功能 shell，如 env:alpine 下可 python/curl/tar/apk add)。'env' 可探测当前执行环境。Use for: file operations, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*). Example: 'read file' → cat /path; 'disk space' → df; 'processes' → ps; 'download' → curl -O url; 'complex script' -> env:alpine + command.",
         parameters: [
             "command": "Shell command to execute (required)",
             "timeout": "Timeout seconds (default 30, max 120)",
@@ -704,13 +704,21 @@ final class ShellExecTool: MCPTool {
         }
         
         let joined = stdoutChunks.joined(separator: "\n")
+        // v3.3.4：管道最终输出统一截断 (head+tail+spill）——长管道输出不再占满上下文
+        let finalOut: String
+        if joined.count > 4000 {
+            let spillPath = ToolRegistry.spillLarge("pipeline", joined)
+            finalOut = String(joined.prefix(2000)) + "\n…[输出太长 total \(joined.count) 字符，已截断；完整输出: \(spillPath)]…\n" + String(joined.suffix(2000))
+        } else {
+            finalOut = joined
+        }
         return [
             "command": command,
             "exit_code": lastExit,
-            "stdout": joined,
+            "stdout": finalOut,
             "ios_native": anyIOS,
             "hint": anyIOS
-                ? "iOS 原生复合命令：支持管道/分号/重定向 (Swift 过滤器 head/tail/grep/wc/sed/awk/sort/uniq/cut/tr)"
+                ? "iOS 原生复合命令：支持管道/分号/重定向 (Swift 过滤器 head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/echo)"
                 : "复合命令 (含 Alpine 段)：管道/分号/重定向已正确解析"
         ]
     }
@@ -843,10 +851,21 @@ final class ShellExecTool: MCPTool {
             }
             guard !pattern.isEmpty else { return input }
             let matched = lines.filter { line in
-                let hit = line.range(of: pattern, options: .caseInsensitive) != nil
+                let hit = line.range(of: pattern, options: [.caseInsensitive, .regularExpression]) != nil
                 return invert ? !hit : hit
             }
             return matched.joined(separator: "\n")
+        case "echo":
+            // v3.3.4：管道里 echo —— 输出替换为 echo 的文本 (支持 -n、剥引号）
+            var t = filterCmd
+            if t.hasPrefix("echo") { t = String(t.dropFirst("echo".count)) }
+            t = t.trimmingCharacters(in: .whitespaces)
+            if t.hasPrefix("-n ") { t = String(t.dropFirst(3)).trimmingCharacters(in: .whitespaces) }
+            if t.count >= 2,
+               (t.first == "\"" && t.last == "\"") || (t.first == "'" && t.last == "'") {
+                t = String(t.dropFirst().dropLast())
+            }
+            return t
         case "wc":
             let opts = Set(parts.dropFirst())
             var result: [String] = []
