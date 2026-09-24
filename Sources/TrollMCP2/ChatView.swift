@@ -1276,15 +1276,16 @@ struct MessageBubble: View {
     // v3.4.5：打字机效果——已显示字符数 + 定时器（显示与网络解耦，逐字稳定刷出）
     // v3.4.7：降速到 25 字/秒(0.04s/字)让打字感清晰可见；且不依赖 isStreaming——
     // 只要内容在增长就持续打字到完整，兼容"整段一次性到达"的中转
+    // v3.5.4：用户反馈太慢 → 提速到 ~133 字/秒 (0.015s/tick × 2 字符），快但仍看得出打字感
     @State private var revealedCount = 0
     @State private var typeTimer: Timer?
 
     private func startTypeTimer() {
         guard typeTimer == nil else { return }
-        typeTimer = Timer.scheduledTimer(withTimeInterval: 0.04, repeats: true) { _ in
+        typeTimer = Timer.scheduledTimer(withTimeInterval: 0.015, repeats: true) { _ in
             DispatchQueue.main.async {
                 if self.revealedCount < self.message.content.count {
-                    self.revealedCount = min(self.message.content.count, self.revealedCount + 1)
+                    self.revealedCount = min(self.message.content.count, self.revealedCount + 2)
                 } else {
                     self.stopTypeTimer()
                 }
