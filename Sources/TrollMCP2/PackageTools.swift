@@ -277,67 +277,40 @@ final class PackageTool: MCPTool {
         }
     }
 
-    private func xzDecode(_ data: Data) -> Data? {
+    /// 用 compression_decode_buffer 单次解压（LZMA/xz），容量不足时倍增重试。
+    /// 绕开 compression_stream 结构体构造的 Swift 兼容坑 (CI 实测 2026-09-24）。
+    private func decodeLZMA(_ data: Data, skipHeader: Int) -> Data? {
         return data.withUnsafeBytes { (src: UnsafeRawBufferPointer) -> Data? in
-            let srcPtr = src.baseAddress!
-            let srcLen = data.count
-            var out = Data()
-            let chunk = 64 * 1024
-            var dst = [UInt8](repeating: 0, count: chunk)
-            var stream = compression_stream(dst_ptr: nil, dst_size: 0, src_ptr: nil, src_size: 0, state: 0)
-            let ok = compression_stream_init(&stream, COMPRESSION_STREAM_DECODE, COMPRESSION_LZMA)
-            guard ok == COMPRESSION_STATUS_OK else { return nil }
-            defer { compression_stream_destroy(&stream) }
-            stream.src_ptr = srcPtr.bindMemory(to: UInt8.self, capacity: srcLen).advanced(by: 0)
-            stream.src_size = srcLen
-            stream.dst_ptr = dst.withUnsafeMutableBytes { $0.bindMemory(to: UInt8.self).baseAddress }
-            stream.dst_size = chunk
-            while true {
-                let status = compression_stream_process(&stream, 0)
-                let produced = chunk - Int(stream.dst_size)
-                if produced > 0 { out.append(dst, count: produced) }
-                if status == COMPRESSION_STATUS_END { break }
-                if status == COMPRESSION_STATUS_ERROR { return nil }
-                if stream.src_size == 0 && stream.dst_size > 0 {
-                    // no input left but output buffer not filled → done only via END; treat as done
-                    break
+            guard skipHeader < data.count else { return nil }
+            let srcPtr = src.baseAddress!.advanced(by: skipHeader).bindMemory(to: UInt8.self, capacity: data.count - skipHeader)
+            let srcLen = data.count - skipHeader
+            let scratchSize = compression_decode_scratch_buffer_size(COMPRESSION_LZMA)
+            var scratch = [UInt8](repeating: 0, count: scratchSize)
+            var capacity = max(64 * 1024, srcLen * 4)
+            while capacity < 512 * 1024 * 1024 {
+                var dst = [UInt8](repeating: 0, count: capacity)
+                let n = dst.withUnsafeMutableBytes { (dstRaw: UnsafeMutableRawBufferPointer) -> Int in
+                    compression_decode_buffer(dstRaw.bindMemory(to: UInt8.self).baseAddress!, capacity,
+                                              srcPtr, srcLen,
+                                              &scratch, COMPRESSION_LZMA)
                 }
-                stream.dst_ptr = dst.withUnsafeMutableBytes { $0.bindMemory(to: UInt8.self).baseAddress }
-                stream.dst_size = chunk
+                if n > 0 {
+                    return Data(dst[0..<n])
+                }
+                // 容量不够时（0 返回且数据非空）翻倍重试
+                capacity *= 2
             }
-            return out
+            return nil
         }
     }
 
+    private func xzDecode(_ data: Data) -> Data? {
+        return decodeLZMA(data, skipHeader: 0)
+    }
+
     private func lzmaAloneDecode(_ data: Data) -> Data? {
-        // .lzma alone: 13-byte header then LZMA stream — use Compression with stream offset
-        return data.withUnsafeBytes { (src: UnsafeRawBufferPointer) -> Data? in
-            guard data.count > 13 else { return nil }
-            let srcPtr = src.baseAddress!.advanced(by: 13)
-            let srcLen = data.count - 13
-            var out = Data()
-            let chunk = 64 * 1024
-            var dst = [UInt8](repeating: 0, count: chunk)
-            var stream = compression_stream(dst_ptr: nil, dst_size: 0, src_ptr: nil, src_size: 0, state: 0)
-            let ok = compression_stream_init(&stream, COMPRESSION_STREAM_DECODE, COMPRESSION_LZMA)
-            guard ok == COMPRESSION_STATUS_OK else { return nil }
-            defer { compression_stream_destroy(&stream) }
-            stream.src_ptr = srcPtr.bindMemory(to: UInt8.self, capacity: srcLen)
-            stream.src_size = srcLen
-            stream.dst_ptr = dst.withUnsafeMutableBytes { $0.bindMemory(to: UInt8.self).baseAddress }
-            stream.dst_size = chunk
-            while true {
-                let status = compression_stream_process(&stream, 0)
-                let produced = chunk - Int(stream.dst_size)
-                if produced > 0 { out.append(dst, count: produced) }
-                if status == COMPRESSION_STATUS_END { break }
-                if status == COMPRESSION_STATUS_ERROR { return nil }
-                if stream.src_size == 0 && stream.dst_size > 0 { break }
-                stream.dst_ptr = dst.withUnsafeMutableBytes { $0.bindMemory(to: UInt8.self).baseAddress }
-                stream.dst_size = chunk
-            }
-            return out
-        }
+        // .lzma alone: 13-byte header then LZMA stream
+        return decodeLZMA(data, skipHeader: 13)
     }
 
     private func parseTar(_ data: Data) -> [(name: String, data: Data)] {
