@@ -1008,7 +1008,7 @@ final class ShellExecTool: MCPTool {
         case "cat":
             return input
         default:
-            return "iOS 原生管道暂不支持过滤器: \(word) (可用 head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev)\n原输出:\n\(input)"
+            return "iOS 原生管道暂不支持过滤器: \(word) (可用 head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat)\n原输出:\n\(input)"
         }
     }
     
