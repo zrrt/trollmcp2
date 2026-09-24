@@ -1391,9 +1391,10 @@ struct MessageBubble: View {
             }
             // v3.0.2: 去掉旧的 TrailCard，改用 toolBubble 显示工具调用
             // v3.0.2e：如果 content 是空的，就不显示气泡（避免空白气泡）
-            // v3.5.8：工具轮的解说正文只在"直播流式"时显示（先解说后执行、边做边说）；
-            // 工具执行完成后解说收进工具卡当步骤标题（Minis 式），这里不再重复弹一段解说气泡。
-            if !message.content.isEmpty, (message.toolCalls == nil || isStreaming) {
+            // v3.5.9：撤掉 v3.5.8 的"解说收进卡片后隐藏气泡"——那会导致模型本轮没写解说时
+            // 解说彻底消失(卡片标题退化成工具名)。恢复：解说正文气泡始终显示(先解说后执行、边做边说)，
+            // 工具卡标题另作 Minis 加成(有解说就显示，没解说退回工具名)。
+            if !message.content.isEmpty {
                 // v3.4.5：打字机——流式中按 revealedCount 逐字显示；完成后显示全文
                 // v3.5.4：打字机——isStreaming 或 forceType 都按 revealedCount 逐字显示；
                 // 此前只有 isStreaming 才走前缀，forceType(内容在出现前已定好、isStreaming=false)走了全文分支，
