@@ -787,24 +787,6 @@ final class ConversationStore: ObservableObject {
         }
     }
 
-    /// v2.9.127：实时思考——把流式 reasoning 增量逐段追加到轨迹的"正在思考"步骤
-    ///  (没有该步骤就新建，打字机式逐句累积）
-    func appendThinking(_ delta: String) {
-        DispatchQueue.main.async {
-            let trimmed = delta.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return }
-            var trail = self.liveTrail
-            if let idx = trail.lastIndex(where: { $0.kind == .think && $0.status == .running }) {
-                var step = trail[idx]
-                step.detail += delta
-                trail[idx] = step
-            } else {
-                trail.append(TrailStep.running(.think, "正在思考", detail: delta))
-            }
-            self.liveTrail = trail
-        }
-    }
-
     /// v2.9.127：把实时轨迹持久化到最后一条 assistant 消息 (AI 回复done后调用）
     /// thinking 非空时把"已思考"插到轨迹最前 (对齐豆包流程第一步）。
     /// 收尾：残留 running 步骤统一标OK/failed (消息报错则标failed）。
@@ -917,10 +899,10 @@ final class ConversationStore: ObservableObject {
                 }
             }
         }, onThinking: { delta in
-            // v2.9.127：实时思考流式——逐段追加到轨迹的"正在思考"步骤
+            // v3.5.4：思考只进黄泡(message.thinking) + thinkBuffer(供 toolCalls 装配)，
+            // 不再写 liveTrail——否则实时轨迹卡也渲染思考，导致同一思考出现两次 (用户实测截图)。
+            // 实时轨迹卡(liveTrail)只显示"工具执行步骤"：工具名/命令/结果，绝不显示思考文字。
             DispatchQueue.main.async {
-                self.appendThinking(delta)
-                // v3.0.3：同时保存到 thinkBuffer，供 toolCalls 时装配用
                 self.thinkBuffer += delta
                 // v3.5.4：思考实时写入流式消息的 thinking(黄色气泡)，随模型思考逐段填充、不打字机。
                 // 若无流式消息(思考先于正文到达)，先建一条空 assistant 消息，把思考挂上去。
