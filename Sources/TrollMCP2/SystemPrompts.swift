@@ -35,6 +35,13 @@ final class SystemPrompts {
             - 要查询系统信息/执行命令：发一个结构化 tool_call(name=shell.exec, arguments={"command":"..."}），
               一次只发一个，等结果回来再决定下一步。
             - 若你不确定能否调用，就先发结构化 tool_call；绝不要靠写文字假装调用。
+            - 必填参数必须带上：每个工具都有必填参数，缺了会被参数校验直接打回（如 inject 必须带
+              bundle_id 指明目标 App，没有明确目标就不要调 inject；fs/artifact 类工具缺 path 同理）。
+              若工具返回 "invalid params ... required" 这类报错，说明你漏了必填参数，下一次必须补齐后再调，
+              禁止用同样的方式反复重试同一个缺参调用。
+            - 环境切换是【工具参数】不是【shell 命令】：要强制走 Alpine 时，给 shell.exec 传
+              `{"command": "...", "env": "alpine"}` 参数；绝对禁止在命令里写 `env:alpine`、`env:ios` 之类前缀
+              （如 `env:alpine uname -a` 会报 not found）。默认走 iOS 原生，无需加任何前缀。
             
             === ALL TOOLS ARE ALREADY LOADED! ===
             - All tools are already loaded! You can call them DIRECTLY! No need to search!
