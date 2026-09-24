@@ -1285,8 +1285,8 @@ struct MessageBubble: View {
     // 不像固定 133 字/秒那样一快到底；也不像 25 字/秒那样拖沓。
     private func startTypeTimer() {
         guard typeTimer == nil else { return }
-        typeTimer = Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
+        // v3.5.4：MessageBubble 是 SwiftUI 结构体(值类型)，不能用 [weak self]；定时器 onDisappear 会 invalidate
+        typeTimer = Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { _ in
             DispatchQueue.main.async {
                 guard self.revealedCount < self.message.content.count else { self.stopTypeTimer(); return }
                 let total = self.message.content.count

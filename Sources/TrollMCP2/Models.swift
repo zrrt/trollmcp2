@@ -931,7 +931,7 @@ final class ConversationStore: ObservableObject {
                         self.conversations[ci].messages[mi].thinking = existing + delta
                     }
                 } else {
-                    let msg = ChatMessage(role: "assistant", content: "")
+                    var msg = ChatMessage(role: "assistant", content: "")
                     msg.thinking = delta
                     self.streamingMessageId = msg.id
                     self.liveProducedID = msg.id
