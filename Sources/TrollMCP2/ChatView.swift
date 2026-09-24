@@ -523,10 +523,10 @@ struct ChatView: View {
                             message: msg,
                             selectionMode: selectionMode,
                             isSelected: selectedIds.contains(msg.id),
-                            isStreaming: store.streamingMessageId == msg.id,
                             onToggleSelect: { toggleSelect(msg.id) },
                             onCopy: { copyMessage(msg) },
-                            onShare: { shareMessage(msg) }
+                            onShare: { shareMessage(msg) },
+                            isStreaming: store.streamingMessageId == msg.id
                         )
                         .id(msg.id)
                     }
