@@ -36,7 +36,7 @@ enum ShellDiag {
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "Run a shell command (terminal/command line). iOS native mode (default): 36 个原生命令直通真实 iOS 系统——文件操作 (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/curl/plutil/sqlite3/unzip) + 系统信息 (df/free/uname/uptime/hostname/ps/top/kill) + 网络 (ifconfig/netstat/nslookup)。支持管道/分号/重定向/&&/|| (例：'ls /var/mobile | head -5'、'cat a.txt; echo done'、'echo hi > f.txt')，支持 VAR=value 赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat。限制：iOS 原生模式不支持 for/while/case/heredoc/多行脚本 (写复杂脚本或装包请 env:alpine 走 Alpine Linux 全功能 shell，如 env:alpine 下可 python/curl/tar/apk add)。'env' 可探测当前执行环境。Native Offload：`ta <tool> <key:value...>` 是全部原生工具的单一入口——先 `ta list` 看可用工具、`ta help <tool>` 看参数，再 `ta <tool> key:value` 直接调用 (例：ta app launch bundle_id:com.xxx；ta vpn.capture command:start)。Use for: file operations, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*). Example: 'read file' → cat /path; 'disk space' → df; 'processes' → ps; 'download' → curl -O url; 'complex script' -> env:alpine + command.",
+        summary: "Run a shell command (terminal/command line). iOS native mode (default): 36 个原生命令直通真实 iOS 系统——文件操作 (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/curl/plutil/sqlite3/unzip) + 系统信息 (df/free/uname/uptime/hostname/ps/top/kill) + 网络 (ifconfig/netstat/nslookup)。支持管道/分号/重定向/&&/|| (例：'ls /var/mobile | head -5'、'cat a.txt; echo done'、'echo hi > f.txt')，支持 VAR=value 赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat。限制：iOS 原生模式不支持 for/while/case/heredoc/多行脚本 (写复杂脚本或装包请 env:alpine 走 Alpine Linux 全功能 shell，如 env:alpine 下可 python/curl/tar/apk add)。'env' 可探测当前执行环境。Native Offload：`ta <tool> <key:value...>` 是全部原生工具的单一入口——先 `ta list` 看可用工具、`ta help <tool>` 看参数，再 `ta <tool> key:value` 直接调用 (例：ta app launch bundle_id:com.xxx；ta vpn.capture command:start)。Use for: file operations, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*). Example: 'read file' → cat /path; 'disk space' → df; 'processes' → ps; 'download' → curl -O url; 'complex script' -> env:alpine + command. 环境选择规则：SQLite/.db 结构化查询、awk/sed 复杂管道、python/装包 → 直接用 env:alpine（工具全）；纯 iOS 文件读删、系统信息、网络 → 用原生。注意 env:alpine 是独立 chroot，iOS 的 /var/mobile/... 路径不存在，需先把文件 cp 到 /tmp 或 /workspace 再读。SQLite .db 在原生里用内置 sqlite3：`sqlite3 <db> \".tables\"` / `sqlite3 <db> \"SELECT ...\"`，支持 .schema/.indexes。",
         parameters: [
             "command": "Shell command to execute (required)",
             "timeout": "Timeout seconds (default 30, max 120)",
@@ -1546,10 +1546,12 @@ final class ShellExecTool: MCPTool {
         let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
         
         guard parts.count >= 2 else {
-            return ["command": command, "exit_code": 1, "stdout": "Usage: mkdir <path>", "ios_native": true]
+            return ["command": command, "exit_code": 1, "stdout": "Usage: mkdir [-p] <path>", "ios_native": true]
         }
         
-        let path = ShellExecTool.normalizePath((parts[1] as NSString).expandingTildeInPath)
+        // v3.5.0：跳过前导 flag（如 -p）——之前把 -p 当路径，报"只读宗卷"
+        let pathArg = parts.dropFirst().first { !$0.hasPrefix("-") } ?? parts[1]
+        let path = ShellExecTool.normalizePath((pathArg as NSString).expandingTildeInPath)
         do {
             try fm.createDirectory(atPath: path, withIntermediateDirectories: true, attributes: nil)
             return ["command": command, "exit_code": 0, "stdout": "Created directory: \(path)", "ios_native": true]
@@ -1703,6 +1705,33 @@ final class ShellExecTool: MCPTool {
         let fm = FileManager.default
         let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
         
+        // v3.5.0：sed -n '<start>,<end>p' <file> —— 打印第 start..end 行（之前只认 -i 替换）
+        if parts.count >= 3, parts[1] == "-n" {
+            let rangeSpec = parts[2].trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+            if let m = try? NSRegularExpression(pattern: #"^(\d+),(\d+)p$"#).firstMatch(in: rangeSpec, range: NSRange(rangeSpec.startIndex..., in: rangeSpec)),
+               let r1 = Range(m.range(at: 1), in: rangeSpec), let r2 = Range(m.range(at: 2), in: rangeSpec),
+               let a = Int(rangeSpec[r1]), let b = Int(rangeSpec[r2]) {
+                let filePath = ShellExecTool.normalizePath((parts[3] as NSString).expandingTildeInPath)
+                guard fm.fileExists(atPath: filePath) else {
+                    return ["command": command, "exit_code": 1, "stdout": "sed: \(filePath): No such file", "ios_native": true]
+                }
+                do {
+                    let content = try String(contentsOfFile: filePath, encoding: .utf8)
+                    let allLines = content.components(separatedBy: .newlines)
+                    guard a >= 1, b >= a else {
+                        return ["command": command, "exit_code": 1, "stdout": "sed: invalid range \(a),\(b)", "ios_native": true]
+                    }
+                    let lo = a, hi = min(b, allLines.count)
+                    if lo > allLines.count { return ["command": command, "exit_code": 0, "stdout": "", "ios_native": true] }
+                    let slice = Array(allLines[(lo - 1)..<hi])
+                    return ["command": command, "exit_code": 0, "stdout": slice.joined(separator: "\n"), "ios_native": true]
+                } catch {
+                    return ["command": command, "exit_code": 1, "stdout": "sed failed: \(error.localizedDescription)", "ios_native": true]
+                }
+            }
+            return ["command": command, "exit_code": 1, "stdout": "Usage: sed -n '<start>,<end>p' <file> 或 sed -i 's/old/new/g' <file>", "ios_native": true]
+        }
+        
         // 格式：sed -i 's/old/new/g' file
         guard parts.count >= 4, parts[1] == "-i" else {
             return ["command": command, "exit_code": 1, "stdout": "Usage: sed -i 's/old/new/g' <file>", "ios_native": true]
@@ -1769,7 +1798,9 @@ final class ShellExecTool: MCPTool {
             return ["command": command, "exit_code": 1, "stdout": "Usage: touch <file>", "ios_native": true]
         }
         
-        let path = ShellExecTool.normalizePath((parts[1] as NSString).expandingTildeInPath)
+        // v3.5.0：跳过前导 flag（touch -p 之类）——之前把 -p 当路径
+        let pathArg = parts.dropFirst().first { !$0.hasPrefix("-") } ?? parts[1]
+        let path = ShellExecTool.normalizePath((pathArg as NSString).expandingTildeInPath)
         fm.createFile(atPath: path, contents: nil, attributes: nil)
         
         return [
@@ -2083,7 +2114,59 @@ final class ShellExecTool: MCPTool {
             return ["command": command, "exit_code": 1, "stdout": "sqlite3: Failed to open database", "ios_native": true]
         }
         defer { sqlite3_close(db) }
-        
+
+        // 小工具：在已打开的 db 上执行一条 SQL，返回文本行（无表头）
+        func execSQL(_ sql: String) -> ([String], String?) {
+            var st: OpaquePointer? = nil
+            guard sqlite3_prepare_v2(db, sql, -1, &st, nil) == SQLITE_OK else {
+                let e = sqlite3_errmsg(db).map { String(cString: $0) }
+                return ([], e ?? "prepare failed")
+            }
+            defer { sqlite3_finalize(st) }
+            var rows: [String] = []
+            while sqlite3_step(st) == SQLITE_ROW {
+                var vals: [String] = []
+                for i in 0..<sqlite3_column_count(st) {
+                    if let p = sqlite3_column_text(st, Int32(i)) { vals.append(String(cString: p)) }
+                    else { vals.append("NULL") }
+                }
+                rows.append(vals.joined(separator: " | "))
+            }
+            return (rows, nil)
+        }
+
+        // v3.5.0：支持 sqlite3 点命令——之前直接 prepare 必失败（.tables/.schema/.databases/.indexes 不是 SQL）
+        if query.hasPrefix(".") {
+            let comps = query.split(separator: " ").map(String.init)
+            let cmd = comps.first ?? ""
+            switch cmd {
+            case ".tables":
+                let (r, e) = execSQL("SELECT name FROM sqlite_master WHERE type IN ('table','view') ORDER BY name")
+                if let e = e { return ["command": command, "exit_code": 1, "stdout": "sqlite3 error: \(e)", "ios_native": true] }
+                return ["command": command, "exit_code": 0, "stdout": r.isEmpty ? "(no tables)" : r.joined(separator: "\n"), "ios_native": true]
+            case ".databases":
+                return ["command": command, "exit_code": 0, "stdout": dbPath, "ios_native": true]
+            case ".schema":
+                let tbl = comps.count > 1 ? comps[1] : ""
+                let sql = tbl.isEmpty
+                    ? "SELECT sql FROM sqlite_master WHERE type IN ('table','view','index') ORDER BY name"
+                    : "SELECT sql FROM sqlite_master WHERE type IN ('table','view','index') AND tbl_name='\(tbl)' ORDER BY name"
+                let (r, e) = execSQL(sql)
+                if let e = e { return ["command": command, "exit_code": 1, "stdout": "sqlite3 error: \(e)", "ios_native": true] }
+                return ["command": command, "exit_code": 0, "stdout": r.isEmpty ? "(no schema)" : r.joined(separator: "\n"), "ios_native": true]
+            case ".indexes":
+                let tbl = comps.count > 1 ? comps[1] : ""
+                let sql = tbl.isEmpty
+                    ? "SELECT name FROM sqlite_master WHERE type='index' ORDER BY name"
+                    : "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='\(tbl)' ORDER BY name"
+                let (r, e) = execSQL(sql)
+                if let e = e { return ["command": command, "exit_code": 1, "stdout": "sqlite3 error: \(e)", "ios_native": true] }
+                return ["command": command, "exit_code": 0, "stdout": r.isEmpty ? "(no indexes)" : r.joined(separator: "\n"), "ios_native": true]
+            default:
+                return ["command": command, "exit_code": 1, "stdout": "sqlite3: unsupported dot command '\(cmd)'. Supported: .tables .schema [tbl] .databases .indexes [tbl]. For arbitrary queries use: sqlite3 \(dbPath) \"SELECT ...\"", "ios_native": true]
+            }
+        }
+
         var statement: OpaquePointer? = nil
         guard sqlite3_prepare_v2(db, query, -1, &statement, nil) == SQLITE_OK else {
             if let err = sqlite3_errmsg(db) {
@@ -2093,10 +2176,10 @@ final class ShellExecTool: MCPTool {
             return ["command": command, "exit_code": 1, "stdout": "sqlite3: Failed to prepare query", "ios_native": true]
         }
         defer { sqlite3_finalize(statement) }
-        
+
         var rows: [String] = []
         let columnCount = sqlite3_column_count(statement)
-        
+
         // 表头
         var headers: [String] = []
         for i in 0..<columnCount {
@@ -2106,7 +2189,7 @@ final class ShellExecTool: MCPTool {
         }
         rows.append("| " + headers.joined(separator: " | ") + " |")
         rows.append(String(repeating: "-", count: rows[0].count))
-        
+
         // 数据行
         while sqlite3_step(statement) == SQLITE_ROW {
             var values: [String] = []
@@ -2119,12 +2202,14 @@ final class ShellExecTool: MCPTool {
             }
             rows.append("| " + values.joined(separator: " | ") + " |")
         }
-        
-        // 限制输出
-        if rows.count > 100 {
-            rows = Array(rows.prefix(100)) + ["... (共更多行，已截断)"]
+
+        // v3.5.0：截断时写入完整 spill 并提示 limit——避免模型反复裸调重试
+        if rows.count > 200 {
+            let full = rows.joined(separator: "\n")
+            let spill = ToolRegistry.spillLarge("sqlite3", full)
+            rows = Array(rows.prefix(200)) + ["... (结果共 \(rows.count - 2) 行，已截断到 200)", "完整结果: \(spill)", "提示：请加 LIMIT 控制行数，例如 SELECT ... LIMIT 5000"]
         }
-        
+
         return [
             "command": command,
             "exit_code": 0,
