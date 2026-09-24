@@ -523,6 +523,7 @@ struct ChatView: View {
                             message: msg,
                             selectionMode: selectionMode,
                             isSelected: selectedIds.contains(msg.id),
+                            isStreaming: store.streamingMessageId == msg.id,
                             onToggleSelect: { toggleSelect(msg.id) },
                             onCopy: { copyMessage(msg) },
                             onShare: { shareMessage(msg) }
@@ -1256,9 +1257,30 @@ struct MessageBubble: View {
     var onToggleSelect: (() -> Void)? = nil
     var onCopy: (() -> Void)? = nil
     var onShare: (() -> Void)? = nil
+    // v3.4.5：当前正在流式生成的 AI 消息 → 打字机逐字显示
+    var isStreaming: Bool = false
 
     @State private var expanded = false
     @State private var expandedToolIds: Set<String> = []
+    // v3.4.5：打字机效果——已显示字符数 + 定时器（约 50 字/秒，显示与网络解耦）
+    @State private var revealedCount = 0
+    @State private var typeTimer: Timer?
+
+    private func startTypeTimer() {
+        guard isStreaming else { return }
+        typeTimer?.invalidate()
+        typeTimer = Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { _ in
+            DispatchQueue.main.async {
+                if self.isStreaming, self.revealedCount < self.message.content.count {
+                    self.revealedCount = min(self.message.content.count, self.revealedCount + 1)
+                }
+            }
+        }
+    }
+    private func stopTypeTimer() {
+        typeTimer?.invalidate()
+        typeTimer = nil
+    }
     private var thinkingExpanded: Bool {
         expandedToolIds.contains(message.id.uuidString)
     }
@@ -1308,6 +1330,22 @@ struct MessageBubble: View {
                 Label("分享", systemImage: "square.and.arrow.up")
             }
         }
+        // v3.4.5：打字机效果——流式消息进入时启动定时器逐字显示
+        .onAppear {
+            if isStreaming { startTypeTimer() }
+        }
+        .onDisappear { stopTypeTimer() }
+        .onChange(of: isStreaming) { streaming in
+            if streaming {
+                startTypeTimer()
+            } else {
+                revealedCount = message.content.count
+                stopTypeTimer()
+            }
+        }
+        .onChange(of: message.content) { _ in
+            if isStreaming, typeTimer == nil { startTypeTimer() }
+        }
     }
 
     private var selectionBadge: some View {
@@ -1330,7 +1368,9 @@ struct MessageBubble: View {
             // v3.0.2: 去掉旧的 TrailCard，改用 toolBubble 显示工具调用
             // v3.0.2e：如果 content 是空的，就不显示气泡（避免空白气泡）
             if !message.content.isEmpty {
-                Text(message.content)
+                // v3.4.5：打字机——流式中按 revealedCount 逐字显示；完成后显示全文
+                let shown = isStreaming ? String(message.content.prefix(revealedCount)) : message.content
+                Text(shown)
                     .font(.body)
                     .textSelection(.enabled)
                     .padding(.horizontal, 14)

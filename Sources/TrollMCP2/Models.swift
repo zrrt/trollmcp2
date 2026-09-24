@@ -586,7 +586,8 @@ final class ConversationStore: ObservableObject {
     /// v2.9.13：当前正在进行的 OpenAIClient (支持取消）
     private var currentClient: OpenAIClient?
     /// v2.9.53：当前流式输出的消息 ID (逐字显示时跟踪，done后更新或清理）
-    private var streamingMessageId: UUID?
+    /// v3.4.5：改为 internal（ChatView 用它标记打字机效果的消息）
+    var streamingMessageId: UUID?
     /// v3.1.70：活动请求绑定的会话 ID——请求由哪个会话发起就写回哪个会话。
     /// 修复"请求进行中切换会话，AI 输出错位/写错会话" (用户实测：老会话未暂停，切换新会话后输出仍乱）。
     private var activeConvId: UUID?
