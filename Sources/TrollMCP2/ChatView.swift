@@ -620,39 +620,43 @@ struct ChatView: View {
     /// v3.4.3：模型名已移入导航栏 principal（与标题、右侧图标同一平行线），此处不再占用正文顶部
     private var chatModeBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 5) {
+            HStack(spacing: 6) {
+                // v3.4.5：六个胶囊统一同宽同高（76×32），比例完全一致、长度略长
                 ChatChip(label: "推理·\(reasoningLabel())", action: {
                     reasoning = (reasoning + 1) % 3
-                }, accent: true, icon: "gauge.with.dots.needle.67percent").fixedSize()
+                }, accent: true, icon: "gauge.with.dots.needle.67percent").frame(width: 76, height: 32)
                 ChatChip(label: "思考·\(thinkEnabled ? "开" : "关")", action: {
                     thinkEnabled.toggle()
-                }, accent: thinkEnabled, icon: "brain").fixedSize()
+                }, accent: thinkEnabled, icon: "brain").frame(width: 76, height: 32)
                 ChatChip(label: "搜索·\(smartSearch ? "开" : "关")", action: {
                     smartSearch.toggle()
-                }, accent: smartSearch, icon: "magnifyingglass").fixedSize()
+                }, accent: smartSearch, icon: "magnifyingglass").frame(width: 76, height: 32)
                 QuickTabButton(icon: "bolt", label: "技能") {
                     AppUIState.shared.quickSkillsPresented = true
-                }.fixedSize()
+                }.frame(width: 76, height: 32)
                 QuickTabButton(icon: "doc.text", label: "指令") {
                     AppUIState.shared.settingsJumpToModels = false
                     AppUIState.shared.settingsPresented = true
-                }.fixedSize()
+                }.frame(width: 76, height: 32)
                 QuickTabButton(icon: "folder", label: "工作区") {
                     AppUIState.shared.quickFilesPresented = true
-                }.fixedSize()
+                }.frame(width: 76, height: 32)
             }
         }
     }
 
     private var inputBar: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 0) {
             // v2.9.10：待发送附件预览（图片缩略图 / 应用图标 / 文件）
             AttachmentPreviewStrip(attachments: pendingAttachments) { att in
                 withAnimation { pendingAttachments.removeAll { $0.id == att.id } }
             }
-            // v3.4.2：功能行（推理/思考/搜索/系统指令/技能/工作区）移回底部、位于聊天框上方，横向滑动
+            // v3.4.5：功能行（推理/思考/搜索/系统指令/技能/工作区）——胶囊与输入框、与上方都留
+            // 等距 16pt 间隙（上下对称，间距比之前加大）
             chatModeBar
                 .padding(.horizontal, 12)
+                .padding(.top, 16)
+                .padding(.bottom, 16)
 
             // v3.0.83：输入栏 —— 终端键 + 输入框 + +号 + 发送键 统一放进同一个大圆角框
             HStack(spacing: 6) {
@@ -717,6 +721,10 @@ struct ChatView: View {
             // v3.3.4：整行放进一个大圆角框（终端键/输入框/+号/发送键 一体）
             .background(Color(.secondarySystemBackground))
             .cornerRadius(20)
+            // v3.4.5：输入框外阴影渐变，往外扩散越来越淡（多层 shadow 叠加模拟渐变发光）
+            .shadow(color: Color.blue.opacity(0.22), radius: 10, x: 0, y: 3)
+            .shadow(color: Color.blue.opacity(0.12), radius: 22, x: 0, y: 6)
+            .shadow(color: Color.blue.opacity(0.06), radius: 38, x: 0, y: 10)
             .padding(.horizontal, 12)
 
             // v3.4.2：点 + 底部弹出 应用/相册/文件/浏览器，把聊天框顶起来（位于输入框下方）
