@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>application-identifier</key>
-	<string>TROLLTROLL.dev.trollmcp2.app.VpnTunnel</string>
+	<string>TROLLTROLL.com.trollagent.app.VpnTunnel</string>
 	<key>com.apple.developer.team-identifier</key>
 	<string>TROLLTROLL</string>
 	<key>com.apple.developer.networking.networkextension</key>
