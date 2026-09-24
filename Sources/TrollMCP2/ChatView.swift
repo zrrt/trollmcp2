@@ -41,10 +41,15 @@ struct ChatView: View {
         CompatNav {
             VStack(spacing: 0) {
                 // v3.3.4：模型选择器移到页面顶部（对齐 OpenMinis 顶部模型控制）
-                currentModelBar
-                    .padding(.horizontal, 12)
-                    .padding(.top, 4)
-                    .padding(.bottom, 2)
+                // v3.4.0：原输入框上方的"推理/思考/搜索/技能/指令/文件"功能行移到这里（模型栏下方），
+                // 输入区保持干净（+ 号底部弹出快捷附件行）
+                VStack(spacing: 4) {
+                    currentModelBar
+                    chatModeBar
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 4)
+                .padding(.bottom, 2)
                 if modelStore.configs.isEmpty {
                     emptyState
                 } else if store.currentMessages.isEmpty {
@@ -548,7 +553,8 @@ struct ChatView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 12)
+                // v3.4.0：去掉整行水平 padding —— AI 气泡改为真正占满左右屏边缘；
+                // 用户气泡的右留白由 MessageBubble 内部按 isUser 处理
                 .padding(.vertical, 12)
             }
             // 点击聊天区空白处收起键盘（v2.9.9）
@@ -639,6 +645,38 @@ struct ChatView: View {
         .buttonStyle(PlainButtonStyle())
     }
 
+    /// v3.4.0：顶部模型栏下方的 AI 模式控制行（由输入框上方的功能行迁移而来，
+    /// 输入区保持干净）。含 推理/思考/搜索 开关 + 技能/指令/文件 快捷入口。
+    private var chatModeBar: some View {
+        HStack(spacing: 6) {
+            ChatChip(label: "推理·\(reasoningLabel())", action: {
+                reasoning = (reasoning + 1) % 3
+            }, accent: true, icon: "gauge.with.dots.needle.67percent")
+            .frame(maxWidth: .infinity)
+            ChatChip(label: "思考·\(thinkEnabled ? "开" : "关")", action: {
+                thinkEnabled.toggle()
+            }, accent: thinkEnabled, icon: "brain")
+            .frame(maxWidth: .infinity)
+            ChatChip(label: "搜索·\(smartSearch ? "开" : "关")", action: {
+                smartSearch.toggle()
+            }, accent: smartSearch, icon: "magnifyingglass")
+            .frame(maxWidth: .infinity)
+            QuickTabButton(icon: "bolt", label: "技能") {
+                AppUIState.shared.quickSkillsPresented = true
+            }
+            .frame(maxWidth: .infinity)
+            QuickTabButton(icon: "doc.text", label: "指令") {
+                AppUIState.shared.settingsJumpToModels = false
+                AppUIState.shared.settingsPresented = true
+            }
+            .frame(maxWidth: .infinity)
+            QuickTabButton(icon: "folder", label: "文件") {
+                AppUIState.shared.quickFilesPresented = true
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
     private var inputBar: some View {
         VStack(spacing: 4) {
             // v2.9.10：待发送附件预览（图片缩略图 / 应用图标 / 文件）
@@ -651,37 +689,8 @@ struct ChatView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
-            // v3.0.87：第二行 chips + 快捷标签，等宽填满整行
-            HStack(spacing: 6) {
-                ChatChip(label: "推理·\(reasoningLabel())", action: {
-                    reasoning = (reasoning + 1) % 3
-                }, accent: true, icon: "gauge.with.dots.needle.67percent")
-                .frame(maxWidth: .infinity)
-                ChatChip(label: "思考·\(thinkEnabled ? "开" : "关")", action: {
-                    thinkEnabled.toggle()
-                }, accent: thinkEnabled, icon: "brain")
-                .frame(maxWidth: .infinity)
-                ChatChip(label: "搜索·\(smartSearch ? "开" : "关")", action: {
-                    smartSearch.toggle()
-                }, accent: smartSearch, icon: "magnifyingglass")
-                .frame(maxWidth: .infinity)
-                QuickTabButton(icon: "bolt", label: "技能") {
-                    AppUIState.shared.quickSkillsPresented = true
-                }
-                .frame(maxWidth: .infinity)
-                QuickTabButton(icon: "doc.text", label: "指令") {
-                    AppUIState.shared.settingsJumpToModels = false
-                    AppUIState.shared.settingsPresented = true
-                }
-                .frame(maxWidth: .infinity)
-                QuickTabButton(icon: "folder", label: "文件") {
-                    AppUIState.shared.quickFilesPresented = true
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .padding(.horizontal, 12)
-
-            // v3.0.83：第三行 输入栏 —— v3.3.4：终端键 + 输入框 + +号 + 发送键 统一放进同一个大圆角框
+            // v3.0.83：输入栏 —— v3.3.4：终端键 + 输入框 + +号 + 发送键 统一放进同一个大圆角框
+            // （v3.4.0：原"推理/思考/搜索/技能/指令/文件"功能行已移到顶部模型栏下方）
             HStack(spacing: 6) {
                 Button(action: {
                     AppUIState.shared.quickTerminalPresented = true
@@ -757,8 +766,10 @@ struct ChatView: View {
     }
 
     /// v3.3.4：+ 展开的快捷附件行（应用 / 相册 / 文件 / 浏览器），对齐微信式附件栏
+    /// v3.4.0：改为底部右对齐、项间距 5，从底部弹出顶起聊天框
     private var attachQuickRow: some View {
-        HStack(spacing: 18) {
+        HStack(spacing: 5) {
+            Spacer(minLength: 0)
             attachQuickButton("apps.iphone", "应用") {
                 withAnimation { attachExpanded = false }
                 attachmentSheet = .appPicker
@@ -779,13 +790,10 @@ struct ChatView: View {
                 attachmentSheet = nil
                 FloatingBrowser.shared.show()
             }
-            Spacer()
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 8)
-        .background(Color(.secondarySystemBackground).opacity(0.6))
-        .cornerRadius(14)
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
     private func attachQuickButton(_ icon: String, _ label: String, action: @escaping () -> Void) -> some View {
@@ -1294,10 +1302,12 @@ struct MessageBubble: View {
             }
 
             if !isUser {
-                Spacer(minLength: 50)
+                // v3.4.0：AI 输出不追加右侧 Spacer —— 气泡随 .frame(maxWidth:.infinity) 填满整个可用宽度
                 if selectionMode { selectionBadge }
             }
         }
+        // v3.4.0：用户气泡保留右侧留白（12），AI/工具气泡 0 边距 → 真正占满左右屏边缘
+        .padding(.horizontal, isUser ? 12 : 0)
         .contentShape(Rectangle())
         .onTapGesture {
             if selectionMode {
