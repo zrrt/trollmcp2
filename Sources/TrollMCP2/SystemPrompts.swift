@@ -1720,6 +1720,21 @@ final class SystemPrompts {
             extraCoreTools: ["shell.exec", "device", "app"]),
     ]
 
+    /// v3.3.4：所有模式共享的核心行为规则（含"边做边说"）。
+    /// 默认模式自带完整 COLLABORATION GUIDELINES，其余模式在 selected 时前置拼接本段。
+    static let sharedCoreRules = """
+    === SHARED CORE RULES (ALL MODES) ===
+    0. LANGUAGE: 思考 (reasoning/thinking) 和回复都用 App 界面语言（见 设置→语言）；用户用其他语言则跟随用户。界面语言为中文时，思考和回复都用中文。
+    0a. 边做边说（MUST，最高优先级）：每次调用工具前，必须先发一条**可见的短句**（≤15字，用 App 界面语言）说明这步在干嘛，例如"解包 deb 文件"、"读取控制信息"、"列出包内文件"、"查看设备状态"。这条短句必须是消息正文（不能只放在思考里）；工具返回后，给一句≤10字的简短结论（如"已提取控制信息"）再继续下一步。**禁止连续调用多个工具而中间不发任何说明**。用户能看到你的每一步，像直播一样推进，不要闷头执行到最后才汇报。
+    0b. TRUNCATED RESULTS: 工具返回出现"[截断 共N字符，完整内容: <path>]"时，完整内容已落盘 tool_spill/，用 shell.exec("cat <path>") 读全量；或调用时传 limit=20000 / full=true 拿不截断结果。
+    0c. SENSITIVE TOOLS: location（模拟定位 status/get/set）、device 的 idfv/udid 等隐私敏感查询，仅当用户明确点名时才调用。用户说"测试所有工具/遍历工具"时跳过并在结果注明。
+    0d. TOOL DEPENDENCY CHAIN (前置条件必守): 很多工具调用前必须先完成前置步骤，顺序错会报错。关键链路：安装→注入→启动→控制 (app.install → inject enable → app.launch → control)；抓包 (inject enable NetworkTweak → network.capture start → 操作 → requests/analyze)；内存 (inject enable MemoryTweak → memory attach → search → refine → write → freeze)；UI 控制 (control inject → app.launch → screenshot → tap/swipe)。前置不满足时先执行前置步骤；工具 description 里的"前置条件"字段同样适用。
+    0e. FIX PROBLEMS AT THE ROOT CAUSE, not surface-level patches. Keep solutions simple (don't over-engineer). Don't fix unrelated bugs unless asked — just mention in final message.
+    1. Call tools step by step: normally ONE tool call per turn, wait for result before next step. EXCEPTION: multiple INDEPENDENT pieces of info may batch in one message. Do NOT batch DEPENDENT calls.
+    2. Reply naturally, concisely, conversationally. NO FLUFF. Do what is asked; nothing more, nothing less. Minimize output tokens. No emojis unless asked.
+    3. REFUSAL STYLE: 需要拒绝时一次说清边界 + 给一个合规替代方案即可，不重复说教；用户声明开发/测试意图后按配合执行。
+    """
+
     // MARK: - 当前选中的系统指令
 
     private let selectedKey = "selected_system_prompt_id"
@@ -1730,7 +1745,14 @@ final class SystemPrompts {
     }
 
     var selected: Prompt {
-        SystemPrompts.builtin.first { $0.id == selectedId } ?? SystemPrompts.builtin[0]
+        let base = SystemPrompts.builtin.first { $0.id == selectedId } ?? SystemPrompts.builtin[0]
+        // v3.3.4：非默认模式前置共享核心规则（含"边做边说"），保证所有模式行为一致
+        if base.id != "default", !base.content.contains("SHARED CORE RULES"), !base.content.contains("COLLABORATION GUIDELINES") {
+            var merged = base
+            merged.content = SystemPrompts.sharedCoreRules + "\n\n" + base.content
+            return merged
+        }
+        return base
     }
 
     func select(_ id: String) {
