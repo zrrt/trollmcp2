@@ -112,6 +112,15 @@ final class OpenAIClient {
             NetworkLog.shared.log("\(config.name): 当前记忆级别为纯对话，先尝试 Responses API 恢复工具调用…")
             start = 5
         }
+        // v3.5.11：带工具请求优先走 L5 (Responses API = Codex 同款端点)——对齐 Codex/Claude Code
+        // "一次流式先思考后行动"。L5 原生流式 reasoning→function_call，才能让模型每步有解说/思考；
+        // 一直钉在 L0 (chat/completions 完整载荷) 则模型工具轮常不发 reasoning/narration (用户实测）。
+        // 若 L5 failed，降级链会回落带工具的 L2 (chat/completions) 或 L3 纯对话，不影响可用性。
+        let hasTools = tools != nil && !(tools?.isEmpty ?? true)
+        if hasTools, config.apiProtocol != "OpenAI Responses", config.compatLevel < 5 {
+            NetworkLog.shared.log("\(config.name): 带工具请求，优先尝试 L5 Responses API (Codex 同款端点)…")
+            start = 5
+        }
         if start > 0 {
             NetworkLog.shared.log("\(config.name): 使用已记忆的兼容级别 \(start) (\(levelName(start)))")
         } else {
@@ -349,11 +358,15 @@ final class OpenAIClient {
             body["reasoning_effort"] = reasoningEffortName()
             // v3.1.74：思考/回复语言跟随 App 设置 (设置 → 语言），不再硬编码中文
             // v3.1.33 曾强制简体中文思考；现在按 LanguageManager.shared.language 动态下发
-            if LanguageManager.shared.isZh {
-                body["instructions"] = "你的思考过程 (reasoning/thinking)请始终使用简体中文输出。最终回复也使用简体中文，除非用户明确要求其他语言。"
-            } else {
-                body["instructions"] = "Always think and reply in English unless the user explicitly asks for another language."
-            }
+            // v3.5.11：追加"先解说后执行"指令（对齐 Codex/Claude Code 一次流式先思考后行动）——
+            // 要求模型在调用任何工具前，先在回复正文 content 里写一两句解说，再发 tool_calls。
+            var instr = LanguageManager.shared.isZh
+                ? "你的思考过程 (reasoning/thinking)请始终使用简体中文输出。最终回复也使用简体中文，除非用户明确要求其他语言。"
+                : "Always think and reply in English unless the user explicitly asks for another language."
+            instr += LanguageManager.shared.isZh
+                ? "\n重要：在你调用任何工具之前，必须先在回复正文（content，不要放进 reasoning）里用一两句自然语言向用户说明你正要做什么、为什么。写完解说后再调用工具。"
+                : "\nIMPORTANT: Before calling any tool, you MUST first write one or two sentences in the reply content (not in reasoning) explaining what you are about to do and why. Then call the tool."
+            body["instructions"] = instr
         }
         if let tools = tools, !tools.isEmpty {
             if level < 3 {
@@ -424,7 +437,20 @@ final class OpenAIClient {
                     return ToolCall(id: id, name: name, arguments: args)
                 }
                 if !calls.isEmpty {
-                    return .toolCalls(calls, thinking: nil)
+                    // v3.5.11：工具轮不再丢弃 reasoning——把 reasoning_content 存进 thinking(黄色思考气泡)。
+                    // Codex/Claude Code 都是"一次流式里先思考/解说后工具"，这里补上非流式/解析路径漏接的思考。
+                    // 之前 427 行直接 thinking:nil，模型在工具轮的思考被解析层扔掉。
+                    let thinking = (message["reasoning_content"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    var hasThinking = (thinking != nil && !thinking!.isEmpty)
+                    if hasThinking {
+                        // 去重：部分中转把完整回答写进 reasoning_content，与 content 相同则弃（避免重复展示）
+                        let cText = (message["content"] as? String) ?? ""
+                        let rTrim = thinking!
+                        if cText == rTrim || rTrim.contains(cText) || cText.contains(rTrim) {
+                            hasThinking = false
+                        }
+                    }
+                    return .toolCalls(calls, thinking: hasThinking ? thinking : nil)
                 }
             }
             // v2.9.297：content 兼容 字符串 / 数组 ([{"type":"text","text":"..."}] / [{"type":"output_text","text":"..."}]）
