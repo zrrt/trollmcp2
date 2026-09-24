@@ -13,7 +13,10 @@ import CMitm
 final class VpnManager {
     static let shared = VpnManager()
 
-    private let manager = NEVPNManager.shared()
+    // v3.5.2：packet-tunnel 网络扩展必须用 NETunnelProviderManager。
+    // 之前用 NEVPNManager.shared()（IPSec/IKEv2 旧版 VPN 管理器）挂 NETunnelProviderProtocol，
+    // 系统不会在"设置→VPN"注册、startVPNTunnel 也不生效——表现为"VPN 不显示、打不开"。
+    private let manager = NETunnelProviderManager()
     private(set) var localProxyRunning = false
     let proxyPort: UInt16 = 18180
 
