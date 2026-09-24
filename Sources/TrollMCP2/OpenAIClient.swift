@@ -116,8 +116,10 @@ final class OpenAIClient {
         // "一次流式先思考后行动"。L5 原生流式 reasoning→function_call，才能让模型每步有解说/思考；
         // 一直钉在 L0 (chat/completions 完整载荷) 则模型工具轮常不发 reasoning/narration (用户实测）。
         // 若 L5 failed，降级链会回落带工具的 L2 (chat/completions) 或 L3 纯对话，不影响可用性。
+        // 审计修正：只在 L0(默认未降级) 时强制试 L5；一旦降级到 L1/L2 被记住，就尊重记忆级别——
+        // 否则每次工具请求都白试一次 L5 再回落 (浪费往返)。L3/L4 已由上面分支尝试 L5 恢复。
         let hasTools = tools != nil && !(tools?.isEmpty ?? true)
-        if hasTools, config.apiProtocol != "OpenAI Responses", config.compatLevel < 5 {
+        if hasTools, config.apiProtocol != "OpenAI Responses", config.compatLevel == 0 {
             NetworkLog.shared.log("\(config.name): 带工具请求，优先尝试 L5 Responses API (Codex 同款端点)…")
             start = 5
         }
@@ -443,10 +445,12 @@ final class OpenAIClient {
                     let thinking = (message["reasoning_content"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
                     var hasThinking = (thinking != nil && !thinking!.isEmpty)
                     if hasThinking {
-                        // 去重：部分中转把完整回答写进 reasoning_content，与 content 相同则弃（避免重复展示）
-                        let cText = (message["content"] as? String) ?? ""
+                        // 去重：部分中转把完整回答写进 reasoning_content，与 content 相同则弃（避免重复展示）。
+                        // 审计修复：content 可能是数组，as? String 会取到 ""，此时 rTrim.contains("") 恒为 true，
+                        // 会把思考误删——只在 cText 非空时才做去重比较。
+                        let cText = ((message["content"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                         let rTrim = thinking!
-                        if cText == rTrim || rTrim.contains(cText) || cText.contains(rTrim) {
+                        if !cText.isEmpty, cText == rTrim || rTrim.contains(cText) || cText.contains(rTrim) {
                             hasThinking = false
                         }
                     }

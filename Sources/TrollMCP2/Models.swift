@@ -1046,7 +1046,7 @@ final class ConversationStore: ObservableObject {
                         self.thinkBuffer = ""
                         self.streamingMessageId = nil
                         self.liveProducedID = nil
-                        // 重跑下一轮（depth+1 防死循环；narrationCorrectionCount 上限 2 防无限纠正）
+                        // 重跑下一轮（depth+1 防死循环；narrationCorrectionCount 上限 4 防无限纠正）
                         self.runLoop(config: config, tools: tools, disclosed: disclosed, depth: depth + 1, reasoningLevel: reasoningLevel)
                         return
                     }
