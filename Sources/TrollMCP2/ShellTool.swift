@@ -43,6 +43,7 @@ final class ShellExecTool: MCPTool {
             "reset_cwd": "Optional Bool: reset working dir to default (default false)",
             "limit": "Optional Int: result string truncation cap (default 4000 chars). If diagnostics output is trimmed and the body is invisible, pass limit=20000 或更大；full=true 则不截断返回完整结果",
             "full": "Optional Bool: true=返回完整结果不截断 (慎用，大输出占满上下文)",
+            "offset": "Optional Int: skip first N chars of output before showing (default 0), combine with limit to read a middle slice",
             "env": "Optional String: 显式选择执行环境——'alpine' 强制走 Alpine Linux (iSH)，省略或 'ios' 按默认路由 (iOS 原生优先)"
         ],
         verified: true
@@ -109,14 +110,23 @@ final class ShellExecTool: MCPTool {
             ]
         }
         
+        // v3.3.4: limit/full/offset —— 输出截断可动态控制 (AI 实测：limit/full 参数不生效）
+        //  limit  = 截断上限字符数 (默认 4000；0 = 不截断）
+        //  full   = true 时返回全量 (等效 limit:0），不 spill 不截断
+        //  offset = 跳过前 N 字符再展示 (配合 limit 取中间段，等价 sed 取中段）
+        let limitParam = (params["limit"] as? Int) ?? 0
+        let fullOutput = params["full"] as? Bool == true
+        let offsetParam = max(0, (params["offset"] as? Int) ?? 0)
+        let outLimit = fullOutput ? 0 : (limitParam > 0 ? limitParam : 4000)
+        
         // v3.1.68: env 显式选择参数——AI 可传 env:"alpine" 强制走 Alpine (不猜路由），
         // env:"ios" 或省略则按默认路由 (iOS 原生优先）。修复"env 参数不生效" (E items）。
         if let envFlag = params["env"] as? String, envFlag.lowercased() == "alpine" {
             let (output, exitCode, timedOut) = ISHEngine.exec(trimmed, timeout: timeout)
             var stdout = ShellExecTool.filterNoise(output)
-            if stdout.count > 2000 {
+            if outLimit > 0 && stdout.count > outLimit {
                 let spillPath = ToolRegistry.spillLarge("alpine", stdout)
-                stdout = String(stdout.prefix(1000)) + "\n…[输出太长total \(stdout.count) 字符，已截断；完整输出: \(spillPath)]\n" + String(stdout.suffix(1000))
+                stdout = String(stdout.prefix(outLimit / 2)) + "\n…[输出太长total \(stdout.count) 字符，已截断；完整输出: \(spillPath)]…\n" + String(stdout.suffix(outLimit / 2))
             }
             var result: [String: Any] = [
                 "command": trimmed,
@@ -137,7 +147,7 @@ final class ShellExecTool: MCPTool {
         // v3.1.71：先做变量展开 (P=/xxx 赋值 + $P 引用），否则 "$P" 被当字面路径报 No such file (AI 实测）
         let expanded = ShellExecTool.expandVars(trimmed)
         if ShellExecTool.containsShellSyntax(expanded) {
-            let result = ShellExecTool.runIOSPipeline(expanded)
+            let result = ShellExecTool.runIOSPipeline(expanded, limit: outLimit, offset: offsetParam)
             AuditLog.shared.log("shell.exec (ios pipeline)", detail: String(expanded.prefix(100)))
             return result
         }
@@ -399,9 +409,9 @@ final class ShellExecTool: MCPTool {
         
         // 过滤杂散调试噪音
         var stdout = ShellExecTool.filterNoise(output)
-        if stdout.count > 2000 {
+        if outLimit > 0 && stdout.count > outLimit {
             let spillPath = ToolRegistry.spillLarge("shell", stdout)
-            stdout = String(stdout.prefix(1000)) + "\n…[输出太长total \(stdout.count) 字符，已截断；完整输出: \(spillPath)]\n" + String(stdout.suffix(1000))
+            stdout = String(stdout.prefix(outLimit / 2)) + "\n…[输出太长total \(stdout.count) 字符，已截断；完整输出: \(spillPath)]…\n" + String(stdout.suffix(outLimit / 2))
         }
         
         // 会话目录：iSH guest 路径
@@ -625,7 +635,7 @@ final class ShellExecTool: MCPTool {
     /// 主执行器：处理整条含 shell 语法的命令
     /// 结构：先按非管道分隔符 (; && ||）切分成"链"，每条链内按 | 分生产段+过滤段；
     /// 逐链执行：生产段输出 → 过滤段逐个过滤 → 追加到 stdoutChunks；&& / || 按上链 exit 短路。
-    static func runIOSPipeline(_ command: String) -> [String: Any] {
+    static func runIOSPipeline(_ command: String, limit: Int = 4000, offset: Int = 0) -> [String: Any] {
         let segments = splitShellSegments(command)
         guard !segments.isEmpty else {
             return ["command": command, "exit_code": 1, "stdout": "空命令", "ios_native": true]
@@ -675,9 +685,9 @@ final class ShellExecTool: MCPTool {
                     } else {
                         let (output, outputExit, timedOut) = ISHEngine.exec(body, timeout: 30)
                         var out = ShellExecTool.filterNoise(output)
-                        if out.count > 2000 {
+                        if limit > 0 && out.count > limit {
                             let spillPath = ToolRegistry.spillLarge("alpine", out)
-                            out = String(out.prefix(1000)) + "\n…[输出太长total \(out.count) 字符，已截断；完整输出: \(spillPath)]\n" + String(out.suffix(1000))
+                            out = String(out.prefix(limit / 2)) + "\n…[输出太长total \(out.count) 字符，已截断；完整输出: \(spillPath)]…\n" + String(out.suffix(limit / 2))
                         }
                         result = [
                             "command": body, "exit_code": outputExit, "stdout": out,
@@ -704,13 +714,15 @@ final class ShellExecTool: MCPTool {
         }
         
         let joined = stdoutChunks.joined(separator: "\n")
-        // v3.3.4：管道最终输出统一截断 (head+tail+spill）——长管道输出不再占满上下文
-        let finalOut: String
-        if joined.count > 4000 {
+        // v3.3.4：管道最终输出统一截断 (head+tail+spill）——长管道输出不再占满上下文；
+        // limit/offset 可动态控制：limit:0 或 full:true = 全量；offset 跳过前 N 字符取中段
+        var finalOut = joined
+        if offset > 0 {
+            finalOut = String(finalOut.dropFirst(min(offset, finalOut.count)))
+        }
+        if limit > 0 && finalOut.count > limit {
             let spillPath = ToolRegistry.spillLarge("pipeline", joined)
-            finalOut = String(joined.prefix(2000)) + "\n…[输出太长 total \(joined.count) 字符，已截断；完整输出: \(spillPath)]…\n" + String(joined.suffix(2000))
-        } else {
-            finalOut = joined
+            finalOut = String(finalOut.prefix(limit / 2)) + "\n…[输出太长 total \(joined.count) 字符，已截断；完整输出: \(spillPath)]…\n" + String(finalOut.suffix(limit / 2))
         }
         return [
             "command": command,
