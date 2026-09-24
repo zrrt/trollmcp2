@@ -580,7 +580,7 @@ final class ConversationStore: ObservableObject {
     /// v3.5.10：正在上屏的"工具启动即显示 running 步骤卡"的消息 id——
     /// 工具启动先 append 一张 isRunning=true 的占位卡（真实工具名+命令，机制保证每步可见，
     /// 不依赖模型解说），结果回来后在 handleDispatchResult 原地更新成完成/出错卡。
-    var pendingToolMsgID: String?
+    var pendingToolMsgID: UUID?
     /// v2.9.127：执行轨迹 (实时）——当前请求的 思考→工具调用→工具结果 步骤流，
     /// 请求结束时随最后一条 assistant 消息持久化 (message.trail）。
     @Published var liveTrail: [TrailStep] = []
