@@ -983,6 +983,11 @@ final class ConversationStore: ObservableObject {
                     // v3.1.70：整条请求链 (含工具递归）结束——解除活动会话绑定
                     self.activeConvId = nil
                 case .success(.toolCalls(let calls, let thinking)):
+                    // v3.5.2：系统级"一次一个工具"硬约束——模型一次批几个 toolCalls，
+                    // 都裁成第一个：assistant 消息与执行只带这一个，执行完回模型让它看到
+                    // 结果再决定下一步（一个接一个）。依赖调用必须等前一个结果才能决定下一步，
+                    // 合批执行会让模型猜结果(违规)；提示词不可靠，代码兜底强制一次一个。
+                    let calls = Array(calls.prefix(1))
                     // v3.1.72：思考(reasoning)与可见输出(content)分开存放——
                     // 旧逻辑把流式可见文本+思考合并成 thinkText 塞进 assistant.content，
                     // 又把同一 thinkText 塞进 tool 消息 thinking，导致 UI 上"回复内容"和
@@ -1140,6 +1145,8 @@ final class ConversationStore: ObservableObject {
                                   depth: Int,
                                   reasoningLevel: Int,
                                   thinkText: String = "") {
+        // 一次一个硬约束已在 .toolCalls 源头把批次裁成 prefix(1)，这里 calls.count==1，
+        // 执行完 index=1 >= calls.count 即回模型。
         if index >= calls.count {
             // v3.4.1：工具气泡已在 handleDispatchResult 逐条实时上屏（对齐 OpenMinis 逐步展示），
             // 不再攒批到最后统一追加 —— 边做边说更接近"直播"。
