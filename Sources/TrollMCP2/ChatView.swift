@@ -1517,14 +1517,26 @@ struct MessageBubble: View {
                             .lineLimit(2)
                             .layoutPriority(1)
                         // v3.5.7：工具状态徽章（对齐 shadcn React AI Tool）——机制级：由真实执行结果渲染，
-                        // 不是模型说的话。完成=✓绿 / 出错=✗红；running 态已由加载转圈+LiveTrail 实时步骤流覆盖。
-                        Text(message.isError ? "✗ 出错" : "✓ 完成")
-                            .font(.caption2.bold())
+                        // 不是模型说的话。v3.5.10：running 态显示"执行中…"转圈，完成=✓绿 / 出错=✗红。
+                        if message.isRunning {
+                            HStack(spacing: 4) {
+                                ProgressView().scaleEffect(0.7)
+                                Text("执行中…").font(.caption2.bold())
+                            }
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(message.isError ? Color.red.opacity(0.15) : Color.green.opacity(0.15))
-                            .foregroundColor(message.isError ? .red : .green)
+                            .background(Color.blue.opacity(0.15))
+                            .foregroundColor(.blue)
                             .cornerRadius(6)
+                        } else {
+                            Text(message.isError ? "✗ 出错" : "✓ 完成")
+                                .font(.caption2.bold())
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(message.isError ? Color.red.opacity(0.15) : Color.green.opacity(0.15))
+                                .foregroundColor(message.isError ? .red : .green)
+                                .cornerRadius(6)
+                        }
                         // v3.3.4：工具执行耗时（对齐 OpenMinis 步骤耗时样式）
                         if let dur = message.toolDuration {
                             Text(String(format: "%.1fs", dur))
@@ -1595,20 +1607,30 @@ struct MessageBubble: View {
     // ✅ 工具结果迷你气泡
     private var toolResultMiniBubble: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Button(action: { withAnimation { expanded.toggle() } }) {
+            Button(action: { withAnimation { if !message.isRunning { expanded.toggle() } } }) {
                 HStack(spacing: 6) {
-                    Image(systemName: message.isError ? "exclamationmark.circle" : "checkmark.circle")
-                        .font(.system(size: 14))
-                        .foregroundColor(message.isError ? .red : .green)
-                    Text(expanded ? "工具结果 ▴" : "工具结果 ▾")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(message.isError ? .red : .green)
+                    if message.isRunning {
+                        // v3.5.10：工具执行中——显示转圈+文字，不展示空的折叠结果
+                        ProgressView().scaleEffect(0.8)
+                        Text("工具执行中…")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.blue)
+                    } else {
+                        Image(systemName: message.isError ? "exclamationmark.circle" : "checkmark.circle")
+                            .font(.system(size: 14))
+                            .foregroundColor(message.isError ? .red : .green)
+                        Text(expanded ? "工具结果 ▴" : "工具结果 ▾")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(message.isError ? .red : .green)
+                    }
                     Spacer()
                 }
             }
             .buttonStyle(.plain)
-            if expanded {
+            // v3.5.10：执行中不展示结果区（content 为空）
+            if !message.isRunning && expanded {
                 Text(message.content)
                     .font(.system(.caption, design: .monospaced))
                     // v3.1.74：工具结果背景日/夜都改纯黑（用户要求），文字改白色保证黑底可读

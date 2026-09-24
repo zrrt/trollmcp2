@@ -525,6 +525,9 @@ struct ChatMessage: Codable, Identifiable, Hashable {
     /// v3.5.8：工具解说（模型写的"先解说后执行"正文）——Minis 式工具卡把它当步骤标题，
     /// 单独存在 tool 消息上，避免解说既出现在 assistant 气泡又出现在卡片里导致重复。
     var toolNarration: String? = nil
+    /// v3.5.10：工具是否仍在执行中——true 表示这是一张"启动即上屏"的 running 步骤卡，
+    /// 结果回来后置 false 并填内容。UI 据此在徽章处显示"执行中…/转圈"而非"✓完成/✗出错"。
+    var isRunning: Bool = false
 
     var isTool: Bool { role == "tool" }
 }
@@ -574,6 +577,10 @@ final class ConversationStore: ObservableObject {
     @Published var requestRounds = 60
     /// v2.9.34：正在执行的工具名 (展示"正在执行工具 xxx…"）
     @Published var runningTool: String?
+    /// v3.5.10：正在上屏的"工具启动即显示 running 步骤卡"的消息 id——
+    /// 工具启动先 append 一张 isRunning=true 的占位卡（真实工具名+命令，机制保证每步可见，
+    /// 不依赖模型解说），结果回来后在 handleDispatchResult 原地更新成完成/出错卡。
+    var pendingToolMsgID: String?
     /// v2.9.127：执行轨迹 (实时）——当前请求的 思考→工具调用→工具结果 步骤流，
     /// 请求结束时随最后一条 assistant 消息持久化 (message.trail）。
     @Published var liveTrail: [TrailStep] = []
@@ -1024,7 +1031,9 @@ final class ConversationStore: ObservableObject {
                     // 模型直接发 tool_calls 但本轮没写可见正文解说时，不执行工具，注入纠正消息
                     // 重跑一轮逼它先写"先解说后执行"的正文。这不是提示词，是机制：模型不解说就不放行。
                     let visibleTrim = visibleText.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if visibleTrim.isEmpty && self.narrationCorrectionCount < 2 {
+                    // v3.5.10：解说纠正上限 2→4（用户要求加强硬门槛"先解说后执行"）——
+                    // 模型不解说就不放行，给到 4 次机会逼它写正文；仍不写则由 running 步骤卡兜底可见性。
+                    if visibleTrim.isEmpty && self.narrationCorrectionCount < 4 {
                         self.narrationCorrectionCount += 1
                         self.pendingNarrationCorrection = "你准备调用工具，但还没有向用户说明要做什么。请先用一两句自然语言（写在回复正文 content 里，不要放进思考）向用户说明你正要做什么、为什么，然后再调用工具。"
                         // 清掉本轮只挂了思考、没写正文的孤立消息，避免"卡在思考中"的观感，再重跑
@@ -1266,6 +1275,18 @@ final class ConversationStore: ObservableObject {
         }
         // v2.9.34：展示"正在执行工具 xxx…"
         self.runningTool = call.name
+        // v3.5.10：工具启动即上屏一张 running 步骤卡（机制保证每步可见，不依赖模型解说）。
+        // 先把真实工具名+命令+解说(若有)做成 isRunning=true 的占位卡立即上屏；
+        // 结果回来后在 handleDispatchResult 原地更新成完成/出错卡（同一张，不新增第二条）。
+        do {
+            var runMsg = ChatMessage(role: "tool", content: "", toolCallId: call.id, toolName: call.name)
+            runMsg.toolArgs = Self.summarizeArgs(call.arguments)
+            let nar = thinkText.trimmingCharacters(in: .whitespacesAndNewlines)
+            runMsg.toolNarration = nar.isEmpty ? nil : thinkText
+            runMsg.isRunning = true
+            self.appendToCurrent(runMsg)
+            self.pendingToolMsgID = runMsg.id
+        }
         // v3.3.4：记录工具执行耗时（UI 气泡显示，对齐 OpenMinis 步骤耗时样式）
         let toolStart = CFAbsoluteTimeGetCurrent()
         // v2.9.127：轨迹——单工具开始执行 (参数序列化展示）
@@ -1321,8 +1342,8 @@ final class ConversationStore: ObservableObject {
             // v3.1.72：不再写 toolMsg.thinking——思考已在 assistant 消息的 thinking 字段显示一次，
             // 旧逻辑把同一文本又塞进 tool 消息导致"回复内容和思考内容一模一样" (用户实测反馈）
             next.append(toolMsg)
-            // v3.4.1：边做边说实时化——每完成一个工具立即上屏，不再攒批到最后统一显示
-            self.appendToCurrent(toolMsg)
+            // v3.5.10：原地更新"启动即上屏"的 running 步骤卡 → 完成卡（同一张，不再新增第二条）
+            self.resolvePendingTool(content: content, toolDuration: toolDuration, isError: false, narration: toolMsg.toolNarration)
             // v2.9.127：轨迹——工具执行OK (结果摘要 200 字符，完整结果在 tool 消息里）
             self.trailStep(.done(.result, call.name,
                                  detail: Self.trailSummary(rawContent),
@@ -1348,8 +1369,8 @@ final class ConversationStore: ObservableObject {
             // v3.3.4：耗时显示
             failMsg.toolDuration = toolDuration
             next.append(failMsg)
-            // v3.4.1：边做边说实时化——失败也立即上屏
-            self.appendToCurrent(failMsg)
+            // v3.5.10：原地更新 running 步骤卡 → 出错卡
+            self.resolvePendingTool(content: content, toolDuration: toolDuration, isError: true, narration: nil)
             // v2.9.127：轨迹——工具执行failed (四分类错误摘要）
             self.trailStep(.done(.result, call.name,
                                  detail: Self.trailSummary(Self.jsonString(failureBody)),
@@ -1390,8 +1411,8 @@ final class ConversationStore: ObservableObject {
                                     isError: true, toolCallId: call.id, toolName: call.name)
             // v3.1.72：不再写 errMsg.thinking (思考只在 assistant 消息显示一次，避免重复）
             next.append(errMsg)
-            // v3.4.1：边做边说实时化——错误也立即上屏
-            self.appendToCurrent(errMsg)
+            // v3.5.10：原地更新 running 步骤卡 → 出错卡
+            self.resolvePendingTool(content: Self.jsonString(errBody), toolDuration: toolDuration, isError: true, narration: nil)
             self.trailStep(.done(.result, call.name,
                                  detail: "❌ \(err.localizedDescription.prefix(200))",
                                  ok: false))
@@ -1399,6 +1420,23 @@ final class ConversationStore: ObservableObject {
                                   config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel,
                                   thinkText: thinkText)
         }
+    }
+
+    /// v3.5.10：工具结果回来后，原地更新"启动即上屏"的 running 步骤卡（同一张卡变完成/出错）。
+    private func resolvePendingTool(content: String, toolDuration: Double, isError: Bool, narration: String?) {
+        guard let mid = self.pendingToolMsgID, let ci = self.activeConvIndex,
+              let mi = self.conversations[ci].messages.firstIndex(where: { $0.id == mid }) else {
+            self.pendingToolMsgID = nil
+            return
+        }
+        self.conversations[ci].messages[mi].content = content
+        self.conversations[ci].messages[mi].toolDuration = toolDuration
+        self.conversations[ci].messages[mi].isError = isError
+        self.conversations[ci].messages[mi].isRunning = false
+        if let n = narration, !n.isEmpty {
+            self.conversations[ci].messages[mi].toolNarration = n
+        }
+        self.pendingToolMsgID = nil
     }
 
     /// v2.9.138：动态会话状态块——设备/App/工作区/当前会话，injected system 最前
