@@ -148,7 +148,7 @@ enum OffloadRouter {
         } else {
             lines.append("PARAMS: none (no parameters required)")
         }
-        if let prereq = def.prerequisites, !prereq.isEmpty {
+        if !def.prerequisites.isEmpty {
             lines.append("")
             lines.append("PREREQUISITES:")
             for p in prereq { lines.append("  - \(p)") }
