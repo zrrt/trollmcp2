@@ -40,11 +40,6 @@ struct ChatView: View {
     var body: some View {
         CompatNav {
             VStack(spacing: 0) {
-                // v3.4.2：顶部只保留模型名文字（🟢 deepseek v4 ▽），功能行移回底部聊天框上方
-                currentModelBar
-                    .padding(.horizontal, 14)
-                    .padding(.top, 6)
-                    .padding(.bottom, 2)
                 if modelStore.configs.isEmpty {
                     emptyState
                 } else if store.currentMessages.isEmpty {
@@ -62,6 +57,30 @@ struct ChatView: View {
             .navigationTitle(selectionMode ? "已选 \(selectedIds.count) 条" : store.currentTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // v3.4.3：标题 + 模型名（🟢 deepseek v4 ▽）与右侧图标放同一平行线（导航栏 principal）
+                ToolbarItem(placement: .principal) {
+                    HStack(spacing: 8) {
+                        Text(selectionMode ? "已选 \(selectedIds.count) 条" : store.currentTitle)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .lineLimit(1)
+                        Button(action: { showModelPicker = true }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "circle.fill")
+                                    .font(.system(size: 7))
+                                    .foregroundColor(.green)
+                                Text(modelStore.defaultConfig?.name ?? "未选择模型")
+                                    .font(.caption2)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.secondary)
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
                 ToolbarItem(placement: .navigationBarLeading) {
                     if selectionMode {
                         Button("取消") { exitSelection() }
@@ -598,30 +617,7 @@ struct ChatView: View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
-    private var currentModelBar: some View {
-        // v3.4.2：顶部模型去掉胶囊卡片，改为纯文字"🟢 模型名 ▽"，点击弹出模型选择 sheet
-        let currentCfg = modelStore.defaultConfig
-        return Button(action: { showModelPicker = true }) {
-            HStack(spacing: 6) {
-                Image(systemName: "circle.fill")
-                    .font(.system(size: 8))
-                    .foregroundColor(.green)
-                Text(currentCfg?.name ?? "未选择模型")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.primary)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.secondary)
-                Spacer(minLength: 0)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-
-    /// v3.4.2：AI 模式控制行（推理/思考/搜索/系统指令/技能/工作区），移回底部、聊天框上方，
-    /// 横向滑动模块（往左滑出更多）。
+    /// v3.4.3：模型名已移入导航栏 principal（与标题、右侧图标同一平行线），此处不再占用正文顶部
     private var chatModeBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 5) {
