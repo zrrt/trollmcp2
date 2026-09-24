@@ -151,7 +151,7 @@ enum OffloadRouter {
         if !def.prerequisites.isEmpty {
             lines.append("")
             lines.append("PREREQUISITES:")
-            for p in prereq { lines.append("  - \(p)") }
+            for p in def.prerequisites { lines.append("  - \(p)") }
         }
         return ["command": "ta help \(toolName)", "exit_code": 0, "tool": toolName,
                 "stdout": lines.joined(separator: "\n"),
