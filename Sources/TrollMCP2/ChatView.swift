@@ -21,6 +21,8 @@ struct ChatView: View {
     // UIKit 方案真机稳定。标记位 + sheet onDismiss 触发，保证面板完全关闭后再 present（不再猜时间延迟）。
     @State private var pendingFilePick = false
     @State private var showModelPicker = false  // v2.9.36：聊天框切换上游模型
+    // v3.3.4：输入框 + 号展开"应用/相册/文件/浏览器"快捷行（点 + 变 x 收起）
+    @State private var attachExpanded = false
 
     // v2.9.9：多模态图片（data URL）。选择相册图片后转 base64 暂存，发送时随消息传给模型
     @State private var pendingImages: [String] = []
@@ -38,6 +40,11 @@ struct ChatView: View {
     var body: some View {
         CompatNav {
             VStack(spacing: 0) {
+                // v3.3.4：模型选择器移到页面顶部（对齐 OpenMinis 顶部模型控制）
+                currentModelBar
+                    .padding(.horizontal, 12)
+                    .padding(.top, 4)
+                    .padding(.bottom, 2)
                 if modelStore.configs.isEmpty {
                     emptyState
                 } else if store.currentMessages.isEmpty {
@@ -450,18 +457,18 @@ struct ChatView: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 36, height: 36)
+                        .frame(width: 40, height: 40)
                     Image(systemName: icon)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(.white)
                 }
                 Text(title)
-                    .font(.subheadline)
+                    .font(.headline)
                     .fontWeight(.medium)
                     .foregroundColor(.primary)
                     .lineLimit(1)
                 Text(subtitle)
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundColor(.secondary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
@@ -638,14 +645,11 @@ struct ChatView: View {
             AttachmentPreviewStrip(attachments: pendingAttachments) { att in
                 withAnimation { pendingAttachments.removeAll { $0.id == att.id } }
             }
-            // v3.0.83：模型选择器居中 80% 宽
-            HStack {
-                Spacer()
-                currentModelBar
-                Spacer()
+            // v3.3.4：+ 展开的快捷行（应用 / 相册 / 文件 / 浏览器），点 + 变 x 时显示
+            if attachExpanded {
+                attachQuickRow
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            .padding(.horizontal, 36)
-            .padding(.top, 4)
 
             // v3.0.87：第二行 chips + 快捷标签，等宽填满整行
             HStack(spacing: 6) {
@@ -699,12 +703,17 @@ struct ChatView: View {
                 .background(Color(.secondarySystemBackground))
                 .cornerRadius(16)
 
-                Button(action: { attachmentSheet = .panel }) {
-                    Image(systemName: "plus")
+                // v3.3.4：+ 号 → 展开"应用/相册/文件/浏览器"快捷行；再点变 x 收起
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        attachExpanded.toggle()
+                    }
+                }) {
+                    Image(systemName: attachExpanded ? "xmark" : "plus")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(attachExpanded ? .white : .white)
                         .frame(width: 32, height: 32)
-                        .background(Color.blue)
+                        .background(attachExpanded ? Color.gray : Color.blue)
                         .clipShape(Circle())
                 }
                 // v2.9.35：+号 → 半屏"添加内容"面板（对齐老 MCP 设计），不再用 actionSheet
@@ -745,6 +754,55 @@ struct ChatView: View {
 
     private func reasoningLabel() -> String {
         ["低", "中", "高"][reasoning]
+    }
+
+    /// v3.3.4：+ 展开的快捷附件行（应用 / 相册 / 文件 / 浏览器），对齐微信式附件栏
+    private var attachQuickRow: some View {
+        HStack(spacing: 18) {
+            attachQuickButton("apps.iphone", "应用") {
+                withAnimation { attachExpanded = false }
+                attachmentSheet = .appPicker
+            }
+            attachQuickButton("photo.on.rectangle", "相册") {
+                withAnimation { attachExpanded = false }
+                attachmentSheet = .photoPicker
+            }
+            attachQuickButton("folder", "文件") {
+                withAnimation { attachExpanded = false }
+                // v3.3.4：快捷行直接弹 UIKit 文档选择器（无需半屏面板中转）
+                Self.presentDocumentPicker { urls in
+                    handlePickedFiles(urls)
+                }
+            }
+            attachQuickButton("globe", "浏览器") {
+                withAnimation { attachExpanded = false }
+                attachmentSheet = nil
+                FloatingBrowser.shared.show()
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 8)
+        .background(Color(.secondarySystemBackground).opacity(0.6))
+        .cornerRadius(14)
+        .padding(.horizontal, 12)
+    }
+
+    private func attachQuickButton(_ icon: String, _ label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 19, weight: .medium))
+                    .foregroundColor(.blue)
+                    .frame(width: 40, height: 40)
+                    .background(Color.blue.opacity(0.12))
+                    .clipShape(Circle())
+                Text(label)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 
     /// v2.9.93：按模型名识别供应商图标
@@ -1172,11 +1230,11 @@ struct QuickActionCard: View {
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
-                        .font(.body)
+                        .font(.headline)
                         .fontWeight(.medium)
                         .foregroundColor(.primary)
                     Text(subtitle)
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
                         .lineLimit(2)
                 }
@@ -1284,6 +1342,8 @@ struct MessageBubble: View {
                     .textSelection(.enabled)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
+                    // v3.3.4：AI 回复气泡从左拉伸到右（全宽）；用户气泡保持靠右自适应
+                    .frame(maxWidth: isUser ? nil : .infinity, alignment: .leading)
                     // v2.9.93：用户气泡改巨魔蓝渐变（浅青→蓝，品牌化），助手保持系统色
                     .background(
                         Group {
@@ -1312,9 +1372,9 @@ struct MessageBubble: View {
             Button(action: { withAnimation { toggleThinking() } }) {
                 HStack(spacing: 6) {
                     Image(systemName: thinkingExpanded ? "chevron.down.circle" : "chevron.right.circle")
-                        .font(.system(size: 13))
+                        .font(.system(size: 14))
                     Text(L10n.t("ui_59"))
-                        .font(.caption)
+                        .font(.subheadline)
                         .fontWeight(.medium)
                         .foregroundColor(.orange)
                     Spacer()
@@ -1382,12 +1442,12 @@ struct MessageBubble: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Image(systemName: "wrench.and.screwdriver")
-                            .font(.system(size: 12))
+                            .font(.system(size: 14))
                             .foregroundColor(.blue)
                         // 显示工具名 + 命令前 60 个字符，一眼就知道在干嘛
                         let displayArgs = (message.toolArgs ?? "").prefix(60)
                         Text("调用工具：\(message.toolName ?? "") \(displayArgs)")
-                            .font(.caption)
+                            .font(.subheadline)
                             .fontWeight(.medium)
                             .foregroundColor(.blue)
                         // v3.3.4：工具执行耗时（对齐 OpenMinis 步骤耗时样式）
@@ -1421,10 +1481,10 @@ struct MessageBubble: View {
             Button(action: { withAnimation { toggleThinking() } }) {
                 HStack(spacing: 6) {
                     Image(systemName: "brain.head.profile")
-                        .font(.system(size: 12))
+                        .font(.system(size: 14))
                         .foregroundColor(.orange)
                     Text(thinkingExpanded ? "思考过程 ▴" : "思考过程 ▾")
-                        .font(.caption)
+                        .font(.subheadline)
                         .fontWeight(.medium)
                         .foregroundColor(.orange)
                     Spacer()
@@ -1449,10 +1509,10 @@ struct MessageBubble: View {
             Button(action: { withAnimation { expanded.toggle() } }) {
                 HStack(spacing: 6) {
                     Image(systemName: message.isError ? "exclamationmark.circle" : "checkmark.circle")
-                        .font(.system(size: 12))
+                        .font(.system(size: 14))
                         .foregroundColor(message.isError ? .red : .green)
                     Text(expanded ? "工具结果 ▴" : "工具结果 ▾")
-                        .font(.caption)
+                        .font(.subheadline)
                         .fontWeight(.medium)
                         .foregroundColor(message.isError ? .red : .green)
                     Spacer()
