@@ -1391,7 +1391,9 @@ struct MessageBubble: View {
             }
             // v3.0.2: 去掉旧的 TrailCard，改用 toolBubble 显示工具调用
             // v3.0.2e：如果 content 是空的，就不显示气泡（避免空白气泡）
-            if !message.content.isEmpty {
+            // v3.5.8：工具轮的解说正文只在"直播流式"时显示（先解说后执行、边做边说）；
+            // 工具执行完成后解说收进工具卡当步骤标题（Minis 式），这里不再重复弹一段解说气泡。
+            if !message.content.isEmpty, (message.toolCalls == nil || isStreaming) {
                 // v3.4.5：打字机——流式中按 revealedCount 逐字显示；完成后显示全文
                 // v3.5.4：打字机——isStreaming 或 forceType 都按 revealedCount 逐字显示；
                 // 此前只有 isStreaming 才走前缀，forceType(内容在出现前已定好、isStreaming=false)走了全文分支，
@@ -1502,13 +1504,17 @@ struct MessageBubble: View {
                         // 工具调用胶囊（工具名 + 耗时 + 执行命令，边做边说可见；结果在下方展开）
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
-                        Image(systemName: "wrench.and.screwdriver")
+                        Image(systemName: "terminal.fill")
                             .font(.system(size: 13))
                             .foregroundColor(.blue)
-                        Text(message.toolName ?? "工具")
+                        // v3.5.8：Minis 式步骤标题——优先用解说（模型"先解说后执行"的正文）当标题，
+                        // 没解说才退回工具名。标题可换行（最多 2 行），像"运行系统命令演示"那样。
+                        Text(message.toolNarration ?? (message.toolName ?? "工具"))
                             .font(.subheadline)
                             .fontWeight(.medium)
                             .foregroundColor(.blue)
+                            .lineLimit(2)
+                            .layoutPriority(1)
                         // v3.5.7：工具状态徽章（对齐 shadcn React AI Tool）——机制级：由真实执行结果渲染，
                         // 不是模型说的话。完成=✓绿 / 出错=✗红；running 态已由加载转圈+LiveTrail 实时步骤流覆盖。
                         Text(message.isError ? "✗ 出错" : "✓ 完成")
@@ -1525,6 +1531,12 @@ struct MessageBubble: View {
                                 .foregroundColor(.secondary)
                         }
                         Spacer()
+                    }
+                    // v3.5.8：有解说当标题时，副标题补一行真实工具名（如 shell.exec），保持透明可核
+                    if message.toolNarration != nil, let tn = message.toolName, !tn.isEmpty {
+                        Text(tn)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
                     }
                     // v3.5.4：工具执行的命令/参数完整显示（5=A）——不再截 60 字符/单行，
                     // 用等宽可换行，让用户看清这步到底执行了什么命令。

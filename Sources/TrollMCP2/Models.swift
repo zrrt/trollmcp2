@@ -522,6 +522,9 @@ struct ChatMessage: Codable, Identifiable, Hashable {
     /// v2.9.127：执行轨迹 (对齐豆包工作任务/Codex turn 流）——AI 本次回复的
     /// 思考→工具调用→工具结果 全过程，随消息持久化，可展开回看。
     var trail: [TrailStep]? = nil
+    /// v3.5.8：工具解说（模型写的"先解说后执行"正文）——Minis 式工具卡把它当步骤标题，
+    /// 单独存在 tool 消息上，避免解说既出现在 assistant 气泡又出现在卡片里导致重复。
+    var toolNarration: String? = nil
 
     var isTool: Bool { role == "tool" }
 }
@@ -1313,6 +1316,8 @@ final class ConversationStore: ObservableObject {
             toolMsg.toolArgs = Self.summarizeArgs(call.arguments)
             // v3.3.4：耗时显示
             toolMsg.toolDuration = toolDuration
+            // v3.5.8：存解说（模型写的"先解说后执行"正文）到工具消息——Minis 式工具卡当步骤标题
+            toolMsg.toolNarration = thinkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : thinkText
             // v3.1.72：不再写 toolMsg.thinking——思考已在 assistant 消息的 thinking 字段显示一次，
             // 旧逻辑把同一文本又塞进 tool 消息导致"回复内容和思考内容一模一样" (用户实测反馈）
             next.append(toolMsg)
