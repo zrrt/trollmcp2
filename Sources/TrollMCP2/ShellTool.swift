@@ -1067,14 +1067,31 @@ final class ShellExecTool: MCPTool {
             resolvedPath = NSHomeDirectory() + "/Documents"
         }
         
-        // 检查目录是否存在
+        // 检查路径是否存在。v3.4.9：不再强制"必须是目录"——
+        // 之前 guard 目录，导致 `ls <单个文件>` 恒报 "No such file"（Bug A）
         var isDir: ObjCBool = false
-        guard fm.fileExists(atPath: resolvedPath, isDirectory: &isDir), isDir.boolValue else {
+        if !fm.fileExists(atPath: resolvedPath, isDirectory: &isDir) {
             return [
                 "command": command,
                 "exit_code": 1,
                 "stdout": "ls: cannot access '\(path)': No such file or directory",
                 "cwd": NSHomeDirectory() + "/Documents",
+                "ios_native": true,
+                "hint": "iOS native ls: direct access to iOS filesystem"
+            ]
+        }
+        // 单个文件：输出一行真实大小（v3.4.9，修复之前硬编码 4096）
+        if !isDir.boolValue {
+            var sz = 0
+            if let a = try? fm.attributesOfItem(atPath: resolvedPath) {
+                sz = (a[.size] as? NSNumber)?.intValue ?? 0
+            }
+            let line = "-rwxr-xr-x  1  mobile  mobile  \(String(format: "%8d", sz))  \((resolvedPath as NSString).lastPathComponent)"
+            return [
+                "command": command,
+                "exit_code": 0,
+                "stdout": line,
+                "cwd": (resolvedPath as NSString).deletingLastPathComponent,
                 "ios_native": true,
                 "hint": "iOS native ls: direct access to iOS filesystem"
             ]
@@ -1086,7 +1103,7 @@ final class ShellExecTool: MCPTool {
             let sorted = items.sorted()
             
             if showLong {
-                // 长格式输出 (简化版）
+                // 长格式输出 (真实文件大小）
                 var lines: [String] = []
                 lines.append("total \(items.count)")
                 for item in sorted {
@@ -1095,8 +1112,12 @@ final class ShellExecTool: MCPTool {
                     var itemIsDir: ObjCBool = false
                     fm.fileExists(atPath: fullPath, isDirectory: &itemIsDir)
                     let type = itemIsDir.boolValue ? "d" : "-"
-                    // 简化：只显示类型和名字
-                    lines.append("\(type)rwxr-xr-x  1  mobile  mobile  \(String(format: "%8d", 4096))  \(item)")
+                    // v3.4.9：真实文件大小（之前硬编码 4096，误导 AI 以为文件都空/小——Bug E）
+                    var sz = 0
+                    if let a = try? fm.attributesOfItem(atPath: fullPath) {
+                        sz = (a[.size] as? NSNumber)?.intValue ?? 0
+                    }
+                    lines.append("\(type)rwxr-xr-x  1  mobile  mobile  \(String(format: "%8d", sz))  \(item)")
                 }
                 return [
                     "command": command,
@@ -1156,7 +1177,26 @@ final class ShellExecTool: MCPTool {
         }
         
         do {
-            let content = try String(contentsOfFile: path, encoding: .utf8)
+            // v3.4.9：先按二进制读并检测——.db 等二进制文件不再抛"UTF-8 编码无法打开"，
+            // 而是明确引导 AI 用内置 sqlite3 去分析（Bug B）
+            let data = try Data(contentsOf: URL(fileURLWithPath: path))
+            let isText = data.isEmpty || data.firstIndex(of: 0) == nil
+            if !isText {
+                let lower = path.lowercased()
+                let hint: String
+                if lower.hasSuffix(".db") || lower.hasSuffix(".sqlite") || lower.hasSuffix(".sqlite3") {
+                    hint = "binary SQLite DB (\(data.count) bytes). Analyze it with the built-in native tool: sqlite3 <db_path> \"<SQL>\" — e.g. `sqlite3 \(path) \".tables\"`, `sqlite3 \(path) \"SELECT name FROM sqlite_master WHERE type='table'\"`, then query each table."
+                } else {
+                    hint = "binary file (\(data.count) bytes), not UTF-8 text. Use `sqlite3` for DB files, or hex inspect via `head -c 64 <file> | od -c` inside env:alpine; native cat reads text only."
+                }
+                return [
+                    "command": command,
+                    "exit_code": 1,
+                    "stdout": "cat: \(path): binary file (\(data.count) bytes), cannot decode as UTF-8 text.\n\(hint)",
+                    "ios_native": true
+                ]
+            }
+            let content = String(data: data, encoding: .utf8) ?? ""
             // 限制输出长度，防止太长 (v3.1.68：截断附精确 spill 路径，可 cat 全量）
             let truncated: String
             if content.count > 5000 {
@@ -1636,11 +1676,23 @@ final class ShellExecTool: MCPTool {
         
         let path = ShellExecTool.normalizePath((filePath as NSString).expandingTildeInPath)
         do {
-            let content = try String(contentsOfFile: path, encoding: .utf8)
-            let allLines = content.components(separatedBy: .newlines)
-            let end = min(lines, allLines.count)
-            let result = allLines[0..<end].joined(separator: "\n")
-            return ["command": command, "exit_code": 0, "stdout": result, "ios_native": true]
+            // v3.4.9：二进制安全——文本走逐行，二进制输出前 N 字节十六进制（可看 SQLite 头），不再报错
+            let data = try Data(contentsOf: URL(fileURLWithPath: path))
+            let isText = data.isEmpty || data.firstIndex(of: 0) == nil
+            if isText, let s = String(data: data, encoding: .utf8) {
+                let allLines = s.components(separatedBy: .newlines)
+                let end = min(lines, allLines.count)
+                let result = allLines[0..<end].joined(separator: "\n")
+                return ["command": command, "exit_code": 0, "stdout": result, "ios_native": true]
+            } else {
+                let n = min(lines * 16, data.count)
+                let hex = data[0..<n].map { String(format: "%02x", $0) }.joined(separator: " ")
+                return [
+                    "command": command, "exit_code": 0,
+                    "stdout": "binary (\(data.count) bytes); first \(n) bytes hex:\n\(hex)\nFor SQLite .db use the built-in native tool: sqlite3 <db_path> \"<SQL>\" (e.g. `sqlite3 \(path) \".tables\"`).",
+                    "ios_native": true
+                ]
+            }
         } catch {
             return ["command": command, "exit_code": 1, "stdout": "head failed: \(error.localizedDescription)", "ios_native": true]
         }
@@ -1739,18 +1791,27 @@ final class ShellExecTool: MCPTool {
         
         let filePath = ShellExecTool.normalizePath((parts[parts.count - 1] as NSString).expandingTildeInPath)
         do {
-            let content = try String(contentsOfFile: filePath, encoding: .utf8)
-            let lines = content.components(separatedBy: .newlines).count
-            let words = content.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.count
-            let chars = content.count
-            
-            return [
-                "command": command,
-                "exit_code": 0,
-                "stdout": "\(lines) \(words) \(chars) \(filePath)",
-                "ios_native": true,
-                "hint": "format: lines words chars"
-            ]
+            // v3.4.9：按二进制读；二进制文件至少能统计真实字节数（之前 String 读取对 .db 直接报错）
+            let data = try Data(contentsOf: URL(fileURLWithPath: filePath))
+            if data.isEmpty || data.firstIndex(of: 0) == nil, let s = String(data: data, encoding: .utf8) {
+                let lines = s.components(separatedBy: .newlines).count
+                let words = s.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.count
+                return [
+                    "command": command,
+                    "exit_code": 0,
+                    "stdout": "\(lines) \(words) \(s.count) \(filePath)",
+                    "ios_native": true,
+                    "hint": "format: lines words chars"
+                ]
+            } else {
+                return [
+                    "command": command,
+                    "exit_code": 0,
+                    "stdout": "binary: \(data.count) bytes \(filePath)",
+                    "ios_native": true,
+                    "hint": "binary file, byte count only; for SQLite .db use `sqlite3 <path> \"<SQL>\"`"
+                ]
+            }
         } catch {
             return ["command": command, "exit_code": 1, "stdout": "wc failed: \(error.localizedDescription)", "ios_native": true]
         }

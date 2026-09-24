@@ -588,6 +588,10 @@ final class ConversationStore: ObservableObject {
     /// v2.9.53：当前流式输出的消息 ID (逐字显示时跟踪，done后更新或清理）
     /// v3.4.5：改为 internal（ChatView 用它标记打字机效果的消息）
     var streamingMessageId: UUID?
+    /// v3.4.9：本轮刚"生成完成"的 assistant 消息 ID（工具解说/整段到达的回复）。
+    /// ChatView 用它给这些消息开打字机——它们 isStreaming=false 且内容在出现前已定好，
+    /// 只能靠"本轮刚产出"这一信号触发逐字显示。请求整体结束后清空。
+    var liveProducedID: UUID?
     /// v3.1.70：活动请求绑定的会话 ID——请求由哪个会话发起就写回哪个会话。
     /// 修复"请求进行中切换会话，AI 输出错位/写错会话" (用户实测：老会话未暂停，切换新会话后输出仍乱）。
     private var activeConvId: UUID?
@@ -707,6 +711,8 @@ final class ConversationStore: ObservableObject {
         cancelNetworkRetry()
         // v3.1.70：请求绑定到发起时的会话——中途切换会话，输出仍写回该会话 (修复输出错位）
         activeConvId = selectedId
+        // v3.4.9：新请求开始，清掉上一轮的"刚产出"标记（避免旧消息被重新打字）
+        liveProducedID = nil
         var msg = ChatMessage(role: "user", content: text)
         if let imgs = imageDataURLs, !imgs.isEmpty {
             msg.imageDataURLs = imgs
@@ -906,6 +912,7 @@ final class ConversationStore: ObservableObject {
                     // 第一次 delta：创建流式消息
                     let msg = ChatMessage(role: "assistant", content: delta)
                     self.streamingMessageId = msg.id
+                    self.liveProducedID = msg.id
                     self.appendToCurrent(msg)
                 }
             }
@@ -955,6 +962,7 @@ final class ConversationStore: ObservableObject {
                         var am = ChatMessage(role: "assistant", content: text)
                         if let th = thinking, !th.isEmpty { am.thinking = th }
                         self.appendToCurrent(am)
+                        self.liveProducedID = am.id
                         self.attachTrail(to: am.id, thinking: thinking)
                     }
                     // v3.1.70：整条请求链 (含工具递归）结束——解除活动会话绑定
@@ -999,6 +1007,7 @@ final class ConversationStore: ObservableObject {
                         var am = ChatMessage(role: "assistant", content: visibleText, toolCalls: calls)
                         if !reasoningText.isEmpty { am.thinking = reasoningText }
                         self.appendToCurrent(am)
+                        self.liveProducedID = am.id
                     }
                     self.thinkBuffer = "" // 重置缓冲区
                     self.streamingMessageId = nil
@@ -1016,6 +1025,7 @@ final class ConversationStore: ObservableObject {
                     self.requestRound = 0
                     self.runningTool = nil
                     self.thinkBuffer = "" // 重置缓冲区
+                    self.liveProducedID = nil
                     // v2.9.13：用户主动取消 (-999）不追加错误气泡
                     let nsErr = error as NSError
                     if nsErr.code == -999 {

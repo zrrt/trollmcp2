@@ -526,7 +526,8 @@ struct ChatView: View {
                             onToggleSelect: { toggleSelect(msg.id) },
                             onCopy: { copyMessage(msg) },
                             onShare: { shareMessage(msg) },
-                            isStreaming: store.streamingMessageId == msg.id
+                            isStreaming: store.streamingMessageId == msg.id,
+                            forceType: store.liveProducedID == msg.id
                         )
                         .id(msg.id)
                     }
@@ -1266,6 +1267,9 @@ struct MessageBubble: View {
     var onShare: (() -> Void)? = nil
     // v3.4.5：当前正在流式生成的 AI 消息 → 打字机逐字显示
     var isStreaming: Bool = false
+    // v3.4.9：本轮刚生成完成的消息（工具解说/整段到达的回复）也要逐字打出——
+    // 这些消息 isStreaming=false 且内容在出现前已定好，靠 onAppear 强制启动打字机
+    var forceType: Bool = false
 
     @State private var expanded = false
     @State private var expandedToolIds: Set<String> = []
@@ -1342,7 +1346,7 @@ struct MessageBubble: View {
         }
         // v3.4.5：打字机效果——内容增长即逐字显示，直到完整
         .onAppear {
-            if isStreaming, revealedCount < message.content.count { startTypeTimer() }
+            if (isStreaming || forceType), revealedCount < message.content.count { startTypeTimer() }
         }
         .onDisappear { stopTypeTimer() }
         .onChange(of: isStreaming) { streaming in
