@@ -886,7 +886,8 @@ struct ChatView: View {
         let attImgs = pendingAttachments.compactMap { $0.dataURL }
         pendingAttachments = []
         let finalImgs = attImgs.isEmpty ? imagesToSend : attImgs
-        store.send(text, using: cfg, imageDataURLs: finalImgs, reasoningLevel: reasoning, smartSearch: smartSearch)
+        // v3.4.1：思考总开关接入主发送路径（此前漏传，思考·开/关在输入框无效）
+        store.send(text, using: cfg, imageDataURLs: finalImgs, reasoningLevel: thinkEnabled ? reasoning : 3, smartSearch: smartSearch)
         AuditLog.shared.log("chat", detail: "发送消息")
     }
 

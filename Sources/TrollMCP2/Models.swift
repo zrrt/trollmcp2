@@ -968,11 +968,21 @@ final class ConversationStore: ObservableObject {
                     if let th = thinking, !th.isEmpty {
                         reasoningText = reasoningText.isEmpty ? th : "\(reasoningText)\n\(th)"
                     }
+                    // v3.4.1：边做边说兜底——模型（尤其推理模型/中转）常不发可见解说文本就把 tool_calls 抛出来，
+                    // 导致"边做边说"看不到。对齐 OpenMinis 的做法：App 层按工具名合成一句可见解说，
+                    // 保证每次执行前用户都看得到这步在干嘛，不依赖模型是否主动发文本。
+                    if visibleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !calls.isEmpty {
+                        let names = calls.map { $0.name }.joined(separator: "、")
+                        visibleText = "▶ 开始执行：\(names)"
+                    }
                     if let sid = self.streamingMessageId,
                        let ci = self.activeConvIndex,
                        let mi = self.conversations[ci].messages.firstIndex(where: { $0.id == sid }) {
                         // 保留流式可见文本作为回复内容，思考进 thinking 字段，toolCalls 挂上 (不删除重建）
-                        visibleText = self.conversations[ci].messages[mi].content
+                        // 若流式消息内容为空且已合成解说 → 写入合成解说
+                        if self.conversations[ci].messages[mi].content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            self.conversations[ci].messages[mi].content = visibleText
+                        }
                         self.conversations[ci].messages[mi].toolCalls = calls
                         if !reasoningText.isEmpty {
                             self.conversations[ci].messages[mi].thinking = reasoningText
@@ -1075,7 +1085,8 @@ final class ConversationStore: ObservableObject {
                                   reasoningLevel: Int,
                                   thinkText: String = "") {
         if index >= calls.count {
-            for tm in toolMessages { self.appendToCurrent(tm) }
+            // v3.4.1：工具气泡已在 handleDispatchResult 逐条实时上屏（对齐 OpenMinis 逐步展示），
+            // 不再攒批到最后统一追加 —— 边做边说更接近"直播"。
             let merged = Array(Set(disclosed + newlyDisclosed))
             self.runLoop(config: config, tools: tools, disclosed: merged, depth: depth + 1, reasoningLevel: reasoningLevel)
             return
@@ -1137,6 +1148,8 @@ final class ConversationStore: ObservableObject {
             // v3.1.72：不再写 toolMsg.thinking——思考已在 assistant 消息的 thinking 字段显示一次，
             // 旧逻辑把同一文本又塞进 tool 消息导致"回复内容和思考内容一模一样" (用户实测反馈）
             next.append(toolMsg)
+            // v3.4.1：边做边说实时化——每完成一个工具立即上屏，不再攒批到最后统一显示
+            self.appendToCurrent(toolMsg)
             // v2.9.127：轨迹——工具执行OK (结果摘要 200 字符，完整结果在 tool 消息里）
             self.trailStep(.done(.result, call.name,
                                  detail: Self.trailSummary(rawContent),
@@ -1162,6 +1175,8 @@ final class ConversationStore: ObservableObject {
             // v3.3.4：耗时显示
             failMsg.toolDuration = toolDuration
             next.append(failMsg)
+            // v3.4.1：边做边说实时化——失败也立即上屏
+            self.appendToCurrent(failMsg)
             // v2.9.127：轨迹——工具执行failed (四分类错误摘要）
             self.trailStep(.done(.result, call.name,
                                  detail: Self.trailSummary(Self.jsonString(failureBody)),
@@ -1202,6 +1217,8 @@ final class ConversationStore: ObservableObject {
                                     isError: true, toolCallId: call.id, toolName: call.name)
             // v3.1.72：不再写 errMsg.thinking (思考只在 assistant 消息显示一次，避免重复）
             next.append(errMsg)
+            // v3.4.1：边做边说实时化——错误也立即上屏
+            self.appendToCurrent(errMsg)
             self.trailStep(.done(.result, call.name,
                                  detail: "❌ \(err.localizedDescription.prefix(200))",
                                  ok: false))
