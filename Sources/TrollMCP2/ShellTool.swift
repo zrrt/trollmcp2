@@ -130,6 +130,11 @@ final class ShellExecTool: MCPTool {
         // v3.1.68: env 显式选择参数——AI 可传 env:"alpine" 强制走 Alpine (不猜路由），
         // env:"ios" 或省略则按默认路由 (iOS 原生优先）。修复"env 参数不生效" (E items）。
         if let envFlag = params["env"] as? String, envFlag.lowercased() == "alpine" {
+            // v3.3.4: ta (Native Offload）是宿主能力，与 Alpine 沙盒无关——
+            // 即使显式 env:alpine，ta 也走宿主路由，杜绝"环境漂移"。
+            if trimmed == "ta" || trimmed.hasPrefix("ta ") {
+                return OffloadRouter.run(trimmed)
+            }
             let (output, exitCode, timedOut) = ISHEngine.exec(trimmed, timeout: timeout)
             var stdout = ShellExecTool.filterNoise(output)
             if outLimit > 0 && stdout.count > outLimit {
@@ -586,7 +591,8 @@ final class ShellExecTool: MCPTool {
         "tail", "head", "sed", "pwd", "cd", "touch", "wc", "md5sum",
         "sha256sum", "diff", "hexdump", "curl", "wget", "plutil", "sqlite3",
         "unzip", "df", "free", "uname", "uptime", "hostname", "ps", "top",
-        "kill", "ifconfig", "netstat", "nslookup", "tar", "gzip", "gunzip"
+        "kill", "ifconfig", "netstat", "nslookup", "tar", "gzip", "gunzip",
+        "ta"
     ]
     
     /// 执行单段 iOS 原生命令 (首段），返回 [String: Any]
@@ -630,6 +636,7 @@ final class ShellExecTool: MCPTool {
         case "nslookup": return runIOSNslookup(trimmed)
         case "tar": return runIOStar(trimmed)
         case "gzip", "gunzip": return runIOSGzip(trimmed)
+        case "ta": return OffloadRouter.run(trimmed)
         default:
             return [
                 "command": segment,
