@@ -1748,8 +1748,10 @@ final class SystemPrompts {
         let base = SystemPrompts.builtin.first { $0.id == selectedId } ?? SystemPrompts.builtin[0]
         // v3.3.4：非默认模式前置共享核心规则（含"边做边说"），保证所有模式行为一致
         if base.id != "default", !base.content.contains("SHARED CORE RULES"), !base.content.contains("COLLABORATION GUIDELINES") {
-            var merged = base
-            merged.content = SystemPrompts.sharedCoreRules + "\n\n" + base.content
+            // Prompt.content 是 let，不能改原实例——用构造器新建拼接后的 Prompt
+            let merged = Prompt(id: base.id, name: base.name, desc: base.desc,
+                                content: SystemPrompts.sharedCoreRules + "\n\n" + base.content,
+                                extraCoreTools: base.extraCoreTools)
             return merged
         }
         return base
