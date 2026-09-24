@@ -1240,6 +1240,21 @@ final class ConversationStore: ObservableObject {
                 self.paramCorrectionCount += 1
                 self.pendingParamCorrection = "你要调用的工具 \(call.name) 缺少必填参数: \(missing.joined(separator: "、"))。请补齐这些参数后再调用该工具，不要用同样方式反复重试同一个缺参调用。"
                 self.trailStep(.done(.note, "工具参数缺失被拦", detail: "\(call.name) 缺: \(missing.joined(separator: "、"))", ok: false))
+                // v3.5.6 审计修正：纠正重跑前，必须先清掉刚挂上但未执行的 toolCalls——
+                // 否则会话里留下"assistant 带 toolCalls 却无 tool 结果"的非法历史序列，
+                // OpenAI/Anthropic 会拒绝（tool_call 必须紧跟 tool message），纠正重跑会失败。
+                if let ci = self.activeConvIndex {
+                    let msgs = self.conversations[ci].messages
+                    if let mi = msgs.lastIndex(where: { ($0.toolCalls ?? []).contains(where: { $0.id == call.id }) }) {
+                        if self.conversations[ci].messages[mi].content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            // 只挂了思考没正文 → 整条移除，避免"孤立思考块"观感
+                            self.conversations[ci].messages.remove(at: mi)
+                        } else {
+                            // 已写了正文解说 → 保留正文，仅剥离未执行的 toolCalls
+                            self.conversations[ci].messages[mi].toolCalls = nil
+                        }
+                    }
+                }
                 // 不执行工具，回模型补齐参数（depth+1 防死循环；paramCorrectionCount 上限 2）
                 self.runLoop(config: config, tools: tools, disclosed: disclosed, depth: depth + 1, reasoningLevel: reasoningLevel)
                 return
