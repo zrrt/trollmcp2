@@ -284,7 +284,7 @@ final class PackageTool: MCPTool {
             var out = Data()
             let chunk = 64 * 1024
             var dst = [UInt8](repeating: 0, count: chunk)
-            var stream = compression_stream()
+            var stream = compression_stream(dst_ptr: nil, dst_size: 0, src_ptr: nil, src_size: 0, state: 0)
             let ok = compression_stream_init(&stream, COMPRESSION_STREAM_DECODE, COMPRESSION_LZMA)
             guard ok == COMPRESSION_STATUS_OK else { return nil }
             defer { compression_stream_destroy(&stream) }
@@ -318,7 +318,7 @@ final class PackageTool: MCPTool {
             var out = Data()
             let chunk = 64 * 1024
             var dst = [UInt8](repeating: 0, count: chunk)
-            var stream = compression_stream()
+            var stream = compression_stream(dst_ptr: nil, dst_size: 0, src_ptr: nil, src_size: 0, state: 0)
             let ok = compression_stream_init(&stream, COMPRESSION_STREAM_DECODE, COMPRESSION_LZMA)
             guard ok == COMPRESSION_STATUS_OK else { return nil }
             defer { compression_stream_destroy(&stream) }
@@ -405,3 +405,4 @@ final class PackageTool: MCPTool {
         }
         return count
     }
+}
