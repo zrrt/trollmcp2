@@ -1509,6 +1509,15 @@ struct MessageBubble: View {
                             .font(.subheadline)
                             .fontWeight(.medium)
                             .foregroundColor(.blue)
+                        // v3.5.7：工具状态徽章（对齐 shadcn React AI Tool）——机制级：由真实执行结果渲染，
+                        // 不是模型说的话。完成=✓绿 / 出错=✗红；running 态已由加载转圈+LiveTrail 实时步骤流覆盖。
+                        Text(message.isError ? "✗ 出错" : "✓ 完成")
+                            .font(.caption2.bold())
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(message.isError ? Color.red.opacity(0.15) : Color.green.opacity(0.15))
+                            .foregroundColor(message.isError ? .red : .green)
+                            .cornerRadius(6)
                         // v3.3.4：工具执行耗时（对齐 OpenMinis 步骤耗时样式）
                         if let dur = message.toolDuration {
                             Text(String(format: "%.1fs", dur))
