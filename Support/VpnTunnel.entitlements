@@ -10,6 +10,10 @@
 	<array>
 		<string>packet-tunnel-provider</string>
 	</array>
+	<!-- v3.5.2: Personal VPN 授权（与主 App 同步）——无此 entitlement 则 tunnel 无法随
+	     Personal VPN 启动，卡 .connecting。 -->
+	<key>com.apple.developer.networking.vpn.api.personal-vpn</key>
+	<true/>
 	<key>com.apple.private.security.no-sandbox</key>
 	<true/>
 	<key>com.apple.private.security.no-container</key>

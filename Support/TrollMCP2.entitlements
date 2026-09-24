@@ -225,5 +225,10 @@
 	<array>
 		<string>packet-tunnel-provider</string>
 	</array>
+	<!-- v3.5.2: Personal VPN 授权——NEVPNManager/NETunnelProviderManager 启动 packet-tunnel
+	     Personal VPN 必须要有此 entitlement，否则系统不弹"允许添加VPN配置"弹窗、tunnel 卡在
+	     .connecting(表现为设置里有VPN但开不了)。 -->
+	<key>com.apple.developer.networking.vpn.api.personal-vpn</key>
+	<true/>
 </dict>
 </plist>
