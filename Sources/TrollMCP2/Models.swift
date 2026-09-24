@@ -920,11 +920,23 @@ final class ConversationStore: ObservableObject {
             // v2.9.127：实时思考流式——逐段追加到轨迹的"正在思考"步骤
             DispatchQueue.main.async {
                 self.appendThinking(delta)
-                // v3.0.3：同时保存到 thinkBuffer，供 toolCalls 时传到 tool 消息
+                // v3.0.3：同时保存到 thinkBuffer，供 toolCalls 时装配用
                 self.thinkBuffer += delta
-                // v3.5.4：去掉 v3.5.1 的"reasoning 自动打进正文"——那会让思考内容混进主气泡、
-                // 黄色思考气泡反而为空 (用户实测反馈)。思考只进轨迹 + thinkBuffer，
-                // 最终由装配阶段写入 message.thinking(黄色气泡)；正文只放模型真正输出的文本。
+                // v3.5.4：思考实时写入流式消息的 thinking(黄色气泡)，随模型思考逐段填充、不打字机。
+                // 若无流式消息(思考先于正文到达)，先建一条空 assistant 消息，把思考挂上去。
+                if let sid = self.streamingMessageId {
+                    if let ci = self.activeConvIndex,
+                       let mi = self.conversations[ci].messages.firstIndex(where: { $0.id == sid }) {
+                        let existing = self.conversations[ci].messages[mi].thinking ?? ""
+                        self.conversations[ci].messages[mi].thinking = existing + delta
+                    }
+                } else {
+                    let msg = ChatMessage(role: "assistant", content: "")
+                    msg.thinking = delta
+                    self.streamingMessageId = msg.id
+                    self.liveProducedID = msg.id
+                    self.appendToCurrent(msg)
+                }
             }
         }) { result in
             DispatchQueue.main.async {
@@ -1014,6 +1026,9 @@ final class ConversationStore: ObservableObject {
                         let rTrim = reasoningText.trimmingCharacters(in: .whitespacesAndNewlines)
                         if !rTrim.isEmpty, !(cText == rTrim || rTrim.contains(cText) || cText.contains(rTrim)) {
                             self.conversations[ci].messages[mi].thinking = reasoningText
+                        } else if !rTrim.isEmpty {
+                            // 思考与正文重复(中转把完整回答写进 reasoning_content) → 清掉黄泡，避免重复展示
+                            self.conversations[ci].messages[mi].thinking = nil
                         }
                     } else {
                         // 无流式消息 (流式未开始就被 toolCalls 打断）：新建 assistant 消息

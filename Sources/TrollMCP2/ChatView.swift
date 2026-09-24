@@ -1281,15 +1281,26 @@ struct MessageBubble: View {
     @State private var revealedCount = 0
     @State private var typeTimer: Timer?
 
+    // v3.5.4：自适应打字机（业界：平时 ~50 字/秒舒适，积压多自动提速追平网络，标点/换行稍停顿更自然）。
+    // 不像固定 133 字/秒那样一快到底；也不像 25 字/秒那样拖沓。
     private func startTypeTimer() {
         guard typeTimer == nil else { return }
-        typeTimer = Timer.scheduledTimer(withTimeInterval: 0.015, repeats: true) { _ in
+        typeTimer = Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
             DispatchQueue.main.async {
-                if self.revealedCount < self.message.content.count {
-                    self.revealedCount = min(self.message.content.count, self.revealedCount + 2)
-                } else {
-                    self.stopTypeTimer()
-                }
+                guard self.revealedCount < self.message.content.count else { self.stopTypeTimer(); return }
+                let total = self.message.content.count
+                let backlog = total - self.revealedCount
+                let idx = self.message.content.index(self.message.content.startIndex, offsetBy: self.revealedCount)
+                let ch = self.message.content[idx]
+                let isPause = ch == "\n" || "，。；：！？、,.。;:!?… ".contains(ch)
+                let step: Int
+                if backlog > 60 { step = 8 }        // 积压很多 → 大幅提速追平
+                else if backlog > 30 { step = 4 }   // 积压多 → 提速
+                else if backlog > 12 { step = 2 }   // 稍积压 → 中速
+                else if isPause { step = 1 }        // 标点/换行 → 慢速停顿(真人感)
+                else { step = 1 }                    // 常规 ~50 字/秒(0.02s/字)
+                self.revealedCount = min(total, self.revealedCount + step)
             }
         }
     }
@@ -1297,8 +1308,10 @@ struct MessageBubble: View {
         typeTimer?.invalidate()
         typeTimer = nil
     }
+    // v3.5.4：思考黄泡——思考进行中(isStreaming)自动展开让用户看到模型在动；
+    // 思考结束自动收起(除非用户手动展开)。业界(掘金/Koder/DeepSeek Harness)一致做法。
     private var thinkingExpanded: Bool {
-        expandedToolIds.contains(message.id.uuidString)
+        isStreaming ? true : expandedToolIds.contains(message.id.uuidString)
     }
     private func toggleThinking() {
         let id = message.id.uuidString
@@ -1420,7 +1433,8 @@ struct MessageBubble: View {
                 HStack(spacing: 6) {
                     Image(systemName: thinkingExpanded ? "chevron.down.circle" : "chevron.right.circle")
                         .font(.system(size: 14))
-                    Text(L10n.t("ui_59"))
+                    // v3.5.4：思考中→"思考中…"；思考完→"已深度思考 N 字"(业界一致)
+                    Text(isStreaming ? "思考中…" : "已深度思考 \(text.count) 字")
                         .font(.subheadline)
                         .fontWeight(.medium)
                         .foregroundColor(.orange)
@@ -1536,7 +1550,7 @@ struct MessageBubble: View {
                     Image(systemName: "brain.head.profile")
                         .font(.system(size: 14))
                         .foregroundColor(.orange)
-                    Text(thinkingExpanded ? "思考过程 ▴" : "思考过程 ▾")
+                    Text(isStreaming ? "思考中…" : "已深度思考 \(text.count) 字")
                         .font(.subheadline)
                         .fontWeight(.medium)
                         .foregroundColor(.orange)
