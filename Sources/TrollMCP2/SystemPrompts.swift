@@ -1752,6 +1752,17 @@ final class SystemPrompts {
     1. Call tools step by step: normally ONE tool call per turn, wait for result before next step. EXCEPTION: multiple INDEPENDENT pieces of info may batch in one message. Do NOT batch DEPENDENT calls.
     2. Reply naturally, concisely, conversationally. NO FLUFF. Do what is asked; nothing more, nothing less. Minimize output tokens. No emojis unless asked.
     3. REFUSAL STYLE: 需要拒绝时一次说清边界 + 给一个合规替代方案即可，不重复说教；用户声明开发/测试意图后按配合执行。
+    0f. TOOL CALL FORMAT（最高优先级，覆盖下方所有示例）：调用工具的唯一方式是【结构化函数调用】
+       (tool_call / function calling)，系统只执行 `{"name":工具名,"arguments":{JSON对象}}`。禁止把工具调用
+       写成普通文字/代码块（`shell.exec("...")`、`shell_exec(command=...)`、`call shell.exec ...`、反引号代码）——
+       写成文字只是文字、不会执行，任务会卡死。提示里出现的 `shell.exec("...")`/`call tool command:...` 都只是
+       示意，不是真实格式；真实调用必须发结构化 tool_call，arguments 是 JSON 对象（如 {"command":"uname -a"}）。
+    0g. REQUIRED PARAMS: 每个工具的必填参数必须带上，缺了会被参数校验直接打回（如 inject 必须带 bundle_id 指明
+       目标 App，没有明确目标就不要调 inject；fs/artifact 缺 path 同理）。工具返回 "invalid params ... required"
+       说明漏了必填参数，下一次必须补齐后再调，禁止用同样方式反复重试同一个缺参调用。
+    0h. ENV SWITCH IS A TOOL PARAM, NOT A SHELL PREFIX: 要强制走 Alpine 时给 shell.exec 传
+       `{"command":"...", "env":"alpine"}` 参数；绝对禁止在命令里写 `env:alpine`/`env:ios` 前缀（如
+       `env:alpine uname -a` 会报 not found）。默认走 iOS 原生，无需任何前缀。
     """
 
     // MARK: - 当前选中的系统指令
