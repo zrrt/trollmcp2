@@ -1271,7 +1271,8 @@ struct MessageBubble: View {
     // 这些消息 isStreaming=false 且内容在出现前已定好，靠 onAppear 强制启动打字机
     var forceType: Bool = false
 
-    @State private var expanded = false
+    // v3.5.4：工具结果默认展开可见（5=A：完整展示 工具名+命令+结果）；长结果可点"工具结果 ▴"折叠
+    @State private var expanded = true
     @State private var expandedToolIds: Set<String> = []
     // v3.4.5：打字机效果——已显示字符数 + 定时器（显示与网络解耦，逐字稳定刷出）
     // v3.4.7：降速到 25 字/秒(0.04s/字)让打字感清晰可见；且不依赖 isStreaming——
@@ -1502,13 +1503,13 @@ struct MessageBubble: View {
                         }
                         Spacer()
                     }
-                    // v3.4.4：工具执行的命令/参数摘要可见——用户要看清楚这步在干嘛
+                    // v3.5.4：工具执行的命令/参数完整显示（5=A）——不再截 60 字符/单行，
+                    // 用等宽可换行，让用户看清这步到底执行了什么命令。
                     if let args = message.toolArgs, !args.isEmpty {
-                        Text(String(args.prefix(60)))
-                            .font(.caption2)
+                        Text(args)
+                            .font(.system(.caption2, design: .monospaced))
                             .foregroundColor(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
+                            .textSelection(.enabled)
                     }
                 }
                 .padding(.horizontal, 10)
