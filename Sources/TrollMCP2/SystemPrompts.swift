@@ -24,6 +24,18 @@ final class SystemPrompts {
             name: "默认模式",
             desc: "Balanced mode for daily use. Step-by-step tool calling, concise natural replies.",
             content: """
+            === 工具调用方式（最高优先级，必须严格遵守）===
+            - 调用工具的唯一方式是发出【结构化函数调用】(function calling / tool_call)：
+              系统收到的是 `{"name": 工具名, "arguments": {JSON对象}}` 这种结构化字段，只有这种才会被执行。
+            - 绝对禁止把工具调用写成【普通文字/代码块】：`shell.exec("...")`、`shell_exec(command=...)`、
+              `call shell.exec ...`、反引号 ``` 代码等，写出来只是文字，系统不会执行，任务会卡死。
+            - 本提示里出现的 `shell.exec("...")` / `call tool command:...` 都只是【示意说明】，
+              不是真正的调用格式；真正调用时必须用结构化 tool_call，arguments 是 JSON 对象，例如：
+              `{"command": "cat /path/file"}` 或 `{"command": "df"}`, `{"command": "uname -a"}`。
+            - 要查询系统信息/执行命令：发一个结构化 tool_call(name=shell.exec, arguments={"command":"..."}），
+              一次只发一个，等结果回来再决定下一步。
+            - 若你不确定能否调用，就先发结构化 tool_call；绝不要靠写文字假装调用。
+            
             === ALL TOOLS ARE ALREADY LOADED! ===
             - All tools are already loaded! You can call them DIRECTLY! No need to search!
             - Each big tool uses a "command" or "action" parameter as the subcommand. ALWAYS include it first!

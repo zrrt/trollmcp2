@@ -980,6 +980,10 @@ final class ConversationStore: ObservableObject {
                         self.liveProducedID = am.id
                         self.attachTrail(to: am.id, thinking: thinking)
                     }
+                    // v3.5.3：文本工具调用兜底——模型把 shell.exec("...")/shell_exec(...) 写成文本
+                    // (而非结构化 tool_call) 时，系统本不执行、任务卡死。这里检测最终文本里的文本式
+                    // shell 调用，提取命令并真正执行，继续 agent 循环（提示词兜底不住，代码兜底保证）。
+                    self.runTextualShellIfNeeded(text: text, config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
                     // v3.1.70：整条请求链 (含工具递归）结束——解除活动会话绑定
                     self.activeConvId = nil
                 case .success(.toolCalls(let calls, let thinking)):
@@ -1135,6 +1139,58 @@ final class ConversationStore: ObservableObject {
 
     /// v2.9.31：递归处理一批工具调用。工具在后台线程执行 (避免耗时操作阻塞主线程），
     /// 结果经 handleDispatchResult 回主线程继续。
+    /// v3.5.3：文本工具调用兜底——从最终文本里提取文本式 shell 调用命令（shell.exec("...") /
+    /// shell_exec(command="...") 等）。模型把调用写成文本(而非结构化 tool_call)时系统不执行，
+    /// 这里兜底提取出真实命令让 runTextualShellIfNeeded 真正执行。
+    private static func extractTextualShellCommand(from text: String) -> String? {
+        let patterns = [
+            #"shell\.exec\s*\(\s*["']([^"']+?)["']\s*\)"#,          // shell.exec("cmd") / shell.exec('cmd')
+            #"shell_exec\s*\(\s*command\s*[:=]\s*["']([^"']+?)["']"#, // shell_exec(command="cmd")
+            #"shell_exec\s*\(\s*["']([^"']+?)["']\s*\)"#           // shell_exec("cmd")
+        ]
+        for p in patterns {
+            guard let re = try? NSRegularExpression(pattern: p, options: []) else { continue }
+            let ns = text as NSString
+            if let m = re.firstMatch(in: text, options: [], range: NSRange(location: 0, length: ns.length)),
+               m.numberOfRanges > 1 {
+                let c = ns.substring(with: m.range(at: 1)).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !c.isEmpty { return c }
+            }
+        }
+        return nil
+    }
+
+    /// v3.5.3：执行文本兜底提取出的 shell 命令，把结果作为 tool 消息上屏并继续 agent 循环，
+    /// 让模型看到结果后能继续下一步（而非卡死在"写了文本没执行"）。
+    private func runTextualShellIfNeeded(text: String, config: ModelConfig, tools: [[String: Any]]?, disclosed: [String], depth: Int, reasoningLevel: Int) {
+        guard let cmd = Self.extractTextualShellCommand(from: text) else { return }
+        let cmdCopy = cmd
+        DispatchQueue.global().async {
+            let params: [String: Any] = ["command": cmdCopy]
+            let result: Result<[String: Any], Error>
+            do { result = .success(try ToolRegistry.shared.dispatch(name: "shell.exec", params: params)) }
+            catch { result = .failure(error) }
+            DispatchQueue.main.async {
+                var tm = ChatMessage(role: "tool", content: "", toolCallId: UUID().uuidString, toolName: "shell.exec")
+                switch result {
+                case .success(let r):
+                    let raw = Self.jsonString(r)
+                    tm.content = raw.count > 8000 ? raw.prefix(8000) + "\n... [工具结果已截断, total \(raw.count) 字符]" : raw
+                    tm.toolArgs = String("命令: \(cmdCopy.prefix(120))")
+                    tm.toolDuration = 0.01
+                case .failure(let e):
+                    tm.content = "执行失败: \(e.localizedDescription)"
+                    tm.isError = true
+                    tm.toolArgs = String("命令: \(cmdCopy.prefix(120))")
+                }
+                self.appendToCurrent(tm)
+                self.liveProducedID = tm.id
+                // 继续 agent 循环，模型看到结果后可决定下一步
+                self.runLoop(config: config, tools: tools, disclosed: disclosed, depth: depth + 1, reasoningLevel: reasoningLevel)
+            }
+        }
+    }
+
     private func processToolCalls(_ calls: [ToolCall],
                                   index: Int,
                                   toolMessages: [ChatMessage],
