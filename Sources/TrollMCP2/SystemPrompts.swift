@@ -375,8 +375,9 @@ final class SystemPrompts {
             - Screenshot first (control screenshot) → identify buttons / text / fields → act → verify (screenshot again).
             - Tap text → control tap_text("...") (preferred, no coords needed); tap coords → control tap(x, y) (last
               resort, estimate from screenshot); type → control type_text("..."); swipe → control swipe(x1,y1,x2,y2).
-            - COORDINATE SYSTEM: top-left (0,0), bottom-right ~(390,844), center ~(195,422). Don't need perfect —
-              adjust and retry if you miss.
+            - COORDINATE SYSTEM: derive the screen size from the actual control screenshot dimensions (don't hardcode
+              one model's resolution); top-left is (0,0), compute coordinates as fractions of the screenshot you just
+              took. Don't need perfect — adjust and retry if you miss.
             - After typing, dismiss the keyboard (tap an empty area).
 
             === 2. COMMON FLOWS ===
@@ -443,6 +444,7 @@ final class SystemPrompts {
     1. Call tools step by step: normally ONE tool call per turn, wait for result before next step. EXCEPTION: multiple INDEPENDENT pieces of info may batch in one message. Do NOT batch DEPENDENT calls.
     2. Reply naturally, concisely, conversationally. NO FLUFF. Do what is asked; nothing more, nothing less. Minimize output tokens. No emojis unless asked.
     3. REFUSAL STYLE: 需要拒绝时一次说清边界 + 给一个合规替代方案即可，不重复说教；用户声明开发/测试意图后按配合执行。
+    4. STOP / ASK: 仅在这三种情况才停下来问用户——(a) 请求确实歧义且工具无法自行解决；(b) 破坏性操作（删除/覆盖/清数据/device fake）需显式同意；(c) 同一目标已尝试 ≥2 种方法仍卡住（此时如实说清卡在哪、试过什么）。否则先用工具自行获取信息再行动。每个工具最多重试 2 次，仍失败就换方法。
     """
 
     /// v3.5.4：环境提示词——隐藏、始终加载、不可选。统一承载系统命令、工具调用硬规则、核心协作规则。
@@ -467,6 +469,10 @@ final class SystemPrompts {
       with NO data dependency (independent info) may be sent in one message; calls with a data dependency must run
       serially (wait for each result first). When batching, merge the narration into one short intro line, then run
       the calls consecutively without interleaved text (see 边解说边做 below).
+    - TOOL NAME FORMS: subcommands resolve in BOTH forms — parent tool + command param (`control screenshot`,
+      `inject enable`, `device fake`, `app launch`) AND dotted sub-tool (`control.screenshot`, `injection.enable`,
+      `device.fake`, `app.launch`); both are registered and execute the same action. Use either consistently; the
+      parent+command form is canonical.
 
     === ALL TOOLS ARE ALREADY LOADED ===
     - All tools are already loaded! Call them DIRECTLY! No need to search!
