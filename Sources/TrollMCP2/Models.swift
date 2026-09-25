@@ -14,7 +14,7 @@ struct ModelConfig: Codable, Identifiable, Hashable {
     var baseURL: String           // https://api.openai.com/v1
     var apiKey: String
     var model: String             // gpt-4o-mini
-    var authMethod: String        // Bearer / API Key / None
+    var authMethod: String        // Bearer / API Key / Body api_key / Body token / Query token / None
     var isDefault: Bool = false
     var temperature: Double = 0.7
     var maxTokens: Int = 2048
@@ -26,6 +26,10 @@ struct ModelConfig: Codable, Identifiable, Hashable {
     var compatLevel: Int = 0
     /// v2.9.107：分组名 (供应商分组管理，对齐 cc-switch provider groups）
     var group: String = "默认"
+    /// v3.5.13：可配置的参数名别名映射（标准键 → 该供应商认的键），如
+    /// {"max_tokens":"max_completion_tokens", "reasoning_effort":"reasoning"}。
+    /// 覆盖"不同中转对同一参数名接受度不同"的场景，不只内置 max_tokens 互换。
+    var paramAliases: [String: String] = [:]
     /// v3.1.1：是否支持视觉 (VLM），自动根据模型名判断
     var supportsVision: Bool {
         let m = model.lowercased()
@@ -46,7 +50,7 @@ struct ModelConfig: Codable, Identifiable, Hashable {
     init(id: UUID = UUID(), name: String, provider: String, apiProtocol: String = "OpenAI Chat Completions",
          baseURL: String, apiKey: String, model: String, authMethod: String = "Bearer",
          isDefault: Bool = false, temperature: Double = 0.7, maxTokens: Int = 2048, compatLevel: Int = 0,
-         contextTokens: Int = 16000, group: String = "默认") {
+         contextTokens: Int = 16000, group: String = "默认", paramAliases: [String: String] = [:]) {
         self.id = id
         self.name = name
         self.provider = provider
@@ -61,6 +65,7 @@ struct ModelConfig: Codable, Identifiable, Hashable {
         self.compatLevel = compatLevel
         self.contextTokens = contextTokens
         self.group = group
+        self.paramAliases = paramAliases
     }
 
     init(from decoder: Decoder) throws {
@@ -82,6 +87,7 @@ struct ModelConfig: Codable, Identifiable, Hashable {
         contextTokens = (try? c.decode(Int.self, forKey: .contextTokens)) ?? 16000
         compatLevel = (try? c.decode(Int.self, forKey: .compatLevel)) ?? 0
         group = (try? c.decode(String.self, forKey: .group)) ?? "默认"
+        paramAliases = (try? c.decode([String: String].self, forKey: .paramAliases)) ?? [:]
     }
 }
 
@@ -95,7 +101,7 @@ extension ModelConfig {
         "Custom Endpoint"
     ]
 
-    static let authMethods = ["Bearer", "API Key", "None"]
+    static let authMethods = ["Bearer", "API Key", "Body api_key", "Body token", "Query token", "None"]
 
     static let providerPresets: [(name: String, provider: String, protocol: String, baseURL: String, model: String, auth: String)] = [
         ("OpenAI", "openai", "OpenAI Chat Completions", "https://api.openai.com/v1", "gpt-4o-mini", "Bearer"),

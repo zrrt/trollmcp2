@@ -214,7 +214,9 @@ final class OpenAIClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         applyAuth(to: &request)
 
-        let body = buildBody(level: level, messages: messages, tools: tools)
+        var body = buildBody(level: level, messages: messages, tools: tools)
+        injectBodyAuth(into: &body)
+        applyParamAliases(into: &body)
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         // 记录发送的载荷摘要 (不含 apiKey），便于排查
@@ -560,6 +562,8 @@ final class OpenAIClient {
                 body["tools"] = tools.map { responsesToolSchema($0) }
                 body["tool_choice"] = "auto"
             }
+            injectBodyAuth(into: &body)
+            applyParamAliases(into: &body)
             request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
             NetworkLog.shared.log("\(config.name) L5 Responses API+工具 → POST /responses，字段: \(body.keys.sorted().joined(separator: ","))")
@@ -842,6 +846,8 @@ final class OpenAIClient {
             // v2.9.107：cache_control 断点injected (对齐 cc-switch cache_injector 4 断点策略）
             CacheInjector.injectAnthropic(body: &body)
         }
+        injectBodyAuth(into: &body)
+        applyParamAliases(into: &body)
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         let task = session.dataTask(with: request) { data, response, error in
@@ -918,16 +924,65 @@ final class OpenAIClient {
         let method = config.authMethod.trimmingCharacters(in: .whitespacesAndNewlines)
         switch method {
         case "Bearer":
-            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            if !key.isEmpty { request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization") }
         case "API Key":
-            request.setValue(key, forHTTPHeaderField: "x-api-key")
+            if !key.isEmpty { request.setValue(key, forHTTPHeaderField: "x-api-key") }
+        case "Query token":
+            if !key.isEmpty, let u = request.url {
+                request.url = Self.appendingQueryItem("token", value: key, to: u)
+            }
+        case "Query api_key":
+            if !key.isEmpty, let u = request.url {
+                request.url = Self.appendingQueryItem("api_key", value: key, to: u)
+            }
         case "None":
+            break
+        case "Body api_key", "Body token":
+            // body 认证：由 injectBodyAuth 在 httpBody 设置前注入到 JSON body 里
             break
         default:
             if !key.isEmpty {
                 request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
             }
         }
+    }
+
+    /// body 认证（Body api_key / Body token）：把 key 注入请求体顶层。
+    private func injectBodyAuth(into body: inout [String: Any]) {
+        let key = config.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let method = config.authMethod.trimmingCharacters(in: .whitespacesAndNewlines)
+        if key.isEmpty { return }
+        switch method {
+        case "Body api_key":
+            body["api_key"] = key
+        case "Body token":
+            body["token"] = key
+        default:
+            break
+        }
+    }
+
+    /// v3.5.13：可配置参数名别名——把 body 里"标准键"重命名为该供应商认的键。
+    /// 例：config.paramAliases = {"max_tokens":"max_completion_tokens"}。
+    private func applyParamAliases(into body: inout [String: Any]) {
+        let aliases = config.paramAliases
+        if aliases.isEmpty { return }
+        for (standard, alias) in aliases {
+            guard !standard.isEmpty, !alias.isEmpty, standard != alias else { continue }
+            if let v = body.removeValue(forKey: standard) {
+                body[alias] = v
+            }
+        }
+    }
+
+    /// 给 URL 追加单个 query 项（已含 ? 或 &，不重复添加同名键）。
+    private static func appendingQueryItem(_ name: String, value: String, to url: URL) -> URL {
+        var comps = URLComponents(url: url, resolvingAgainstBaseURL: false) ?? URLComponents(string: url.absoluteString)!
+        var items = comps.queryItems ?? []
+        items.removeAll { $0.name == name }
+        items.append(URLQueryItem(name: name, value: value))
+        comps.queryItems = items
+        return comps.url ?? url
     }
 
     // MARK: - v2.9.53 SSE 流式
@@ -1013,6 +1068,8 @@ final class OpenAIClient {
             body["tools"] = tools.map { responsesToolSchema($0) }
             body["tool_choice"] = "auto"
         }
+        injectBodyAuth(into: &body)
+        applyParamAliases(into: &body)
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         onStatus?("正在流式请求 (Responses API)…")

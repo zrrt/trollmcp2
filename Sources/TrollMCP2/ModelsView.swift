@@ -416,6 +416,8 @@ struct ModelEditorView: View {
     @State private var maxTokens: Int
     @State private var contextTokens: Int
     @State private var group: String
+    /// v3.5.13：参数名别名映射编辑（"标准键:供应商键"逗号分隔，如 max_tokens:max_completion_tokens）
+    @State private var paramAliasesText: String
 
     @State private var showKey = false
     @State private var showingQuickPicker = false
@@ -445,6 +447,7 @@ struct ModelEditorView: View {
         _maxTokens = State(initialValue: config?.maxTokens ?? 2048)
         _contextTokens = State(initialValue: config?.contextTokens ?? 16000)
         _group = State(initialValue: config?.group ?? "默认")
+        _paramAliasesText = State(initialValue: ModelsView.aliasesString(config?.paramAliases))
     }
 
     var body: some View {
@@ -461,6 +464,8 @@ struct ModelEditorView: View {
                     editorRow("模型名", text: $model, placeholder: "gpt-5.6-terra")
                     pickerRow("鉴权方式", selection: $authMethod, options: ModelConfig.authMethods)
                     tokenRow
+                    // v3.5.13：可配置参数名别名（适配不同中转对参数名接受度不同）
+                    editorRow("参数别名", text: $paramAliasesText, placeholder: "max_tokens:max_completion_tokens")
                     // v2.9.107：供应商分组（管理页按分组折叠展示）
                     editorRow("分组", text: $group, placeholder: "默认")
                 }
@@ -692,8 +697,28 @@ struct ModelEditorView: View {
             temperature: temperature,
             maxTokens: maxTokens,
             contextTokens: contextTokens,
-            group: group
+            group: group,
+            paramAliases: ModelsView.parseAliases(paramAliasesText)
         )
+    }
+
+    /// v3.5.13：字典 → 编辑文本（"key:value,key2:value2"）
+    private static func aliasesString(_ aliases: [String: String]?) -> String {
+        guard let a = aliases, !a.isEmpty else { return "" }
+        return a.sorted { $0.key < $1.key }.map { "\($0.key):\($0.value)" }.joined(separator: ", ")
+    }
+
+    /// v3.5.13：编辑文本 → 字典（容忍中文逗号/空格，跳过非法项）
+    private static func parseAliases(_ text: String) -> [String: String] {
+        var out: [String: String] = [:]
+        for piece in text.components(separatedBy: CharacterSet(charactersIn: ",，;")) {
+            let p = piece.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let colon = p.firstIndex(of: ":") else { continue }
+            let k = String(p[..<colon]).trimmingCharacters(in: .whitespacesAndNewlines)
+            let v = String(p[p.index(after: colon)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !k.isEmpty, !v.isEmpty, k != v { out[k] = v }
+        }
+        return out
     }
 
     private func saveOnly() {
