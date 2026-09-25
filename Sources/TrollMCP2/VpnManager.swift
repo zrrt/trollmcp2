@@ -50,24 +50,29 @@ final class VpnManager {
     // MARK: - VPN 模式
 
     func startVpn(completion: @escaping (String?) -> Void) {
-        // v3.5.16c：修复 NEVPNErrorConfigurationInvalid(1) —— 设备偏好里若残留旧版(IPSec 时代)或
-        // 损坏的 VPN 配置，loadFromPreferences 读进来后 startVPNTunnel 会被系统判为配置无效。
-        // 先检查：残留的不是 packet-tunnel(NETunnelProviderProtocol) 或加载失败 → removeFromPreferences
-        // 清掉残留，再重建全新配置，避免"抓包VPN 开关启动报 start failed"。
-        manager.loadFromPreferences { [weak self] loadErr in
+        // v3.5.16d：彻底清残留——每次启动都先 removeFromPreferences 清掉设备端旧/失效配置再重建。
+        // 用户实测仍 NEVPNErrorConfigurationInvalid(1)：条件删除(仅非packet-tunnel时删)没触发，
+        // 因为旧配置也是 NETunnelProviderProtocol 但系统层失效。改为无条件清 + 重建 + 失败重试一次。
+        rebuildAndStart(retryLeft: 1, completion: completion)
+    }
+
+    /// 无条件 removeFromPreferences → 重建全新配置 → save → startVPNTunnel；失败可重试一次。
+    private func rebuildAndStart(retryLeft: Int, completion: @escaping (String?) -> Void) {
+        // 先加载(即使失败也继续清)，随后无条件移除旧配置，忽略移除错误(不存在也算成功)。
+        self.manager.loadFromPreferences { [weak self] _ in
             guard let self = self else { return }
-            let isStale: Bool
-            if let proto = self.manager.protocolConfiguration {
-                isStale = !(proto is NETunnelProviderProtocol)
-            } else {
-                isStale = (loadErr != nil)
-            }
-            if isStale {
-                self.manager.removeFromPreferences { _ in
-                    self.buildAndStart(completion: completion)
+            self.manager.removeFromPreferences { [weak self] _ in
+                guard let self = self else { return }
+                self.buildAndStart { err in
+                    if let err = err, retryLeft > 0 {
+                        // 重试：再清一次 + 重建
+                        self.manager.removeFromPreferences { [weak self] _ in
+                            self?.buildAndStart(completion: completion)
+                        }
+                        return
+                    }
+                    completion(err)
                 }
-            } else {
-                self.buildAndStart(completion: completion)
             }
         }
     }
@@ -91,7 +96,9 @@ final class VpnManager {
                 try self.manager.connection.startVPNTunnel()
                 completion(nil)
             } catch {
-                completion("start failed: \(error.localizedDescription)")
+                let ne = error as? NEVPNError
+                let code = ne.map { " NEVPNErrorCode=\($0.code.rawValue)" } ?? ""
+                completion("start failed: \(error.localizedDescription)\(code)")
             }
         }
     }
