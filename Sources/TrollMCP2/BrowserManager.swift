@@ -36,17 +36,26 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     @discardableResult
     func ensureWebView() -> Bool {
         guard webView == nil else { return true }
-        if Thread.isMainThread {
-            createWebView()
-            return webView != nil
+        // v3.5.16j：首次调用主动初始化并重试——此前 5s 单次超时，主线程忙/WebView 建得慢时
+        // 直接返回 ERR("浏览器 WebView 初始化超时")，导致 browser.navigate 前几次报 ok=false/UNKNOWN。
+        // 现在最多重试 4 次、每次 2s（共约 8s），期间主线程空闲后 WebView 建成就成功。
+        for _ in 0..<4 {
+            if Thread.isMainThread {
+                createWebView()
+                if webView != nil { return true }
+            } else {
+                let sem = DispatchSemaphore(value: 0)
+                DispatchQueue.main.async {
+                    if self.webView == nil { self.createWebView() }
+                    sem.signal()
+                }
+                _ = sem.wait(timeout: .now() + 2)
+                if webView != nil { return true }
+            }
+            // 未成功则稍等再试，给主线程腾空
+            Thread.sleep(forTimeInterval: 0.3)
         }
-        let sem = DispatchSemaphore(value: 0)
-        DispatchQueue.main.async {
-            self.createWebView()
-            sem.signal()
-        }
-        _ = sem.wait(timeout: .now() + 5)
-        return webView != nil
+        return false
     }
 
     private func createWebView() {
