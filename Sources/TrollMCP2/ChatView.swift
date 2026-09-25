@@ -1391,11 +1391,10 @@ struct MessageBubble: View {
             }
             // v3.0.2: 去掉旧的 TrailCard，改用 toolBubble 显示工具调用
             // v3.0.2e：如果 content 是空的，就不显示气泡（避免空白气泡）
-            // v3.5.12：用户选 B——解说只留卡片标题(Minis)，工具轮的解说正文气泡隐藏。
-            // 工具轮(带 toolCalls)的 assistant 消息不再单独弹一段解说气泡：解说已存到工具卡
-            // 的 toolNarration 当标题；思考(reasoning)仍在黄色气泡显示；工具卡 running/完成/出错照常。
-            // 非工具轮的普通回复内容照常显示。
-            if !message.content.isEmpty, message.toolCalls == nil {
+            // v3.5.12 修订：解说=单独长气泡(一长)。模型"先解说后执行"的正文就作为普通 assistant 气泡
+            // 显示在工具卡上方；工具卡标题=机械短标签(一短,见 toolShortLabel)，两者分开、不重复。
+            // 模型本轮没写解说(content空)则无气泡，卡片标题仍显示机械短标签，不落空。
+            if !message.content.isEmpty {
                 // v3.4.5：打字机——流式中按 revealedCount 逐字显示；完成后显示全文
                 // v3.5.4：打字机——isStreaming 或 forceType 都按 revealedCount 逐字显示；
                 // 此前只有 isStreaming 才走前缀，forceType(内容在出现前已定好、isStreaming=false)走了全文分支，
@@ -1494,6 +1493,29 @@ struct MessageBubble: View {
         return UIImage(data: data)
     }
 
+    /// v3.5.13：机械短标签（一短，像 Minis "运行系统命令演示"）——从工具名+关键参数提炼，
+    /// 客观陈述"跑了哪个工具、干了什么"，简短稳定、次次一致。代表事实，不代表模型说话。
+    /// 真正的解说（一长）由 assistant 消息气泡承载。
+    private func toolShortLabel() -> String {
+        let name = message.toolName ?? "工具"
+        guard let args = message.toolArgs, !args.isEmpty else { return name }
+        // toolArgs 已是 summarizeArgs 生成的 "key: value, key2: value2"，取第一项做标签
+        let first = args.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? args
+        // 常见"动作性"键映射为简短动作短语（对齐 Minis 标题，如 "运行命令: ls -la" / "打开网页: xxx"）
+        let action: [String: String] = ["command": "运行命令", "url": "打开网页", "query": "搜索",
+                                        "path": "访问", "file": "操作文件", "name": "处理",
+                                        "message": "发送", "prompt": "提示"]
+        for (k, v) in action {
+            if first.hasPrefix(k + ":") {
+                let val = first.dropFirst(k.count + 1).trimmingCharacters(in: .whitespacesAndNewlines)
+                let trimmed = val.count > 36 ? String(val.prefix(36)) + "…" : val
+                return trimmed.isEmpty ? name : "\(v): \(trimmed)"
+            }
+        }
+        // 未知键：退回 "工具名: 首参数" 兜底，仍简短、可核
+        return "\(name): \(first)"
+    }
+
     private var toolBubble: some View {
         VStack(alignment: .leading, spacing: 6) {
             // 📝 1. 思考过程（独立橙色气泡）
@@ -1509,9 +1531,10 @@ struct MessageBubble: View {
                         Image(systemName: "terminal.fill")
                             .font(.system(size: 13))
                             .foregroundColor(.blue)
-                        // v3.5.8：Minis 式步骤标题——优先用解说（模型"先解说后执行"的正文）当标题，
-                        // 没解说才退回工具名。标题可换行（最多 2 行），像"运行系统命令演示"那样。
-                        Text(message.toolNarration ?? (message.toolName ?? "工具"))
+                        // v3.5.13：卡片标题=机械短标签(一短,像Minis)——从工具名+关键参数提炼(如
+                        // "shell.exec: ls -la" / "browser: dnf.qq.com")，简短稳定、次次一致，客观陈述跑了哪个
+                        // 工具干了什么，不代表模型说话；真正的解说由单独的 assistant 气泡(一长)承载。
+                        Text(toolShortLabel())
                             .font(.subheadline)
                             .fontWeight(.medium)
                             .foregroundColor(.blue)
@@ -1546,12 +1569,7 @@ struct MessageBubble: View {
                         }
                         Spacer()
                     }
-                    // v3.5.8：有解说当标题时，副标题补一行真实工具名（如 shell.exec），保持透明可核
-                    if message.toolNarration != nil, let tn = message.toolName, !tn.isEmpty {
-                        Text(tn)
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
+                    // v3.5.13：标题已是"工具名: 关键参数"机械短标签，无需再补一行副标题工具名。
                     // v3.5.4：工具执行的命令/参数完整显示（5=A）——不再截 60 字符/单行，
                     // 用等宽可换行，让用户看清这步到底执行了什么命令。
                     if let args = message.toolArgs, !args.isEmpty {
