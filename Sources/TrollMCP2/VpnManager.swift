@@ -50,12 +50,19 @@ final class VpnManager {
     // MARK: - VPN 模式
 
     func startVpn(completion: @escaping (String?) -> Void) {
-        // v3.5.16f：对齐 Apple 可运行案例(100518/104280/661560)的启动流程——
-        // ① 用 loadAllFromPreferences 拿系统"注册过"的 manager(而非新建 NETunnelProviderManager())；
-        // ② saveToPreferences 之后必须再 loadFromPreferences 一次，把 manager 绑定到系统刚保存的
-        //    配置，再 startVPNTunnel。此前"新建 manager + save 后直接 start"导致系统按 providerBundleIdentifier
-        //    建不出扩展("Failed to create an NSExtension with type …: (null)")→ NEVPNErrorConfigurationInvalid(1)。
-        startVpnViaRegisteredManager(retryLeft: 1, completion: completion)
+        // v3.5.26：起 VPN 前先做信任注入（对齐 Fuck 工具箱 FuckKfdHelper 机制）。
+        //   iOS 16.x 非越狱 → kfd 临时注入 VpnTunnel cdhash 到内核 trust cache（免越狱）
+        //   iOS 17.x 越狱   → jailbreakd 已常驻 hook csops+necp，无需注入
+        //   都不满足       → 不注入，回退本地代理
+        // 注入结果不阻断起隧道：即使注入失败，下方 confirmConnected 仍会如实反馈状态。
+        TrustEnabler.injectIfNeeded { _ in
+            // v3.5.16f：对齐 Apple 可运行案例(100518/104280/661560)的启动流程——
+            // ① 用 loadAllFromPreferences 拿系统"注册过"的 manager(而非新建 NETunnelProviderManager())；
+            // ② saveToPreferences 之后必须再 loadFromPreferences 一次，把 manager 绑定到系统刚保存的
+            //    配置，再 startVPNTunnel。此前"新建 manager + save 后直接 start"导致系统按 providerBundleIdentifier
+            //    建不出扩展("Failed to create an NSExtension with type …: (null)")→ NEVPNErrorConfigurationInvalid(1)。
+            self.startVpnViaRegisteredManager(retryLeft: 1, completion: completion)
+        }
     }
 
     /// 通过 loadAllFromPreferences 拿系统注册的 manager（找不到则新建），按需清失效配置后保存并启动。

@@ -89,6 +89,15 @@ jobs:
             && echo "teamid built:" && file "$GITHUB_WORKSPACE/Resources/bin/teamid" \
             || echo "TEAMID BUILD FAILED, keeping old binary"
 
+      - name: Build kfd_helper (iOS arm64 trust-cache injector)
+        # v3.5.26：免越狱信任注入——起 VPN 前把 VpnTunnel.appex 的 cdhash 写进内核 trust cache，
+        # 让 NECP 认可假签名扩展，system VPN 真连。依赖 libkfd(puaf_landa, iOS15.5-16.6.1)。
+        # 编译失败不阻塞构建，保留旧二进制（首次无则跳过）。
+        run: |
+          bash tools/build_kfd_helper.sh \
+            && ls -lh Resources/bin/kfd_helper \
+            || { echo "KFD_HELPER BUILD FAILED, keeping old binary"; exit 0; }
+
       - name: Cache iSH engine build
         # v3.0.37：iSH 编译 40 分钟，缓存 ish-stage（libs+include+resources+源码），命中直接跳过构建
         # v3.0.40：key 带脚本 hash，改 prepare_alpine_rootfs.sh（如预装包/DNS）时自动重编 rootfs
