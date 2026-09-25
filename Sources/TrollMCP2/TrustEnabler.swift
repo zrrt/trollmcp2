@@ -68,7 +68,13 @@ enum TrustEnabler {
         switch resolvePath() {
         case .jailbreak:
             // jailbreakd 已常驻 hook csops+necp，CS_VALID 已放行，无需自备注入
-            completion(true)
+            // v3.5.27: 上述假设不成立——VPN 扩展 cdhash 必须显式写进系统信任缓存，
+            // 用 libjailbreak 的 SystemWide 域 XPC（非 root）让 jailbreakd 信任该文件。
+            guard let appex = vpnTunnelBinaryPath() else { completion(false); return }
+            let ok = trustFileViaJailbreakd(appex)
+            DispatchQueue.main.asyncAfter(deadline: .now() + (ok ? 0.8 : 0)) {
+                completion(ok)
+            }
         case .kfdInject:
             guard let helper = kfdHelperPath() else { completion(false); return }
             guard let appex = vpnTunnelBinaryPath() else { completion(false); return }
@@ -132,5 +138,36 @@ enum TrustEnabler {
         waitpid(pid, &status, 0)
         // WEXITSTATUS = (status >> 8) & 0xff
         return ((status >> 8) & 0xff) == 0
+    }
+
+    // MARK: - 越狱信任缓存注入（Dopamine / palera1n rootless）
+
+    /// 用 libjailbreak 的 SystemWide 域 XPC（JBS_SYSTEMWIDE_TRUST_FILE）让 jailbreakd
+    /// 把给定文件（VpnTunnel.appex）的全部 cdhash 加入系统信任缓存。
+    /// - 非 root：Dopamine 越狱显示状态下 SystemWide 域对任何进程可达。
+    /// - 返回值 true = jailbreakd 已把扩展加入信任缓存，可继续起 VPN。
+    static func trustFileViaJailbreakd(_ path: String) -> Bool {
+        // Dopamine 把 libjailbreak.dylib 放在 rootless 前缀 /var/jb/usr/lib/
+        let libCandidates = [
+            "/var/jb/usr/lib/libjailbreak.dylib",
+            "/usr/lib/libjailbreak.dylib",
+        ]
+        for lib in libCandidates where FileManager.default.fileExists(atPath: lib) {
+            guard let handle = dlopen(lib, RTLD_NOW) else {
+                NSLog("TrustEnabler: dlopen(%@) failed", lib)
+                continue
+            }
+            guard let sym = dlsym(handle, "jbclient_trust_file_by_path") else {
+                NSLog("TrustEnabler: dlsym(jbclient_trust_file_by_path) failed in %@", lib)
+                continue
+            }
+            typealias TrustFileFn = @convention(c) (UnsafePointer<CChar>?) -> Int32
+            let fn = unsafeBitCast(sym, to: TrustFileFn.self)
+            let rc = path.withCString { fn($0) }
+            NSLog("TrustEnabler: jbclient_trust_file_by_path(%@)=%d", path, rc)
+            return rc == 0
+        }
+        NSLog("TrustEnabler: libjailbreak.dylib not found — 越狱信任注入不可用")
+        return false
     }
 }
