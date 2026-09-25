@@ -129,7 +129,10 @@ final class VpnManager {
             }
             do {
                 try self.manager.connection.startVPNTunnel()
-                completion(nil)
+                // v3.5.16i：别报"假成功"——startVPNTunnel 没抛错≠真连上。若系统没弹批准窗/隧道没起来，
+                // 状态会停在 .disconnected/.invalid。等最多 3s 观察实际连接状态，真连上(.connecting/.connected)
+                // 才报成功；否则明确提示环境限制并建议用本地代理抓包。
+                self.confirmConnected(retryLeft: retryLeft, tick: 0, completion: completion)
             } catch {
                 let ne = error as? NEVPNError
                 let code = ne.map { " NEVPNErrorCode=\($0.code.rawValue)" } ?? ""
@@ -140,6 +143,22 @@ final class VpnManager {
                     return
                 }
                 completion("start failed: \(error.localizedDescription)\(code)")
+            }
+        }
+    }
+
+    /// 启动后观察实际连接状态，确认真连上而非"假成功"。
+    private func confirmConnected(retryLeft: Int, tick: Int, completion: @escaping (String?) -> Void) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            guard let self = self else { return }
+            let status = self.manager.connection.status
+            if status == .connecting || status == .connected {
+                completion(nil)
+            } else if tick < 8 { // 8 * 0.4s ≈ 3.2s
+                self.confirmConnected(retryLeft: retryLeft, tick: tick + 1, completion: completion)
+            } else {
+                // 没真连上：状态仍是 disconnected/invalid → 系统批准窗没弹/隧道没起（TrollStore 环境限制）
+                completion("VPN 启动未生效：系统未弹「允许」窗或隧道未连接（TrollStore 环境限制），请改用「本地代理」抓包（WiFi 手动代理 127.0.0.1:18180）")
             }
         }
     }
