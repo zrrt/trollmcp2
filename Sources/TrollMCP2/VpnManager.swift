@@ -50,31 +50,48 @@ final class VpnManager {
     // MARK: - VPN 模式
 
     func startVpn(completion: @escaping (String?) -> Void) {
-        manager.loadFromPreferences { [weak self] err in
+        // v3.5.16c：修复 NEVPNErrorConfigurationInvalid(1) —— 设备偏好里若残留旧版(IPSec 时代)或
+        // 损坏的 VPN 配置，loadFromPreferences 读进来后 startVPNTunnel 会被系统判为配置无效。
+        // 先检查：残留的不是 packet-tunnel(NETunnelProviderProtocol) 或加载失败 → removeFromPreferences
+        // 清掉残留，再重建全新配置，避免"抓包VPN 开关启动报 start failed"。
+        manager.loadFromPreferences { [weak self] loadErr in
             guard let self = self else { return }
-            if let e = err {
-                completion("load failed: \(e.localizedDescription)")
+            let isStale: Bool
+            if let proto = self.manager.protocolConfiguration {
+                isStale = !(proto is NETunnelProviderProtocol)
+            } else {
+                isStale = (loadErr != nil)
+            }
+            if isStale {
+                self.manager.removeFromPreferences { _ in
+                    self.buildAndStart(completion: completion)
+                }
+            } else {
+                self.buildAndStart(completion: completion)
+            }
+        }
+    }
+
+    /// 组装全新 NETunnelProviderProtocol 配置 → save → startVPNTunnel
+    private func buildAndStart(completion: @escaping (String?) -> Void) {
+        let proto = NETunnelProviderProtocol()
+        // v3.3.3：serverAddress 必须是合法地址（此前 "trollagent-mitm" 被系统判为 invalid protocol）
+        proto.serverAddress = "127.0.0.1"
+        proto.providerBundleIdentifier = "com.trollagent.app.VpnTunnel"
+        proto.disconnectOnSleep = false
+        self.manager.protocolConfiguration = proto
+        self.manager.isEnabled = true
+        self.manager.localizedDescription = "TrollAgent 抓包 VPN"
+        self.manager.saveToPreferences { err2 in
+            if let e = err2 {
+                completion("save failed: \(e.localizedDescription)")
                 return
             }
-            let proto = NETunnelProviderProtocol()
-            // v3.3.3：serverAddress 必须是合法地址（此前 "trollagent-mitm" 被系统判为 invalid protocol）
-            proto.serverAddress = "127.0.0.1"
-            proto.providerBundleIdentifier = "com.trollagent.app.VpnTunnel"
-            proto.disconnectOnSleep = false
-            self.manager.protocolConfiguration = proto
-            self.manager.isEnabled = true
-            self.manager.localizedDescription = "TrollAgent 抓包 VPN"
-            self.manager.saveToPreferences { err2 in
-                if let e = err2 {
-                    completion("save failed: \(e.localizedDescription)")
-                    return
-                }
-                do {
-                    try self.manager.connection.startVPNTunnel()
-                    completion(nil)
-                } catch {
-                    completion("start failed: \(error.localizedDescription)")
-                }
+            do {
+                try self.manager.connection.startVPNTunnel()
+                completion(nil)
+            } catch {
+                completion("start failed: \(error.localizedDescription)")
             }
         }
     }
