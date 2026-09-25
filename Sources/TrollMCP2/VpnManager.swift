@@ -16,7 +16,7 @@ final class VpnManager {
     // v3.5.2：packet-tunnel 网络扩展必须用 NETunnelProviderManager。
     // 之前用 NEVPNManager.shared()（IPSec/IKEv2 旧版 VPN 管理器）挂 NETunnelProviderProtocol，
     // 系统不会在"设置→VPN"注册、startVPNTunnel 也不生效——表现为"VPN 不显示、打不开"。
-    private let manager = NETunnelProviderManager()
+    private var manager = NETunnelProviderManager()
     private(set) var localProxyRunning = false
     let proxyPort: UInt16 = 18180
 
@@ -50,35 +50,39 @@ final class VpnManager {
     // MARK: - VPN 模式
 
     func startVpn(completion: @escaping (String?) -> Void) {
-        // v3.5.16d：彻底清残留——每次启动都先 removeFromPreferences 清掉设备端旧/失效配置再重建。
-        // 用户实测仍 NEVPNErrorConfigurationInvalid(1)：条件删除(仅非packet-tunnel时删)没触发，
-        // 因为旧配置也是 NETunnelProviderProtocol 但系统层失效。改为无条件清 + 重建 + 失败重试一次。
-        rebuildAndStart(retryLeft: 1, completion: completion)
+        // v3.5.16f：对齐 Apple 可运行案例(100518/104280/661560)的启动流程——
+        // ① 用 loadAllFromPreferences 拿系统"注册过"的 manager(而非新建 NETunnelProviderManager())；
+        // ② saveToPreferences 之后必须再 loadFromPreferences 一次，把 manager 绑定到系统刚保存的
+        //    配置，再 startVPNTunnel。此前"新建 manager + save 后直接 start"导致系统按 providerBundleIdentifier
+        //    建不出扩展("Failed to create an NSExtension with type …: (null)")→ NEVPNErrorConfigurationInvalid(1)。
+        startVpnViaRegisteredManager(retryLeft: 1, completion: completion)
     }
 
-    /// 无条件 removeFromPreferences → 重建全新配置 → save → startVPNTunnel；失败可重试一次。
-    private func rebuildAndStart(retryLeft: Int, completion: @escaping (String?) -> Void) {
-        // 先加载(即使失败也继续清)，随后无条件移除旧配置，忽略移除错误(不存在也算成功)。
-        self.manager.loadFromPreferences { [weak self] _ in
+    /// 通过 loadAllFromPreferences 拿系统注册的 manager（找不到则新建），按需清失效配置后保存并启动。
+    private func startVpnViaRegisteredManager(retryLeft: Int, completion: @escaping (String?) -> Void) {
+        NETunnelProviderManager.loadAllFromPreferences { [weak self] managers, _ in
             guard let self = self else { return }
-            self.manager.removeFromPreferences { [weak self] _ in
+            // 优先复用系统已注册的"TrollAgent 抓包 VPN"配置；没有则新建。
+            self.manager = managers?.first(where: { $0.localizedDescription == "TrollAgent 抓包 VPN" })
+                              ?? NETunnelProviderManager()
+            self.manager.loadFromPreferences { [weak self] _ in
                 guard let self = self else { return }
-                self.buildAndStart { err in
-                    if let err = err, retryLeft > 0 {
-                        // 重试：再清一次 + 重建
-                        self.manager.removeFromPreferences { [weak self] _ in
-                            self?.buildAndStart(completion: completion)
-                        }
-                        return
+                // 残留的是失效配置(非 packet-tunnel 协议)才清；正常直接保存。
+                let isStale = (self.manager.protocolConfiguration != nil)
+                             && !(self.manager.protocolConfiguration is NETunnelProviderProtocol)
+                if isStale {
+                    self.manager.removeFromPreferences { [weak self] _ in
+                        self?.saveAndStart(retryLeft: retryLeft, completion: completion)
                     }
-                    completion(err)
+                } else {
+                    self.saveAndStart(retryLeft: retryLeft, completion: completion)
                 }
             }
         }
     }
 
-    /// 组装全新 NETunnelProviderProtocol 配置 → save → startVPNTunnel
-    private func buildAndStart(completion: @escaping (String?) -> Void) {
+    /// 组装全新 NETunnelProviderProtocol 配置 → save → 重新 load → startVPNTunnel；失败可重试一次。
+    private func saveAndStart(retryLeft: Int, completion: @escaping (String?) -> Void) {
         let proto = NETunnelProviderProtocol()
         // v3.3.3：serverAddress 必须是合法地址（此前 "trollagent-mitm" 被系统判为 invalid protocol）
         proto.serverAddress = "127.0.0.1"
@@ -87,18 +91,30 @@ final class VpnManager {
         self.manager.protocolConfiguration = proto
         self.manager.isEnabled = true
         self.manager.localizedDescription = "TrollAgent 抓包 VPN"
-        self.manager.saveToPreferences { err2 in
+        self.manager.saveToPreferences { [weak self] err2 in
+            guard let self = self else { return }
             if let e = err2 {
                 completion("save failed: \(e.localizedDescription)")
                 return
             }
-            do {
-                try self.manager.connection.startVPNTunnel()
-                completion(nil)
-            } catch {
-                let ne = error as? NEVPNError
-                let code = ne.map { " NEVPNErrorCode=\($0.code.rawValue)" } ?? ""
-                completion("start failed: \(error.localizedDescription)\(code)")
+            // 关键：save 后重新 loadFromPreferences，使 manager.connection 绑定到系统刚保存的配置，再启动。
+            self.manager.loadFromPreferences { [weak self] _ in
+                guard let self = self else { return }
+                do {
+                    try self.manager.connection.startVPNTunnel()
+                    completion(nil)
+                } catch {
+                    let ne = error as? NEVPNError
+                    let code = ne.map { " NEVPNErrorCode=\($0.code.rawValue)" } ?? ""
+                    if retryLeft > 0 {
+                        // 重试：清掉配置，再走一遍"注册 manager"流程
+                        self.manager.removeFromPreferences { [weak self] _ in
+                            self?.startVpnViaRegisteredManager(retryLeft: 0, completion: completion)
+                        }
+                        return
+                    }
+                    completion("start failed: \(error.localizedDescription)\(code)")
+                }
             }
         }
     }
