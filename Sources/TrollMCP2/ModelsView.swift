@@ -447,7 +447,7 @@ struct ModelEditorView: View {
         _maxTokens = State(initialValue: config?.maxTokens ?? 2048)
         _contextTokens = State(initialValue: config?.contextTokens ?? 16000)
         _group = State(initialValue: config?.group ?? "默认")
-        _paramAliasesText = State(initialValue: ModelsView.aliasesString(config?.paramAliases))
+        _paramAliasesText = State(initialValue: aliasesString(config?.paramAliases))
     }
 
     var body: some View {
@@ -698,7 +698,7 @@ struct ModelEditorView: View {
             maxTokens: maxTokens,
             contextTokens: contextTokens,
             group: group,
-            paramAliases: ModelsView.parseAliases(paramAliasesText)
+            paramAliases: parseAliases(paramAliasesText)
         )
     }
 
