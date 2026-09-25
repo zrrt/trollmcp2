@@ -70,7 +70,12 @@ final class VpnManager {
                 // 残留的是失效配置(非 packet-tunnel 协议)才清；正常直接保存。
                 let isStale = (self.manager.protocolConfiguration != nil)
                              && !(self.manager.protocolConfiguration is NETunnelProviderProtocol)
-                if isStale {
+                // v3.5.16h：重装App后系统对VPN的"允许"批准可能失效——配置还在(非stale)但
+                // connection.status==.invalid，此时直接save不会重新弹批准窗，会一直卡在invalid。
+                // 若配置存在但状态invalid，删掉重建，强制系统重新弹"允许"窗。
+                let approvalStale = (self.manager.protocolConfiguration != nil)
+                                    && self.manager.connection.status == .invalid
+                if isStale || approvalStale {
                     self.manager.removeFromPreferences { [weak self] _ in
                         self?.saveAndStart(retryLeft: retryLeft, completion: completion)
                     }

@@ -224,6 +224,8 @@ struct VpnCaptureView: View {
     }
 
     private func connectVpn() {
+        // v3.5.16h：点按钮立刻给反馈，不再静默等——避免"点了没反应"的错觉
+        notice = "正在连接 VPN，请在系统弹窗点「允许」…"
         VpnManager.shared.startVpn { err in
             if let e = err {
                 notice = "VPN 启动失败：\(e)\n可用「本地代理」代替（WiFi 手动代理）"
