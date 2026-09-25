@@ -97,24 +97,44 @@ final class VpnManager {
                 completion("save failed: \(e.localizedDescription)")
                 return
             }
-            // 关键：save 后重新 loadFromPreferences，使 manager.connection 绑定到系统刚保存的配置，再启动。
-            self.manager.loadFromPreferences { [weak self] _ in
-                guard let self = self else { return }
-                do {
-                    try self.manager.connection.startVPNTunnel()
-                    completion(nil)
-                } catch {
-                    let ne = error as? NEVPNError
-                    let code = ne.map { " NEVPNErrorCode=\($0.code.rawValue)" } ?? ""
-                    if retryLeft > 0 {
-                        // 重试：清掉配置，再走一遍"注册 manager"流程
-                        self.manager.removeFromPreferences { [weak self] _ in
-                            self?.startVpnViaRegisteredManager(retryLeft: 0, completion: completion)
-                        }
-                        return
+            // v3.5.16g：等用户批准——saveToPreferences 会弹"TrollAgent 想添加VPN配置/允许/不允许"，
+            // 但 save 的回调在用户点"允许"之前就返回。若立刻 startVPNTunnel，配置尚未批准生效
+            // (connection.status==.invalid) → 系统报 NEVPNErrorConfigurationInvalid(1)。
+            // 改为轮询等待状态从 .invalid 变为有效(.disconnected/.connecting)后再启动；
+            // 超时(约8s)仍未批准则提示用户去弹窗点"允许"。
+            self.loadAndStartAfterApproval(retryLeft: retryLeft, waitTick: 0, completion: completion)
+        }
+    }
+
+    /// 重新 loadFromPreferences 后轮询等待用户批准(状态离开 .invalid)，再 startVPNTunnel。
+    private func loadAndStartAfterApproval(retryLeft: Int, waitTick: Int, completion: @escaping (String?) -> Void) {
+        self.manager.loadFromPreferences { [weak self] _ in
+            guard let self = self else { return }
+            let status = self.manager.connection.status
+            // .invalid = 配置未批准/无效；其余(.disconnected/.connecting/.connected)视为已批准可启动
+            if status == .invalid {
+                if waitTick < 16 { // 16 * 0.5s = 8s 等待窗口
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                        self?.loadAndStartAfterApproval(retryLeft: retryLeft, waitTick: waitTick + 1, completion: completion)
                     }
-                    completion("start failed: \(error.localizedDescription)\(code)")
+                    return
                 }
+                completion("请先在系统弹窗点「允许」后再连接 (NEVPNErrorConfigurationInvalid=1)")
+                return
+            }
+            do {
+                try self.manager.connection.startVPNTunnel()
+                completion(nil)
+            } catch {
+                let ne = error as? NEVPNError
+                let code = ne.map { " NEVPNErrorCode=\($0.code.rawValue)" } ?? ""
+                if retryLeft > 0 {
+                    self.manager.removeFromPreferences { [weak self] _ in
+                        self?.startVpnViaRegisteredManager(retryLeft: 0, completion: completion)
+                    }
+                    return
+                }
+                completion("start failed: \(error.localizedDescription)\(code)")
             }
         }
     }
