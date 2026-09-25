@@ -107,10 +107,10 @@ enum TrustEnabler {
     /// 用 posix_spawn 启动一个 helper（kfd_helper 免 root，漏洞自提权）
     private static func spawn(_ path: String, args: [String]) -> Bool {
         var pid: pid_t = 0
-        var argv = args.map { strdup($0) }
-        argv.insert(strdup(path), at: 0)
+        var argv = args.map { $0.withCString { strdup($0) } }
+        argv.insert(path.withCString { strdup($0) }, at: 0)
         argv.append(nil)
-        var envp = ["HOME=/var/mobile", "PATH=/usr/bin:/bin:/usr/sbin:/sbin"].map { strdup($0) }
+        var envp = ["HOME=/var/mobile", "PATH=/usr/bin:/bin:/usr/sbin:/sbin"].map { $0.withCString { strdup($0) } }
         envp.append(nil)
 
         var rc: Int32 = -1
