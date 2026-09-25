@@ -59,13 +59,15 @@ CI 的 macOS runner 会自动跑 `tools/build_kfd_helper.sh` 把 `kfd_helper` �
 > **CI 当前无 kfd step**：恢复自动构建时，`build_kfd_helper.sh` 已修正可用（clone felix-pb/kfd + 覆盖 + header-only 编译），
 > 或在本机 `bash tools/build_kfd_helper.sh` 编好后放进 `Resources/bin/`（build-ipa.sh 会自动打包）。
 
-## ⚠️ 未完成项（必须先在你 Mac 上对齐，否则编不出可跑二进制）
+## ⚠️ 未完成项
 
-1. **`pmap_image4_trust_caches` 偏移** —— `tools/kfd_helper.c` 里 `PMAP_IMAGE4_TRUST_CACHES_OFFSET` 当前为 `0x0` TODO，
-   Apple **私有符号**，公开开源稀缺（动态信息表/Serotonin/kfdmineek 均不含）；唯一现成来源是 **FuckKfdHelper** 内置
-   （按 kern.version 匹配，缓存在 `kfund_offsets.plist`），需在你的 Mac 上完整反编译 FuckKfdHelper 提取具体偏移值
-2. **kalloc / 调用原语** —— 构造 trust cache 后的 `kalloc` 分配与"调用内核函数 pmap_image4_trust_caches"
-   的原语，libkfd 未提供，需自己实现（参考反编译 FuckKfdHelper 的 kalloc+kcall 部分）
+1. **~~pmap_image4_trust_caches 偏移~~ —— 已用运行时 patchfind 解决（2026-09-26）**
+   FuckKfdHelper 反汇编证明其**没有静态偏移表**（Apple 私有符号、网上搜不到的原因）：
+   它用**运行时扫内核镜像 __text** 匹配 pmap 序言特征（`mov w0,#5`/`add x3,x31,#8`/`mov x29,sp`/`sub sp,sp`）
+   定位函数地址。`tools/kfd_helper.c` 的 `patchfind_pmap()` 已按同款特征实现（不再依赖 Mac 提取偏移值）。
+2. **kalloc / 调用原语（仍未解决）** —— 构造 trust cache 后的内核内存分配 + 调用 `pmap_image4_trust_caches`
+   的原语，libkfd 仅提供 kread/kwrite 无 kcall。Fuck 的调用是间接 blr 封装（0x10001055c），
+   或改用业界"改内核函数指针触发"方案。这是 VPN 真连的最后一个技术卡点。
 3. **trust_cache 结构布局** —— 已按 XNU syspolicy 约定写 `struct trust_cache`，但需对目标内核核对
    （版本字段、entry 大小、uuid）
 
