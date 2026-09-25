@@ -1493,27 +1493,10 @@ struct MessageBubble: View {
         return UIImage(data: data)
     }
 
-    /// v3.5.13：机械短标签（一短，像 Minis "运行系统命令演示"）——从工具名+关键参数提炼，
-    /// 客观陈述"跑了哪个工具、干了什么"，简短稳定、次次一致。代表事实，不代表模型说话。
-    /// 真正的解说（一长）由 assistant 消息气泡承载。
+    /// v3.5.16：卡片标题只显示工具名（去掉"命令符/命令"），像 Minis 步骤标签那样简洁。
+    /// 具体命令/参数仍在卡片下方 args 等宽行完整显示，标题不再拼命令，避免命令符状态占据标题。
     private func toolShortLabel() -> String {
-        let name = message.toolName ?? "工具"
-        guard let args = message.toolArgs, !args.isEmpty else { return name }
-        // toolArgs 已是 summarizeArgs 生成的 "key: value, key2: value2"，取第一项做标签
-        let first = args.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? args
-        // 常见"动作性"键映射为简短动作短语（对齐 Minis 标题，如 "运行命令: ls -la" / "打开网页: xxx"）
-        let action: [String: String] = ["command": "运行命令", "url": "打开网页", "query": "搜索",
-                                        "path": "访问", "file": "操作文件", "name": "处理",
-                                        "message": "发送", "prompt": "提示"]
-        for (k, v) in action {
-            if first.hasPrefix(k + ":") {
-                let val = first.dropFirst(k.count + 1).trimmingCharacters(in: .whitespacesAndNewlines)
-                let trimmed = val.count > 36 ? String(val.prefix(36)) + "…" : val
-                return trimmed.isEmpty ? name : "\(v): \(trimmed)"
-            }
-        }
-        // 未知键：退回 "工具名: 首参数" 兜底，仍简短、可核
-        return "\(name): \(first)"
+        message.toolName ?? "工具"
     }
 
     private var toolBubble: some View {

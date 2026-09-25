@@ -622,6 +622,9 @@ final class ConversationStore: ObservableObject {
     /// v3.1.70：活动请求绑定的会话 ID——请求由哪个会话发起就写回哪个会话。
     /// 修复"请求进行中切换会话，AI 输出错位/写错会话" (用户实测：老会话未暂停，切换新会话后输出仍乱）。
     private var activeConvId: UUID?
+    /// v3.5.16：用户点了「停止」——设 true 后 runLoop 每轮开头检查，若已停止则不再继续递归
+    /// (修复"点了暂停/停止还在继续发消息"：此前进度只取消当前 client，递归会新建 client 接着跑)。
+    private var stopRequested = false
 
     private let key = "trollmcp2.conversations"
 
@@ -697,6 +700,7 @@ final class ConversationStore: ObservableObject {
 
     /// v2.9.13：取消当前进行中的请求 (ChatView 停止按钮）
     func cancelCurrent() {
+        stopRequested = true          // v3.5.16：设停止标志，runLoop 递归到下一轮即停
         cancelNetworkRetry()
         currentClient?.cancel()
         currentClient = nil
@@ -743,6 +747,8 @@ final class ConversationStore: ObservableObject {
         // v3.5.5：新任务开始，重置"先解说后执行"自适应纠正状态（避免跨任务计数器残留）
         narrationCorrectionCount = 0
         pendingNarrationCorrection = nil
+        // v3.5.16：新请求开始，清除上次的停止标志（让 runLoop 可继续）
+        stopRequested = false
         // v3.5.6：重置工具参数预校验纠正状态
         paramCorrectionCount = 0
         pendingParamCorrection = nil
@@ -846,6 +852,19 @@ final class ConversationStore: ObservableObject {
     }
 
     private func runLoop(config: ModelConfig, tools: [[String: Any]]?, disclosed: [String], depth: Int, reasoningLevel: Int = 0) {
+        // v3.5.16：用户点了「停止」——立即停，不再继续递归 (修复"停止后还在发消息")
+        if stopRequested {
+            isLoading = false
+            statusText = nil
+            requestRound = 0
+            runningTool = nil
+            currentClient?.cancel()
+            currentClient = nil
+            TaskNotify.shared.endBackground()
+            activeConvId = nil
+            self.liveTrail = []
+            return
+        }
         // v2.9.25：不再限制工具调用轮次 (用户可手动点「停止」）。
         // 仅保留 60 轮极端安全保险，正常流程永不触发，防止 AI 完全失控无限发请求。
         guard depth < 60 else {
@@ -1000,11 +1019,32 @@ final class ConversationStore: ObservableObject {
                         self.attachTrail(to: sid, thinking: thinking)
                         self.streamingMessageId = nil
                     } else {
-                        var am = ChatMessage(role: "assistant", content: text)
-                        if let th = thinking, !th.isEmpty { am.thinking = th }
-                        self.appendToCurrent(am)
-                        self.liveProducedID = am.id
-                        self.attachTrail(to: am.id, thinking: thinking)
+                        // v3.5.16：修复"思考显示两次"——流式中 onThinking 可能已建了一条"空正文+思考"消息
+                        // (思考先于正文到、且正文没进它），此时若直接 appendToCurrent 会再建第二条
+                        // (顶部"已深度思考" + 底部"思考中"重复)。改为复用那条空思考消息填正文。
+                        var reused = false
+                        if let ci = self.activeConvIndex {
+                            var msgs = self.conversations[ci].messages
+                            if let li = msgs.indices.last,
+                               msgs[li].role == "assistant",
+                               msgs[li].content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                               msgs[li].thinking?.isEmpty == false {
+                                msgs[li].content = text
+                                if let th = thinking, !th.isEmpty { msgs[li].thinking = th }
+                                self.conversations[ci].messages = msgs
+                                self.streamingMessageId = nil
+                                self.liveProducedID = nil
+                                self.attachTrail(to: msgs[li].id, thinking: thinking)
+                                reused = true
+                            }
+                        }
+                        if !reused {
+                            var am = ChatMessage(role: "assistant", content: text)
+                            if let th = thinking, !th.isEmpty { am.thinking = th }
+                            self.appendToCurrent(am)
+                            self.liveProducedID = am.id
+                            self.attachTrail(to: am.id, thinking: thinking)
+                        }
                     }
                     // v3.5.3：文本工具调用兜底——模型把 shell.exec("...")/shell_exec(...) 写成文本
                     // (而非结构化 tool_call) 时，系统本不执行、任务卡死。这里检测最终文本里的文本式

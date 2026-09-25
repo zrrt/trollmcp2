@@ -1243,7 +1243,10 @@ final class OpenAIClient {
                 NetworkLog.lastCompatNote = "模型「\(self.config.name)」当前兼容级别: 5 (Responses API+工具，流式)"
                 if !calls.isEmpty {
                     let n = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guardedCompletion(.success(.toolCalls(calls, thinking: nil, content: n.isEmpty ? nil : n)))
+                    // v3.5.16：把完成响应里提取到的 reasoning 也带出来——推理若在 response.completed
+                    // 的 reasoning 项里(而非流式 delta)，此前 thinking:nil 会把它丢掉，导致工具轮无深度思考。
+                    let t = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guardedCompletion(.success(.toolCalls(calls, thinking: t.isEmpty ? nil : t, content: n.isEmpty ? nil : n)))
                 } else {
                     var th = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
                     // v3.1.33：去重——reasoning 与正文相同时不展示思考
@@ -1277,7 +1280,9 @@ final class OpenAIClient {
             self.persist(level: 5)
             if !toolCalls.isEmpty {
                 let n = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
-                guardedCompletion(.success(.toolCalls(toolCalls, thinking: nil, content: n.isEmpty ? nil : n)))
+                // v3.5.16：把流式累积的 fullThinking 也带出来——工具轮深度思考不再被 thinking:nil 丢掉
+                let th = fullThinking.trimmingCharacters(in: .whitespacesAndNewlines)
+                guardedCompletion(.success(.toolCalls(toolCalls, thinking: th.isEmpty ? nil : th, content: n.isEmpty ? nil : n)))
             } else {
                 var th = fullThinking.trimmingCharacters(in: .whitespacesAndNewlines)
                 // v3.1.33：去重——思考与正文相同时不展示
