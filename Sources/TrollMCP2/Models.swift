@@ -976,11 +976,25 @@ final class ConversationStore: ObservableObject {
                         self.conversations[ci].messages[mi].thinking = existing + delta
                     }
                 } else {
-                    var msg = ChatMessage(role: "assistant", content: "")
-                    msg.thinking = delta
-                    self.streamingMessageId = msg.id
-                    self.liveProducedID = msg.id
-                    self.appendToCurrent(msg)
+                    // v3.5.16：防"思考重复两次"——.text 最终化(streamingMessageId=nil)后又来一段 onThinking 时，
+                    // 会在这里再建一条空正文+思考消息，与上一条已含相同思考的 assistant 消息重复
+                    // (顶部"已深度思考"+ 底部"思考中…"两遍)。新建前先查上一条是否已含这段思考，是则跳过。
+                    var skipDup = false
+                    if let ci = self.activeConvIndex, let li = self.conversations[ci].messages.indices.last {
+                        let last = self.conversations[ci].messages[li]
+                        if last.role == "assistant", let ex = last.thinking, !ex.isEmpty {
+                            if ex == delta || ex.contains(delta) || delta.contains(ex) {
+                                skipDup = true
+                            }
+                        }
+                    }
+                    if !skipDup {
+                        var msg = ChatMessage(role: "assistant", content: "")
+                        msg.thinking = delta
+                        self.streamingMessageId = msg.id
+                        self.liveProducedID = msg.id
+                        self.appendToCurrent(msg)
+                    }
                 }
             }
         }) { result in
