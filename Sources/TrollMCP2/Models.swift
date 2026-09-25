@@ -1012,7 +1012,7 @@ final class ConversationStore: ObservableObject {
                     self.runTextualShellIfNeeded(text: text, config: config, tools: tools, disclosed: disclosed, depth: depth, reasoningLevel: reasoningLevel)
                     // v3.1.70：整条请求链 (含工具递归）结束——解除活动会话绑定
                     self.activeConvId = nil
-                case .success(.toolCalls(let calls, let thinking)):
+                case .success(.toolCalls(let calls, let thinking, let narrationContent)):
                     // v3.5.2：系统级"一次一个工具"硬约束——模型一次批几个 toolCalls，
                     // 都裁成第一个：assistant 消息与执行只带这一个，执行完回模型让它看到
                     // 结果再决定下一步（一个接一个）。依赖调用必须等前一个结果才能决定下一步，
@@ -1032,6 +1032,12 @@ final class ConversationStore: ObservableObject {
                        let ci = self.activeConvIndex,
                        let mi = self.conversations[ci].messages.firstIndex(where: { $0.id == sid }) {
                         visibleText = self.conversations[ci].messages[mi].content
+                    }
+                    // v3.5.15：兜底——非流式 chat/completions 没有 streamingMessageId，
+                    // 但模型写的正文解说已由 .toolCalls 的 content 透传出来，直接用当 visibleText。
+                    if visibleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                       let nc = narrationContent, !nc.isEmpty {
+                        visibleText = nc
                     }
                     // v3.5.5：自适应纠正（对齐 Codex / agent-harness "机制决定行为"）——
                     // 模型直接发 tool_calls 但本轮没写可见正文解说时，不执行工具，注入纠正消息

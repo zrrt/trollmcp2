@@ -3,7 +3,10 @@ import Combine
 
 enum ChatResult {
     case text(String, thinking: String?)
-    case toolCalls([ToolCall], thinking: String?)
+    /// v3.5.15：toolCalls 增加 content——把模型在工具轮写的正文解说(content)透传出来。
+    /// 此前只带 thinking，非流式 chat/completions 路径(parseChoice)会把模型写的解说直接丢掉
+    /// (用户实测"解说还没有"的根因之一)；带出后在 runLoop 用作 visibleText 兜底。
+    case toolCalls([ToolCall], thinking: String?, content: String?)
 }
 
 /// 网络调试日志 (最近 100 条，环形覆盖），用于排查中转站兼容性问题。
@@ -456,7 +459,22 @@ final class OpenAIClient {
                             hasThinking = false
                         }
                     }
-                    return .toolCalls(calls, thinking: hasThinking ? thinking : nil)
+                    // v3.5.15：透传模型在工具轮写的正文解说(content)，供 runLoop 当 visibleText 兜底。
+                    // 此前只带 thinking，非流式 chat/completions 会把模型写的解说丢光(用户实测根因)。
+                    var narration = ""
+                    if let content = message["content"] {
+                        if let str = content as? String { narration = str }
+                        else if let arr = content as? [[String: Any]] {
+                            for c in arr {
+                                let t = c["type"] as? String ?? ""
+                                if t == "text" || t == "output_text" || t == "input_text" {
+                                    if let tt = c["text"] as? String { narration += tt }
+                                }
+                            }
+                        }
+                    }
+                    return .toolCalls(calls, thinking: hasThinking ? thinking : nil,
+                                     content: narration.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : narration)
                 }
             }
             // v2.9.297：content 兼容 字符串 / 数组 ([{"type":"text","text":"..."}] / [{"type":"output_text","text":"..."}]）
@@ -646,7 +664,8 @@ final class OpenAIClient {
                         self.persist(level: 5)
                         if !calls.isEmpty {
                             let t = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
-                            completion(.success(.toolCalls(calls, thinking: t.isEmpty ? nil : t)))
+                            let n = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                            completion(.success(.toolCalls(calls, thinking: t.isEmpty ? nil : t, content: n.isEmpty ? nil : n)))
                         } else {
                             let t = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
                             completion(.success(.text(text, thinking: t.isEmpty ? nil : t)))
@@ -1223,7 +1242,8 @@ final class OpenAIClient {
                 self.persist(level: 5)
                 NetworkLog.lastCompatNote = "模型「\(self.config.name)」当前兼容级别: 5 (Responses API+工具，流式)"
                 if !calls.isEmpty {
-                    guardedCompletion(.success(.toolCalls(calls, thinking: nil)))
+                    let n = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guardedCompletion(.success(.toolCalls(calls, thinking: nil, content: n.isEmpty ? nil : n)))
                 } else {
                     var th = thinking.trimmingCharacters(in: .whitespacesAndNewlines)
                     // v3.1.33：去重——reasoning 与正文相同时不展示思考
@@ -1256,7 +1276,8 @@ final class OpenAIClient {
             }
             self.persist(level: 5)
             if !toolCalls.isEmpty {
-                guardedCompletion(.success(.toolCalls(toolCalls, thinking: nil)))
+                let n = fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+                guardedCompletion(.success(.toolCalls(toolCalls, thinking: nil, content: n.isEmpty ? nil : n)))
             } else {
                 var th = fullThinking.trimmingCharacters(in: .whitespacesAndNewlines)
                 // v3.1.33：去重——思考与正文相同时不展示
