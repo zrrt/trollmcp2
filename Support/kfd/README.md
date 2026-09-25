@@ -44,12 +44,19 @@ CI 的 macOS runner 会自动跑 `tools/build_kfd_helper.sh` 把 `kfd_helper` �
 
 ## ⚠️ 未完成项（必须先在你 Mac 上对齐，否则编不出可跑二进制）
 
+> **仓库名修正**：libkfd 官方仓库是 **`felix-pb/kfd`**（不是 `Felix-pb/libkfd`，后者不存在）。
+> libkfd 是 **header-only 库**——公开 API 只有 `kopen(pages, puaf, kread, kwrite)/kread/kwrite/kclose`，
+> **没有 kalloc、没有 kcall（调用内核函数）**。要注入 trust cache 必须自己实现
+> `kalloc` 分配 + 调用 `pmap_image4_trust_caches`（参考 mineekdev 的 kfdmineek / 反编译 FuckKfdHelper）。
+> **CI 已移除 kfd_helper 自动编译 step**（编了也编不出可用的注入器，还假成功误导）。
+> kfd_helper 必须在你的 Mac 上实现内核部分、编译后放进 `Resources/bin/`（build-ipa.sh 会自动打包）。
+
 1. **内核符号偏移** —— `tools/kfd_helper.c` 里 `PMAP_IMAGE4_TRUST_CACHES_OFFSET` 当前为 `0x0` TODO，
    需按 **iOS 16.3 的内核符号表**填入 `pmap_image4_trust_caches` 相对内核基址的偏移
 2. **kalloc / 调用原语** —— 构造 trust cache 后的 `kalloc` 分配与"调用内核函数 pmap_image4_trust_caches"
-   的原语，需按所用 **libkfd 版本** 的实际 API 实现（不同版本/不同 exploit 提供的能力不同）
-3. **libkfd 编译方式** —— `build_kfd_helper.sh` 用"全量编 libkfd .c"，若 libkfd 结构变化导致失败，
-   改用其自带 Makefile 产出目标文件再链接
+   的原语，libkfd 未提供，需自己实现（参考 mineekdev kfdmineek 或反编译 FuckKfdHelper 的 kalloc+kcall 部分）
+3. **libkfd 编译方式** —— 用 `clang -I<kfd仓库根> kfd_helper.c`（libkfd 是 header-only，直接 include
+   `kfd/libkfd.h` 即可，不是"全量编 .c"）
 4. **trust_cache 结构布局** —— 已按 XNU syspolicy 约定写 `struct trust_cache`，但需对目标内核核对
    （版本字段、entry 大小、uuid）
 
