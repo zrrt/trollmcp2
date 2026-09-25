@@ -21,10 +21,12 @@
  *   xcrun -sdk iphoneos clang -arch arm64 -mios-version-min=14.0 \
  *       -Ilibkfd -Itools kfd_helper.c libkfd/... -o kfd_helper
  *
- * ⚠️ 未完成项（需要在你 Mac 上对齐后才能产出可跑二进制，见 README）:
- *   1) 下方所有 `#define ..._OFFSET 0x0 /*TODO*/` 需按你 iOS 16.3 的内核符号表填入
- *   2) kalloc / 调用 pmap_image4_trust_caches 的原语按所用 libkfd 版本的 API 对齐
- *   3) 编译前先 git clone libkfd 并按它头文件核对本文件包含名与枚举名
+ * ⚠️ 未完成项（见 Support/kfd/README.md）:
+ *   ✅ kopen 偏移表(dynamic_info)已整合现成数据:
+ *        tools/kfd/dynamic_info.h — iOS 16.3 A12–A16 + iOS 16.6, 来自 Lrdsnow/kfd_offsets + felix-pb/kfd。
+ *   ⬜ pmap_image4_trust_caches 相对内核基址偏移仍为 0x0 TODO（Apple 私有符号，
+ *        公开开源稀缺；FuckKfdHelper 内置有，需在其 Mac 上完整反编译提取）。
+ *   ⬜ kalloc / 调用 pmap_image4_trust_caches 的原语未实现（libkfd 只提供 kread/kwrite，无 kcall/kalloc）。
  * ========================================================================== */
 
 #include <stdio.h>
@@ -167,8 +169,8 @@ static int extract_cdhash(const uint8_t *macho, size_t len, uint8_t cdhash[20]) 
 /* 3. 信任缓存注入                                                       */
 /* ------------------------------------------------------------------ */
 static uint64_t get_kernel_slide_of(struct kfd *kfd) {
-    /* libkfd: kfd->info.kernel.kernel_slide（以实际版本字段名为准） */
-    return kfd->info.kernel.kernel_slide;
+    /* libkfd: kernel_slide 在 struct kfd 的 perf 字段（kfd->perf.kernel_slide） */
+    return kfd->perf.kernel_slide;
 }
 
 static int inject_trust_cache(struct kfd *kfd, const uint8_t cdhash[20]) {
@@ -240,9 +242,11 @@ int main(int argc, char **argv) {
         fprintf(stderr, "\n");
     }
 
-    /* TODO: 按所用 libkfd 版本的枚举名与签名调整（puaf_landa 支持 iOS 16.x） */
-    struct kfd *kfd = kopen(PUAF_LANDA, 0, 0);
-    if (!kfd) { fprintf(stderr, "kopen(puaf_landa) failed — 设备 iOS 需在 15.5–16.6.1\n"); return 1; }
+    /* libkfd 公开 API: kopen(u64 puaf_pages, u64 puaf_method, u64 kread_method, u64 kwrite_method)
+     * puaf_landa 支持 iOS 15.0–16.6.1（CVE-2023-41974，16.7 已修），本设备 iOS 16.3 在区间内。
+     * dynamic_info 偏移表见 tools/kfd/dynamic_info.h（build 时覆盖 libkfd 同名文件）。 */
+    struct kfd *kfd = (struct kfd *)kopen(2048, puaf_landa, kread_kqueue_workloop_ctl, kwrite_dup);
+    if (!kfd) { fprintf(stderr, "kopen(puaf_landa) failed — 设备 iOS 需在 15.0–16.6.1\n"); return 1; }
 
     int rc = inject_trust_cache(kfd, cdhash);
 

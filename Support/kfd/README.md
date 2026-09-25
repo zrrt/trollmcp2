@@ -32,7 +32,8 @@ VpnManager.startVpnViaRegisteredManager()  ← 统一出口
 | 文件 | 作用 |
 |---|---|
 | `tools/kfd_helper.c` | 独立 arm64 可执行：kopen(puaf_landa) → 提取/接收 cdhash → 注入内核 trust cache → kclose |
-| `tools/build_kfd_helper.sh` | macOS 编译脚本（git clone libkfd + clang 编 arm64） |
+| `tools/build_kfd_helper.sh` | macOS 编译脚本（clone felix-pb/kfd + 覆盖偏移表 + clang 编 arm64） |
+| `tools/kfd/dynamic_info.h` | 现成 kfd 偏移表（iOS 16.3 A12–A16 + iOS 16.6），build 时覆盖 libkfd 同名文件 |
 | `Sources/TrollMCP2/TrustEnabler.swift` | Swift 探测(越狱/iOS版本/kfd区间) + 路径调度 + posix_spawn |
 | `Sources/TrollMCP2/VpnManager.swift` | `startVpn` 起手调用 `TrustEnabler.injectIfNeeded` |
 | `.github/workflows/build-trollmcp2.yml` | 加 "Build kfd_helper" step（失败不阻塞） |
@@ -42,22 +43,30 @@ VpnManager.startVpnViaRegisteredManager()  ← 统一出口
 CI 的 macOS runner 会自动跑 `tools/build_kfd_helper.sh` 把 `kfd_helper` 放进 `Resources/bin/`（打进 IPA）。
 本地：`bash tools/build_kfd_helper.sh`。
 
-## ⚠️ 未完成项（必须先在你 Mac 上对齐，否则编不出可跑二进制）
+## ✅ 已完成：kopen 偏移表整合（现成数据）
 
 > **仓库名修正**：libkfd 官方仓库是 **`felix-pb/kfd`**（不是 `Felix-pb/libkfd`，后者不存在）。
 > libkfd 是 **header-only 库**——公开 API 只有 `kopen(pages, puaf, kread, kwrite)/kread/kwrite/kclose`，
 > **没有 kalloc、没有 kcall（调用内核函数）**。要注入 trust cache 必须自己实现
-> `kalloc` 分配 + 调用 `pmap_image4_trust_caches`（参考 mineekdev 的 kfdmineek / 反编译 FuckKfdHelper）。
-> **CI 已移除 kfd_helper 自动编译 step**（编了也编不出可用的注入器，还假成功误导）。
-> kfd_helper 必须在你的 Mac 上实现内核部分、编译后放进 `Resources/bin/`（build-ipa.sh 会自动打包）。
+> `kalloc` 分配 + 调用 `pmap_image4_trust_caches`（参考反编译 FuckKfdHelper）。
+>
+> **已整合**：`tools/kfd/dynamic_info.h` 是**现成开源偏移表**（kopen 建立内核读写原语用），
+> 由 Lrdsnow/kfd_offsets（iOS 16.3 A12–A16）合并 felix-pb/kfd 原版（iOS 16.6）得到，
+> build 脚本会在编译时用它**覆盖** libkfd 的 `info/dynamic_info.h`（原版只有 16.6，匹配不到 16.3 设备）。
+> kfd_helper.c 已按 libkfd 真实 API 修正：`kopen(2048, puaf_landa, kread_kqueue_workloop_ctl, kwrite_dup)`、
+> `kfd->perf.kernel_slide`。
+>
+> **CI 当前无 kfd step**：恢复自动构建时，`build_kfd_helper.sh` 已修正可用（clone felix-pb/kfd + 覆盖 + header-only 编译），
+> 或在本机 `bash tools/build_kfd_helper.sh` 编好后放进 `Resources/bin/`（build-ipa.sh 会自动打包）。
 
-1. **内核符号偏移** —— `tools/kfd_helper.c` 里 `PMAP_IMAGE4_TRUST_CACHES_OFFSET` 当前为 `0x0` TODO，
-   需按 **iOS 16.3 的内核符号表**填入 `pmap_image4_trust_caches` 相对内核基址的偏移
+## ⚠️ 未完成项（必须先在你 Mac 上对齐，否则编不出可跑二进制）
+
+1. **`pmap_image4_trust_caches` 偏移** —— `tools/kfd_helper.c` 里 `PMAP_IMAGE4_TRUST_CACHES_OFFSET` 当前为 `0x0` TODO，
+   Apple **私有符号**，公开开源稀缺（动态信息表/Serotonin/kfdmineek 均不含）；唯一现成来源是 **FuckKfdHelper** 内置
+   （按 kern.version 匹配，缓存在 `kfund_offsets.plist`），需在你的 Mac 上完整反编译 FuckKfdHelper 提取具体偏移值
 2. **kalloc / 调用原语** —— 构造 trust cache 后的 `kalloc` 分配与"调用内核函数 pmap_image4_trust_caches"
-   的原语，libkfd 未提供，需自己实现（参考 mineekdev kfdmineek 或反编译 FuckKfdHelper 的 kalloc+kcall 部分）
-3. **libkfd 编译方式** —— 用 `clang -I<kfd仓库根> kfd_helper.c`（libkfd 是 header-only，直接 include
-   `kfd/libkfd.h` 即可，不是"全量编 .c"）
-4. **trust_cache 结构布局** —— 已按 XNU syspolicy 约定写 `struct trust_cache`，但需对目标内核核对
+   的原语，libkfd 未提供，需自己实现（参考反编译 FuckKfdHelper 的 kalloc+kcall 部分）
+3. **trust_cache 结构布局** —— 已按 XNU syspolicy 约定写 `struct trust_cache`，但需对目标内核核对
    （版本字段、entry 大小、uuid）
 
 以上是**工程化骨架**：整体流程/集成/探测已按证据对齐，但内核层细节必须在真机上对齐 libkfd 版本后才能验证，我无法在 Linux 沙箱编译 iOS arm64 或做真机测试。
