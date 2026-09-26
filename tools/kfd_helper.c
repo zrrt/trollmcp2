@@ -41,6 +41,7 @@
 #include <sys/stat.h>
 #include <mach-o/loader.h>
 #include <mach-o/fat.h>
+#include <mach-o/codesign.h>   /* CSMAGIC_EMBEDDED_SIGNATURE, cs_superblob, csslot_codedirectory */
 #include <CommonCrypto/CommonDigest.h>   // CC_SHA256 — 算 cdhash
 
 /* libkfd 公开 API（以你 clone 的版本为准，这里按通用签名占位）
@@ -316,7 +317,7 @@ int main(int argc, char **argv) {
 
     int rc = inject_trust_cache(kfd, cdhash);
 
-    kclose(kfd);
+    kclose((u64)kfd);
     fprintf(stderr, "[kfd-helper] %s\n", rc == 0 ? "ok" : "failed");
     return rc == 0 ? 0 : 1;
 }
