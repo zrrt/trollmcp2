@@ -78,11 +78,12 @@ enum TrustEnabler {
         case .kfdInject:
             guard let helper = kfdHelperPath() else { completion(false); return }
             guard let appex = vpnTunnelBinaryPath() else { completion(false); return }
-            let ok = spawn(helper, args: [appex])
-            if !ok { completion(false); return }
-            // 注入后稍等，给内核 trust cache 生效时间
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                completion(true)
+            // kfd 提权(10–60s)放后台执行，避免 waitpid 阻塞主线程导致按钮"点了没反应"
+            DispatchQueue.global(qos: .userInitiated).async {
+                let ok = spawn(helper, args: [appex])
+                DispatchQueue.main.asyncAfter(deadline: .now() + (ok ? 0.8 : 0)) {
+                    completion(ok)
+                }
             }
         case .fallback:
             // 无法注入 → 让上层回退本地代理
@@ -110,7 +111,10 @@ enum TrustEnabler {
 
     // MARK: - posix_spawn
 
-    /// 用 posix_spawn 启动一个 helper（kfd_helper 免 root，漏洞自提权）
+    /// 用 posix_spawn 启动一个 helper（kfd_helper 免 root，漏洞自提权）。
+    /// 关键：stdout/stderr 重定向到 /var/mobile/Documents/kfd_helper.log ——
+    /// kfd_helper 的每个诊断步骤（kopen/patchfind/kalloc）都打在这，用户可查看卡点。
+    /// 带 90s 超时（kfd kopen 提权可能 10–60s；超时杀掉避免 UI 永久卡死）。
     private static func spawn(_ path: String, args: [String]) -> Bool {
         var pid: pid_t = 0
         var argv = args.map { $0.withCString { strdup($0) } }
@@ -119,14 +123,31 @@ enum TrustEnabler {
         var envp = ["HOME=/var/mobile", "PATH=/usr/bin:/bin:/usr/sbin:/sbin"].map { $0.withCString { strdup($0) } }
         envp.append(nil)
 
+        // 日志文件：stdout+stderr 都写进去（TrollStore 装的无沙盒，可写 /var/mobile/Documents）
+        let logPath = "/var/mobile/Documents/kfd_helper.log"
+        let fd = open(logPath, O_WRONLY | O_CREAT | O_TRUNC, 0644)
+
+        var fileActions: posix_spawn_file_actions_t? = nil
+        if fd >= 0 {
+            var fa = posix_spawn_file_actions_t()
+            posix_spawn_file_actions_init(&fa)
+            posix_spawn_file_actions_adddup2(&fa, fd, STDOUT_FILENO)
+            posix_spawn_file_actions_adddup2(&fa, fd, STDERR_FILENO)
+            posix_spawn_file_actions_addclose(&fa, fd)
+            fileActions = fa
+        }
+
         var rc: Int32 = -1
         path.withCString { cpath in
             argv.withUnsafeBufferPointer { ab in
                 envp.withUnsafeBufferPointer { eb in
-                    rc = posix_spawn(&pid, cpath, nil, nil, ab.baseAddress, eb.baseAddress)
+                    rc = posix_spawn(&pid, cpath, fileActions != nil ? &fileActions! : nil,
+                                     nil, ab.baseAddress, eb.baseAddress)
                 }
             }
         }
+        if fileActions != nil { posix_spawn_file_actions_destroy(&fileActions!) }
+        if fd >= 0 { close(fd) }
         argv.forEach { free($0) }
         envp.forEach { free($0) }
 
@@ -135,7 +156,17 @@ enum TrustEnabler {
             return false
         }
         var status: Int32 = 0
-        waitpid(pid, &status, 0)
+        let deadline = DispatchTime.now() + .seconds(90)
+        while true {
+            let r = waitpid(pid, &status, WNOHANG)
+            if r == pid { break }
+            if DispatchTime.now() > deadline {
+                kill(pid, SIGKILL); waitpid(pid, &status, 0)
+                NSLog("TrustEnabler: kfd_helper 超时被终止 — 看 %@ 定位卡点", logPath)
+                return false
+            }
+            usleep(200_000)
+        }
         // WEXITSTATUS = (status >> 8) & 0xff
         return ((status >> 8) & 0xff) == 0
     }
