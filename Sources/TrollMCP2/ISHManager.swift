@@ -166,10 +166,12 @@ enum ISHEngine {
         // guest 已从读端 dup fd0；host 关闭读端，保留写端写数据后关闭。
         if !bridgeStdin.isEmpty, stdinFds[1] >= 0 {
             close(stdinFds[0])
+            let expect = bridgeStdin.count
+            ShellDiag.log("ISH bridge stdin: pipe created, expect \(expect)B")
             DispatchQueue.global(qos: .userInitiated).async {
                 let wfd = stdinFds[1]
+                var written = 0
                 bridgeStdin.withUnsafeBytes { buf in
-                    var written = 0
                     while written < buf.count {
                         let n = write(wfd, buf.baseAddress!.advanced(by: written), buf.count - written)
                         if n <= 0 { break }
@@ -177,6 +179,7 @@ enum ISHEngine {
                     }
                 }
                 close(wfd)
+                ShellDiag.log("ISH bridge stdin: wrote \(written)/\(expect)B")
             }
         }
 
@@ -297,6 +300,9 @@ enum ISHEngine {
         }
         for (iosPath, bridgeFile) in pending.sorted(by: { $0.0.count > $1.0.count }) {
             result = result.replacingOccurrences(of: iosPath, with: bridgeFile)
+        }
+        if counter > 0 {
+            ShellDiag.log("autoBridge: bridged \(counter) file(s), stdin=\(stdinData.count)B; files=[\(pending.map { $0.1 }.joined(separator: ","))]")
         }
         return (result, prefix, stdinData)
     }
