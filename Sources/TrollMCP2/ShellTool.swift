@@ -44,7 +44,7 @@ final class ShellExecTool: MCPTool {
             "limit": "Optional Int: result string truncation cap (default 4000 chars). If diagnostics output is trimmed and the body is invisible, pass limit=20000 或更大；full=true 则不截断返回完整结果",
             "full": "Optional Bool: true=返回完整结果不截断 (慎用，大输出占满上下文)",
             "offset": "Optional Int: skip first N chars of output before showing (default 0), combine with limit to read a middle slice",
-            "env": "Optional String: 显式选择执行环境——'alpine' 强制走 Alpine Linux (iSH)，省略或 'ios' 按默认路由 (iOS 原生优先)"
+            "env": "已弃用/忽略：环境由系统按命令类型自动路由(装包/解包deb/复杂脚本/python自动走Alpine，其余默认iOS原生)。不要手动传 env 切环境——你无选择权，环境路由是系统的。若确实需强制某环境请说明需求(如'在Alpine里装python')。"
         ],
         verified: true
     )
@@ -127,11 +127,12 @@ final class ShellExecTool: MCPTool {
         let offsetParam = max(0, (params["offset"] as? Int) ?? 0)
         let outLimit = fullOutput ? 0 : (limitParam > 0 ? limitParam : 4000)
         
-        // v3.1.68: env 显式选择参数——AI 可传 env:"alpine" 强制走 Alpine (不猜路由），
-        // env:"ios" 或省略则按默认路由 (iOS 原生优先）。修复"env 参数不生效" (E items）。
-        if let envFlag = params["env"] as? String, envFlag.lowercased() == "alpine" {
+        // P2 环境自动路由：不再由 agent 手动 env 指定切环境（横跳旋钮拆掉）。
+        // 系统按命令类型自动判定：需 Alpine 工具(装包/解包/脚本/python) → Alpine；
+        // 其余默认走 iOS 原生。agent 传的 env 参数被忽略(仅作弱提示，见 description)。
+        if ShellExecTool.autoRouteNeedsAlpine(trimmed) {
             // v3.3.4: ta (Native Offload）是宿主能力，与 Alpine 沙盒无关——
-            // 即使显式 env:alpine，ta 也走宿主路由，杜绝"环境漂移"。
+            // 即使判定 Alpine，ta 也走宿主路由，杜绝"环境漂移"。
             if trimmed == "ta" || trimmed.hasPrefix("ta ") {
                 return OffloadRouter.run(trimmed)
             }
@@ -147,10 +148,10 @@ final class ShellExecTool: MCPTool {
                 "stdout": stdout,
                 "cwd": ISHEngine.cwd,
                 "ios_native": false,
-                "hint": "Alpine Linux environment (explicit env:alpine): full command set, apk add to install packages"
+                "hint": "Alpine Linux environment (auto-routed: needs full toolchain): apk add to install packages"
             ]
             if timedOut { result["timed_out"] = true }
-            AuditLog.shared.log("shell.exec (alpine forced)", detail: String(trimmed.prefix(100)))
+            AuditLog.shared.log("shell.exec (alpine auto)", detail: String(trimmed.prefix(100)))
             return result
         }
         
@@ -473,6 +474,37 @@ final class ShellExecTool: MCPTool {
                 }
             }
             i += 1
+        }
+        return false
+    }
+
+    /// P2 环境自动路由：按命令类型自动判定是否必须走 Alpine。
+    /// agent 不再手动传 env 切环境——凡 iOS 原生工具链缺失的命令
+    /// (装包/解包 deb/完整 shell 脚本/需要 python 等) 自动进 Alpine；
+    /// 其余(文件操作/系统信息/网络/分析)默认走 iOS 原生。
+    static func autoRouteNeedsAlpine(_ command: String) -> Bool {
+        let c = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 明确的 Alpine 需求标记：装包/解包/完整工具链/复杂脚本结构
+        let alpineMarkers: [String] = [
+            #"^\s*apk\s+"#,           // apk add / apk update
+            #"^\s*(tar|dpkg|dpkg-deb|rpm)\s+"#,  // 解包/装包
+            #"^\s*python3?\s+"#,      // python / python3
+            #"^\s*(pip3?)\s+"#,        // pip / pip3
+            #"^\s*(git|wget|make|cmake|gcc|clang)\s+"#,  // 工具链
+            #"^\s*sh\s+-[ce]"#,        // sh -c / sh -e (脚本)
+            #"^\s*bash\s+"#,
+            #"<<\s*[A-Za-z_][A-Za-z0-9_]*"#,  // heredoc
+        ]
+        for m in alpineMarkers {
+            if c.range(of: m, options: .regularExpression) != nil { return true }
+        }
+        // 复杂控制结构 (for/while/case/if...then) 走 Alpine 全功能 shell
+        let controlPatterns = [
+            #"\bfor\s+.+?\bin\b"#, #"\bwhile\s+.+?\bdo\b"#,
+            #"\bcase\s+.+?\bin\b"#, #"\bthen\b.*\belif\b|\bif\s+.+?\bthen\b"#
+        ]
+        for m in controlPatterns {
+            if c.range(of: m, options: .regularExpression) != nil { return true }
         }
         return false
     }
