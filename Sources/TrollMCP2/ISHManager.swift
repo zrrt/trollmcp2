@@ -32,11 +32,11 @@ enum ISHEngine {
     /// 当前 guest 会话目录（返回给 shell.exec 的 cwd 字段）
     static var cwd: String { guestCwd }
 
-    /// v3.0.93: 重置会话目录到默认的 /workspace
+    /// v3.6.8: 重置会话目录到真实存在的 /root（Alpine 纯隔离，无 /workspace 桥接）
     static func resetCwd() {
         lock.lock()
         defer { lock.unlock() }
-        guestCwd = "/workspace"
+        guestCwd = "/root"
     }
 
     /// 确保内核已 boot（首次解压 rootfs + 挂载）。线程安全，重复调用幂等。
@@ -76,12 +76,8 @@ enum ISHEngine {
             }
         }
 
-        // 1.5 关键：在 cish_boot 挂载 fakefs 之前先建好文件桥 symlink（/workspace、/ios/*）。
-        //     boot 之后才建 symlink，fakefs 已缓存目录结构 → guest 里看不到(实测)。
-        //     必须在挂载前让 symlink 进入 rootfs，挂载时才可能被 fakefs 识别。
-        verifyBridgeLinks()
-
-        // 2. cish_boot
+        // 2. cish_boot（v3.6.8: 实测确认 fakefs 挂载时不解析跨 iOS 路径的 symlink，
+        //    Alpine 为纯隔离 rootfs，不再预建 /workspace、/ios 桥接）
         let rc = dataPath.withCString { cish_boot($0) }
         if rc != 0 {
             state = .failed("cish_boot rc=\(rc)")
@@ -89,17 +85,16 @@ enum ISHEngine {
         }
         state = .booted
 
-        // 3. 默认 cwd 切到 /workspace（若 fakefs 未识别该 symlink，exec 的 cd 有 2>/dev/null 容忍）
-        guestCwd = "/workspace"
+        // 3. 默认 cwd 为真实存在的 /root（避免名义 /workspace 误导）
+        guestCwd = "/root"
 
         ShellDiag.log("ISH boot ok data=\(dataPath) bridge links pre-created")
         return nil
     }
 
     /// 执行命令。返回 (输出, 退出码, 是否超时)。未 boot 时自动尝试 boot，失败返回错误串。
-    /// P2/P3 文件桥：exec 前自动把命令里引用的 iOS Workspace 绝对路径改写为 Alpine 可见的
-    /// /workspace (symlink→iOS Workspace)，并验证/重建 symlink 链——绕开"agent 在 Alpine 用
-    /// 绝对 iOS 路径(chroot 内不存在)导致看不到文件"的问题。
+    /// v3.6.8: Alpine 为纯隔离 rootfs(fakefs 不解析跨 iOS 的 symlink)，不做路径改写；
+    /// 读 iOS 文件走原生 shell，Alpine 工具链需 iOS 文件时先 cp 进 rootfs(/tmp)。
     static func exec(_ command: String, timeout: TimeInterval) -> (output: String, exitCode: Int32, timedOut: Bool) {
         if case .booted = state {} else {
             if let e = ensureBooted() { return (e, -1, false) }
@@ -108,8 +103,11 @@ enum ISHEngine {
         defer { lock.unlock() }
         guard case .booted = state else { return ("[ish] kernel not ready", -1, false) }
 
-        // 文件桥：同步 + 路径改写
-        let bridged = bridgeToAlpine(command)
+        // 说明(v3.6.8): 实测确认 iSH fakefs 挂载时不解析跨 iOS 路径的 symlink——
+        // Alpine 是纯隔离 rootfs, /workspace 与 /ios/* 桥接目录在 guest 里不可见。
+        // 因此不再做任何路径改写(避免把 Alpine 内部真实 /var/mobile 误改成不存在的 /ios/mobile)。
+        // 读 iOS 文件走原生 shell; Alpine 工具链需 iOS 文件时先 cp 进 rootfs(/tmp)。见提示词。
+        let bridged = command
 
         let cwd = guestCwd
         let tStart = Date()
@@ -120,7 +118,7 @@ enum ISHEngine {
         let isPureCd = trimmed.range(of: "^cd\\s+\\S+(\\s+.*)?$", options: .regularExpression) != nil
             && !trimmed.contains("&&") && !trimmed.contains(";")
 
-        // v3.0.91：cd 失败不阻断命令执行（/workspace symlink 可能没创建成功）
+        // cd 失败不阻断命令执行（cwd 为真实 /root，但容错）
         var fullCommand = "cd '\(shellQuote(cwd))' 2>/dev/null; \(bridged)"
         if isPureCd {
             fullCommand += " && pwd"
@@ -225,79 +223,6 @@ enum ISHEngine {
 
         ShellDiag.log("ISH exec end elapsed=\(Int(Date().timeIntervalSince(tStart) * 1000))ms exit=\(exitCode) timedOut=\(timedOut) out=\(stdout.prefix(80))")
         return (stdout, exitCode, timedOut)
-    }
-
-    /// 文件桥 /ios 统一视图：把 iOS 侧可达的系统路径 symlink 进 Alpine guest，agent 在 guest 里
-    /// 用一个前缀访问整个 iOS 文件系统。映射表(具体→宽泛)：
-    ///   /var/mobile/Documents/Workspace → /workspace      (保留双向读写)
-    ///   /System                          → /ios/System      (读系统框架/私有框架)
-    ///   /var/containers                  → /ios/containers  (读其他 App 容器)
-    ///   /var/mobile                      → /ios/mobile      (读 /var/mobile 下其他目录)
-    private static func bridgeToAlpine(_ command: String) -> String {
-        verifyBridgeLinks()
-        var c = command
-        // 具体 → 宽泛，保证 /var/mobile/Documents/Workspace 先被 /workspace 捕获，不被 /var/mobile 误吞
-        c = rewritePath(c, "/var/mobile/Documents/Workspace", "/workspace")
-        c = rewritePath(c, "/System", "/ios/System")
-        c = rewritePath(c, "/var/containers", "/ios/containers")
-        c = rewritePath(c, "/var/mobile", "/ios/mobile")
-        return c
-    }
-
-    /// 把命令中作为独立路径 token 出现的 src 改写为 dst（前边界=行首/空白/引号，后边界=/、空白、引号、结尾）
-    private static func rewritePath(_ command: String, _ src: String, _ dst: String) -> String {
-        let pattern = "(^|[\\s\"'])" + NSRegularExpression.escapedPattern(for: src) + "(?=/|[\\s\"']|$)"
-        guard let re = try? NSRegularExpression(pattern: pattern) else { return command }
-        let ns = command as NSString
-        return re.stringByReplacingMatches(in: command, options: [], range: NSRange(location: 0, length: ns.length),
-                                           withTemplate: "$1" + dst)
-    }
-
-    /// 验证/重建文件桥 symlink 链（幂等）：/workspace (rootfs + dataPath) 与 /ios/{System,containers,mobile}。
-    /// 目标目录存在才建；symlink 指向的目标不一致则删了重建。
-    private static func verifyBridgeLinks() {
-        let fm = FileManager.default
-        // 1. /workspace → iOS Documents/Workspace
-        let rootLink = rootfsDir + "/Workspace"
-        let rootTarget = (rootfsDir as NSString).appendingPathComponent("../Workspace")
-        let iosWS = NSHomeDirectory() + "/Documents/Workspace"
-        if fm.fileExists(atPath: iosWS) {
-            if !fm.fileExists(atPath: rootLink) {
-                try? fm.createSymbolicLink(atPath: rootLink, withDestinationPath: rootTarget)
-            }
-            if let dest = try? fm.destinationOfSymbolicLink(atPath: rootLink), dest != rootTarget {
-                try? fm.removeItem(atPath: rootLink)
-                try? fm.createSymbolicLink(atPath: rootLink, withDestinationPath: rootTarget)
-            }
-        }
-        let dataLink = dataPath + "/workspace"
-        let dataTarget = "../../Workspace"
-        if !fm.fileExists(atPath: dataLink) {
-            try? fm.createSymbolicLink(atPath: dataLink, withDestinationPath: dataTarget)
-        }
-        if let dest = try? fm.destinationOfSymbolicLink(atPath: dataLink), dest != dataTarget {
-            try? fm.removeItem(atPath: dataLink)
-            try? fm.createSymbolicLink(atPath: dataLink, withDestinationPath: dataTarget)
-        }
-        // 2. /ios/{System,containers,mobile} → 系统路径
-        let iosDir = dataPath + "/ios"
-        if !fm.fileExists(atPath: iosDir) {
-            try? fm.createDirectory(atPath: iosDir, withIntermediateDirectories: true)
-        }
-        let sysMap = [("/System", "/System"), ("/containers", "/var/containers"), ("/mobile", "/var/mobile")]
-        for (sub, target) in sysMap {
-            let link = iosDir + sub
-            // 目标(带尾/)存在才建
-            if fm.fileExists(atPath: target + "/") {
-                if !fm.fileExists(atPath: link) {
-                    try? fm.createSymbolicLink(atPath: link, withDestinationPath: target)
-                }
-                if let dest = try? fm.destinationOfSymbolicLink(atPath: link), dest != target {
-                    try? fm.removeItem(atPath: link)
-                    try? fm.createSymbolicLink(atPath: link, withDestinationPath: target)
-                }
-            }
-        }
     }
 
     /// P3 按需补给：从 Alpine 命令输出检测缺失工具("X: not found" / "command not found")，

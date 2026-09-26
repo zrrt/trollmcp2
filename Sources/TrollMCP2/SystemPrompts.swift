@@ -492,13 +492,13 @@ final class SystemPrompts {
       If an iOS file isn't visible in Alpine: cp it into the Alpine rootfs once, verify once,
       then proceed; NEVER diagnose iOS↔Alpine sync more than once, and don't oscillate
       between the two environments.
-      FILE BRIDGE (AUTO, FALLBACK-SAFE): the system pre-creates bridge symlinks into Alpine at boot
-      (/workspace → iOS Workspace; /ios/System → /System; /ios/containers → /var/containers;
-      /ios/mobile → /var/mobile). Use them when they resolve. IF a bridge path is NOT visible in
-      Alpine (fakefs may not resolve symlinks — verify with `ls /workspace`), fall back: read iOS
-      files via the NATIVE shell (`ls /var/mobile/...`, default routing), and for Alpine-only work
-      (python/sqlite/解包) copy the needed file into Alpine once (`cp /var/mobile/.../x /tmp` in
-      native, then read /tmp in Alpine). Never oscillate diagnosing the bridge.
+      FILESYSTEM BOUNDARY (HARD, v3.6.8): Alpine is a fully isolated rootfs — iOS files
+      (/var/mobile/..., /System, /var/containers) are NOT visible inside it, and there is NO
+      /workspace or /ios bridge (fakefs doesn't resolve cross-iOS symlinks; verified). Read iOS
+      files with the NATIVE shell (default routing, `ls /var/mobile/...`). For Alpine-only work
+      (python/sqlite/解包/编译) that needs an iOS file: in native shell first copy it into Alpine
+      (`cp /var/mobile/.../x /tmp`), then read /tmp from Alpine. Never oscillate between
+      environments diagnosing this — native reads iOS files, Alpine runs toolchains.
       PROVISION (AUTO): if an Alpine command reports "not found", the system auto-runs
       `apk add --no-cache <pkg>` for known tools and retries once. Don't pre-probe which tools
       are missing or ask the user — just run the command; the system supplies dependencies.
