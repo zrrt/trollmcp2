@@ -311,6 +311,26 @@ enum ISHEngine {
         }
     }
 
+    /// P3 按需补给：从 Alpine 命令输出检测缺失工具("X: not found" / "command not found")，
+    /// 命中白名单则返回对应 apk 包名供自动安装；否则 nil。避免 agent 反复试探缺什么工具。
+    static func missingToolPkg(_ output: String) -> String? {
+        let map: [(cmd: String, pkg: String)] = [
+            ("python3", "python3"), ("python", "python3"), ("pip", "py3-pip"),
+            ("tar", "tar"), ("dpkg", "dpkg"), ("strings", "binutils"), ("hexdump", "binutils"),
+            ("git", "git"), ("wget", "wget"), ("make", "make"), ("cmake", "cmake"),
+            ("gcc", "build-base"), ("clang", "clang"), ("openssl", "openssl"),
+            ("unzip", "unzip"), ("sqlite3", "sqlite3"),
+        ]
+        for (cmd, pkg) in map {
+            if output.contains("\(cmd): not found")
+                || output.contains("\(cmd): command not found")
+                || output.contains("command not found: \(cmd)") {
+                return pkg
+            }
+        }
+        return nil
+    }
+
     /// shell 单引号转义
     private static func shellQuote(_ s: String) -> String {
         s.replacingOccurrences(of: "'", with: "'\\''")

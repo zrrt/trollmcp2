@@ -137,20 +137,29 @@ final class ShellExecTool: MCPTool {
                 return OffloadRouter.run(trimmed)
             }
             let (output, exitCode, timedOut) = ISHEngine.exec(trimmed, timeout: timeout)
-            var stdout = ShellExecTool.filterNoise(output)
+            // P3 按需补给：Alpine 输出显示缺工具(command not found)且命中白名单 → 自动 apk add 并重跑一次，
+            // 免 agent 反复探测缺什么、也避免"先探测→再装→再跑"的多轮试探。
+            var finalOut = output, finalExit = exitCode, finalTimed = timedOut
+            if let pkg = ISHEngine.missingToolPkg(output) {
+                ShellExecTool.log("provision auto: apk add \(pkg) (missing in Alpine)")
+                _ = ISHEngine.exec("apk add --no-cache \(pkg)", timeout: 120)
+                let (rout, rexit, rtimed) = ISHEngine.exec(trimmed, timeout: timeout)
+                finalOut = rout; finalExit = rexit; finalTimed = rtimed
+            }
+            var stdout = ShellExecTool.filterNoise(finalOut)
             if outLimit > 0 && stdout.count > outLimit {
                 let spillPath = ToolRegistry.spillLarge("alpine", stdout)
                 stdout = String(stdout.prefix(outLimit / 2)) + "\n…[输出太长total \(stdout.count) 字符，已截断；完整输出: \(spillPath)]…\n" + String(stdout.suffix(outLimit / 2))
             }
             var result: [String: Any] = [
                 "command": trimmed,
-                "exit_code": exitCode,
+                "exit_code": finalExit,
                 "stdout": stdout,
                 "cwd": ISHEngine.cwd,
                 "ios_native": false,
-                "hint": "Alpine Linux environment (auto-routed: needs full toolchain): apk add to install packages"
+                "hint": "Alpine Linux environment (auto-routed: needs full toolchain). 缺工具时系统已自动 apk add 安装并重试一次。"
             ]
-            if timedOut { result["timed_out"] = true }
+            if finalTimed { result["timed_out"] = true }
             AuditLog.shared.log("shell.exec (alpine auto)", detail: String(trimmed.prefix(100)))
             return result
         }
@@ -731,16 +740,23 @@ final class ShellExecTool: MCPTool {
                         result = runIOSNativeSegment(body)
                         result["ios_native"] = true
                     } else {
-                        let (output, outputExit, timedOut) = ISHEngine.exec(body, timeout: 30)
+                        var (output, outputExit, timedOut) = ISHEngine.exec(body, timeout: 30)
+                        // P3 按需补给：缺工具自动 apk add 并重跑一次
+                        if let pkg = ISHEngine.missingToolPkg(output) {
+                            ShellExecTool.log("provision auto: apk add \(pkg) (missing in Alpine)")
+                            _ = ISHEngine.exec("apk add --no-cache \(pkg)", timeout: 120)
+                            let (rout, rexit, rtimed) = ISHEngine.exec(body, timeout: 30)
+                            output = rout; outputExit = rexit; timedOut = rtimed
+                        }
                         var out = ShellExecTool.filterNoise(output)
                         if limit > 0 && out.count > limit {
                             let spillPath = ToolRegistry.spillLarge("alpine", out)
                             out = String(out.prefix(limit / 2)) + "\n…[输出太长total \(out.count) 字符，已截断；完整输出: \(spillPath)]…\n" + String(out.suffix(limit / 2))
                         }
                         result = [
-                            "command": body, "exit_code": outputExit, "stdout": out,
+                            "command": body, "exit_code": Int(outputExit), "stdout": out,
                             "cwd": ISHEngine.cwd,
-                            "hint": "Alpine Linux environment (non-iOS segment of compound command): full command support"
+                            "hint": "Alpine Linux environment (non-iOS segment of compound command): full command support; 缺工具已自动 apk add"
                         ]
                         if timedOut { result["timed_out"] = true }
                     }

@@ -499,6 +499,9 @@ final class SystemPrompts {
         /ios/containers   → iOS /var/containers (read other apps' containers)
         /ios/mobile       → iOS /var/mobile     (read other dirs under /var/mobile)
       Absolute iOS paths in a command are auto-bridged to the mapping above — just write them.
+      PROVISION (AUTO): if an Alpine command reports "not found", the system auto-runs
+      `apk add --no-cache <pkg>` for known tools and retries once. Don't pre-probe which tools
+      are missing or ask the user — just run the command; the system supplies dependencies.
       Complex SQLite (JOIN/UPDATE/export) on a .db: query it via /workspace/<db> (auto-bridged),
       don't hand-cp.
     - BINARY / REVERSE ANALYSIS (HARD): analyze a decrypted app binary with the NATIVE
