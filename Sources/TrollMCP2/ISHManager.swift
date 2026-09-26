@@ -275,6 +275,10 @@ enum ISHEngine {
         let map: [(cmd: String, pkg: String)] = [
             ("python3", "python3"), ("python", "python3"), ("pip", "py3-pip"),
             ("tar", "tar"), ("dpkg", "dpkg"), ("strings", "binutils"), ("hexdump", "binutils"),
+            ("nm", "binutils"), ("objdump", "binutils"), ("readelf", "binutils"),
+            ("size", "binutils"), ("addr2line", "binutils"),
+            ("rabin2", "radare2"), ("r2", "radare2"), ("radare2", "radare2"),
+            ("xxd", "xxd"), ("jq", "jq"), ("gdb", "gdb"),
             ("git", "git"), ("wget", "wget"), ("make", "make"), ("cmake", "cmake"),
             ("gcc", "build-base"), ("clang", "clang"), ("openssl", "openssl"),
             ("unzip", "unzip"), ("sqlite3", "sqlite3"),

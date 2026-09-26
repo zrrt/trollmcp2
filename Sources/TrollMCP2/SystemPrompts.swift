@@ -513,6 +513,12 @@ final class SystemPrompts {
       binary; search product-ID patterns and method names instead. Work ONLY on the decrypted
       (cryptid=0) binary under Workspace/decrypted/; never re-handle the encrypted store copy.
       This is a native flow — the system routes it natively; no env switching involved.
+      For deeper Mach-O work use Alpine tools (auto-installed via provision): `nm <bin>` (symbols),
+      `objdump -x <bin>` (load commands / dylibs / encryption flag — substitute for otool),
+      `readelf -a <bin>` (structure), `rabin2 -I / -s / -z <bin>` (info/symbols/strings — substitute
+      for class-dump's ObjC analysis), `strings -a` (extract strings). `otool` / `class-dump` are
+      macOS-only, not in Alpine — use objdump / rabin2 instead. Reference the iOS file path directly
+      (≤2MB auto-bridged into Alpine); for a >2MB binary, use `inject binary_symbols` natively.
     - [Workspace] working dir is /var/mobile/Documents/Workspace, read with artifact list/read; [Downloads] files
       downloaded via shell must be copied with artifact write into workspace to appear in the download manager.
     - [Web] shell.exec curl can fetch web/GitHub APIs; if blocked by anti-scraping, use browser navigate + browser text.
