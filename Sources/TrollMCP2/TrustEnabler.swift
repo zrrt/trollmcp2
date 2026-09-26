@@ -112,8 +112,8 @@ enum TrustEnabler {
     // MARK: - posix_spawn
 
     /// 用 posix_spawn 启动一个 helper（kfd_helper 免 root，漏洞自提权）。
-    /// 关键：stdout/stderr 重定向到 /var/mobile/Documents/kfd_helper.log ——
-    /// kfd_helper 的每个诊断步骤（kopen/patchfind/kalloc）都打在这，用户可查看卡点。
+    /// kfd_helper 自身在 main 里 freopen 把 stderr 重定向到
+    /// /var/mobile/Documents/kfd_helper.log —— 每步诊断(kopen/patchfind/kalloc)都在这。
     /// 带 90s 超时（kfd kopen 提权可能 10–60s；超时杀掉避免 UI 永久卡死）。
     private static func spawn(_ path: String, args: [String]) -> Bool {
         var pid: pid_t = 0
@@ -123,29 +123,14 @@ enum TrustEnabler {
         var envp = ["HOME=/var/mobile", "PATH=/usr/bin:/bin:/usr/sbin:/sbin"].map { $0.withCString { strdup($0) } }
         envp.append(nil)
 
-        // 日志文件：stdout+stderr 都写进去（TrollStore 装的无沙盒，可写 /var/mobile/Documents）
-        let logPath = "/var/mobile/Documents/kfd_helper.log"
-        let fd = open(logPath, O_WRONLY | O_CREAT | O_TRUNC, 0644)
-
-        // posix_spawn_file_actions_t 在 Darwin 是 UnsafeMutableRawPointer?（不透明句柄）
-        var fileActions: posix_spawn_file_actions_t = nil
-        if fd >= 0 {
-            posix_spawn_file_actions_init(&fileActions)
-            posix_spawn_file_actions_adddup2(&fileActions, fd, STDOUT_FILENO)
-            posix_spawn_file_actions_adddup2(&fileActions, fd, STDERR_FILENO)
-            posix_spawn_file_actions_addclose(&fileActions, fd)
-        }
-
         var rc: Int32 = -1
         path.withCString { cpath in
             argv.withUnsafeBufferPointer { ab in
                 envp.withUnsafeBufferPointer { eb in
-                    rc = posix_spawn(&pid, cpath, &fileActions, nil, ab.baseAddress, eb.baseAddress)
+                    rc = posix_spawn(&pid, cpath, nil, nil, ab.baseAddress, eb.baseAddress)
                 }
             }
         }
-        if fd >= 0 { posix_spawn_file_actions_destroy(&fileActions) }
-        if fd >= 0 { close(fd) }
         argv.forEach { free($0) }
         envp.forEach { free($0) }
 
@@ -160,7 +145,7 @@ enum TrustEnabler {
             if r == pid { break }
             if DispatchTime.now() > deadline {
                 kill(pid, SIGKILL); waitpid(pid, &status, 0)
-                NSLog("TrustEnabler: kfd_helper 超时被终止 — 看 %@ 定位卡点", logPath)
+                NSLog("TrustEnabler: kfd_helper 超时被终止 — 看 /var/mobile/Documents/kfd_helper.log 定位卡点")
                 return false
             }
             usleep(200_000)

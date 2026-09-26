@@ -283,6 +283,10 @@ static int inject_trust_cache(struct kfd *kfd, const uint8_t cdhash[20]) {
 /* 4. main                                                              */
 /* ------------------------------------------------------------------ */
 int main(int argc, char **argv) {
+    /* 所有 fprintf(stderr,...) 同时落到日志文件（TrollStore 装的无沙盒，可写）。
+     * 用户/排查可直接看 /var/mobile/Documents/kfd_helper.log 的每步卡点。 */
+    freopen("/var/mobile/Documents/kfd_helper.log", "w", stderr);
+
     if (argc < 2) {
         fprintf(stderr, "usage: %s --cdhash <hex40> | <appex_macho_path>\n", argv[0]);
         return 1;
