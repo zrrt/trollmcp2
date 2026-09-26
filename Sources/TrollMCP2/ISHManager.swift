@@ -108,6 +108,9 @@ enum ISHEngine {
     }
 
     /// 执行命令。返回 (输出, 退出码, 是否超时)。未 boot 时自动尝试 boot，失败返回错误串。
+    /// P2/P3 文件桥：exec 前自动把命令里引用的 iOS Workspace 绝对路径改写为 Alpine 可见的
+    /// /workspace (symlink→iOS Workspace)，并验证/重建 symlink 链——绕开"agent 在 Alpine 用
+    /// 绝对 iOS 路径(chroot 内不存在)导致看不到文件"的问题。
     static func exec(_ command: String, timeout: TimeInterval) -> (output: String, exitCode: Int32, timedOut: Bool) {
         if case .booted = state {} else {
             if let e = ensureBooted() { return (e, -1, false) }
@@ -116,17 +119,20 @@ enum ISHEngine {
         defer { lock.unlock() }
         guard case .booted = state else { return ("[ish] kernel not ready", -1, false) }
 
+        // 文件桥：同步 + 路径改写
+        let bridged = bridgeToAlpine(command)
+
         let cwd = guestCwd
         let tStart = Date()
         ShellDiag.log("ISH exec start cmd=\(command.prefix(80)) timeout=\(timeout) cwd=\(cwd)")
 
         // 纯 cd 命令：执行后额外取真实路径
-        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = bridged.trimmingCharacters(in: .whitespacesAndNewlines)
         let isPureCd = trimmed.range(of: "^cd\\s+\\S+(\\s+.*)?$", options: .regularExpression) != nil
             && !trimmed.contains("&&") && !trimmed.contains(";")
 
         // v3.0.91：cd 失败不阻断命令执行（/workspace symlink 可能没创建成功）
-        var fullCommand = "cd '\(shellQuote(cwd))' 2>/dev/null; \(command)"
+        var fullCommand = "cd '\(shellQuote(cwd))' 2>/dev/null; \(bridged)"
         if isPureCd {
             fullCommand += " && pwd"
         }
@@ -230,6 +236,58 @@ enum ISHEngine {
 
         ShellDiag.log("ISH exec end elapsed=\(Int(Date().timeIntervalSince(tStart) * 1000))ms exit=\(exitCode) timedOut=\(timedOut) out=\(stdout.prefix(80))")
         return (stdout, exitCode, timedOut)
+    }
+
+    /// 文件桥：命令里引用的 iOS Workspace 绝对路径 → Alpine 可见的 /workspace (symlink→iOS Workspace)。
+    /// 保留 /workspace 双向语义（读 iOS 文件、写回 iOS），只桥接 chroot 内不存在的绝对路径。
+    /// 每次调用顺手验证 /workspace symlink 链是否有效，失效即重建。
+    private static func bridgeToAlpine(_ command: String) -> String {
+        let srcAbs = "/var/mobile/Documents/Workspace"
+        let dstWS = "/workspace"
+        // 验证/重建 symlink 链（幂等，开销极小）
+        verifyWorkspaceLinks()
+        var c = command
+        // 绝对路径 /var/mobile/Documents/Workspace/xxx → /workspace/xxx
+        c = c.replacingOccurrences(of: srcAbs + "/", with: dstWS + "/")
+        // 无尾部斜杠的绝对路径单独出现 → /workspace
+        c = c.replacingOccurrences(of: srcAbs + " ", with: dstWS + " ")
+        if c.contains(srcAbs) {
+            c = c.replacingOccurrences(of: srcAbs, with: dstWS)
+        }
+        return c
+    }
+
+    /// 验证 /workspace symlink 链 (rootfs/Workspace → Documents/Workspace 与 dataPath/workspace → ../../Workspace)，
+    /// 缺失或断链则重建。幂等。
+    private static func verifyWorkspaceLinks() {
+        let fm = FileManager.default
+        // 1. rootfs 根 /Workspace → Documents/Workspace
+        let rootLink = rootfsDir + "/Workspace"
+        let rootTarget = (rootfsDir as NSString).appendingPathComponent("../Workspace")
+        let iosWS = NSHomeDirectory() + "/Documents/Workspace"
+        // 目标目录必须存在，否则重建
+        if fm.fileExists(atPath: iosWS) {
+            if !fm.fileExists(atPath: rootLink) {
+                try? fm.createSymbolicLink(atPath: rootLink, withDestinationPath: rootTarget)
+            }
+            // 若 symlink 指向的目标失效，删了重建
+            if let dest = try? fm.destinationOfSymbolicLink(atPath: rootLink),
+               dest != rootTarget {
+                try? fm.removeItem(atPath: rootLink)
+                try? fm.createSymbolicLink(atPath: rootLink, withDestinationPath: rootTarget)
+            }
+        }
+        // 2. dataPath/workspace → ../../Workspace
+        let dataLink = dataPath + "/workspace"
+        let dataTarget = "../../Workspace"
+        if !fm.fileExists(atPath: dataLink) {
+            try? fm.createSymbolicLink(atPath: dataLink, withDestinationPath: dataTarget)
+        }
+        if let dest = try? fm.destinationOfSymbolicLink(atPath: dataLink),
+           dest != dataTarget {
+            try? fm.removeItem(atPath: dataLink)
+            try? fm.createSymbolicLink(atPath: dataLink, withDestinationPath: dataTarget)
+        }
     }
 
     /// shell 单引号转义
