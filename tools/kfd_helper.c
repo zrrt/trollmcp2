@@ -226,9 +226,12 @@ static int extract_cdhash(const uint8_t *macho, size_t len, uint8_t cdhash[20]) 
 /* ------------------------------------------------------------------ */
 static int inject_trust_cache(struct kfd *kfd, const uint8_t cdhash[20]) {
     /* pmap_image4_trust_caches 地址 = 运行时 patchfind（无静态偏移表） */
+    uint64_t kbase = patchfind_kernel_base(kfd);
+    fprintf(stderr, "[kfd-helper] kernel_base=0x%llx slide=0x%llx\n",
+            kbase, kfd->perf.kernel_slide);
     uint64_t pmap = patchfind_pmap(kfd);
     if (!pmap) {
-        fprintf(stderr, "[kfd-helper] patchfind pmap_image4_trust_caches failed\n");
+        fprintf(stderr, "[kfd-helper] patchfind pmap_image4_trust_caches FAILED\n");
         return -1;
     }
     uint64_t slide = kfd->perf.kernel_slide;
@@ -239,7 +242,10 @@ static int inject_trust_cache(struct kfd *kfd, const uint8_t cdhash[20]) {
      * libkfd 无 kalloc；Fuck 用 krkw allocate 复用内核对象（0x10001f97c），
      * 或需自行实现 kalloc（迁移页面/复用 fileproc 对象区）。 */
     uint64_t tc_kaddr = 0; /* = kfd_kalloc(kfd, tc_size); */
-    if (!tc_kaddr) { fprintf(stderr, "[kfd-helper] kalloc failed\n"); return -1; }
+    if (!tc_kaddr) {
+        fprintf(stderr, "[kfd-helper] KALLOC NOT IMPLEMENTED — 卡点：非越狱内核内存分配\n");
+        return -1;
+    }
 
     /* 构造 trust_cache */
     uint8_t tc[sizeof(struct trust_cache) + 32];
@@ -305,7 +311,8 @@ int main(int argc, char **argv) {
      * puaf_landa 支持 iOS 15.0–16.6.1（CVE-2023-41974，16.7 已修），本设备 iOS 16.3 在区间内。
      * dynamic_info 偏移表见 tools/kfd/dynamic_info.h（build 时覆盖 libkfd 同名文件）。 */
     struct kfd *kfd = (struct kfd *)kopen(2048, puaf_landa, kread_kqueue_workloop_ctl, kwrite_dup);
-    if (!kfd) { fprintf(stderr, "kopen(puaf_landa) failed — 设备 iOS 需在 15.0–16.6.1\n"); return 1; }
+    if (!kfd) { fprintf(stderr, "kopen(puaf_landa) FAILED — 设备 iOS 需在 15.0–16.6.1\n"); return 1; }
+    fprintf(stderr, "[kfd-helper] kopen OK slide=0x%llx\n", kfd->perf.kernel_slide);
 
     int rc = inject_trust_cache(kfd, cdhash);
 

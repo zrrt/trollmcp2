@@ -89,6 +89,15 @@ jobs:
             && echo "teamid built:" && file "$GITHUB_WORKSPACE/Resources/bin/teamid" \
             || echo "TEAMID BUILD FAILED, keeping old binary"
 
+      - name: Build kfd_helper (iOS arm64, kfd trust injection for non-jailbroken <17)
+        # v3.5.27：纯巨魔非越狱(<17)抓包的信任注入 helper。此前 CI 未编译它，
+        # 导致 IPA 里根本没有 kfd_helper → kfdInject 路径找不到 helper → 抓包回退失败。
+        # 用 tools/build_kfd_helper.sh：clone felix-pb/kfd + 覆盖 iOS16.3 偏移表 + xcrun 编译。
+        run: |
+          bash tools/build_kfd_helper.sh \
+            && echo "=== kfd_helper built OK ===" && file Resources/bin/kfd_helper \
+            || echo "KFD_HELPER BUILD FAILED (kept any old binary)"
+
       - name: Cache iSH engine build
         # v3.0.37：iSH 编译 40 分钟，缓存 ish-stage（libs+include+resources+源码），命中直接跳过构建
         # v3.0.40：key 带脚本 hash，改 prepare_alpine_rootfs.sh（如预装包/DNS）时自动重编 rootfs
