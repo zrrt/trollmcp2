@@ -88,7 +88,7 @@ enum ISHEngine {
         // 3. 默认 cwd 为真实存在的 /root（避免名义 /workspace 误导）
         guestCwd = "/root"
 
-        ShellDiag.log("ISH boot ok data=\(dataPath) bridge links pre-created")
+        ShellDiag.log("ISH boot ok data=\(dataPath) (isolated rootfs, no file bridge)")
         return nil
     }
 
