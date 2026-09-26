@@ -492,13 +492,17 @@ final class SystemPrompts {
       If an iOS file isn't visible in Alpine: cp it into the Alpine rootfs once, verify once,
       then proceed; NEVER diagnose iOS↔Alpine sync more than once, and don't oscillate
       between the two environments.
-      FILESYSTEM BOUNDARY (HARD, v3.6.8): Alpine is a fully isolated rootfs — iOS files
+      FILESYSTEM BOUNDARY (HARD, v3.6.9): Alpine is a fully isolated rootfs — iOS files
       (/var/mobile/..., /System, /var/containers) are NOT visible inside it, and there is NO
-      /workspace or /ios bridge (fakefs doesn't resolve cross-iOS symlinks; verified). Read iOS
-      files with the NATIVE shell (default routing, `ls /var/mobile/...`). For Alpine-only work
-      (python/sqlite/解包/编译) that needs an iOS file: in native shell first copy it into Alpine
-      (`cp /var/mobile/.../x /tmp`), then read /tmp from Alpine. Never oscillate between
-      environments diagnosing this — native reads iOS files, Alpine runs toolchains.
+      /workspace or /ios bridge. Read iOS files with the NATIVE shell (default routing).
+      FILE SYNC IS ONE-WAY (verified): Alpine writing /tmp DOES sync to iOS Documents/alpine-rootfs/
+      data/tmp/; but iOS native writing into that dir does NOT appear in Alpine (fakefs caches,
+      only honors Alpine's own writes). So to feed an iOS file into Alpine, DO NOT `cp` it in native —
+      instead read its content native, then write it FROM Alpine (echo / base64):
+        small text:  sh -c 'echo "<content>" > /tmp/x'
+        binary/utf8: sh -c 'echo "<base64>" | base64 -d > /tmp/x'
+      To bring Alpine output back to iOS, let Alpine write /tmp, then native reads
+      Documents/alpine-rootfs/data/tmp/. Never oscillate diagnosing this boundary.
       PROVISION (AUTO): if an Alpine command reports "not found", the system auto-runs
       `apk add --no-cache <pkg>` for known tools and retries once. Don't pre-probe which tools
       are missing or ask the user — just run the command; the system supplies dependencies.
