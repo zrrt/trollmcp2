@@ -497,6 +497,15 @@ final class SystemPrompts {
       strings on the decrypted binary — do NOT switch environments for it. If an iOS file
       isn't visible in Alpine: cp it into the Alpine rootfs once, verify once, then proceed;
       NEVER diagnose iOS↔Alpine sync more than once, and don't oscillate between the two.
+    - BINARY / REVERSE ANALYSIS (HARD): analyze a decrypted app binary with the NATIVE
+      `inject binary_symbols path:<macho>` / `inject ipa_inspect` — NOT hand unzip + strings.
+      IAP / in-app-purchase hooks: product IDs (`com.<bundle>.[a-z_]+`), StoreKit call sites
+      (paymentQueue / SKProductsRequest / productsRequest / restoreCompletedTransactions),
+      receipt validation (receipt / validate / IAPReceipt / transactionReceipt), restore.
+      Don't search the framework name — "StoreKit" rarely appears as literal text in the
+      binary; search product-ID patterns and method names instead. Work ONLY on the decrypted
+      (cryptid=0) binary under Workspace/decrypted/; never re-handle the encrypted store copy.
+      This is a native-tool flow — do NOT switch to Alpine for it.
     - [Workspace] working dir is /var/mobile/Documents/Workspace, read with artifact list/read; [Downloads] files
       downloaded via shell must be copied with artifact write into workspace to appear in the download manager.
     - [Web] shell.exec curl can fetch web/GitHub APIs; if blocked by anti-scraping, use browser navigate + browser text.
