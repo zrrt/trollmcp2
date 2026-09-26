@@ -41,8 +41,15 @@
 #include <sys/stat.h>
 #include <mach-o/loader.h>
 #include <mach-o/fat.h>
-#include <mach-o/codesign.h>   /* CSMAGIC_EMBEDDED_SIGNATURE, cs_superblob, csslot_codedirectory */
 #include <CommonCrypto/CommonDigest.h>   // CC_SHA256 — 算 cdhash
+
+/* mach-o/codesign.h 在 iPhoneOS SDK 缺失（macOS 私有头）。
+ * 所需 cs_superblob/cs_blobindex/cs_codedirectory 结构已在本文件第 2 节自定义；
+ * 此处仅补 libkfd/内核侧引用的 4 个 codesign 宏常量。 */
+#define CSMAGIC_EMBEDDED_SIGNATURE 0xfade0cc0u
+#define CSSLOT_CODEDIRECTORY       0
+#define CS_HASHTYPE_SHA1           1
+#define CS_HASHTYPE_SHA256         2
 
 /* libkfd 公开 API（以你 clone 的版本为准，这里按通用签名占位）
  * 实际引入方式见 tools/build_kfd_helper.sh（-I 指向 libkfd 根目录） */
