@@ -1386,7 +1386,8 @@ struct MessageBubble: View {
                 messageImageStrip(imgs)
             }
             // v2.9.20：思考记录（reasoning）可展开显示
-            if !isUser, let th = message.thinking, !th.isEmpty {
+            // v3.5.31：加 thinkEnabled —— 思考关时即使 API 返回 thinking 也一律不显示
+            if !isUser, thinkEnabled, let th = message.thinking, !th.isEmpty {
                 thinkingView(th)
             }
             // v3.0.2: 去掉旧的 TrailCard，改用 toolBubble 显示工具调用
@@ -1502,7 +1503,8 @@ struct MessageBubble: View {
     private var toolBubble: some View {
         VStack(alignment: .leading, spacing: 6) {
             // 📝 1. 思考过程（独立橙色气泡）
-            if let thinking = message.thinking, !thinking.isEmpty {
+            // v3.5.31：加 thinkEnabled —— 思考关时不显示思考气泡
+            if thinkEnabled, let thinking = message.thinking, !thinking.isEmpty {
                 thinkingMiniBubble(thinking)
             }
 
