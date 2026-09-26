@@ -36,7 +36,7 @@ enum ShellDiag {
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "Run a shell command (terminal/command line). iOS native mode (default): 36 个原生命令直通真实 iOS 系统——文件操作 (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/curl/plutil/sqlite3/unzip) + 系统信息 (df/free/uname/uptime/hostname/ps/top/kill) + 网络 (ifconfig/netstat/nslookup)。支持管道/分号/重定向/&&/|| (例：'ls /var/mobile | head -5'、'cat a.txt; echo done'、'echo hi > f.txt')，支持 VAR=value 赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat。限制：iOS 原生模式不支持 for/while/case/heredoc/多行脚本 (写复杂脚本或装包请 env:alpine 走 Alpine Linux 全功能 shell，如 env:alpine 下可 python/curl/tar/apk add)。'env' 可探测当前执行环境。Native Offload：`ta <tool> <key:value...>` 是全部原生工具的单一入口——先 `ta list` 看可用工具、`ta help <tool>` 看参数，再 `ta <tool> key:value` 直接调用 (例：ta app launch bundle_id:com.xxx；ta vpn.capture command:start)。Use for: file operations, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*). Example: 'read file' → cat /path; 'disk space' → df; 'processes' → ps; 'download' → curl -O url; 'complex script' -> env:alpine + command. 环境选择规则：SQLite/.db 结构化查询、awk/sed 复杂管道、python/装包 → 直接用 env:alpine（工具全）；纯 iOS 文件读删、系统信息、网络 → 用原生。注意 env:alpine 是独立 chroot，iOS 的 /var/mobile/... 路径不存在，需先把文件 cp 到 /tmp 或 /workspace 再读。SQLite .db 在原生里用内置 sqlite3：`sqlite3 <db> \".tables\"` / `sqlite3 <db> \"SELECT ...\"`，支持 .schema/.indexes。",
+        summary: "Run a shell command (terminal/command line). iOS native mode (default): 36 个原生命令直通真实 iOS 系统——文件操作 (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/curl/plutil/sqlite3/unzip) + 系统信息 (df/free/uname/uptime/hostname/ps/top/kill) + 网络 (ifconfig/netstat/nslookup)。支持管道/分号/重定向/&&/|| (例：'ls /var/mobile | head -5'、'cat a.txt; echo done'、'echo hi > f.txt')，支持 VAR=value 赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat。限制：iOS 原生模式不支持 for/while/case/heredoc/多行脚本。环境自动路由（系统决定，不要传 env 参数）：装包/解包/完整工具链/复杂脚本(apk、tar/dpkg、python、git、sh -c、heredoc等开头)自动走 Alpine Linux；文件操作/系统信息/网络/二进制分析默认 iOS 原生。若确实需要 Alpine 能力，用能命中自动路由的命令形式开头(如 python3 / apk add / tar / sh script.sh)。注意 Alpine 是独立 chroot，iOS 的 /var/mobile/... 路径在 Alpine 里不可见，需先把文件 cp 到 /workspace 或 /tmp 再读。SQLite .db 在原生里用内置 sqlite3：`sqlite3 <db> \".tables\"` / `sqlite3 <db> \"SELECT ...\"`，支持 .schema/.indexes。Native Offload：`ta <tool> <key:value...>` 是全部原生工具的单一入口——先 `ta list` 看可用工具、`ta help <tool>` 看参数，再 `ta <tool> key:value` 直接调用 (例：ta app launch bundle_id:com.xxx；ta vpn.capture command:start)。Use for: file operations, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*).",
         parameters: [
             "command": "Shell command to execute (required)",
             "timeout": "Timeout seconds (default 30, max 120)",
@@ -487,11 +487,12 @@ final class ShellExecTool: MCPTool {
         // 明确的 Alpine 需求标记：装包/解包/完整工具链/复杂脚本结构
         let alpineMarkers: [String] = [
             #"^\s*apk\s+"#,           // apk add / apk update
-            #"^\s*(tar|dpkg|dpkg-deb|rpm)\s+"#,  // 解包/装包
+            #"^\s*(tar|dpkg|dpkg-deb|rpm|strings|hexdump|od)\s+"#,  // 解包/装包/原生缺失的分析工具
+            #"\|\s*(tar|dpkg|dpkg-deb)\s+"#,  // 管道中间的解包命令 (curl x | tar -x)
             #"^\s*python3?\s+"#,      // python / python3
             #"^\s*(pip3?)\s+"#,        // pip / pip3
             #"^\s*(git|wget|make|cmake|gcc|clang)\s+"#,  // 工具链
-            #"^\s*sh\s+-[ce]"#,        // sh -c / sh -e (脚本)
+            #"^\s*sh\s+"#,             // 任意 sh 脚本(含无 flag) → Alpine 全功能 shell
             #"^\s*bash\s+"#,
             #"<<\s*[A-Za-z_][A-Za-z0-9_]*"#,  // heredoc
         ]
@@ -1219,7 +1220,7 @@ final class ShellExecTool: MCPTool {
                 if lower.hasSuffix(".db") || lower.hasSuffix(".sqlite") || lower.hasSuffix(".sqlite3") {
                     hint = "binary SQLite DB (\(data.count) bytes). Analyze it with the built-in native tool: sqlite3 <db_path> \"<SQL>\" — e.g. `sqlite3 \(path) \".tables\"`, `sqlite3 \(path) \"SELECT name FROM sqlite_master WHERE type='table'\"`, then query each table."
                 } else {
-                    hint = "binary file (\(data.count) bytes), not UTF-8 text. Use `sqlite3` for DB files, or hex inspect via `head -c 64 <file> | od -c` inside env:alpine; native cat reads text only."
+                    hint = "binary file (\(data.count) bytes), not UTF-8 text. Use `sqlite3` for DB files, or hex inspect via `head -c 64 <file> | od -c` (system auto-routes od/hexdump to Alpine); native cat reads text only."
                 }
                 return [
                     "command": command,
