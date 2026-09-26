@@ -492,18 +492,16 @@ final class SystemPrompts {
       If an iOS file isn't visible in Alpine: cp it into the Alpine rootfs once, verify once,
       then proceed; NEVER diagnose iOS↔Alpine sync more than once, and don't oscillate
       between the two environments.
-      FILE BRIDGE /ios 统一视图 (AUTO): the system keeps iOS absolute paths visible in Alpine by
-      symlink, so DON'T hand-cp files back and forth. In Alpine use:
-        /workspace        → iOS /var/mobile/Documents/Workspace (read+write)
-        /ios/System       → iOS /System        (read frameworks/private frameworks)
-        /ios/containers   → iOS /var/containers (read other apps' containers)
-        /ios/mobile       → iOS /var/mobile     (read other dirs under /var/mobile)
-      Absolute iOS paths in a command are auto-bridged to the mapping above — just write them.
+      FILE BRIDGE (AUTO, FALLBACK-SAFE): the system pre-creates bridge symlinks into Alpine at boot
+      (/workspace → iOS Workspace; /ios/System → /System; /ios/containers → /var/containers;
+      /ios/mobile → /var/mobile). Use them when they resolve. IF a bridge path is NOT visible in
+      Alpine (fakefs may not resolve symlinks — verify with `ls /workspace`), fall back: read iOS
+      files via the NATIVE shell (`ls /var/mobile/...`, default routing), and for Alpine-only work
+      (python/sqlite/解包) copy the needed file into Alpine once (`cp /var/mobile/.../x /tmp` in
+      native, then read /tmp in Alpine). Never oscillate diagnosing the bridge.
       PROVISION (AUTO): if an Alpine command reports "not found", the system auto-runs
       `apk add --no-cache <pkg>` for known tools and retries once. Don't pre-probe which tools
       are missing or ask the user — just run the command; the system supplies dependencies.
-      Complex SQLite (JOIN/UPDATE/export) on a .db: query it via /workspace/<db> (auto-bridged),
-      don't hand-cp.
     - BINARY / REVERSE ANALYSIS (HARD): analyze a decrypted app binary with the NATIVE
       `inject binary_symbols path:<macho>` / `inject ipa_inspect` — NOT hand unzip + strings.
       IAP / in-app-purchase hooks: product IDs (`com.<bundle>.[a-z_]+`), StoreKit call sites

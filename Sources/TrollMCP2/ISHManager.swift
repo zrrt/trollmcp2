@@ -76,6 +76,11 @@ enum ISHEngine {
             }
         }
 
+        // 1.5 关键：在 cish_boot 挂载 fakefs 之前先建好文件桥 symlink（/workspace、/ios/*）。
+        //     boot 之后才建 symlink，fakefs 已缓存目录结构 → guest 里看不到(实测)。
+        //     必须在挂载前让 symlink 进入 rootfs，挂载时才可能被 fakefs 识别。
+        verifyBridgeLinks()
+
         // 2. cish_boot
         let rc = dataPath.withCString { cish_boot($0) }
         if rc != 0 {
@@ -84,26 +89,10 @@ enum ISHEngine {
         }
         state = .booted
 
-        // 3. 挂载工作区：在 rootfs 里创建 /workspace → iOS Documents/Workspace 的 symlink
-        // 这样 iSH 终端里 cd /workspace 就能直接读写 TrollAgent 工作区文件，不沙盒隔离
-        let workspaceLink = dataPath + "/workspace"
-        // v3.0.91：symlink 目标用相对路径（iSH 只认识 rootfs 内路径），
-        // /data/workspace → ../../Workspace 解析为 iSH 根目录下的 /Workspace，
-        // 再由 iOS 层 symlink 指向真正的 Documents/Workspace
-        let workspaceTarget = "../../Workspace"
-        if !fm.fileExists(atPath: workspaceLink) {
-            try? fm.createSymbolicLink(atPath: workspaceLink, withDestinationPath: workspaceTarget)
-        }
-        // 同时在 rootfs 根目录创建 /Workspace → Documents/Workspace 的 symlink（iOS 层绝对路径）
-        let rootWorkspaceLink = rootfsDir + "/Workspace"
-        let rootWorkspaceTarget = (rootfsDir as NSString).appendingPathComponent("../Workspace")
-        if !fm.fileExists(atPath: rootWorkspaceLink) {
-            try? fm.createSymbolicLink(atPath: rootWorkspaceLink, withDestinationPath: rootWorkspaceTarget)
-        }
-        // 默认 cwd 切到 /workspace
+        // 3. 默认 cwd 切到 /workspace（若 fakefs 未识别该 symlink，exec 的 cd 有 2>/dev/null 容忍）
         guestCwd = "/workspace"
 
-        ShellDiag.log("ISH boot ok data=\(dataPath) workspace symlink created")
+        ShellDiag.log("ISH boot ok data=\(dataPath) bridge links pre-created")
         return nil
     }
 
