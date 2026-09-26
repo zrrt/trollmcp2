@@ -103,10 +103,10 @@ enum ISHEngine {
         defer { lock.unlock() }
         guard case .booted = state else { return ("[ish] kernel not ready", -1, false) }
 
-        // P5a v3.6.11: 代码层自动单向文件桥——Alpine 命令里引用 iOS 绝对路径时，系统自动
-        // "原生读文件→base64→Alpine 侧 base64 -d 写 /tmp/_bridge_N_name"并替换路径，agent 无感。
-        // （v3.6.8 已证伪 symlink 桥；改用 base64 自动搬运，>2MB 文件跳过走显式协议）
-        let (bridged, bridgePrefix) = autoBridge(command)
+        // P5a v3.6.14: 代码层自动单向文件桥——Alpine 命令里引用 iOS 绝对路径时，系统自动
+        // "原生读文件→经 guest stdin 管道喂原始字节→Alpine 侧 head -c N 写 /tmp/_bridge_N_name"并替换路径。
+        // （v3.6.8 证伪 symlink 桥；v3.6.13 base64 内联超 iSH 命令长度，v3.6.14 改走 stdin 管道）
+        let (bridged, bridgePrefix, bridgeStdin) = autoBridge(command)
 
         let cwd = guestCwd
         let tStart = Date()
@@ -126,9 +126,17 @@ enum ISHEngine {
         var outFds: [Int32] = [-1, -1]
         var errFds: [Int32] = [-1, -1]
         var notifyFds: [Int32] = [-1, -1]
+        var stdinFds: [Int32] = [-1, -1]
         guard pipe(&outFds) == 0, pipe(&errFds) == 0, pipe(&notifyFds) == 0 else {
             ShellDiag.log("ISH exec pipe fail")
             return ("[ish] pipe creation failed", -1, false)
+        }
+        // v3.6.14: 有桥文件时建 stdin 管道，guest stdin 接读端，host 写原始字节
+        if !bridgeStdin.isEmpty {
+            guard pipe(&stdinFds) == 0 else {
+                ShellDiag.log("ISH exec stdin pipe fail")
+                return ("[ish] stdin pipe creation failed", -1, false)
+            }
         }
 
         let argvBuf = buildCStringArray(["/bin/sh", "-c", fullCommand])
@@ -137,7 +145,7 @@ enum ISHEngine {
             envpBuf.withCString { ev in
                 fullCommand.withCString { _ in
                     "/bin/sh".withCString { p in
-                        cish_spawn(p, av, ev, 3, -1, outFds[1], errFds[1], notifyFds[1])
+                        cish_spawn(p, av, ev, 3, stdinFds[0], outFds[1], errFds[1], notifyFds[1])
                     }
                 }
             }
@@ -148,10 +156,29 @@ enum ISHEngine {
 
         if pid <= 0 {
             close(outFds[0]); close(errFds[0]); close(notifyFds[0])
+            if stdinFds[0] >= 0 { close(stdinFds[0]); close(stdinFds[1]) }
             ShellDiag.log("ISH exec spawn fail pid=\(pid)")
             return ("[ish] process creation failed rc=\(pid)", -1, false)
         }
         ShellDiag.log("ISH spawned pid=\(pid)")
+
+        // v3.6.14: host 侧把桥文件原始字节经 stdin 管道写进 guest（guest 侧 head -c N 消费）。
+        // guest 已从读端 dup fd0；host 关闭读端，保留写端写数据后关闭。
+        if !bridgeStdin.isEmpty, stdinFds[1] >= 0 {
+            close(stdinFds[0])
+            DispatchQueue.global(qos: .userInitiated).async {
+                let wfd = stdinFds[1]
+                bridgeStdin.withUnsafeBytes { buf in
+                    var written = 0
+                    while written < buf.count {
+                        let n = write(wfd, buf.baseAddress!.advanced(by: written), buf.count - written)
+                        if n <= 0 { break }
+                        written += n
+                    }
+                }
+                close(wfd)
+            }
+        }
 
         // 后台读 stdout/stderr + 退出通知
         let outBuf = NSMutableString()
@@ -230,17 +257,20 @@ enum ISHEngine {
         return (stdout, exitCode, timedOut)
     }
 
-    /// P5a v3.6.11: 自动单向文件桥。识别 Alpine 命令里的 iOS 绝对路径 token，自动
-    /// "原生读→base64→Alpine 侧 base64 -d 写 /tmp/_bridge_N_name"并替换路径。
-    /// 返回 (替换后命令, 需前置的建文件片段)。>maxBytes 的文件跳过（走显式协议）。
-    private static func autoBridge(_ command: String, maxBytes: Int = 2 * 1024 * 1024) -> (String, String) {
+    /// P5a v3.6.14: 自动单向文件桥。识别 Alpine 命令里的 iOS 绝对路径 token，自动
+    /// "原生读文件→经 guest stdin 管道喂原始字节→Alpine 侧 head -c N > /tmp/_bridge_N_name"并替换路径。
+    /// 返回 (替换后命令, 需前置的建文件片段, 需经 stdin 管道写入的原始字节拼接)。
+    /// 不用 base64 内联进命令串（v3.6.13 实测 122KB db 会超 iSH 命令长度，bridge 文件建不出来）。
+    /// >maxBytes 的文件跳过（走显式协议，如 inject binary_symbols）。
+    private static func autoBridge(_ command: String, maxBytes: Int = 2 * 1024 * 1024) -> (String, String, Data) {
         let fm = FileManager.default
         var result = command
         var prefix = ""
+        var stdinData = Data()
         let prefixes = ["/var/mobile/", "/private/var/mobile/", "/System/", "/var/containers/"]
         let alt = prefixes.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "|")
         let pattern = "(^|[\\s\"'=>(])(" + alt + "[^\\s\"'<>\\)]+)"
-        guard let re = try? NSRegularExpression(pattern: pattern) else { return (command, "") }
+        guard let re = try? NSRegularExpression(pattern: pattern) else { return (command, "", Data()) }
         let ns = result as NSString
         var seen = Set<String>()
         var pending: [(String, String)] = []   // (iosPath, bridgeFile)
@@ -260,13 +290,15 @@ enum ISHEngine {
             let safeName = URL(fileURLWithPath: raw).lastPathComponent
                 .replacingOccurrences(of: "[^A-Za-z0-9._-]", with: "_", options: .regularExpression)
             let bridgeFile = "/tmp/_bridge_\(counter)_" + (safeName.isEmpty ? "f" : safeName)
-            prefix += "echo '\(data.base64EncodedString())' | base64 -d > \(bridgeFile); "
+            // 原始字节经 stdin 管道喂给 guest，head -c N 精确写文件（命令串短，无长度限制）
+            stdinData.append(data)
+            prefix += "head -c \(data.count) > \(bridgeFile); "
             pending.append((raw, bridgeFile))
         }
         for (iosPath, bridgeFile) in pending.sorted(by: { $0.0.count > $1.0.count }) {
             result = result.replacingOccurrences(of: iosPath, with: bridgeFile)
         }
-        return (result, prefix)
+        return (result, prefix, stdinData)
     }
 
     /// P3 按需补给：从 Alpine 命令输出检测缺失工具("X: not found" / "command not found")，
