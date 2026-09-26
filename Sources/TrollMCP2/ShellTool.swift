@@ -141,7 +141,7 @@ final class ShellExecTool: MCPTool {
             // 免 agent 反复探测缺什么、也避免"先探测→再装→再跑"的多轮试探。
             var finalOut = output, finalExit = exitCode, finalTimed = timedOut
             if let pkg = ISHEngine.missingToolPkg(output) {
-                ShellExecTool.log("provision auto: apk add \(pkg) (missing in Alpine)")
+                ShellDiag.log("provision auto: apk add \(pkg) (missing in Alpine)")
                 _ = ISHEngine.exec("apk add --no-cache \(pkg)", timeout: 120)
                 let (rout, rexit, rtimed) = ISHEngine.exec(trimmed, timeout: timeout)
                 finalOut = rout; finalExit = rexit; finalTimed = rtimed
@@ -743,7 +743,7 @@ final class ShellExecTool: MCPTool {
                         var (output, outputExit, timedOut) = ISHEngine.exec(body, timeout: 30)
                         // P3 按需补给：缺工具自动 apk add 并重跑一次
                         if let pkg = ISHEngine.missingToolPkg(output) {
-                            ShellExecTool.log("provision auto: apk add \(pkg) (missing in Alpine)")
+                            ShellDiag.log("provision auto: apk add \(pkg) (missing in Alpine)")
                             _ = ISHEngine.exec("apk add --no-cache \(pkg)", timeout: 120)
                             let (rout, rexit, rtimed) = ISHEngine.exec(body, timeout: 30)
                             output = rout; outputExit = rexit; timedOut = rtimed
