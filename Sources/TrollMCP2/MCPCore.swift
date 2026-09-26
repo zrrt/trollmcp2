@@ -1286,6 +1286,10 @@ public final class ToolRegistry: ObservableObject {
         // 已删：OCRImageTool (用 shell.exec 代替）
         // register(OCRImageTool())
 
+        // v3.6.12 P5 高层跨环境工具 (复用自动单向文件桥)
+        register(FileExecTool())
+        register(DbExecTool())
+
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
     }
 }
