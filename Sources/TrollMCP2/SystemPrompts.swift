@@ -492,12 +492,15 @@ final class SystemPrompts {
       If an iOS file isn't visible in Alpine: cp it into the Alpine rootfs once, verify once,
       then proceed; NEVER diagnose iOS↔Alpine sync more than once, and don't oscillate
       between the two environments.
-      FILE BRIDGE (AUTO): in Alpine, access iOS Workspace files via `/workspace` (it maps to
-      /var/mobile/Documents/Workspace). If you write an absolute iOS path in a command, the system
-      auto-bridges it to /workspace — no need to cp. For iOS files OUTSIDE Workspace
-      (/var/containers, /var/mobile/others): they're not visible in Alpine; cp to /workspace first.
-      Complex SQLite (JOIN/UPDATE/export) on a .db: cp the .db to /workspace (or use absolute path,
-      auto-bridged), then query it in Alpine.
+      FILE BRIDGE /ios 统一视图 (AUTO): the system keeps iOS absolute paths visible in Alpine by
+      symlink, so DON'T hand-cp files back and forth. In Alpine use:
+        /workspace        → iOS /var/mobile/Documents/Workspace (read+write)
+        /ios/System       → iOS /System        (read frameworks/private frameworks)
+        /ios/containers   → iOS /var/containers (read other apps' containers)
+        /ios/mobile       → iOS /var/mobile     (read other dirs under /var/mobile)
+      Absolute iOS paths in a command are auto-bridged to the mapping above — just write them.
+      Complex SQLite (JOIN/UPDATE/export) on a .db: query it via /workspace/<db> (auto-bridged),
+      don't hand-cp.
     - BINARY / REVERSE ANALYSIS (HARD): analyze a decrypted app binary with the NATIVE
       `inject binary_symbols path:<macho>` / `inject ipa_inspect` — NOT hand unzip + strings.
       IAP / in-app-purchase hooks: product IDs (`com.<bundle>.[a-z_]+`), StoreKit call sites

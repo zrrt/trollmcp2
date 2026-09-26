@@ -238,55 +238,76 @@ enum ISHEngine {
         return (stdout, exitCode, timedOut)
     }
 
-    /// 文件桥：命令里引用的 iOS Workspace 绝对路径 → Alpine 可见的 /workspace (symlink→iOS Workspace)。
-    /// 保留 /workspace 双向语义（读 iOS 文件、写回 iOS），只桥接 chroot 内不存在的绝对路径。
-    /// 每次调用顺手验证 /workspace symlink 链是否有效，失效即重建。
+    /// 文件桥 /ios 统一视图：把 iOS 侧可达的系统路径 symlink 进 Alpine guest，agent 在 guest 里
+    /// 用一个前缀访问整个 iOS 文件系统。映射表(具体→宽泛)：
+    ///   /var/mobile/Documents/Workspace → /workspace      (保留双向读写)
+    ///   /System                          → /ios/System      (读系统框架/私有框架)
+    ///   /var/containers                  → /ios/containers  (读其他 App 容器)
+    ///   /var/mobile                      → /ios/mobile      (读 /var/mobile 下其他目录)
     private static func bridgeToAlpine(_ command: String) -> String {
-        let srcAbs = "/var/mobile/Documents/Workspace"
-        let dstWS = "/workspace"
-        // 验证/重建 symlink 链（幂等，开销极小）
-        verifyWorkspaceLinks()
+        verifyBridgeLinks()
         var c = command
-        // 绝对路径 /var/mobile/Documents/Workspace/xxx → /workspace/xxx
-        c = c.replacingOccurrences(of: srcAbs + "/", with: dstWS + "/")
-        // 无尾部斜杠的绝对路径单独出现 → /workspace
-        c = c.replacingOccurrences(of: srcAbs + " ", with: dstWS + " ")
-        if c.contains(srcAbs) {
-            c = c.replacingOccurrences(of: srcAbs, with: dstWS)
-        }
+        // 具体 → 宽泛，保证 /var/mobile/Documents/Workspace 先被 /workspace 捕获，不被 /var/mobile 误吞
+        c = rewritePath(c, "/var/mobile/Documents/Workspace", "/workspace")
+        c = rewritePath(c, "/System", "/ios/System")
+        c = rewritePath(c, "/var/containers", "/ios/containers")
+        c = rewritePath(c, "/var/mobile", "/ios/mobile")
         return c
     }
 
-    /// 验证 /workspace symlink 链 (rootfs/Workspace → Documents/Workspace 与 dataPath/workspace → ../../Workspace)，
-    /// 缺失或断链则重建。幂等。
-    private static func verifyWorkspaceLinks() {
+    /// 把命令中作为独立路径 token 出现的 src 改写为 dst（前边界=行首/空白/引号，后边界=/、空白、引号、结尾）
+    private static func rewritePath(_ command: String, _ src: String, _ dst: String) -> String {
+        let pattern = "(^|[\\s\"'])" + NSRegularExpression.escapedPattern(for: src) + "(?=/|[\\s\"']|$)"
+        guard let re = try? NSRegularExpression(pattern: pattern) else { return command }
+        let ns = command as NSString
+        return re.stringByReplacingMatches(in: command, options: [], range: NSRange(location: 0, length: ns.length),
+                                           withTemplate: "$1" + dst)
+    }
+
+    /// 验证/重建文件桥 symlink 链（幂等）：/workspace (rootfs + dataPath) 与 /ios/{System,containers,mobile}。
+    /// 目标目录存在才建；symlink 指向的目标不一致则删了重建。
+    private static func verifyBridgeLinks() {
         let fm = FileManager.default
-        // 1. rootfs 根 /Workspace → Documents/Workspace
+        // 1. /workspace → iOS Documents/Workspace
         let rootLink = rootfsDir + "/Workspace"
         let rootTarget = (rootfsDir as NSString).appendingPathComponent("../Workspace")
         let iosWS = NSHomeDirectory() + "/Documents/Workspace"
-        // 目标目录必须存在，否则重建
         if fm.fileExists(atPath: iosWS) {
             if !fm.fileExists(atPath: rootLink) {
                 try? fm.createSymbolicLink(atPath: rootLink, withDestinationPath: rootTarget)
             }
-            // 若 symlink 指向的目标失效，删了重建
-            if let dest = try? fm.destinationOfSymbolicLink(atPath: rootLink),
-               dest != rootTarget {
+            if let dest = try? fm.destinationOfSymbolicLink(atPath: rootLink), dest != rootTarget {
                 try? fm.removeItem(atPath: rootLink)
                 try? fm.createSymbolicLink(atPath: rootLink, withDestinationPath: rootTarget)
             }
         }
-        // 2. dataPath/workspace → ../../Workspace
         let dataLink = dataPath + "/workspace"
         let dataTarget = "../../Workspace"
         if !fm.fileExists(atPath: dataLink) {
             try? fm.createSymbolicLink(atPath: dataLink, withDestinationPath: dataTarget)
         }
-        if let dest = try? fm.destinationOfSymbolicLink(atPath: dataLink),
-           dest != dataTarget {
+        if let dest = try? fm.destinationOfSymbolicLink(atPath: dataLink), dest != dataTarget {
             try? fm.removeItem(atPath: dataLink)
             try? fm.createSymbolicLink(atPath: dataLink, withDestinationPath: dataTarget)
+        }
+        // 2. /ios/{System,containers,mobile} → 系统路径
+        let iosDir = dataPath + "/ios"
+        if !fm.fileExists(atPath: iosDir) {
+            try? fm.createDirectory(atPath: iosDir, withIntermediateDirectories: true)
+        }
+        let sysMap = [("/System", "/System"), ("/containers", "/var/containers"), ("/mobile", "/var/mobile")]
+        for (sub, target) in sysMap {
+            let link = iosDir + sub
+            // 目标(带尾/)存在才建
+            if fm.fileExists(atPath: target + "/") {
+                if !fm.fileExists(atPath: link) {
+                    try? fm.createSymbolicLink(atPath: link, withDestinationPath: target)
+                }
+                if let dest = try? fm.destinationOfSymbolicLink(atPath: link), dest != target {
+                    try? fm.removeItem(atPath: link)
+                    try? fm.createSymbolicLink(atPath: link, withDestinationPath: target)
+                }
+            }
         }
     }
 
