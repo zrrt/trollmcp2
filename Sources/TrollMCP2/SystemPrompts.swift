@@ -489,6 +489,14 @@ final class SystemPrompts {
     - env:"alpine" is an isolated chroot; iOS /var/mobile/... paths don't exist there. Standard migration: in the
       iOS native shell run `cp /var/mobile/.../<file> /tmp/<file>` (or use bridge.copy), then read /tmp/<file> inside
       Alpine; don't try to access iOS paths directly from Alpine.
+    - ENVIRONMENT ROUTING (HARD): default = iOS native shell (files live on the iOS FS).
+      Switch to env:"alpine" ONLY when BOTH hold: (a) the task needs a tool native lacks
+      (dpkg/tar/full strings/apk add) AND (b) the target file is inside the Alpine rootfs
+      (/private/var/mobile/Documents/alpine-rootfs/data). Binary symbol/string analysis
+      (product IDs, StoreKit, receipts, class-dump strings) runs NATIVELY via grep -a /
+      strings on the decrypted binary — do NOT switch environments for it. If an iOS file
+      isn't visible in Alpine: cp it into the Alpine rootfs once, verify once, then proceed;
+      NEVER diagnose iOS↔Alpine sync more than once, and don't oscillate between the two.
     - [Workspace] working dir is /var/mobile/Documents/Workspace, read with artifact list/read; [Downloads] files
       downloaded via shell must be copied with artifact write into workspace to appear in the download manager.
     - [Web] shell.exec curl can fetch web/GitHub APIs; if blocked by anti-scraping, use browser navigate + browser text.
