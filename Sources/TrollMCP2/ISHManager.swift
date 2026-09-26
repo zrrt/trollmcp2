@@ -322,7 +322,36 @@ enum ISHEngine {
                 return pkg
             }
         }
+        // v3.6.14 兜底：白名单外的任意工具名也直接返回该名作为包名（Alpine 绝大多数包名=命令名），
+        // 让"AI 需要任何新工具"都能自动 apk add 并配合自动桥分析 iOS 文件，无需维护穷举清单。
+        return inferPkgFromNotFound(output)
+    }
+
+    /// 从 "not found" 输出推断缺失工具的命令名（白名单兜底）。
+    private static func inferPkgFromNotFound(_ output: String) -> String? {
+        let patterns = [
+            "(?:sh|/bin/sh|bash)?[\\s:]*([a-z0-9][a-z0-9._+-]*): (?:command )?not found",
+            "command not found: ([a-z0-9][a-z0-9._+-]*)",
+        ]
+        for p in patterns {
+            guard let re = try? NSRegularExpression(pattern: p, options: [.caseInsensitive]) else { continue }
+            let ns = output as NSString
+            for m in re.matches(in: output, options: [], range: NSRange(location: 0, length: ns.length)) {
+                let cmd = ns.substring(with: m.range(at: 1))
+                if isSafePkgName(cmd) { return cmd }
+            }
+        }
         return nil
+    }
+
+    /// 兜底安装的安全校验：只允许纯字母数字 . _ + - 的小写标识符，且非 shell 关键字/常见误报。
+    private static func isSafePkgName(_ s: String) -> Bool {
+        guard !s.isEmpty, s.count <= 40,
+              s.first?.isLetter == true || s.first?.isNumber == true else { return false }
+        let blocked = ["cd","fi","then","else","do","done","case","esac","test","true","false",
+                       "exit","echo","printf","read","source","time","which","type","break","continue","pwd","ls","cat"]
+        if blocked.contains(s) { return false }
+        return s.allSatisfy { $0.isLetter || $0.isNumber || $0 == "." || $0 == "_" || $0 == "+" || $0 == "-" }
     }
 
     /// shell 单引号转义
