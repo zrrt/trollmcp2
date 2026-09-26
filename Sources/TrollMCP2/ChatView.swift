@@ -527,7 +527,8 @@ struct ChatView: View {
                             onCopy: { copyMessage(msg) },
                             onShare: { shareMessage(msg) },
                             isStreaming: store.streamingMessageId == msg.id,
-                            forceType: store.liveProducedID == msg.id
+                            forceType: store.liveProducedID == msg.id,
+                            thinkEnabled: thinkEnabled
                         )
                         .id(msg.id)
                     }
@@ -1270,6 +1271,8 @@ struct MessageBubble: View {
     // v3.4.9：本轮刚生成完成的消息（工具解说/整段到达的回复）也要逐字打出——
     // 这些消息 isStreaming=false 且内容在出现前已定好，靠 onAppear 强制启动打字机
     var forceType: Bool = false
+    // v3.5.31：思考开关——思考关时隐藏思考块（API 仍可能返回 thinking，UI 一律不显示）
+    var thinkEnabled: Bool = true
 
     // v3.5.4：工具结果默认展开可见（5=A：完整展示 工具名+命令+结果）；长结果可点"工具结果 ▴"折叠
     @State private var expanded = true
