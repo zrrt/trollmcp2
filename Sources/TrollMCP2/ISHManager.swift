@@ -103,11 +103,10 @@ enum ISHEngine {
         defer { lock.unlock() }
         guard case .booted = state else { return ("[ish] kernel not ready", -1, false) }
 
-        // 说明(v3.6.8): 实测确认 iSH fakefs 挂载时不解析跨 iOS 路径的 symlink——
-        // Alpine 是纯隔离 rootfs, /workspace 与 /ios/* 桥接目录在 guest 里不可见。
-        // 因此不再做任何路径改写(避免把 Alpine 内部真实 /var/mobile 误改成不存在的 /ios/mobile)。
-        // 读 iOS 文件走原生 shell; Alpine 工具链需 iOS 文件时先 cp 进 rootfs(/tmp)。见提示词。
-        let bridged = command
+        // P5a v3.6.11: 代码层自动单向文件桥——Alpine 命令里引用 iOS 绝对路径时，系统自动
+        // "原生读文件→base64→Alpine 侧 base64 -d 写 /tmp/_bridge_N_name"并替换路径，agent 无感。
+        // （v3.6.8 已证伪 symlink 桥；改用 base64 自动搬运，>2MB 文件跳过走显式协议）
+        let (bridged, bridgePrefix) = autoBridge(command)
 
         let cwd = guestCwd
         let tStart = Date()
@@ -119,7 +118,7 @@ enum ISHEngine {
             && !trimmed.contains("&&") && !trimmed.contains(";")
 
         // cd 失败不阻断命令执行（cwd 为真实 /root，但容错）
-        var fullCommand = "cd '\(shellQuote(cwd))' 2>/dev/null; \(bridged)"
+        var fullCommand = "cd '\(shellQuote(cwd))' 2>/dev/null; \(bridgePrefix)\(bridged)"
         if isPureCd {
             fullCommand += " && pwd"
         }
@@ -221,8 +220,53 @@ enum ISHEngine {
             }
         }
 
+        // P5b v3.6.11: Alpine 命令向 /tmp 写了文件 → 附带 iOS 映射提示，agent 知道去哪取
+        if bridged.range(of: "[>]+\\s*/tmp/", options: .regularExpression) != nil {
+            if !stdout.isEmpty && !stdout.hasSuffix("\n") { stdout += "\n" }
+            stdout += "[bridge] Alpine 写出的 /tmp/* 已同步回 iOS: Documents/alpine-rootfs/data/tmp/*"
+        }
+
         ShellDiag.log("ISH exec end elapsed=\(Int(Date().timeIntervalSince(tStart) * 1000))ms exit=\(exitCode) timedOut=\(timedOut) out=\(stdout.prefix(80))")
         return (stdout, exitCode, timedOut)
+    }
+
+    /// P5a v3.6.11: 自动单向文件桥。识别 Alpine 命令里的 iOS 绝对路径 token，自动
+    /// "原生读→base64→Alpine 侧 base64 -d 写 /tmp/_bridge_N_name"并替换路径。
+    /// 返回 (替换后命令, 需前置的建文件片段)。>maxBytes 的文件跳过（走显式协议）。
+    private static func autoBridge(_ command: String, maxBytes: Int = 2 * 1024 * 1024) -> (String, String) {
+        let fm = FileManager.default
+        var result = command
+        var prefix = ""
+        let prefixes = ["/var/mobile/", "/private/var/mobile/", "/System/", "/var/containers/"]
+        let alt = prefixes.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "|")
+        let pattern = "(^|[\\s\"'=>(])(" + alt + "[^\\s\"'<>\\)]+)"
+        guard let re = try? NSRegularExpression(pattern: pattern) else { return (command, "") }
+        let ns = result as NSString
+        var seen = Set<String>()
+        var pending: [(String, String)] = []   // (iosPath, bridgeFile)
+        var counter = 0
+        for m in re.matches(in: result, options: [], range: NSRange(location: 0, length: ns.length)) where m.numberOfRanges >= 3 {
+            let raw = ns.substring(with: m.range(at: 2))
+            guard !seen.contains(raw) else { continue }
+            seen.insert(raw)
+            let norm = ShellExecTool.normalizePath(raw)
+            if norm.contains("/alpine-rootfs/") { continue }   // rootfs 自身落盘，Alpine 命令里无意义
+            guard fm.fileExists(atPath: norm),
+                  let size = (try? fm.attributesOfItem(atPath: norm)[.size]) as? Int,
+                  size > 0, size <= maxBytes,
+                  let data = try? Data(contentsOf: URL(fileURLWithPath: norm))
+            else { continue }
+            counter += 1
+            let safeName = URL(fileURLWithPath: raw).lastPathComponent
+                .replacingOccurrences(of: "[^A-Za-z0-9._-]", with: "_", options: .regularExpression)
+            let bridgeFile = "/tmp/_bridge_\(counter)_" + (safeName.isEmpty ? "f" : safeName)
+            prefix += "echo '\(data.base64EncodedString())' | base64 -d > \(bridgeFile); "
+            pending.append((raw, bridgeFile))
+        }
+        for (iosPath, bridgeFile) in pending.sorted(by: { $0.0.count > $1.0.count }) {
+            result = result.replacingOccurrences(of: iosPath, with: bridgeFile)
+        }
+        return (result, prefix)
     }
 
     /// P3 按需补给：从 Alpine 命令输出检测缺失工具("X: not found" / "command not found")，

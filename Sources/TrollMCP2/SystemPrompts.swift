@@ -489,21 +489,18 @@ final class SystemPrompts {
       (apk add / tar / dpkg / python / full scripts). Binary symbol/string analysis
       (product IDs, StoreKit, receipts, class-dump strings) runs NATIVELY via grep -a /
       strings on the decrypted binary — the system keeps it native, don't ask to switch.
-      If an iOS file isn't visible in Alpine: cp it into the Alpine rootfs once, verify once,
-      then proceed; NEVER diagnose iOS↔Alpine sync more than once, and don't oscillate
-      between the two environments.
-      FILESYSTEM BOUNDARY (HARD, v3.6.10): Alpine is a fully isolated rootfs — iOS files
+      FILE BRIDGE IS AUTOMATIC (v3.6.11): in an Alpine command you may reference iOS paths
+      (/var/mobile/..., /System, /var/containers) directly — the system auto-reads the file,
+      base64s it, writes it into Alpine /tmp as /tmp/_bridge_N_name, and rewrites your path,
+      so no manual cp / echo / base64 needed (≤2MB auto; larger files: ask user or split).
+      Never diagnose iOS↔Alpine sync, and don't oscillate between the two environments.
+      FILESYSTEM BOUNDARY (HARD, v3.6.11): Alpine is a fully isolated rootfs — iOS files
       (/var/mobile/..., /System, /var/containers) are NOT visible inside it, and there is NO
-      /workspace or /ios bridge. Read iOS files with the NATIVE shell (default routing).
-      FILE SYNC IS ONE-WAY (verified): Alpine writing /tmp DOES sync to iOS Documents/alpine-rootfs/
-      data/tmp/; but iOS native writing into that dir does NOT appear in Alpine (fakefs caches,
-      only honors Alpine's own writes). So to feed an iOS file into Alpine, DO NOT `cp` it in native —
-      instead read its content native, then write it FROM Alpine (echo / base64):
-        small text:  sh -c 'echo "<content>" > /tmp/x'
-        binary/large: native `base64 <file>` (iOS原生内置 base64) → paste b64 →
-                      sh -c 'echo "<base64>" | base64 -d > /tmp/x'
-      To bring Alpine output back to iOS, let Alpine write /tmp, then native reads
-      Documents/alpine-rootfs/data/tmp/. Never oscillate diagnosing this boundary.
+      /workspace or /ios bridge. FILE SYNC IS ONE-WAY (verified): Alpine writing /tmp DOES sync
+      to iOS Documents/alpine-rootfs/data/tmp/; but iOS native writing into that dir does NOT
+      appear in Alpine (fakefs caches, only honors Alpine's own writes). So feeding an iOS file
+      into Alpine is AUTOMATIC (see above); to return an Alpine result to iOS, let Alpine write
+      /tmp, then native reads Documents/alpine-rootfs/data/tmp/. Never oscillate diagnosing this.
       PROVISION (AUTO): if an Alpine command reports "not found", the system auto-runs
       `apk add --no-cache <pkg>` for known tools and retries once. Don't pre-probe which tools
       are missing or ask the user — just run the command; the system supplies dependencies.
