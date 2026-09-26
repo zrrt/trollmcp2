@@ -103,10 +103,11 @@ enum ISHEngine {
         defer { lock.unlock() }
         guard case .booted = state else { return ("[ish] kernel not ready", -1, false) }
 
-        // P5a v3.6.14: 代码层自动单向文件桥——Alpine 命令里引用 iOS 绝对路径时，系统自动
+        // P5a v3.6.15: 代码层自动单向文件桥——Alpine 命令里引用 iOS 绝对路径时，系统自动
         // "原生读文件→经 guest stdin 管道喂原始字节→Alpine 侧 head -c N 写 /tmp/_bridge_N_name"并替换路径。
         // （v3.6.8 证伪 symlink 桥；v3.6.13 base64 内联超 iSH 命令长度，v3.6.14 改走 stdin 管道）
         let (bridged, bridgePrefix, bridgeStdin) = autoBridge(command)
+        ShellDiag.log("ISH exec bridge: prefixEmpty=\(bridgePrefix.isEmpty) stdin=\(bridgeStdin.count)B execCmd=\(String(bridged.prefix(100)))")
 
         let cwd = guestCwd
         let tStart = Date()
@@ -284,11 +285,23 @@ enum ISHEngine {
             seen.insert(raw)
             let norm = ShellExecTool.normalizePath(raw)
             if norm.contains("/alpine-rootfs/") { continue }   // rootfs 自身落盘，Alpine 命令里无意义
-            guard fm.fileExists(atPath: norm),
-                  let size = (try? fm.attributesOfItem(atPath: norm)[.size]) as? Int,
-                  size > 0, size <= maxBytes,
-                  let data = try? Data(contentsOf: URL(fileURLWithPath: norm))
-            else { continue }
+            // 详细诊断：定位桥到底在哪一步断（命中/不存在/超限/读取失败）
+            if !fm.fileExists(atPath: norm) {
+                ShellDiag.log("autoBridge HIT: \(norm) 存在=false → 跳过")
+                continue
+            }
+            guard let size = (try? fm.attributesOfItem(atPath: norm)[.size]) as? Int else {
+                ShellDiag.log("autoBridge HIT: \(norm) stat失败 → 跳过")
+                continue
+            }
+            if size <= 0 || size > maxBytes {
+                ShellDiag.log("autoBridge HIT: \(norm) size=\(size)B 超限(>\(maxBytes)) → 跳过")
+                continue
+            }
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: norm)) else {
+                ShellDiag.log("autoBridge HIT: \(norm) size=\(size)B 读取失败 → 跳过")
+                continue
+            }
             counter += 1
             let safeName = URL(fileURLWithPath: raw).lastPathComponent
                 .replacingOccurrences(of: "[^A-Za-z0-9._-]", with: "_", options: .regularExpression)
@@ -297,12 +310,17 @@ enum ISHEngine {
             stdinData.append(data)
             prefix += "head -c \(data.count) > \(bridgeFile); "
             pending.append((raw, bridgeFile))
+            ShellDiag.log("autoBridge OK: \(norm) → \(bridgeFile) (\(data.count)B)")
         }
         for (iosPath, bridgeFile) in pending.sorted(by: { $0.0.count > $1.0.count }) {
             result = result.replacingOccurrences(of: iosPath, with: bridgeFile)
         }
         if counter > 0 {
             ShellDiag.log("autoBridge: bridged \(counter) file(s), stdin=\(stdinData.count)B; files=[\(pending.map { $0.1 }.joined(separator: ","))]")
+        } else if !seen.isEmpty {
+            ShellDiag.log("autoBridge: 命中 \(seen.count) 个 iOS 路径但全部跳过(见上)")
+        } else {
+            ShellDiag.log("autoBridge: 未命中任何 iOS 路径 → 命令原样执行: \(String(command.prefix(80)))")
         }
         return (result, prefix, stdinData)
     }
