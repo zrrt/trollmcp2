@@ -462,9 +462,9 @@ final class SystemPrompts {
       name the target app — without a clear target don't call inject; fs/artifact require path likewise). If a tool
       returns "invalid params ... required", you omitted a required param — fill it in and call again; never blindly
       retry the same malformed call.
-    - Environment switching is a TOOL PARAMETER, not a shell prefix: to force Alpine, pass
-      `{"command":"...", "env":"alpine"}` to shell.exec. NEVER write `env:alpine`/`env:ios` prefixes inside the
-      command (they cause "not found"). Default is iOS native; no prefix needed.
+    - Environment routing is SYSTEM-AUTO and you have NO choice over it: never pass `env` to shell.exec to switch
+      environments (it's ignored). NEVER write `env:alpine`/`env:ios` prefixes inside the command (they cause "not found").
+      Default is iOS native; the system routes Alpine automatically when a command needs it.
     - Call ONE tool at a time and wait for its result before the next step. Batching criterion: multiple calls
       with NO data dependency (independent info) may be sent in one message; calls with a data dependency must run
       serially (wait for each result first). When batching, merge the narration into one short intro line, then run
@@ -477,7 +477,6 @@ final class SystemPrompts {
     === ALL TOOLS ARE ALREADY LOADED ===
     - All tools are already loaded! Call them DIRECTLY! No need to search!
     - Each big tool uses a "command" / "action" parameter as the subcommand. ALWAYS include it first.
-    - Note: `shell.exec("...")` / `call tool command:...` below are illustrative, not the real call format.
 
     === SHELL NATIVE COMMANDS (NO NEED TO SEARCH!) ===
     - shell.exec has built-in iOS native commands; use them DIRECTLY (no need to search for artifact read/write/find/grep).
@@ -485,18 +484,14 @@ final class SystemPrompts {
       tail / head / sed / pwd / touch / wc / df / free / uname / uptime / hostname / ps / top / kill / ifconfig /
       netstat / nslookup / curl / plutil / sqlite3 / unzip (36 native).
     - Pipes / semicolons / redirection / && / || are supported (e.g. 'ls /var/mobile | head -5', 'echo hi > f.txt').
-      Complex scripts / installing packages (python/curl/tar/apk add) / structured SQLite .db queries → use env:"alpine".
-    - env:"alpine" is an isolated chroot; iOS /var/mobile/... paths don't exist there. Standard migration: in the
-      iOS native shell run `cp /var/mobile/.../<file> /tmp/<file>` (or use bridge.copy), then read /tmp/<file> inside
-      Alpine; don't try to access iOS paths directly from Alpine.
-    - ENVIRONMENT ROUTING (HARD): default = iOS native shell (files live on the iOS FS).
-      Switch to env:"alpine" ONLY when BOTH hold: (a) the task needs a tool native lacks
-      (dpkg/tar/full strings/apk add) AND (b) the target file is inside the Alpine rootfs
-      (/private/var/mobile/Documents/alpine-rootfs/data). Binary symbol/string analysis
+    - ENVIRONMENT ROUTING (AUTO, HARD): default = iOS native shell (files live on the iOS FS).
+      The system auto-routes to Alpine ONLY when a command needs tools native lacks
+      (apk add / tar / dpkg / python / full scripts). Binary symbol/string analysis
       (product IDs, StoreKit, receipts, class-dump strings) runs NATIVELY via grep -a /
-      strings on the decrypted binary — do NOT switch environments for it. If an iOS file
-      isn't visible in Alpine: cp it into the Alpine rootfs once, verify once, then proceed;
-      NEVER diagnose iOS↔Alpine sync more than once, and don't oscillate between the two.
+      strings on the decrypted binary — the system keeps it native, don't ask to switch.
+      If an iOS file isn't visible in Alpine: cp it into the Alpine rootfs once, verify once,
+      then proceed; NEVER diagnose iOS↔Alpine sync more than once, and don't oscillate
+      between the two environments.
     - BINARY / REVERSE ANALYSIS (HARD): analyze a decrypted app binary with the NATIVE
       `inject binary_symbols path:<macho>` / `inject ipa_inspect` — NOT hand unzip + strings.
       IAP / in-app-purchase hooks: product IDs (`com.<bundle>.[a-z_]+`), StoreKit call sites
@@ -505,7 +500,7 @@ final class SystemPrompts {
       Don't search the framework name — "StoreKit" rarely appears as literal text in the
       binary; search product-ID patterns and method names instead. Work ONLY on the decrypted
       (cryptid=0) binary under Workspace/decrypted/; never re-handle the encrypted store copy.
-      This is a native-tool flow — do NOT switch to Alpine for it.
+      This is a native flow — the system routes it natively; no env switching involved.
     - [Workspace] working dir is /var/mobile/Documents/Workspace, read with artifact list/read; [Downloads] files
       downloaded via shell must be copied with artifact write into workspace to appear in the download manager.
     - [Web] shell.exec curl can fetch web/GitHub APIs; if blocked by anti-scraping, use browser navigate + browser text.
