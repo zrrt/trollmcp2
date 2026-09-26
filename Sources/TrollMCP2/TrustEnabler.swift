@@ -127,26 +127,24 @@ enum TrustEnabler {
         let logPath = "/var/mobile/Documents/kfd_helper.log"
         let fd = open(logPath, O_WRONLY | O_CREAT | O_TRUNC, 0644)
 
-        var fileActions: posix_spawn_file_actions_t? = nil
+        // posix_spawn_file_actions_t 在 Darwin 是 UnsafeMutableRawPointer?（不透明句柄）
+        var fileActions: posix_spawn_file_actions_t = nil
         if fd >= 0 {
-            var fa = posix_spawn_file_actions_t()
-            posix_spawn_file_actions_init(&fa)
-            posix_spawn_file_actions_adddup2(&fa, fd, STDOUT_FILENO)
-            posix_spawn_file_actions_adddup2(&fa, fd, STDERR_FILENO)
-            posix_spawn_file_actions_addclose(&fa, fd)
-            fileActions = fa
+            posix_spawn_file_actions_init(&fileActions)
+            posix_spawn_file_actions_adddup2(&fileActions, fd, STDOUT_FILENO)
+            posix_spawn_file_actions_adddup2(&fileActions, fd, STDERR_FILENO)
+            posix_spawn_file_actions_addclose(&fileActions, fd)
         }
 
         var rc: Int32 = -1
         path.withCString { cpath in
             argv.withUnsafeBufferPointer { ab in
                 envp.withUnsafeBufferPointer { eb in
-                    rc = posix_spawn(&pid, cpath, fileActions != nil ? &fileActions! : nil,
-                                     nil, ab.baseAddress, eb.baseAddress)
+                    rc = posix_spawn(&pid, cpath, &fileActions, nil, ab.baseAddress, eb.baseAddress)
                 }
             }
         }
-        if fileActions != nil { posix_spawn_file_actions_destroy(&fileActions!) }
+        if fd >= 0 { posix_spawn_file_actions_destroy(&fileActions) }
         if fd >= 0 { close(fd) }
         argv.forEach { free($0) }
         envp.forEach { free($0) }
