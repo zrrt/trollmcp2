@@ -1964,7 +1964,7 @@ final class ShellExecTool: MCPTool {
         }
         let decode = parts.contains("-d")
         let noOpts = parts.filter { !$0.hasPrefix("-") }
-        let filePath = ShellExecTool.normalizePath(((noOpts.last ?? "").expandingTildeInPath))
+        let filePath = ShellExecTool.normalizePath(((noOpts.last ?? "") as NSString).expandingTildeInPath)
         guard fm.fileExists(atPath: filePath) else {
             return ["command": command, "exit_code": 1, "stdout": "base64: \(filePath): No such file or directory", "ios_native": true]
         }
