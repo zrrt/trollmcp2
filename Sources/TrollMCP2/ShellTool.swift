@@ -36,7 +36,7 @@ enum ShellDiag {
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "Run a shell command (terminal/command line). iOS native mode (default): 36 个原生命令直通真实 iOS 系统——文件操作 (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/curl/plutil/sqlite3/unzip) + 系统信息 (df/free/uname/uptime/hostname/ps/top/kill) + 网络 (ifconfig/netstat/nslookup)。支持管道/分号/重定向/&&/|| (例：'ls /var/mobile | head -5'、'cat a.txt; echo done'、'echo hi > f.txt')，支持 VAR=value 赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat。限制：iOS 原生模式不支持 for/while/case/heredoc/多行脚本。环境自动路由（系统决定，不要传 env 参数）：装包/解包/完整工具链/复杂脚本(apk、tar/dpkg、python、git、sh -c、heredoc等开头)自动走 Alpine Linux；文件操作/系统信息/网络/二进制分析默认 iOS 原生。若确实需要 Alpine 能力，用能命中自动路由的命令形式开头(如 python3 / apk add / tar / sh script.sh)。注意 Alpine 是纯隔离 rootfs(fakefs 不解析跨 iOS 的 symlink)，iOS 的 /var/mobile/... 路径在 Alpine 里不可见：读 iOS 文件用默认原生 shell 直接访问 /var/mobile/...；文件同步是单向的(Alpine 写 /tmp 会同步回 iOS data/tmp，但 iOS 写 Alpine 不可见)，所以 Alpine 工具链需要 iOS 文件时：iOS 原生读内容，从 Alpine 侧写入(sh -c 'echo ...' 或 base64 解码)到 /tmp 再读，不要把文件原生 cp 进 /tmp。SQLite .db 在原生里用内置 sqlite3：`sqlite3 <db> \".tables\"` / `sqlite3 <db> \"SELECT ...\"`，支持 .schema/.indexes。Native Offload：`ta <tool> <key:value...>` 是全部原生工具的单一入口——先 `ta list` 看可用工具、`ta help <tool>` 看参数，再 `ta <tool> key:value` 直接调用 (例：ta app launch bundle_id:com.xxx；ta vpn.capture command:start)。Use for: file operations, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*).",
+        summary: "Run a shell command (terminal/command line). iOS native mode (default): 36 个原生命令直通真实 iOS 系统——文件操作 (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/base64/curl/plutil/sqlite3/unzip) + 系统信息 (df/free/uname/uptime/hostname/ps/top/kill) + 网络 (ifconfig/netstat/nslookup)。支持管道/分号/重定向/&&/|| (例：'ls /var/mobile | head -5'、'cat a.txt; echo done'、'echo hi > f.txt')，支持 VAR=value 赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat/base64（cat file | base64 可把文件编码为单行 base64，base64 -d 解码）。限制：iOS 原生模式不支持 for/while/case/heredoc/多行脚本。环境自动路由（系统决定，不要传 env 参数）：装包/解包/完整工具链/复杂脚本(apk、tar/dpkg、python、git、sh -c、heredoc等开头)自动走 Alpine Linux；文件操作/系统信息/网络/二进制分析默认 iOS 原生。若确实需要 Alpine 能力，用能命中自动路由的命令形式开头(如 python3 / apk add / tar / sh script.sh)。注意 Alpine 是纯隔离 rootfs(fakefs 不解析跨 iOS 的 symlink)，iOS 的 /var/mobile/... 路径在 Alpine 里不可见：读 iOS 文件用默认原生 shell 直接访问 /var/mobile/...；文件同步是单向的(Alpine 写 /tmp 会同步回 iOS data/tmp，但 iOS 写 Alpine 不可见)，所以 Alpine 工具链需要 iOS 文件时：iOS 原生读内容，从 Alpine 侧写入(sh -c 'echo ...' 或 base64 解码)到 /tmp 再读，不要把文件原生 cp 进 /tmp。SQLite .db 在原生里用内置 sqlite3：`sqlite3 <db> \".tables\"` / `sqlite3 <db> \"SELECT ...\"`，支持 .schema/.indexes。Native Offload：`ta <tool> <key:value...>` 是全部原生工具的单一入口——先 `ta list` 看可用工具、`ta help <tool>` 看参数，再 `ta <tool> key:value` 直接调用 (例：ta app launch bundle_id:com.xxx；ta vpn.capture command:start)。Use for: file operations, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*).",
         parameters: [
             "command": "Shell command to execute (required)",
             "timeout": "Timeout seconds (default 30, max 120)",
@@ -634,7 +634,7 @@ final class ShellExecTool: MCPTool {
         "sha256sum", "diff", "hexdump", "curl", "wget", "plutil", "sqlite3",
         "unzip", "df", "free", "uname", "uptime", "hostname", "ps", "top",
         "kill", "ifconfig", "netstat", "nslookup", "tar", "gzip", "gunzip",
-        "ta"
+        "ta", "base64"
     ]
     
     /// 执行单段 iOS 原生命令 (首段），返回 [String: Any]
@@ -678,6 +678,7 @@ final class ShellExecTool: MCPTool {
         case "nslookup": return runIOSNslookup(trimmed)
         case "tar": return runIOStar(trimmed)
         case "gzip", "gunzip": return runIOSGzip(trimmed)
+        case "base64": return runIOSBase64(trimmed)
         case "ta": return OffloadRouter.run(trimmed)
         default:
             return [
@@ -1083,8 +1084,19 @@ final class ShellExecTool: MCPTool {
             return lines.map { String($0.reversed()) }.joined(separator: "\n")
         case "cat":
             return input
+        case "base64":
+            // v3.6.10: cat x | base64 —— 编码输入为单行 base64；base64 -d —— 解码输入
+            var opts = Set(parts.dropFirst())
+            let joined = input.replacingOccurrences(of: "\n", with: "")
+            if opts.contains("-d") {
+                guard let decoded = Data(base64Encoded: joined, options: .ignoreUnknownCharacters) else {
+                    return "base64: invalid input\n原输出:\n\(input)"
+                }
+                return String(decoding: decoded, as: UTF8.self)
+            }
+            return Data(input.utf8).base64EncodedString()
         default:
-            return "iOS 原生管道暂不支持过滤器: \(word) (可用 head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat)\n原输出:\n\(input)"
+            return "iOS 原生管道暂不支持过滤器: \(word) (可用 head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat/base64)\n原输出:\n\(input)"
         }
     }
     
@@ -1940,6 +1952,39 @@ final class ShellExecTool: MCPTool {
         }
     }
     
+    /// v3.6.10: iOS 原生 base64 命令——编码/解码文件。
+    ///   base64 <file>    → 输出 base64（单行，方便喂给 Alpine）
+    ///   base64 -d <file> → 从 base64 解码还原，写 <file>.decoded
+    /// 管道过滤器场景(cat x | base64)由 applySwiftFilter 的 case "base64" 处理。
+    private static func runIOSBase64(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        guard parts.count >= 2 else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: base64 [-d] <file>", "ios_native": true]
+        }
+        let decode = parts.contains("-d")
+        let noOpts = parts.filter { !$0.hasPrefix("-") }
+        let filePath = ShellExecTool.normalizePath(((noOpts.last ?? "").expandingTildeInPath))
+        guard fm.fileExists(atPath: filePath) else {
+            return ["command": command, "exit_code": 1, "stdout": "base64: \(filePath): No such file or directory", "ios_native": true]
+        }
+        do {
+            let data = try Data(contentsOf: URL(fileURLWithPath: filePath))
+            if decode {
+                guard let decoded = Data(base64Encoded: data, options: .ignoreUnknownCharacters) else {
+                    return ["command": command, "exit_code": 1, "stdout": "base64: invalid input", "ios_native": true]
+                }
+                let outPath = filePath + ".decoded"
+                try decoded.write(to: URL(fileURLWithPath: outPath))
+                return ["command": command, "exit_code": 0, "stdout": "decoded \(data.count) b64 → \(outPath) (\(decoded.count) bytes)", "ios_native": true]
+            } else {
+                return ["command": command, "exit_code": 0, "stdout": data.base64EncodedString(), "ios_native": true]
+            }
+        } catch {
+            return ["command": command, "exit_code": 1, "stdout": "base64 failed: \(error.localizedDescription)", "ios_native": true]
+        }
+    }
+
     /// v3.1.32: iOS 原生 diff 命令——比较两个文件
     private static func runIOSDiff(_ command: String) -> [String: Any] {
         let fm = FileManager.default
