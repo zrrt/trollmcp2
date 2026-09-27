@@ -136,8 +136,15 @@ final class ShellExecTool: MCPTool {
             if trimmed == "ta" || trimmed.hasPrefix("ta ") {
                 return OffloadRouter.run(trimmed)
             }
-            let (output, exitCode, timedOut) = ISHEngine.exec(trimmed, timeout: timeout)
-            // P3 按需补给：Alpine 输出显示缺工具(command not found)且命中白名单 → 自动 apk add 并重跑一次，
+            // v3.6.19l: Alpine 执行前保护护栏——凡命令要进 Alpine 却引用了"桥接不了"的 iOS 文件
+            // (>2MB 超限 / 不存在)，Alpine 必然读不到 → 执行前直接拦截并给出明确下一步，
+            // 而不是放进去跑出空结果让 AI 反复瞎试（根治 jinx 会话 40 次工具调用绕圈的根因）。
+            if let guardMsg = ShellExecTool.alpineIOSPathGuard(trimmed) {
+                return ["command": trimmed, "exit_code": 1, "ios_native": false,
+                        "stdout": guardMsg,
+                        "hint": "该命令会被路由到 Alpine，但 Alpine 读不到 iOS 大文件/不存在路径。改用原生 shell 直接访问(该工具原生支持 strings/nm/hexdump 直读大文件)，或对二进制用 inject binary_symbols 分析。"]
+            }
+            let (output, exitCode, timedOut) = ISHEngine.exec(trimmed, timeout: timeout)            // P3 按需补给：Alpine 输出显示缺工具(command not found)且命中白名单 → 自动 apk add 并重跑一次，
             // 免 agent 反复探测缺什么、也避免"先探测→再装→再跑"的多轮试探。
             var finalOut = output, finalExit = exitCode, finalTimed = timedOut
             if let pkg = ISHEngine.missingToolPkg(output) {
@@ -517,6 +524,44 @@ final class ShellExecTool: MCPTool {
             if c.range(of: m, options: .regularExpression) != nil { return true }
         }
         return false
+    }
+
+    /// v3.6.19l: Alpine 执行前保护护栏。
+    /// 若命令将被路由到 Alpine，则检查其中引用的每个 iOS 绝对路径是否能被自动桥接。
+    /// 桥接不了的(>2MB 超限 / 文件不存在) → Alpine 必然读不到，返回拦截提示；否则返回 nil 放行。
+    /// 复用 ISHManager.autoBridge 的同一套 iOS 路径识别正则，保证护栏与桥接判定一致。
+    static func alpineIOSPathGuard(_ command: String) -> String? {
+        let fm = FileManager.default
+        let prefixes = ["/var/mobile/", "/private/var/mobile/", "/System/", "/var/containers/"]
+        let alt = prefixes.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "|")
+        let pattern = "(^|[\\s\"'=>(])((?:" + alt + ")[^\\s\"'<>\\);|&,=:\\[\\]{}`]+)"
+        guard let re = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let ns = command as NSString
+        let maxBytes = 2 * 1024 * 1024
+        var seen = Set<String>()
+        var blocked: [String] = []
+        for m in re.matches(in: command, options: [], range: NSRange(location: 0, length: ns.length)) where m.numberOfRanges >= 3 {
+            let raw = ns.substring(with: m.range(at: 2))
+            if seen.contains(raw) { continue }
+            seen.insert(raw)
+            let norm = ShellExecTool.normalizePath(raw)
+            if norm.contains("/alpine-rootfs/") { continue }
+            // 已桥接成功的路径(出现在 /tmp/_bridge_ 下)不受此护栏约束
+            if norm.hasPrefix("/tmp/_bridge_") { continue }
+            guard fm.fileExists(atPath: norm) else {
+                blocked.append("\(norm) 不存在"); continue
+            }
+            guard (try? fm.attributesOfItem(atPath: norm)[.type]) as? FileAttributeType == .typeRegular else {
+                blocked.append("\(norm) 非普通文件"); continue
+            }
+            let size = (try? fm.attributesOfItem(atPath: norm)[.size]) as? Int ?? 0
+            if size <= 0 || size > maxBytes {
+                blocked.append("\(norm) \(size)B(超过2MB桥接上限)")
+            }
+        }
+        guard !blocked.isEmpty else { return nil }
+        return "该命令将走 Alpine，但引用了 Alpine 无法读取的 iOS 文件：\n" + blocked.joined(separator: "\n") +
+               "\nAlpine 是隔离 rootfs，看不到 iOS 路径；>2MB 文件不会被自动桥接。请：① 若工具原生支持(如 strings/nm/hexdump 直读大文件)，直接在 iOS 原生 shell 运行；② 分析二进制用 inject binary_symbols；③ 小文件会自动桥接(≤2MB)，无需手动处理。"
     }
     
     /// 按管道/分号/逻辑符拆分命令 (尊重引号），返回 [(命令段, 连接符)]，连接符: | ; && ||
