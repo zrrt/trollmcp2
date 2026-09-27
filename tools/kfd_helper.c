@@ -165,6 +165,38 @@ static int extract_cdhash(const uint8_t *macho, size_t len, uint8_t cdhash[20]) 
 }
 
 /* ------------------------------------------------------------------ */
+/* codesign 诊断：提取失败时 dump superblob/CD 详情到 stderr，便于定位  */
+/* 真机 TrollStore 重签后为何无法提取 cdhash。                         */
+/* ------------------------------------------------------------------ */
+static void dump_codesign(const uint8_t *macho, size_t len) {
+    struct mach_header_64 *mh = (struct mach_header_64 *)macho;
+    if (mh->magic != MH_MAGIC_64) { fprintf(stderr, "diag: not MH_MAGIC_64 (magic=%08x)\n", mh->magic); return; }
+    const uint8_t *cmds = macho + sizeof(struct mach_header_64);
+    uint32_t ncmd = mh->ncmds, sigoff = 0, off = 0;
+    for (uint32_t i = 0; i < ncmd; i++) {
+        struct load_command *lc = (struct load_command *)(cmds + off);
+        if (lc->cmd == LC_CODE_SIGNATURE) { sigoff = ((struct linkedit_data_command *)lc)->dataoff; break; }
+        off += lc->cmdsize;
+    }
+    fprintf(stderr, "diag: sigoff=%u filelen=%zu\n", sigoff, len);
+    if (sigoff == 0 || sigoff + 12 > len) { fprintf(stderr, "diag: no/invalid code signature\n"); return; }
+    cs_superblob *sb = (cs_superblob *)(macho + sigoff);
+    fprintf(stderr, "diag: superblob magic=%08x length=%u count=%u\n",
+            be32(sb->magic), be32(sb->length), be32(sb->count));
+    uint32_t cnt = be32(sb->count);
+    cs_blobindex *idx = (cs_blobindex *)((uint8_t *)sb + sizeof(cs_superblob));
+    for (uint32_t i = 0; i < cnt && i < 8; i++) {
+        fprintf(stderr, "diag: idx[%u] type=%u off=%u len=%u\n",
+                i, be32(idx[i].type), be32(idx[i].offset), be32(idx[i].length));
+        if (be32(idx[i].type) == CSSLOT_CODEDIRECTORY && be32(idx[i].offset) + 44 <= len - sigoff) {
+            cs_codedirectory *cd = (cs_codedirectory *)((uint8_t *)sb + be32(idx[i].offset));
+            fprintf(stderr, "diag:   cd magic=%08x len=%u hashSize=%u hashType=%u\n",
+                    be32(cd->magic), be32(cd->length), cd->hashSize, cd->hashType);
+        }
+    }
+}
+
+/* ------------------------------------------------------------------ */
 /* posix_spawn 调用同目录下的 fuck_helper（FuckKfdHelper 注入引擎）     */
 /* ------------------------------------------------------------------ */
 static int run_fuck_helper(const char *helper_path, const char *cdhash_hex) {
@@ -222,7 +254,9 @@ int main(int argc, char **argv) {
             fprintf(stderr, "cannot read %s\n", arg); return 1;
         }
         if (extract_cdhash(macho, len, cdhash) != 0) {
-            fprintf(stderr, "cannot extract cdhash from %s\n", arg); return 1;
+            fprintf(stderr, "cannot extract cdhash from %s\n", arg);
+            dump_codesign(macho, len);
+            free(macho); return 1;
         }
         free(macho);
         for (int i = 0; i < 20; i++) snprintf(cdhash_hex + i * 2, 3, "%02x", cdhash[i]);

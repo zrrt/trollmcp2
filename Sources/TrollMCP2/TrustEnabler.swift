@@ -57,7 +57,11 @@ enum TrustEnabler {
     /// 决定当前设备走哪条信任注入路径
     static func resolvePath() -> TrustPath {
         if isJailbroken { return .jailbreak }
-        if kfdAvailable { return .kfdInject }
+        // v3.6.19 止血：iOS 16.x 非越狱的 .kfdInject（复用 FuckKfdHelper 注入引擎）
+        // 会触发 iOS kernel panic → 点抓包 VPN 黑屏重启（FuckKfdHelper 用 DMA 物理写绕 PPL，
+        // 暂停 CPU 高负载写内核，iOS 16.3 上极易崩）。临时禁用该路径，VPN 回退纯 TrollStore
+        // 假签名启动（安全、不重启）。待确认 FuckKfdHelper 在真机安全可用后再恢复。
+        // if kfdAvailable { return .kfdInject }
         return .fallback
     }
 
