@@ -1222,9 +1222,11 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.61: 删旧的电话工具 (已合并到 PhoneExecTool）
         // 已删：PhoneCallTool / PhoneScheduleCallTool
         // v3.1.64: 删 SkillsSetEnabledTool (用 shell.exec 修改配置文件代替）
-        // 已删：SkillsListTool / SkillsReadTool (用 shell.exec 代替）
-        // register(SkillsListTool())    // v2.9.17：技能可被 AI 发现
-        // register(SkillsReadTool())    // v2.9.17：技能可被 AI 读取
+        // v3.6.19l: 恢复注册 skills.* —— 之前注释说"用 shell.exec 代替"但 shell.exec 并无 skills 子命令，
+        //           导致 AI 永远拿不到 skills.list/read/set_enabled 工具，"AI 说调用不了技能"。恢复后按需加载机制真正生效。
+        register(SkillsListTool())        // v2.9.17：技能可被 AI 发现（按需搜索，不塞全量）
+        register(SkillsReadTool())        // v2.9.17：技能可被 AI 读取（完整指令）
+        register(SkillsSetEnabledTool())  // 技能启停
         // 已删：ToolSearchTool (直接全量加载所有工具！不用搜索！）
         // register(ToolSearchTool())   // v2.9.16：渐进式披露元工具
         // 已删：ClipboardReadTool / ClipboardWriteTool (用 shell.exec 代替）

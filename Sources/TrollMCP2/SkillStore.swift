@@ -34,7 +34,8 @@ final class SkillStore {
     }
 
     /// 内置技能版本：升级内置技能时递增，触发对已存在 skills.json 的合并补全
-    private static let builtinsVersion = 2
+    /// v3 变更：新增/删除内置技能（本版移除"客服回复"，并增加删除已废弃内置技能的能力）
+    private static let builtinsVersion = 3
 
     private var enabledKey = "trollmcp2.skills_enabled"
 
@@ -69,11 +70,6 @@ final class SkillStore {
                 "name": "Tweak Dev Assistant",
                 "summary": "Theos Tweak development full-flow guide: project structure, Makefile, packaging, GitHub Actions online build",
                 "instruction": "当用户涉及 Tweak 开发时执行本技能：\n1. 工程需包含 Makefile / Tweak.x / .plist；\n2. 提示 Theos 需 submodules: recursive 克隆，GitHub Actions 用 macos-14 runner + brew install ldid；\n3. 打包用 make clean package FINALPACKAGE=1；\n4. 产物为 .deb/.dylib，可用 TrollFools 注入测试。",
-            ],
-            [
-                "name": "客服回复",
-                "summary": "polite customer message replies for ecommerce/standalone sites, handling pre-sales, logistics, returns, bad reviews",
-                "instruction": "当用户要求撰写客户回复时执行本技能：\n1. 先判断场景 (售前咨询/催发货/物流/退换货/差评)；\n2. 语气礼貌、专业、简洁，先共情再解决问题；\n3. 涉及退款/补偿给出清晰选项；\n4. 英文客服回复需自然口语化，避免生硬模板腔。",
             ],
             // ===== TrollAgent 逆向/取证技能（reverse-skill 风格，ta 工具链） =====
             [
@@ -125,17 +121,30 @@ final class SkillStore {
     }
 
     /// 版本化合并：已存在 skills.json 时，把内置技能中缺失的补全（不删用户自定义）
+    /// 并删除"曾经是内置、现在已从内置移除"的同名技能（避免废弃技能残留）
     private func mergeBuiltins() {
         let appliedVersion = UserDefaults.standard.integer(forKey: "trollmcp2.skills_builtins_version")
         guard appliedVersion < Self.builtinsVersion else { return }
+        let builtinNames = Set(Self.builtinSkills.compactMap { $0["name"] })
         var list = all
+        // 1) 补全缺失的内置技能
         for s in Self.builtinSkills {
             guard let name = s["name"], !name.isEmpty else { continue }
             if !list.contains(where: { $0.name == name }) {
                 list.append(SkillItem(dict: s))
             }
         }
+        // 2) 仅清理"曾被本 App 内置、现已从内置移除"的同名技能（用上次已应用版本的记录判定）
+        if appliedVersion > 0 {
+            let prevKey = "trollmcp2.skills_builtins_prev_names"
+            let prevNames = (UserDefaults.standard.array(forKey: prevKey) as? [String]) ?? []
+            let removedBuiltin = prevNames.filter { !builtinNames.contains($0) }
+            if !removedBuiltin.isEmpty {
+                list.removeAll { removedBuiltin.contains($0.name) }
+            }
+        }
         save(list)
+        UserDefaults.standard.set(Array(builtinNames), forKey: "trollmcp2.skills_builtins_prev_names")
         UserDefaults.standard.set(Self.builtinsVersion, forKey: "trollmcp2.skills_builtins_version")
     }
 
