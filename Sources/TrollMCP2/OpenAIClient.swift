@@ -723,9 +723,48 @@ final class OpenAIClient {
     /// 更早的图片置空并加文字占位。用于 chat/completions 序列化路径，
     /// 避免历史 base64 图片每次请求全量重发导致 body 巨大 → 卡住/超时。
     private func trimmedMessages(_ messages: [ChatMessage], imageBudget: Int = 2) -> [ChatMessage] {
+        // v3.6.19l: 上下文按 token 截断——防止超长会话撑爆模型上下文窗口导致"卡死不回复"(空 completion)。
+        // 策略: 始终保留最近 6 条 + 最新 user；超阈值时优先丢弃最旧 tool 结果(最占空间/最不影响语义)，
+        // 再丢旧 assistant/user，直到低于上限；被丢弃的部分在最后一条保留消息上标记。
+        let MAX_CHARS = 100_000            // ≈25k token, 给模型窗口留余量
+        let KEEP_LAST = 6                  // 始终保留的最近消息数
         var budget = imageBudget
         var out: [ChatMessage] = []
-        for m in messages.reversed() {
+        // --- 文本截断 ---
+        var arr = messages
+        let totalChars = arr.reduce(0) { $0 + ($1.content.count) + ($1.thinking?.count ?? 0) }
+        if totalChars > MAX_CHARS {
+            // 记录丢弃了多少条
+            var dropped = 0
+            // 保底: 找到最后一条 user 的索引，截断不越过它(保证当前诉求在)
+            var lastUserIdx = -1
+            for (i, m) in arr.enumerated() where m.role == "user" { lastUserIdx = i }
+            // 优先丢弃最旧的 tool 消息(不越过 lastUserIdx - 1 和 保底尾巴)
+            let cutFloor = max(0, lastUserIdx - 1)
+            var droppedAny = true
+            while arr.reduce(0, { $0 + ($1.content.count) + ($1.thinking?.count ?? 0) }) > MAX_CHARS && droppedAny {
+                droppedAny = false
+                for i in 0..<arr.count where i < cutFloor || i < max(0, arr.count - 6) {
+                    if arr[i].role == "tool" {
+                        arr.remove(at: i); dropped += 1; droppedAny = true; break
+                    }
+                }
+                if !droppedAny {
+                    // tool 丢完还不够 → 丢最旧 assistant/user(不越过 cutFloor 和保底)
+                    for i in 0..<arr.count where i < cutFloor || i < max(0, arr.count - 6) {
+                        arr.remove(at: i); dropped += 1; droppedAny = true; break
+                    }
+                }
+            }
+            if dropped > 0 && !arr.isEmpty {
+                let last = arr.count - 1
+                var m = arr[last]
+                m.content += "\n\n[早期上下文已截断: 会话过长已省略 \(dropped) 条历史消息]"
+                arr[last] = m
+            }
+        }
+        // --- 原图片裁剪逻辑 ---
+        for m in arr.reversed() {
             var mm = m
             if let imgs = mm.imageDataURLs, !imgs.isEmpty {
                 if budget > 0 {
