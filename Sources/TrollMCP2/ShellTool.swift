@@ -922,16 +922,21 @@ final class ShellExecTool: MCPTool {
             return lines.suffix(n).joined(separator: "\n")
         case "grep":
             var invert = false
+            var ignoreCase = false
             var pattern = ""
             for p in parts.dropFirst() {
                 if p == "-v" { invert = true; continue }
-                if p == "-i" { continue }
+                if p == "-i" { ignoreCase = true; continue }
                 pattern = p.trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
                 break
             }
             guard !pattern.isEmpty else { return input }
+            // v3.6.19e: 管道 grep 与 runIOSGrep 一致——默认字面量匹配，-i 才忽略大小写。
+            // 原来强制 .regularExpression + 强制 .caseInsensitive，搜 cdhash 等含.的字面量会被正则误伤、
+            // 且不传 -i 也忽略大小写（误匹配）。
             let matched = lines.filter { line in
-                let hit = line.range(of: pattern, options: [.caseInsensitive, .regularExpression]) != nil
+                let hit = ignoreCase ? line.range(of: pattern, options: .caseInsensitive) != nil
+                                     : line.range(of: pattern) != nil
                 return invert ? !hit : hit
             }
             return matched.joined(separator: "\n")

@@ -84,12 +84,13 @@ final class PackageTool: MCPTool {
             let size = Int(sizeStr) ?? 0
             let contentStart = offset + 60
             // v3.6.16: 防御——ar size 异常(0/超界)时跳过该成员并前移, 避免 subdata 越界
-            guard size > 0, contentStart + size <= data.count else {
+            guard size > 0, contentStart <= data.count else {
                 ShellDiag.log("package inspectDeb: member '\(name)' size=\(size) 异常 → 跳过 (offset=\(offset), total=\(data.count))")
                 offset = contentStart
                 continue
             }
-            let content = data.subdata(in: contentStart..<contentStart + size)
+            // v3.6.19e: 用 safeSlice 切（恶意 ar size 使 contentStart+size 溢出为负时也不 trap，safeSlice 会钳到安全区间）
+            let content = safeSlice(data, contentStart..<contentStart + size)
 
             // skip symbol table members
             if name != "/" && name != "//" && !name.hasSuffix("/") {
@@ -252,7 +253,7 @@ final class PackageTool: MCPTool {
     private func gunzip(_ data: Data) -> Data? {
         // skip 10-byte gzip header (+ optional extra fields)
         var start = 10
-        if data.count > start && (data[start] & 0x04) != 0 { // FEXTRA
+        if data.count > start + 2 && (data[start] & 0x04) != 0 { // FEXTRA
             let xlen = Int(data[start + 1]) | (Int(data[start + 2]) << 8)
             start += 2 + xlen
         }
@@ -294,6 +295,8 @@ final class PackageTool: MCPTool {
             let srcPtr = base.advanced(by: skipHeader).bindMemory(to: UInt8.self, capacity: data.count - skipHeader)
             let srcLen = data.count - skipHeader
             let scratchSize = compression_decode_scratch_buffer_size(COMPRESSION_LZMA)
+            // v3.6.19e: 防崩溃——scratch 大小为 0/异常时直接返回 nil，避免空 scratch 传给压缩 API
+            guard scratchSize > 0, scratchSize < (1 << 20) else { return nil }
             var scratch = [UInt8](repeating: 0, count: scratchSize)
             var capacity = max(64 * 1024, srcLen * 4)
             while capacity < 512 * 1024 * 1024 {
@@ -306,7 +309,8 @@ final class PackageTool: MCPTool {
                 if n > 0 {
                     return Data(dst[0..<n])
                 }
-                // 容量不够时（0 返回且数据非空）翻倍重试
+                // 容量不够时（0 返回且数据非空）翻倍重试；容量过大仍失败则放弃，防 capacity 溢出
+                if capacity >= (512 * 1024 * 1024) / 2 { return nil }
                 capacity *= 2
             }
             return nil
