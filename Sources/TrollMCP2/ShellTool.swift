@@ -1748,20 +1748,49 @@ final class ShellExecTool: MCPTool {
             return ["command": command, "exit_code": 1, "stdout": "grep: no files matched", "ios_native": true]
         }
         
+        // v3.6.19d: 修复 grep 对二进制失效的根因——原来用 String(contentsOfFile:encoding:.utf8) 读文件，
+        // 二进制 UTF-8 解码必 nil → 静默跳过 → 输出空。改为 Data 字节读取 + 按 0x0A 拆字节行；
+        // 匹配默认按【字面字节序列】(pattern 转 UTF-8 Data)，不再强制正则(原 .regularExpression 会把
+        // 用户想搜的 "cdhash"/"CodeDirectory" 里的 . 当通配符误伤)；-E 才启用正则(用可打印化文本)。
+        let useRegex = flags.contains("E")
+        func printableLine(_ line: Data) -> String {
+            var s = ""
+            for byte in line {
+                if byte == 0x09 { s += "\t" }
+                else if byte >= 0x20 && byte <= 0x7e { s += String(UnicodeScalar(byte)) }
+                else { s += "." }
+            }
+            return s
+        }
+        let patternBytes = Data(pattern.utf8)
+        let patternBytesLower = Data(pattern.lowercased().utf8)
+
         var matchedFiles: [String] = []
         var matchedLines: [String] = []
         var totalCount = 0
         for file in files {
-            guard let content = try? String(contentsOfFile: file, encoding: .utf8) else { continue }
-            let lines = content.components(separatedBy: .newlines)
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: file)) else { continue }
+            // 按 0x0A 拆成字节行（二进制也按字节行处理）
+            var byteLines: [Data] = []
+            var lineStart = data.startIndex
+            for i in data.indices where data[i] == 0x0A {
+                byteLines.append(Data(data[lineStart..<i])); lineStart = data.index(after: i)
+            }
+            byteLines.append(Data(data[lineStart...]))
             var fileMatched = false
             var fileCount = 0
-            for (idx, line) in lines.enumerated() {
+            for (idx, line) in byteLines.enumerated() {
                 let found: Bool
-                if ignoreCase {
-                    found = line.range(of: pattern, options: [.caseInsensitive, .regularExpression]) != nil
+                if useRegex {
+                    let text = printableLine(line)
+                    found = ignoreCase ? text.range(of: pattern, options: [.caseInsensitive, .regularExpression]) != nil
+                                       : text.range(of: pattern, options: .regularExpression) != nil
+                } else if ignoreCase {
+                    // 字节级忽略大小写：ASCII A-Z 转小写后匹配
+                    let lowered = Data(line.map { ($0 >= 0x41 && $0 <= 0x5a) ? ($0 + 0x20) : $0 })
+                    found = lowered.range(of: patternBytesLower) != nil
                 } else {
-                    found = line.range(of: pattern, options: .regularExpression) != nil
+                    found = line.range(of: patternBytes) != nil
                 }
                 let hit = invert ? !found : found
                 if hit {
@@ -1771,7 +1800,7 @@ final class ShellExecTool: MCPTool {
                     if !filesOnly && !countOnly {
                         let prefix = files.count > 1 ? "\(file):" : ""
                         let num = lineNumbers ? "\(idx + 1):" : ""
-                        matchedLines.append("\(prefix)\(num)\(line)")
+                        matchedLines.append("\(prefix)\(num)\(printableLine(line))")
                     }
                 }
             }
@@ -1799,7 +1828,7 @@ final class ShellExecTool: MCPTool {
             "exit_code": 0,
             "stdout": out,
             "ios_native": true,
-            "hint": "iOS native grep: supports -i(ignore case)/-r(recursive)/-l(list filenames)/-c(count)/-n(line numbers)/-v(invert)"
+            "hint": "iOS native grep: -i/-r/-l/-c/-n/-v 同标准；默认按字面字节匹配(可搜二进制如 cdhash/CodeDirectory)，-E 启用正则；-a 自动(二进制可打印化)。不再因二进制 UTF-8 解码失败而静默输出空。"
         ]
     }
     
@@ -2448,25 +2477,37 @@ final class ShellExecTool: MCPTool {
     private static func runIOSSqlite(_ command: String) -> [String: Any] {
         let fm = FileManager.default
         
-        // 解析：sqlite3 <db_path> "<query>"
-        // 从第一个引号开始，到最后一个引号结束，中间是 SQL 语句
-        guard let firstQuote = command.firstIndex(of: "\"") else {
+        // 解析：sqlite3 <db_path> "<query>" 或 'query'
+        // v3.6.19d: 原来只认双引号，AI/用户发单引号 SQL 会 usage 误报；改为自动识别单/双引号包裹，
+        // 并剥掉 db 路径自身可能带的引号。
+        let dq = command.firstIndex(of: "\"")
+        let sq = command.firstIndex(of: "'")
+        let openQuote: Character
+        if let d = dq, let s = sq { openQuote = d < s ? "\"" : "'" }
+        else if dq != nil { openQuote = "\"" }
+        else if sq != nil { openQuote = "'" }
+        else {
             return ["command": command, "exit_code": 1, "stdout": "Usage: sqlite3 <db_file> \"SELECT * FROM table\"", "ios_native": true]
         }
-        guard let lastQuote = command.lastIndex(of: "\""), firstQuote != lastQuote else {
+        guard let qStart = command.firstIndex(of: openQuote) else {
             return ["command": command, "exit_code": 1, "stdout": "Usage: sqlite3 <db_file> \"SELECT * FROM table\"", "ios_native": true]
         }
-        
-        let query = String(command[command.index(after: firstQuote)..<lastQuote])
-        
-        // 提取 db 路径 (在第一个引号之前）
-        let beforeQuote = command[..<firstQuote].trimmingCharacters(in: .whitespaces)
+        let qRest = command[command.index(after: qStart)...]
+        guard let qEnd = qRest.firstIndex(of: openQuote) else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: sqlite3 <db_file> \"SELECT * FROM table\"", "ios_native": true]
+        }
+        let query = String(qRest[..<qEnd])
+
+        // 提取 db 路径 (在引号之前），并剥掉路径自身可能带的引号
+        let beforeQuote = command[..<qStart].trimmingCharacters(in: .whitespaces)
         let parts = beforeQuote.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
         guard parts.count >= 2 else {
             return ["command": command, "exit_code": 1, "stdout": "Usage: sqlite3 <db_file> \"SELECT * FROM table\"", "ios_native": true]
         }
-        
-        let dbPath = ShellExecTool.normalizePath((parts[1] as NSString).expandingTildeInPath)
+        var dbArg = parts[1]
+        if dbArg.hasPrefix("\""), dbArg.hasSuffix("\"") { dbArg = String(dbArg.dropFirst().dropLast()) }
+        if dbArg.hasPrefix("'"), dbArg.hasSuffix("'") { dbArg = String(dbArg.dropFirst().dropLast()) }
+        let dbPath = ShellExecTool.normalizePath((dbArg as NSString).expandingTildeInPath)
         guard fm.fileExists(atPath: dbPath) else {
             return ["command": command, "exit_code": 1, "stdout": "sqlite3: \(dbPath): No such file", "ios_native": true]
         }
