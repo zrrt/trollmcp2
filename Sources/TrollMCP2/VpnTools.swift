@@ -49,11 +49,25 @@ final class VpnTool: MCPTool {
             ]
 
         case "start":
+            // v3.6.19g: 修复——原实现立即 return，note 永远是初始 "VPN connecting"；
+            // startVpn 的 completion 是异步回调(注入+等批准+confirmConnected 共约3s+)，
+            // 启动失败的真实结果(系统未批准/隧道没起来)在回调里晚于 return 才设置，被吞掉，
+            // AI/用户通过 MCP 永远看不到真实成败。改用 semaphore 阻塞等待异步结果(最多12s)
+            // 后返回真实状态。
             var note = "VPN connecting (wait for system prompt)"
+            var started = true
+            let sem = DispatchSemaphore(value: 0)
             vm.startVpn { err in
-                if let e = err { note = "start failed: \(e)" }
+                if let e = err {
+                    note = "start failed: \(e)"
+                    started = false
+                } else {
+                    note = "VPN started & connected"
+                }
+                sem.signal()
             }
-            return ["command": "start", "started": true, "note": note, "cert_reminder": "install+trust CA first if not done (vpn.capture command:cert)"]
+            _ = sem.wait(timeout: .now() + 12)
+            return ["command": "start", "started": started, "note": note, "cert_reminder": "install+trust CA first if not done (vpn.capture command:cert)"]
 
         case "stop":
             vm.stopVpn()
