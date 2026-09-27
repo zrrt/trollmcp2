@@ -36,7 +36,7 @@ enum ShellDiag {
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "Run a shell command (terminal/command line). iOS native mode (default): 36 个原生命令直通真实 iOS 系统——文件操作 (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/base64/curl/plutil/sqlite3/unzip) + 系统信息 (df/free/uname/uptime/hostname/ps/top/kill) + 网络 (ifconfig/netstat/nslookup)。支持管道/分号/重定向/&&/|| (例：'ls /var/mobile | head -5'、'cat a.txt; echo done'、'echo hi > f.txt')，支持 VAR=value 赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat/base64（cat file | base64 可把文件编码为单行 base64，base64 -d 解码）。限制：iOS 原生模式不支持 for/while/case/heredoc/多行脚本。环境自动路由（系统决定，不要传 env 参数）：装包/解包/完整工具链/复杂脚本(apk、tar/dpkg、python、git、sh -c、heredoc等开头)自动走 Alpine Linux；文件操作/系统信息/网络/二进制分析默认 iOS 原生。若确实需要 Alpine 能力，用能命中自动路由的命令形式开头(如 python3 / apk add / tar / sh script.sh)。注意 Alpine 是纯隔离 rootfs(fakefs 不解析跨 iOS 的 symlink)，iOS 的 /var/mobile/... 路径在 Alpine 里不可见：读 iOS 文件用默认原生 shell 直接访问 /var/mobile/...；文件同步是单向的(Alpine 写 /tmp 会同步回 iOS data/tmp，但 iOS 写 Alpine 不可见)，所以 Alpine 工具链需要 iOS 文件时：iOS 原生读内容，从 Alpine 侧写入(sh -c 'echo ...' 或 base64 解码)到 /tmp 再读，不要把文件原生 cp 进 /tmp。SQLite .db 在原生里用内置 sqlite3：`sqlite3 <db> \".tables\"` / `sqlite3 <db> \"SELECT ...\"`，支持 .schema/.indexes。Native Offload：`ta <tool> <key:value...>` 是全部原生工具的单一入口——先 `ta list` 看可用工具、`ta help <tool>` 看参数，再 `ta <tool> key:value` 直接调用 (例：ta app launch bundle_id:com.xxx；ta vpn.capture command:start)。Use for: file operations, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*).",
+        summary: "Run a shell command (terminal/command line). iOS native mode (default): 36 个原生命令直通真实 iOS 系统——文件操作 (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/base64/curl/plutil/sqlite3/unzip/strings/nm) + 系统信息 (df/free/uname/uptime/hostname/ps/top/kill) + 网络 (ifconfig/netstat/nslookup)。支持管道/分号/重定向/&&/|| (例：'ls /var/mobile | head -5'、'cat a.txt; echo done'、'echo hi > f.txt')，支持 VAR=value 赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat/base64（cat file | base64 可把文件编码为单行 base64，base64 -d 解码）。限制：iOS 原生模式不支持 for/while/case/heredoc/多行脚本。环境自动路由（系统决定，不要传 env 参数）：装包/解包/完整工具链/复杂脚本(apk、tar/dpkg、python、git、sh -c、heredoc等开头)自动走 Alpine Linux；文件操作/系统信息/网络/二进制分析默认 iOS 原生。二进制分析用原生 strings/nm（直读大文件无 2MB 桥接上限）：`strings <二进制路径>` 提取可打印字符串（定位商品 ID/URL/库名），`nm <路径>` 输出 Mach-O 符号（默认 __text 函数，-a 全部段），支持 -n <minlen> / -o 偏移。若确实需要 Alpine 能力，用能命中自动路由的命令形式开头(如 python3 / apk add / tar / sh script.sh)。注意 Alpine 是纯隔离 rootfs(fakefs 不解析跨 iOS 的 symlink)，iOS 的 /var/mobile/... 路径在 Alpine 里不可见：读 iOS 文件用默认原生 shell 直接访问 /var/mobile/...；文件同步是单向的(Alpine 写 /tmp 会同步回 iOS data/tmp，但 iOS 写 Alpine 不可见)，所以 Alpine 工具链需要 iOS 文件时：iOS 原生读内容，从 Alpine 侧写入(sh -c 'echo ...' 或 base64 解码)到 /tmp 再读，不要把文件原生 cp 进 /tmp。SQLite .db 在原生里用内置 sqlite3：`sqlite3 <db> \".tables\"` / `sqlite3 <db> \"SELECT ...\"`，支持 .schema/.indexes。Native Offload：`ta <tool> <key:value...>` 是全部原生工具的单一入口——先 `ta list` 看可用工具、`ta help <tool>` 看参数，再 `ta <tool> key:value` 直接调用 (例：ta app launch bundle_id:com.xxx；ta vpn.capture command:start)。Use for: file operations, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*).",
         parameters: [
             "command": "Shell command to execute (required)",
             "timeout": "Timeout seconds (default 30, max 120)",
@@ -634,7 +634,7 @@ final class ShellExecTool: MCPTool {
         "sha256sum", "diff", "hexdump", "curl", "wget", "plutil", "sqlite3",
         "unzip", "df", "free", "uname", "uptime", "hostname", "ps", "top",
         "kill", "ifconfig", "netstat", "nslookup", "tar", "gzip", "gunzip",
-        "ta", "base64"
+        "ta", "base64", "strings", "nm"
     ]
     
     /// 执行单段 iOS 原生命令 (首段），返回 [String: Any]
@@ -679,6 +679,8 @@ final class ShellExecTool: MCPTool {
         case "tar": return runIOStar(trimmed)
         case "gzip", "gunzip": return runIOSGzip(trimmed)
         case "base64": return runIOSBase64(trimmed)
+        case "strings": return runIOSStrings(trimmed)
+        case "nm": return runIOSNm(trimmed)
         case "ta": return OffloadRouter.run(trimmed)
         default:
             return [
@@ -1283,6 +1285,181 @@ final class ShellExecTool: MCPTool {
         }
     }
     
+    /// v3.6.19: iOS 原生 strings —— 从二进制/任意文件提取可打印 ASCII 字符串。
+    /// 用 Data(contentsOf:) 原生直读（无 Alpine 2MB 桥接上限），解决"分析大二进制提字符串"卡点。
+    /// 语法: strings [-n <minlen>] [-o] <path>  (默认 minlen=4; -o 打印偏移)
+    private static func runIOSStrings(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        var minLen = 4, showOff = false
+        var pathArg: String?
+        var i = 1
+        while i < parts.count {
+            let a = parts[i]
+            if a == "-n" { i += 1; if i < parts.count { minLen = max(1, Int(parts[i]) ?? 4) } }
+            else if a == "-o" { showOff = true }
+            else if a.hasPrefix("-") { /* 忽略其它选项 (-a/-el/-t 等) */ }
+            else { pathArg = a; break }
+            i += 1
+        }
+        guard let raw = pathArg else {
+            return ["command": command, "exit_code": 1,
+                    "stdout": "usage: strings [-n <minlen>] [-o] <path> — 从二进制文件提取可打印 ASCII 字符串（默认 minlen=4，-o 显示偏移）",
+                    "ios_native": true]
+        }
+        let path = ShellExecTool.normalizePath((raw as NSString).expandingTildeInPath)
+        guard fm.fileExists(atPath: path) else {
+            return ["command": command, "exit_code": 1, "stdout": "strings: \(path): No such file or directory", "ios_native": true]
+        }
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
+            return ["command": command, "exit_code": 1, "stdout": "strings: \(path): cannot read", "ios_native": true]
+        }
+        var out: [String] = []
+        var cur: [UInt8] = []
+        var startOff = 0
+        for (idx, b) in data.enumerated() {
+            let printable = (b >= 0x20 && b <= 0x7e)
+            if printable {
+                if cur.isEmpty { startOff = idx }
+                cur.append(b)
+            } else {
+                if cur.count >= minLen {
+                    let s = String(bytes: cur, encoding: .utf8) ?? ""
+                    out.append(showOff ? String(format: "%7x  ", startOff) + s : s)
+                }
+                cur.removeAll(keepingCapacity: true)
+            }
+        }
+        if cur.count >= minLen {
+            let s = String(bytes: cur, encoding: .utf8) ?? ""
+            out.append(showOff ? String(format: "%7x  ", startOff) + s : s)
+        }
+        if out.isEmpty {
+            return ["command": command, "exit_code": 0, "stdout": "(no ASCII strings of length >= \(minLen) found)", "ios_native": true]
+        }
+        let joined = out.joined(separator: "\n")
+        let truncated: String
+        if joined.count > 6000 {
+            let spill = ToolRegistry.spillLarge("strings", joined)
+            truncated = String(joined.prefix(3000)) + "\n…[输出太长 total \(joined.count) 字符，已截断；完整内容: \(spill)]…\n" + String(joined.suffix(3000))
+        } else {
+            truncated = joined
+        }
+        return ["command": command, "exit_code": 0, "stdout": truncated, "ios_native": true,
+                "hint": "原生 strings 直读 iOS 文件（无 2MB 桥接上限）。提取出的可打印字符串可用于定位商品 ID/URL/库名等。需要符号名用 nm <path>。"]
+    }
+
+    /// v3.6.19: iOS 原生 nm —— 解析 Mach-O 符号表，输出定义符号 (地址 + 符号名)。
+    /// 原生直读大文件；支持 fat/thin arm64。默认只输出 __text 段符号（代码函数），-a 输出全部 N_SECT 符号。
+    /// 语法: nm [-a] <path>
+    private static func runIOSNm(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        var all = false
+        var pathArg: String?
+        for a in parts.dropFirst() {
+            if a == "-a" || a == "-g" { all = true }
+            else if !a.hasPrefix("-") { pathArg = a; break }
+        }
+        guard let raw = pathArg else {
+            return ["command": command, "exit_code": 1,
+                    "stdout": "usage: nm [-a] <path> — 输出 Mach-O 定义的符号 (地址 + 符号名)。默认只输出 __text 段（代码函数），-a 输出全部段符号。",
+                    "ios_native": true]
+        }
+        let path = ShellExecTool.normalizePath((raw as NSString).expandingTildeInPath)
+        guard fm.fileExists(atPath: path) else {
+            return ["command": command, "exit_code": 1, "stdout": "nm: \(path): No such file or directory", "ios_native": true]
+        }
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
+            return ["command": command, "exit_code": 1, "stdout": "nm: \(path): cannot read", "ios_native": true]
+        }
+        let bytes = [UInt8](data)
+        func u32(_ o: Int) -> UInt32 { // little-endian
+            guard o + 3 < bytes.count else { return 0 }
+            return UInt32(bytes[o]) | (UInt32(bytes[o+1]) << 8) | (UInt32(bytes[o+2]) << 16) | (UInt32(bytes[o+3]) << 24)
+        }
+        func u64(_ o: Int) -> UInt64 {
+            var v: UInt64 = 0
+            for k in 0..<8 where o + k < bytes.count { v |= UInt64(bytes[o+k]) << (k*8) }
+            return v
+        }
+        func b32(_ o: Int) -> UInt32 { // big-endian
+            guard o + 3 < bytes.count else { return 0 }
+            return (UInt32(bytes[o]) << 24) | (UInt32(bytes[o+1]) << 16) | (UInt32(bytes[o+2]) << 8) | UInt32(bytes[o+3])
+        }
+        // 定位 slice
+        var base = 0
+        let magic = u32(0)
+        if magic == 0xbebafeca { // FAT_CIGAM (LE of 0xcafebabe)
+            let n = Int(b32(4))
+            var found = false
+            for j in 0..<n {
+                let b = 8 + j*20
+                if b32(b) == 0x0100000c { base = Int(b32(b+8)); found = true; break } // CPU_TYPE_ARM64
+            }
+            if !found { return ["command": command, "exit_code": 1, "stdout": "nm: \(path): no arm64 slice", "ios_native": true] }
+        } else if magic == 0xfeedfacf { // MH_MAGIC_64
+            base = 0
+        } else {
+            return ["command": command, "exit_code": 1, "stdout": "nm: \(path): not a Mach-O 64 file (magic 0x\(String(format:"%08x", magic)))", "ios_native": true]
+        }
+        // 遍历 load commands 找 LC_SYMTAB (0x2)
+        let ncmds = Int(u32(base + 16))
+        var off = base + 32
+        var symoff = 0, nsyms = 0, stroff = 0, strsize = 0
+        for _ in 0..<ncmds {
+            if off + 8 > bytes.count { break }
+            let c = u32(off)
+            let sz = Int(u32(off + 4))
+            if c == 0x2 {
+                symoff = Int(u32(off + 8))
+                nsyms = Int(u32(off + 12))
+                stroff = Int(u32(off + 16))
+                strsize = Int(u32(off + 20))
+                break
+            }
+            off += sz
+        }
+        guard nsyms > 0 && nsyms < 500000 else {
+            return ["command": command, "exit_code": 0, "stdout": "nm: \(path): no symbols (stripped binary?)", "ios_native": true]
+        }
+        let strBase = base + stroff
+        func symName(_ nx: Int) -> String {
+            guard nx >= 0, strBase + nx < bytes.count, strBase + nx < strBase + strsize else { return "" }
+            var e = strBase + nx
+            while e < bytes.count && e < strBase + strsize && bytes[e] != 0 { e += 1 }
+            return String(bytes: bytes[strBase+nx..<e], encoding: .utf8) ?? ""
+        }
+        var out: [String] = []
+        for k in 0..<nsyms {
+            let e = base + symoff + k*16
+            if e + 16 > bytes.count { break }
+            let nx = Int(u32(e))
+            let ntype = bytes[e+4]
+            let nsect = bytes[e+5]
+            let nval = u64(e+8)
+            if (ntype & 0x0e) == 0x0e && (all || nsect == 1) { // N_SECT (defined)
+                let nmstr = symName(nx)
+                if !nmstr.isEmpty && !nmstr.hasPrefix("$") {
+                    out.append(String(format: "%016llx", nval) + "  " + nmstr)
+                }
+            }
+        }
+        if out.isEmpty {
+            return ["command": command, "exit_code": 0, "stdout": "nm: \(path): no __text symbols found" + (all ? "" : " (try nm -a for all sections)"), "ios_native": true]
+        }
+        let joined = out.joined(separator: "\n")
+        let truncated: String
+        if joined.count > 8000 {
+            let spill = ToolRegistry.spillLarge("nm", joined)
+            truncated = String(joined.prefix(4000)) + "\n…[输出太长 total \(joined.count) 字符，已截断；完整内容: \(spill)]…\n" + String(joined.suffix(4000))
+        } else {
+            truncated = joined
+        }
+        return ["command": command, "exit_code": 0, "stdout": truncated, "ios_native": true,
+                "hint": "原生 nm 直读 Mach-O 符号表。默认输出 __text 段函数符号（地址+名字），-a 输出全部段符号。可配合 strings <path> 提取字符串。"]
+    }
+
     /// v3.1.32: iOS 原生 find 命令——找文件
     /// v3.1.68: 支持 -iname (忽略大小写）与 -maxdepth N (任意参数顺序），
     /// 修复"只认 find <path> -name '<pattern>'、参数顺序敏感" (AI 诊断 4，2026-09-23 实测确认）
