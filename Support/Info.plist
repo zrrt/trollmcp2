@@ -74,7 +74,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>3.6.19k</string>
+	<string>3.6.19l</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -107,7 +107,7 @@
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>CFBundleVersion</key>
-	<string>183</string>
+	<string>184</string>
 	<key>MinimumOSVersion</key>
 	<string>14.0</string>
 	<key>NSAppTransportSecurity</key>

@@ -443,6 +443,10 @@ final class SystemPrompts {
       `inject enable`, `device fake`, `app launch`) AND dotted sub-tool (`control.screenshot`, `injection.enable`,
       `device.fake`, `app.launch`); both are registered and execute the same action. Use either consistently; the
       parent+command form is canonical.
+    - SKILLS vs TOOLS NAMING (ta is CLI, not a real tool): skill instructions may write commands as `ta <tool>`
+      (e.g. `ta inject status`, `ta db`, `ta package`) — that's shorthand from the CLI reference, NOT a literal
+      function you call and NOT a shell command to type. Call the real registered MCP tool directly (e.g. `inject`
+      with command=status, `db`, `package`). Never literally run `ta ...` inside shell.exec.
 
     === ALL TOOLS ARE ALREADY LOADED ===
     - All tools are already loaded! Call them DIRECTLY! No need to search!
@@ -456,9 +460,12 @@ final class SystemPrompts {
     - Pipes / semicolons / redirection / && / || are supported (e.g. 'ls /var/mobile | head -5', 'echo hi > f.txt').
     - ENVIRONMENT ROUTING (AUTO, HARD): default = iOS native shell (files live on the iOS FS).
       The system auto-routes to Alpine ONLY when a command needs tools native lacks
-      (apk add / tar / dpkg / python / full scripts). Binary symbol/string analysis
-      (product IDs, StoreKit, receipts, class-dump strings) runs NATIVELY via grep -a /
-      strings on the decrypted binary — the system keeps it native, don't ask to switch.
+      (apk add / tar / dpkg / python / full scripts). DO NOT analyze binary content with
+      native `grep -a` / `strings` — native filters are UNRELIABLE on Mach-O/binaries
+      (audit-verified: they return 0 even for literal class names). For binary symbols /
+      strings / structure: reference the iOS path in an Alpine command (auto-bridged) and use
+      `nm <bin>` / `objdump -x <bin>` / `rabin2 -I|-s|-z <bin>` / `strings -a` (auto apk-add'ed),
+      or natively `inject binary_symbols path:<macho>` — never hand grep a binary.
       FILE BRIDGE IS AUTOMATIC (v3.6.11): in an Alpine command you may reference iOS paths
       (/var/mobile/..., /System, /var/containers) directly — the system auto-reads the file,
       base64s it, writes it into Alpine /tmp as /tmp/_bridge_N_name, and rewrites your path,
@@ -507,6 +514,11 @@ final class SystemPrompts {
     - [Web] shell.exec curl can fetch web/GitHub APIs; if blocked by anti-scraping, use browser navigate + browser text.
 
     === KNOWN BUGS (single source, applies to all modes) ===
+    - Native shell limitations: use ABSOLUTE paths only — no glob expansion, no `cd`-then-relative
+      (cd is ignored; relative paths fail), and don't wrap paths in quotes (the shell treats quotes
+      as part of the path). Audit-verified on real device.
+    - Native `grep -a` / `strings` on Mach-O/binary content is UNRELIABLE (returns 0 even for
+      literal class names) — use Alpine nm/objdump/rabin2 (auto-bridged) or `inject binary_symbols`.
     - pidOf-based tools may fail (inject mem / device fake) → fall back to inject enable; if pidOf
       can't find a process, use shell.exec("ps aux | grep <app>") instead.
     - ldid entitlements parsing may be inaccurate (may read TrollAgent's own entitlements).
