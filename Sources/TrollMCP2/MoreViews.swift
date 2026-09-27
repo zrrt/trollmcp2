@@ -1218,6 +1218,7 @@ struct DevInstructionEditorView: View {
 struct KnowledgeBaseView: View {
     @State private var files: [WorkspaceItem] = []
     @State private var showingImporter = false
+    @State private var showingClearConfirm = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1270,7 +1271,14 @@ struct KnowledgeBaseView: View {
                             }
                             refresh()
                         }
+
+                    Button {
+                        showingClearConfirm = true
+                    } label: {
+                        Label("清空全部", systemImage: "trash")
+                            .foregroundColor(.red)
                     }
+                    .disabled(files.isEmpty)
                 }
             }
             .listStyle(.insetGrouped)
@@ -1283,6 +1291,12 @@ struct KnowledgeBaseView: View {
                     _ = try? FileManager.default.copyItem(at: url, to: dest)
                     refresh()
                 }
+            }
+            .confirmationDialog("确定清空全部已导入文件？", isPresented: $showingClearConfirm, titleVisibility: .visible) {
+                Button("清空全部", role: .destructive) {
+                    clearAll()
+                }
+                Button("取消", role: .cancel) {}
             }
             .onAppear(perform: refresh)
         }
@@ -1307,6 +1321,15 @@ struct KnowledgeBaseView: View {
             }
         }
         files = items.sorted { $0.name < $1.name }
+    }
+
+    /// v3.6.19l：清空已导入的全部知识库文件
+    private func clearAll() {
+        let fm = FileManager.default
+        for file in files {
+            try? fm.removeItem(at: file.url)
+        }
+        refresh()
     }
 
     private func importFromWorkspace() {
