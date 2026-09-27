@@ -39,6 +39,27 @@ enum ISHEngine {
         guestCwd = "/root"
     }
 
+    // MARK: - iOS 目录 bind mount（v3.7.0）
+    /// 把 iOS 真实目录挂进 Alpine。挂载点需为 "/ios_xxx" 形式。
+    /// @return C 错误码（0 成功）
+    static func bindMount(_ linuxPath: String, _ hostPath: String, readOnly: Bool) -> Int32 {
+        guard isBooted else { return -1000 }
+        return linuxPath.withCString { lp in
+            hostPath.withCString { hp in
+                cish_bind_mount(lp, hp, readOnly ? 1 : 0)
+            }
+        }
+    }
+
+    /// 卸载一个 bind mount
+    @discardableResult
+    static func bindUnmount(_ linuxPath: String) -> Int32 {
+        guard isBooted else { return -1000 }
+        return linuxPath.withCString { lp in
+            cish_bind_unmount(lp)
+        }
+    }
+
     /// 确保内核已 boot（首次解压 rootfs + 挂载）。线程安全，重复调用幂等。
     static func ensureBooted() -> String? {
         lock.lock()
@@ -83,6 +104,11 @@ enum ISHEngine {
             state = .failed("cish_boot rc=\(rc)")
             return "[ish] 内核初始化失败: cish_boot rc=\(rc)"
         }
+
+        // v3.7.0：cish_boot 已默认把 iOS 目录 bind mount 进 Alpine（/ios_documents 等）。
+        // 此处仅做诊断记录，不重复 bind（isBooted 此刻仍为 false）。
+        ShellDiag.log("ISH boot ok data=\(dataPath) (bind-mount iOS dirs done in cish_boot)")
+
         state = .booted
 
         // 3. 默认 cwd 为真实存在的 /root（避免名义 /workspace 误导）

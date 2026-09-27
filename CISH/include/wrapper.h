@@ -15,6 +15,17 @@ int cish_boot(const char *data_path);
 /// 内核是否已 boot
 int cish_is_booted(void);
 
+/// 把 iOS 真实目录 bind-mount 进 Alpine（fakefs_bind_mount 包装）。
+/// 挂载后 Alpine 通过 linux_path 直接读写 host_path（iOS 真实文件，双向直通）。
+/// @param linux_path Alpine 侧挂载点（如 "/ios_documents"）
+/// @param host_path  iOS 真实目录绝对路径（如 "/var/mobile/Documents"）
+/// @param read_only  1 = 只读（挂载点下拒绝写），0 = 可读写
+/// @return 0 成功，负数为错误码
+int cish_bind_mount(const char *linux_path, const char *host_path, int read_only);
+
+/// 卸载一个 bind mount
+int cish_bind_unmount(const char *linux_path);
+
 /// 启动一个 guest 进程（串行语义：同一时刻全局只有一个 notify 接收者）。
 /// @param path     guest 可执行文件（如 /bin/sh）
 /// @param argv_buf NUL 分隔的参数字符串、末尾双 NUL（含 argv[0]）

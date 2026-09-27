@@ -68,6 +68,27 @@ int cish_is_booted(void) {
     return atomic_load(&g_booted);
 }
 
+// bind mount 表锁（与 g_booted 无关，bind 可动态增删）
+static pthread_mutex_t g_bind_mtx = PTHREAD_MUTEX_INITIALIZER;
+
+int cish_bind_mount(const char *linux_path, const char *host_path, int read_only) {
+    if (!atomic_load(&g_booted)) return -1000;
+    if (linux_path == NULL || host_path == NULL) return -1002;
+    pthread_mutex_lock(&g_bind_mtx);
+    int rc = fakefs_bind_mount(linux_path, host_path, read_only != 0);
+    pthread_mutex_unlock(&g_bind_mtx);
+    return rc;
+}
+
+int cish_bind_unmount(const char *linux_path) {
+    if (!atomic_load(&g_booted)) return -1000;
+    if (linux_path == NULL) return -1002;
+    pthread_mutex_lock(&g_bind_mtx);
+    int rc = fakefs_bind_unmount(linux_path);
+    pthread_mutex_unlock(&g_bind_mtx);
+    return rc;
+}
+
 int cish_boot(const char *data_path) {
     if (atomic_load(&g_booted)) return 0;
     if (data_path == NULL) return -1001;
@@ -95,6 +116,16 @@ int cish_boot(const char *data_path) {
 
     int e2 = do_mount(&procfs, "proc", "/proc", "", 0);
     (void)e2;
+
+    // v3.7.0：把 iOS 真实目录 bind-mount 进 Alpine（fakefs_bind_mount，双向直通 host 文件）。
+    // 挂载点固定为 /ios_documents（可读写）与 /ios_workspace（可读写）——Alpine 里
+    // python/open/cat 等可直接访问 iOS 文件，消灭"Alpine 看不到 iOS"的环境漂移。
+    // 失败不致命（可运行时再挂）。
+    generic_mkdirat(AT_PWD, "/ios_documents", 0755);
+    int bm1 = fakefs_bind_mount("/ios_documents", "/var/mobile/Documents", false);
+    generic_mkdirat(AT_PWD, "/ios_workspace", 0755);
+    int bm2 = fakefs_bind_mount("/ios_workspace", "/var/mobile/Documents/Workspace", false);
+    (void)bm1; (void)bm2;
 
     exit_hook = cish_exit_hook;
     atomic_store(&g_booted, 1);
