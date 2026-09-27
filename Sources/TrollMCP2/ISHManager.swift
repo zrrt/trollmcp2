@@ -273,7 +273,9 @@ enum ISHEngine {
         var stdinData = Data()
         let prefixes = ["/var/mobile/", "/private/var/mobile/", "/System/", "/var/containers/"]
         let alt = prefixes.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "|")
-        let pattern = "(^|[\\s\"'=>(])(" + alt + "[^\\s\"'<>\\)]+)"
+        // v3.6.16: 修复正则 bug——[^\s...]+ 必须应用到整个交替，否则只拼到最后一个分支，
+        // 导致 /var/mobile/ 等前缀分支只匹配到目录(如 /var/mobile/)而非完整文件路径。
+        let pattern = "(^|[\\s\"'=>(])((?:" + alt + ")[^\\s\"'<>\\)]+)"
         guard let re = try? NSRegularExpression(pattern: pattern) else { return (command, "", Data()) }
         let ns = result as NSString
         var seen = Set<String>()
