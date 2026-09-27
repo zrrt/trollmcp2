@@ -11,7 +11,7 @@ import ZIPFoundation
 final class PackageTool: MCPTool {
     let definition = ToolDefinition(
         name: "package",
-        summary: "Inspect & unpack package files (.deb / .ipa). Use for: when user wants to see what's inside someone else's package (deb tweak, ipa app), list its structure, read its control/info, or extract files. Modes: inspect (list members: deb → ar entries + control text + data.tar file list; ipa → zip entry list + main Info.plist path), unpack (extract all to a workspace dir, then read files with fs.read / artifact). Handles: deb=ar+tar (gz/xz/lzma compressed data), ipa=zip (stored/deflate). NOT supported yet: zstd-compressed data.tar (modern deb sometimes) — tell user to unpack on PC with 7-Zip/bsdtar. Example: user says '看看这个 deb 里有什么' → package command:inspect path:/xxx.deb; '解包这个 ipa' → package command:unpack path:/xxx.ipa dest:/var/mobile/Documents/Workspace/extract. REQUIRED PARAMS: command + path.",
+        summary: "Inspect & unpack package files (.deb / .ipa). Use for: when user wants to see what's inside someone else's package (deb tweak, ipa app), list its structure, read its control/info, or extract files. Modes: inspect (list members: deb → ar entries + control text + data.tar file list; ipa → zip entry list + main Info.plist path), unpack (extract all to a workspace dir, then read files with fs.read / artifact). Handles: deb=ar+tar (gz/lzma compressed data; Apple LZMA only supports .lzma-alone), ipa=zip (stored/deflate). NOT supported: xz container & zstd/bzip2-compressed data.tar (modern deb sometimes) — tell user to unpack on PC with 7-Zip/bsdtar. Example: user says '看看这个 deb 里有什么' → package command:inspect path:/xxx.deb; '解包这个 ipa' → package command:unpack path:/xxx.ipa dest:/var/mobile/Documents/Workspace/extract. REQUIRED PARAMS: command + path.",
         parameters: [
             "command": "inspect / unpack",
             "path": "absolute path to .deb or .ipa",
@@ -73,6 +73,7 @@ final class PackageTool: MCPTool {
         var dataTarName: String?
         var controlText: String?
         var dataFileList: [String] = []
+        var dataCompressionNote: String?
 
         while offset + 60 <= data.count {
             let hdr = safeSlice(data, offset..<offset + 60)
@@ -102,8 +103,14 @@ final class PackageTool: MCPTool {
                 ShellDiag.log("package inspectDeb member: \(name) size=\(size)")
                 if name.hasPrefix("data.tar") {
                     dataTarName = name
-                    dataFileList = tarFileList(content) ?? []
-                    ShellDiag.log("package inspectDeb data.tar=\(name) files=\(dataFileList.count)")
+                    // v3.6.19g: xz container 无法解析(Apple LZMA 仅 .lzma-alone)，标注提示，避免 data_file_count=0 误导
+                    if content.count >= 6 && content[0..<6].elementsEqual([0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00]) {
+                        dataCompressionNote = "data.tar 为 xz container —— iOS Apple LZMA 仅支持 .lzma-alone，无法解析文件列表；请在电脑端用 7-Zip/bsdtar 解包"
+                        ShellDiag.log("package inspectDeb: data.tar=\(name) xz container — 无法解析，提示用户电脑端处理")
+                    } else {
+                        dataFileList = tarFileList(content) ?? []
+                        ShellDiag.log("package inspectDeb data.tar=\(name) files=\(dataFileList.count)")
+                    }
                 }
                 if name.hasPrefix("control.tar") {
                     controlText = controlFromTar(content)
@@ -121,6 +128,7 @@ final class PackageTool: MCPTool {
             "control": controlText ?? "(no control)",
             "data_archive": dataTarName ?? "(none)",
             "data_file_count": dataFileList.count,
+            "data_compression_note": dataCompressionNote ?? "(none)",
             "data_files_sample": Array(dataFileList.prefix(80)),
             "hint": "use package command:unpack path:<file> dest:<dir> to extract, then fs.read inner files"
         ]
@@ -242,7 +250,9 @@ final class PackageTool: MCPTool {
     private func decompressTar(_ raw: Data) -> Data? {
         // detect by magic
         if raw.count >= 2 && raw[0] == 0x1F && raw[1] == 0x8B { return gunzip(raw) }       // gzip
-        if raw.count >= 6 && raw[0..<6].elementsEqual([0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00]) { return xzDecode(raw) } // xz
+        // xz container magic \xFD7zXZ\x00：Apple COMPRESSION_LZMA 只支持 .lzma-alone(13字节头)，不支持 xz 容器，
+        // 直接喂 decodeLZMA 必失败(实测解不出)。v3.6.19g 改为明确不支持，调用方(extractTar/inspectDeb)给出清晰提示。
+        if raw.count >= 6 && raw[0..<6].elementsEqual([0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00]) { return nil }
         if raw.count >= 3 && raw[0] == 0x5D && raw[1] == 0x00 && raw[2] == 0x00 { return lzmaAloneDecode(raw) }   // .lzma
         if raw.count >= 4 && raw[0..<4].elementsEqual(Array("28 BZ".utf8)) { return nil } // bzip2 unsupported
         if raw.count >= 4 && raw[0..<4].elementsEqual(Array("\u{28}\u{B5}\u{2F}\u{FD}".utf8)) { return nil } // zstd
@@ -317,10 +327,6 @@ final class PackageTool: MCPTool {
         }
     }
 
-    private func xzDecode(_ data: Data) -> Data? {
-        return decodeLZMA(data, skipHeader: 0)
-    }
-
     private func lzmaAloneDecode(_ data: Data) -> Data? {
         // .lzma alone: 13-byte header then LZMA stream
         return decodeLZMA(data, skipHeader: 13)
@@ -382,6 +388,12 @@ final class PackageTool: MCPTool {
     /// Extract a (possibly compressed) tar into dest, path-traversal safe. Returns file count.
     private func extractTar(_ raw: Data, into destURL: URL) throws -> Int {
         guard let tar = decompressTar(raw) else {
+            // v3.6.19g: xz container 明确报错(Apple LZMA 仅 .lzma-alone)，避免静默解不出
+            if raw.count >= 6 && raw[0..<6].elementsEqual([0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00]) {
+                throw MCPError.classified("package: data.tar uses xz container — iOS Apple LZMA only supports .lzma-alone, xz not supported. unpack on PC with 7-Zip / bsdtar",
+                                          code: "UNSUPPORTED_COMPRESSION", reason: "format",
+                                          nextStep: "unpack on PC with 7-Zip / bsdtar, or re-pack data.tar as gzip")
+            }
             // detect zstd/bz2 to give a precise message
             if raw.count >= 4 && raw[0..<4].elementsEqual(Array("\u{28}\u{B5}\u{2F}\u{FD}".utf8)) {
                 throw MCPError.classified("package: data.tar uses zstd compression — not supported on iOS yet",

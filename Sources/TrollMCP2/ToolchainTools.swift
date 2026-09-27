@@ -58,7 +58,7 @@ final class ToolchainStatusTool: MCPTool {
 final class ToolchainInstallTool: MCPTool {
     let definition = ToolDefinition(
         name: "toolchain.install",
-        summary: "Download and install build toolchain (Theos+clang+llvm, ~1GB). Use when: (1) first time compiling on-device, (2) toolchain missing. Downloads to workspace/toolchain/.",
+        summary: "Install on-device build toolchain (Theos+clang+llvm). CURRENTLY UNAVAILABLE — no reliable on-device download source (needs ~1GB prebuilt artifacts). Use cross-compile on PC instead. (v3.6.19g fixed the fake-implementation that pretended to download but never did.)",
         parameters: [
             "confirm": "Must be true to start download (~1 GB, may take 10+ min)"
         ],
@@ -70,21 +70,15 @@ final class ToolchainInstallTool: MCPTool {
             return ["ok": false, "error": "confirm=true required (~1 GB download, 10+ min)"]
         }
         
-        let fm = FileManager.default
-        let workspace = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let toolchainDir = workspace.appendingPathComponent("Workspace/toolchain", isDirectory: true)
-        try? fm.createDirectory(at: toolchainDir, withIntermediateDirectories: true)
-        
-        // 用 shell.exec 下载 (iSH 里下载 Alpine 包）
-        // 实际下载源待定——先提示用户
-        AuditLog.shared.log("toolchain.install", detail: "started")
-        
+        // v3.6.19g: 修复假实现——原来无条件返回 status:"downloading" 却从未真正下载
+        // (旧注释: "TODO: implement actual download source")，用户会无限等待。当前设备端没有可靠
+        // 工具链下载源(需预编译 Theos+clang+llvm ~1GB 产物)，诚实报不可用，避免误导。
+        AuditLog.shared.log("toolchain.install", detail: "denied: no reliable download source")
         return [
-            "ok": true,
-            "status": "downloading",
-            "note": "Toolchain download started. This will take 10+ minutes (~1 GB). Use toolchain.status to check progress. (TODO: implement actual download source)",
-            "toolchain_dir": toolchainDir.path,
-            "estimated_size": "~1 GB"
+            "ok": false,
+            "status": "unavailable",
+            "error": "toolchain.install 暂不可用：设备端没有可靠的工具链下载源（需预编译的 Theos+clang+llvm ~1GB 产物）。请用电脑端交叉编译；若提供可信镜像源后可实现真下载。",
+            "toolchain_dir": "Workspace/toolchain/"
         ]
     }
 }
