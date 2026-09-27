@@ -634,7 +634,7 @@ final class ShellExecTool: MCPTool {
         "sha256sum", "diff", "hexdump", "curl", "wget", "plutil", "sqlite3",
         "unzip", "df", "free", "uname", "uptime", "hostname", "ps", "top",
         "kill", "ifconfig", "netstat", "nslookup", "tar", "gzip", "gunzip",
-        "ta", "base64", "strings", "nm"
+        "ta", "base64", "strings", "nm", "kfd_diag"
     ]
     
     /// 执行单段 iOS 原生命令 (首段），返回 [String: Any]
@@ -681,6 +681,7 @@ final class ShellExecTool: MCPTool {
         case "base64": return runIOSBase64(trimmed)
         case "strings": return runIOSStrings(trimmed)
         case "nm": return runIOSNm(trimmed)
+        case "kfd_diag": return runIOSKfdDiag(trimmed)
         case "ta": return OffloadRouter.run(trimmed)
         default:
             return [
@@ -1458,6 +1459,96 @@ final class ShellExecTool: MCPTool {
         }
         return ["command": command, "exit_code": 0, "stdout": truncated, "ios_native": true,
                 "hint": "原生 nm 直读 Mach-O 符号表。默认输出 __text 段函数符号（地址+名字），-a 输出全部段符号。可配合 strings <path> 提取字符串。"]
+    }
+
+    /// v3.6.19b: iOS 原生 kfd_diag —— 只读解析 Mach-O 的代码签名结构（LC_CODE_SIGNATURE →
+    /// superblob → CodeDirectory），输出每个字段。用于真机诊断 TrollStore 重签后
+    /// VpnTunnel 为何无法提取 cdhash。**纯只读、不注入、不 spawn 任何 helper**（绝对安全，不会触发 kfd/panic）。
+    /// 语法: kfd_diag <path>
+    private static func runIOSKfdDiag(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        var pathArg: String?
+        for a in parts.dropFirst() {
+            if !a.hasPrefix("-") { pathArg = a; break }
+        }
+        guard let raw = pathArg else {
+            return ["command": command, "exit_code": 1,
+                    "stdout": "usage: kfd_diag <path> — 只读输出 Mach-O 的代码签名结构 (LC_CODE_SIGNATURE → superblob → CodeDirectory)。纯诊断，不注入。",
+                    "ios_native": true]
+        }
+        let path = ShellExecTool.normalizePath((raw as NSString).expandingTildeInPath)
+        guard fm.fileExists(atPath: path) else {
+            return ["command": command, "exit_code": 1, "stdout": "kfd_diag: \(path): No such file or directory", "ios_native": true]
+        }
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
+            return ["command": command, "exit_code": 1, "stdout": "kfd_diag: \(path): cannot read", "ios_native": true]
+        }
+        let b = [UInt8](data)
+        func u32(_ o: Int) -> UInt32 { guard o + 3 < b.count else { return 0 }; return UInt32(b[o]) | (UInt32(b[o+1])<<8) | (UInt32(b[o+2])<<16) | (UInt32(b[o+3])<<24) }
+        func b32(_ o: Int) -> UInt32 { guard o + 3 < b.count else { return 0 }; return (UInt32(b[o])<<24) | (UInt32(b[o+1])<<16) | (UInt32(b[o+2])<<8) | UInt32(b[o+3]) }
+        var out: [String] = []
+        out.append("kfd_diag: \(path) (\(b.count) bytes)")
+        // 定位 arm64 slice（fat/thin）
+        var base = 0
+        let magic = u32(0)
+        if magic == 0xbebafeca { // FAT_CIGAM
+            let n = Int(b32(4)); var found = false
+            for j in 0..<n {
+                let e = 8 + j*20
+                if b32(e) == 0x0100000c { base = Int(b32(e+8)); found = true; break }
+            }
+            if !found { out.append("kfd_diag: no arm64 slice (fat)"); return ["command": command, "exit_code": 1, "stdout": out.joined(separator: "\n"), "ios_native": true] }
+        } else if magic == 0xfeedfacf { // MH_MAGIC_64
+            base = 0
+        } else {
+            out.append("kfd_diag: not a Mach-O 64 (magic 0x\(String(format:"%08x", magic)))")
+            return ["command": command, "exit_code": 0, "stdout": out.joined(separator: "\n"), "ios_native": true]
+        }
+        // 遍历 load commands 找 LC_CODE_SIGNATURE (0x1d)
+        let ncmds = Int(u32(base + 16))
+        var off = base + 32
+        var sigoff = 0
+        for _ in 0..<ncmds {
+            if off + 8 > b.count { break }
+            let c = u32(off); let sz = Int(u32(off+4))
+            if c == 0x1d { sigoff = Int(u32(off+8)); break }
+            off += sz
+        }
+        out.append("kfd_diag: sigoff=\(sigoff) ncmds=\(ncmds) filelen=\(b.count)")
+        if sigoff == 0 || sigoff + 12 > b.count {
+            out.append("kfd_diag: NO LC_CODE_SIGNATURE (no embedded signature) — 无法提取 cdhash 的直接原因")
+            return ["command": command, "exit_code": 0, "stdout": out.joined(separator: "\n"), "ios_native": true,
+                    "hint": "真机 VpnTunnel 无内嵌签名：TrollStore 重签剥离了 LC_CODE_SIGNATURE，kfd_helper 无法解析 cdhash。需先 ldid 补签名再提取，或改注入方案。"]
+        }
+        let sbMagic = b32(sigoff), sbLen = b32(sigoff+4), sbCnt = b32(sigoff+8)
+        out.append(String(format: "kfd_diag: superblob magic=0x%08x length=%u count=%u", sbMagic, sbLen, sbCnt))
+        if sbMagic != 0xfade0cc0 {
+            out.append("kfd_diag: superblob magic mismatch (expected 0xfade0cc0)")
+            return ["command": command, "exit_code": 0, "stdout": out.joined(separator: "\n"), "ios_native": true]
+        }
+        let cnt = Int(min(sbCnt, 0x1000))
+        for i in 0..<cnt {
+            let e = sigoff + 12 + i*12
+            if e + 12 > b.count { break }
+            let t = b32(e), o = b32(e+4), l = b32(e+8)
+            out.append(String(format: "kfd_diag: idx[%d] type=%u off=%u len=%u", i, t, o, l))
+            if t == 0 && o + 44 <= b.count - sigoff { // CSSLOT_CODEDIRECTORY
+                let cd = sigoff + Int(o)
+                let cdMagic = b32(cd), cdLen = b32(cd+4), cdVersion = b32(cd+8)
+                // cs_codedirectory: magic0 length4 version8 flags12 hashOffset16 identOffset20
+                // nSpecialSlots24 nCodeSlots28 codeLimit32 hashSize36 hashType37 platform38 pageSize39
+                let hashSize = (cd+36 < b.count) ? b[cd+36] : 0
+                let hashType = (cd+37 < b.count) ? b[cd+37] : 0
+                let pageSize = (cd+39 < b.count) ? b[cd+39] : 0
+                out.append(String(format: "kfd_diag:   CD magic=0x%08x len=%u version=%u hashSize=%u hashType=%u pageSize=%u (hashType 1=SHA1 2=SHA256 3=SHA384)",
+                                  cdMagic, cdLen, cdVersion, hashSize, hashType, pageSize))
+                if cdMagic != 0xfade0c02 { out.append("kfd_diag:   CD magic mismatch (expected 0xfade0c02)") }
+            }
+        }
+        let joined = out.joined(separator: "\n")
+        return ["command": command, "exit_code": 0, "stdout": joined, "ios_native": true,
+                "hint": "kfd_diag 只读解析签名结构，不注入、不触发 kfd/panic。据 CD hashType/hashSize 可判断为何 kfd_helper 提取失败（无签名 / hashType 不支持 / 越界）。"]
     }
 
     /// v3.1.32: iOS 原生 find 命令——找文件

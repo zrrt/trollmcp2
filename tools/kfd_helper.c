@@ -237,6 +237,23 @@ int main(int argc, char **argv) {
     char cdhash_hex[41];
     const char *arg = argv[1];
 
+    /* --diag <path>：只 dump 签名结构（superblob/CD），不注入、不 spawn fuck_helper。
+     * 用于真机诊断 TrollStore 重签后 VpnTunnel 的签名格式（安全，不会触发 kfd/panic）。 */
+    if (strcmp(arg, "--diag") == 0) {
+        if (argc < 3) {
+            fprintf(stderr, "--diag requires <appex_macho_path>\n");
+            return 1;
+        }
+        uint8_t *macho; size_t len;
+        if (load_file(argv[2], &macho, &len) != 0) {
+            fprintf(stderr, "cannot read %s\n", argv[2]); return 1;
+        }
+        fprintf(stderr, "[kfd-helper] diag mode: %s (%zu bytes)\n", argv[2], len);
+        dump_codesign(macho, len);
+        free(macho);
+        return 0;
+    }
+
     if (strcmp(arg, "--cdhash") == 0) {
         if (argc < 3 || strlen(argv[2]) != 40) {
             fprintf(stderr, "--cdhash requires 40 hex chars\n");
