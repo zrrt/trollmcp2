@@ -1,130 +1,55 @@
 /* ============================================================================
- * kfd_helper.c — TrollAgent 免越狱信任注入 helper (iOS 16.x)
+ * kfd_helper.c — TrollAgent 免越狱信任注入 helper (iOS 16.x) — 胶水版 v3.6.18
  *
  * 目标: 在 TrollStore 假签名、非越狱环境下，让 NECP 认可 packet-tunnel 扩展，
- *       使 system VPN 真连。机制对齐 Fuck 工具箱的 FuckKfdHelper：
+ *       使 system VPN 真连。
  *
- *   kopen(puaf_landa) 临时拿内核读写（免越狱、用完退出）
- *     → patchfind 定位 pmap_image4_trust_caches（扫内核镜像特征，见下）
- *     → 分配一块内核内存构造 trust_cache（含目标 cdhash）
- *     → 调用 pmap_image4_trust_caches 把它注册进内核信任缓存
- *     → 系统把假签名的 VpnTunnel.appex 当合法签名信任 → NECP 放行
- *     → kclose 退出（不留痕，设备仍非越狱）
+ * 本版本为【胶水实现】（路线 A）：不再自行 kopen/patchfind/kalloc/调用内核，
+ * 而是把注入工作交给同目录下的 FuckKfdHelper 注入引擎（来自 Fuck 工具箱，
+ * 已在 iOS 16.3 巨魔上验证有效，机制已完整逆向）：
  *
- * 用法:
+ *   本程序职责：
+ *     1) 从 VpnTunnel.appex 的 Mach-O 里提取 20 字节 cdhash（40 位 hex）
+ *     2) posix_spawn 同目录下 Resources/bin/fuck_helper，把 cdhash 传给它
+ *     3) fuck_helper 内部：kopen(puaf_landa) → patchfind pmap_image4_trust_caches
+ *        → IOSurface kalloc 内核内存 → kwrite 写 trust_cache → DMA 物理写注册
+ *        → kread 校验 → kclose 退出（免越狱、不留痕）
+ *     4) 返回其退出码（0=注入成功，可继续起 VPN）
+ *
+ * 用法（与旧版完全兼容，TrustEnabler 无需改动）:
  *   kfd_helper --cdhash <hex40>          # 直接给 cdhash（40 位 hex）
  *   kfd_helper <appex_macho_path>        # 自动提取 VpnTunnel.appex 的 cdhash
  *
- * 依赖: libkfd（Felix-pb/libkfd，puaf_landa 支持 iOS 15.5–16.6.1）
- *
- * 编译（macOS，见 tools/build_kfd_helper.sh / CI）:
- *   xcrun -sdk iphoneos clang -arch arm64 -mios-version-min=14.0 \
- *       -Ilibkfd -Itools kfd_helper.c libkfd/... -o kfd_helper
- *
- * ⚠️ 未完成项（见 Support/kfd/README.md）:
- *   ✅ kopen 偏移表(dynamic_info)已整合现成数据:
- *        tools/kfd/dynamic_info.h — iOS 16.3 A12–A16 + iOS 16.6, 来自 Lrdsnow/kfd_offsets + felix-pb/kfd。
- *   ✅ pmap_image4_trust_caches 定位改为运行时 patchfind（对齐 FuckKfdHelper 实测机制）：
- *        FuckKfdHelper 反汇编证明其【无静态偏移表】，而是扫内核镜像 __text 匹配
- *        pmap_image4_trust_caches 的序言特征指令（mov w0,#5 / add x3,x31,#8 /
- *        mov x29,sp / sub sp,sp 等），见 patchfind_pmap()。这解释了为何网上
- *        搜不到该私有符号偏移——内核函数地址随每次镜像编译变化，只能运行时扫描。
- *   ⬜ kalloc / 调用 pmap_image4_trust_caches 的内核代码执行原语未实现
- *        （libkfd 仅提供 kread/kwrite，无 kcall/内核线程；Fuck 的调用机制见 0x10001055c
- *        为间接 blr 封装，需继续逆向其 kcall 或改用业界"改内核函数指针触发"方案）。
+ * 依赖: 无（纯 C + CommonCrypto + posix_spawn），不依赖 libkfd。
+ *       FuckKfdHelper 的机制逆向见 Support/kfd/README.md。
  * ========================================================================== */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <libgen.h>
+#include <spawn.h>
+#include <sys/wait.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <mach-o/loader.h>
 #include <mach-o/fat.h>
-#include <CommonCrypto/CommonDigest.h>   // CC_SHA256 — 算 cdhash
+#include <CommonCrypto/CommonDigest.h>   // CC_SHA256 / CC_SHA1 — 算 cdhash
 
 /* mach-o/codesign.h 在 iPhoneOS SDK 缺失（macOS 私有头）。
- * 所需 cs_superblob/cs_blobindex/cs_codedirectory 结构已在本文件第 2 节自定义；
- * 此处仅补 libkfd/内核侧引用的 4 个 codesign 宏常量。 */
+ * 所需 cs_superblob/cs_blobindex/cs_codedirectory 结构已在本文件自定义。 */
 #define CSMAGIC_EMBEDDED_SIGNATURE 0xfade0cc0u
 #define CSSLOT_CODEDIRECTORY       0
 #define CS_HASHTYPE_SHA1           1
 #define CS_HASHTYPE_SHA256         2
 
-/* libkfd 公开 API（以你 clone 的版本为准，这里按通用签名占位）
- * 实际引入方式见 tools/build_kfd_helper.sh（-I 指向 libkfd 根目录） */
-#include "libkfd.h"
-
 /* ------------------------------------------------------------------ */
-/* 1. patchfind —— 运行时定位 pmap_image4_trust_caches（无静态偏移表）  */
-/*    对齐 FuckKfdHelper 反汇编机制：扫内核镜像 __text 匹配序言特征。   */
+/* cdhash 提取（读 Mach-O 的 LC_CODE_SIGNATURE → superblob → CD）      */
+/* 注意：codesign 的 superblob/blobindex 整段是 big-endian（magic      */
+/* 0xfade0cc0 存为 fa de 0c c0），必须显式大小端转换，否则提取失败。   */
 /* ------------------------------------------------------------------ */
-static uint32_t kread32(struct kfd *k, uint64_t addr) {
-    uint32_t v = 0;
-    kread((u64)k, addr, &v, sizeof(v));
-    return v;
-}
-
-/* 扫 0xfeedfacf (MH_MAGIC) 定位内核 mach_header → 内核镜像基址。
- * FuckKfdHelper 同款逻辑（其 0x10001f480 用 w22=0xfeedfacf 循环扫描）。
- * gVirtBase 由 libkfd perf 提供；兜底用常规静态基址 + slide。 */
-static uint64_t patchfind_kernel_base(struct kfd *k) {
-    uint64_t base = k->perf.gVirtBase;
-    if (!base) base = 0xfffffff007004000ULL + k->perf.kernel_slide;
-    /* 向下 4MB 内找 magic（内核镜像 __TEXT 在 gVirtBase 附近） */
-    for (uint64_t a = base; a > base - 0x400000; a -= 0x1000) {
-        if (kread32(k, a) == 0xfeedfacf) return a;
-    }
-    /* 向上兜底 */
-    for (uint64_t a = base; a < base + 0x400000; a += 0x1000) {
-        if (kread32(k, a) == 0xfeedfacf) return a;
-    }
-    return base;
-}
-
-/* 扫内核 __text 匹配 pmap_image4_trust_caches 序言特征，返回其（slide 后）地址。
- * 特征（反汇编 FuckKfdHelper 0x10001f71c patchfind 提取，每条 4 字节）:
- *   +0x0  0x910023e3   add x3, x31, #8
- *   +0x4  0x528000a0   mov w0, #5
- *   +0x8  0x52800402   mov w0, #imm   (0x528000a0 + 0x362)
- *   +0xc  0x52800104   mov w0, #imm   (0x528000a0 + 0x64)
- *   +0x10 高6位==0x25   (bits26-31 opcode)
- * 命中后反向扫 mov x29,sp (0x910003fd & 0xff8003ff) 定位函数真正起点。
- * 返回 0 表示未找到。 */
-static uint64_t patchfind_pmap(struct kfd *k) {
-    uint64_t kbase = patchfind_kernel_base(k);
-    uint64_t start = kbase + 0x1000;            /* __TEXT 段头部起 */
-    uint64_t end   = kbase + 0x800000;          /* 扫 8MB 覆盖 __text */
-    for (uint64_t a = start; a < end; a += 4) {
-        uint32_t i0 = kread32(k, a);
-        if (i0 != 0x910023e3) continue;
-        if (kread32(k, a + 4) != 0x528000a0) continue;
-        if (kread32(k, a + 8) != 0x52800402) continue;
-        if (kread32(k, a + 0xc) != 0x52800104) continue;
-        if ((kread32(k, a + 0x10) >> 0x1a) != 0x25) continue;
-        /* 主序列命中：反向找函数序言 mov x29,sp */
-        uint64_t fn = a;
-        for (uint64_t b = a; b > a - 0x4000; b -= 4) {
-            uint32_t v = kread32(k, b);
-            if ((v & 0xff8003ff) == 0x910003fd) { fn = b; break; }
-        }
-        return fn;
-    }
-    return 0;
-}
-
-/* trust_cache 结构（XNU: osfmk/kern/syspolicy.c, TRUST_CACHE / TC_VERSION） */
-#define TC_VERSION 1
-struct trust_cache {
-    uint32_t version;      /* 0x1 */
-    uint32_t uuid[4];      /* 16 bytes random */
-    uint32_t num_entries;  /* 每项 32 字节（SHA-256 截断 cdhash 存 20，其余填充） */
-    /* uint8_t entries[0][32]; */
-} __attribute__((packed));
-
-/* ------------------------------------------------------------------ */
-/* 2. cdhash 提取（读 Mach-O 的 LC_CODE_SIGNATURE → superblob → CD）    */
-/* ------------------------------------------------------------------ */
+static inline uint32_t be32(uint32_t x) { return __builtin_bswap32(x); }
 typedef struct __attribute__((packed)) {
     uint32_t magic;   /* 0xfade0cc0 superblob */
     uint32_t length;
@@ -165,7 +90,7 @@ static int load_file(const char *path, uint8_t **out, size_t *out_len) {
     FILE *f = fopen(path, "rb");
     if (!f) return -1;
     fseek(f, 0, SEEK_END); long sz = ftell(f); rewind(f);
-    uint8_t *buf = malloc(sz); if (!buf) { fclose(f); return -1; }
+    uint8_t *buf = malloc((size_t)sz); if (!buf) { fclose(f); return -1; }
     if (fread(buf, 1, (size_t)sz, f) != (size_t)sz) { free(buf); fclose(f); return -1; }
     fclose(f);
     *out = buf; *out_len = (size_t)sz;
@@ -177,8 +102,9 @@ static int load_file(const char *path, uint8_t **out, size_t *out_len) {
 static int extract_cdhash(const uint8_t *macho, size_t len, uint8_t cdhash[20]) {
     const uint8_t *p = macho;
     size_t plen = len;
-    /* fat 头？取 arm64 slice */
-    if (len >= sizeof(struct fat_header) && ((struct fat_header *)macho)->magic == FAT_MAGIC) {
+    /* fat 头？取 arm64 slice。注意 fat 也是 big-endian：文件里 magic 存为
+     * ca fe ba be，小端读得 0xbebafeca = FAT_CIGAM（不是 FAT_MAGIC）。 */
+    if (len >= sizeof(struct fat_header) && ((struct fat_header *)macho)->magic == FAT_CIGAM) {
         struct fat_header *fh = (struct fat_header *)macho;
         uint32_t nfat = OSSwapBigToHostInt32(fh->nfat_arch);
         struct fat_arch *ar = (struct fat_arch *)(macho + sizeof(struct fat_header));
@@ -196,32 +122,41 @@ static int extract_cdhash(const uint8_t *macho, size_t len, uint8_t cdhash[20]) 
     /* 遍历 load commands 找 LC_CODE_SIGNATURE (0x1d) */
     const uint8_t *cmds = p + sizeof(struct mach_header_64);
     uint32_t ncmd = mh->ncmds;
-    uint32_t lcmd_off = 0;
+    uint32_t sigoff = 0;
+    uint32_t off = 0;
     for (uint32_t i = 0; i < ncmd; i++) {
-        struct load_command *lc = (struct load_command *)(cmds + lcmd_off);
+        struct load_command *lc = (struct load_command *)(cmds + off);
         if (lc->cmd == LC_CODE_SIGNATURE) {
-            struct linkedit_data_command *sig = (struct linkedit_data_command *)lc;
-            lcmd_off = sig->dataoff;
+            sigoff = ((struct linkedit_data_command *)lc)->dataoff;
             break;
         }
-        lcmd_off += lc->cmdsize;
+        off += lc->cmdsize;
     }
-    if (lcmd_off == 0 || lcmd_off + 4096 > plen) return -1;
+    if (sigoff == 0 || sigoff + 4096 > plen) return -1;
 
-    cs_superblob *sb = (cs_superblob *)(p + lcmd_off);
-    if (sb->magic != CSMAGIC_EMBEDDED_SIGNATURE /*0xfade0cc0*/) return -1;
+    cs_superblob *sb = (cs_superblob *)(p + sigoff);
+    if (be32(sb->magic) != CSMAGIC_EMBEDDED_SIGNATURE) return -1;
+    uint32_t sbcount = be32(sb->count);
+    if (sbcount > 0x1000) return -1; /* 防御：异常 count 防越界 */
     cs_blobindex *idx = (cs_blobindex *)((uint8_t *)sb + sizeof(cs_superblob));
-    for (uint32_t i = 0; i < sb->count; i++) {
-        if (idx[i].type == CSSLOT_CODEDIRECTORY /*0*/) {
-            cs_codedirectory *cd = (cs_codedirectory *)((uint8_t *)sb + idx[i].offset);
-            /* cdhash = hash(CodeDirectory data)；按 hashType 取前 20 字节 */
-            if (cd->hashType == CS_HASHTYPE_SHA256 /*2*/) {
+    for (uint32_t i = 0; i < sbcount; i++) {
+        if (be32(idx[i].type) == CSSLOT_CODEDIRECTORY) {
+            uint32_t cdoff = be32(idx[i].offset);
+            /* 注意：blobindex.length 不代表 CD 总长（常为 2），cdhash 的 hash
+             * 作用于整个 CodeDirectory，长度必须用 CD 自身 header 的 length 字段
+             * （big-endian，cs_codedirectory 第 2 个字段）。 */
+            uint64_t cdabs = (uint64_t)sigoff + cdoff;
+            if (cdabs + 44 > plen) return -1;              /* 至少读到 length+hashType */
+            cs_codedirectory *cd = (cs_codedirectory *)((uint8_t *)sb + cdoff);
+            uint32_t cdlen = be32(cd->length);
+            if (cdlen < 44 || cdabs + cdlen > plen) return -1; /* 越界保护 */
+            if (cd->hashType == CS_HASHTYPE_SHA256) {
                 uint8_t dig[CC_SHA256_DIGEST_LENGTH];
-                CC_SHA256((uint8_t *)cd, idx[i].length, dig);
+                CC_SHA256((uint8_t *)cd, cdlen, dig);
                 memcpy(cdhash, dig, 20);
                 return 0;
-            } else if (cd->hashType == CS_HASHTYPE_SHA1 /*1*/) {
-                CC_SHA1((uint8_t *)cd, idx[i].length, cdhash);
+            } else if (cd->hashType == CS_HASHTYPE_SHA1) {
+                CC_SHA1((uint8_t *)cd, cdlen, cdhash);
                 return 0;
             }
         }
@@ -230,57 +165,31 @@ static int extract_cdhash(const uint8_t *macho, size_t len, uint8_t cdhash[20]) 
 }
 
 /* ------------------------------------------------------------------ */
-/* 3. 信任缓存注入                                                       */
+/* posix_spawn 调用同目录下的 fuck_helper（FuckKfdHelper 注入引擎）     */
 /* ------------------------------------------------------------------ */
-static int inject_trust_cache(struct kfd *kfd, const uint8_t cdhash[20]) {
-    /* pmap_image4_trust_caches 地址 = 运行时 patchfind（无静态偏移表） */
-    uint64_t kbase = patchfind_kernel_base(kfd);
-    fprintf(stderr, "[kfd-helper] kernel_base=0x%llx slide=0x%llx\n",
-            kbase, kfd->perf.kernel_slide);
-    uint64_t pmap = patchfind_pmap(kfd);
-    if (!pmap) {
-        fprintf(stderr, "[kfd-helper] patchfind pmap_image4_trust_caches FAILED\n");
+static int run_fuck_helper(const char *helper_path, const char *cdhash_hex) {
+    pid_t pid = 0;
+    char *const argv[] = { (char *)helper_path, (char *)cdhash_hex, NULL };
+    char *const envp[] = { "HOME=/var/mobile", "PATH=/usr/bin:/bin:/usr/sbin:/sbin", NULL };
+
+    int rc = posix_spawn(&pid, helper_path, NULL, NULL, argv, envp);
+    if (rc != 0) {
+        fprintf(stderr, "[kfd-helper] spawn %s failed rc=%d\n", helper_path, rc);
         return -1;
     }
-    uint64_t slide = kfd->perf.kernel_slide;
-    fprintf(stderr, "[kfd-helper] pmap_image4_trust_caches slid=0x%llx (slide=0x%llx)\n", pmap, slide);
-
-    size_t tc_size = sizeof(struct trust_cache) + 32;
-    /* TODO: 内核分配一块可写内存放 trust_cache。
-     * libkfd 无 kalloc；Fuck 用 krkw allocate 复用内核对象（0x10001f97c），
-     * 或需自行实现 kalloc（迁移页面/复用 fileproc 对象区）。 */
-    uint64_t tc_kaddr = 0; /* = kfd_kalloc(kfd, tc_size); */
-    if (!tc_kaddr) {
-        fprintf(stderr, "[kfd-helper] KALLOC NOT IMPLEMENTED — 卡点：非越狱内核内存分配\n");
+    int status = 0;
+    waitpid(pid, &status, 0);
+    if (!WIFEXITED(status)) {
+        fprintf(stderr, "[kfd-helper] fuck_helper did not exit normally (status=%d)\n", status);
         return -1;
     }
-
-    /* 构造 trust_cache */
-    uint8_t tc[sizeof(struct trust_cache) + 32];
-    memset(tc, 0, sizeof(tc));
-    struct trust_cache *h = (struct trust_cache *)tc;
-    h->version = TC_VERSION;
-    /* uuid 随机即可 */
-    arc4random_buf(h->uuid, 16);
-    h->num_entries = 1;
-    memcpy(tc + sizeof(struct trust_cache), cdhash, 20); /* 项：32 字节，cdhash 前 20 */
-
-    /* TODO: kwrite_buf(kfd, tc_kaddr, tc, tc_size); */
-
-    /* TODO: 调用 pmap_image4_trust_caches(tc_kaddr)。
-     *       调用内核函数的原语因 libkfd 版本而异——常用做法：
-     *       a) kfd 提供的 call 原语（若有）
-     *       b) 找 ret 滑板 / 改内核函数指针后触发
-     *       此处以 placeholder 表示，需按你的 libkfd 版本实现。 */
-    /* kfd_call(kfd, pmap, tc_kaddr); */
-
-    /* TODO: 成功后可选释放 tc_kaddr（kalloc_free） */
-    fprintf(stderr, "[kfd-helper] trust cache injected (pmap=%llx slide=%llx)\n", pmap, slide);
-    return 0;
+    int code = WEXITSTATUS(status);
+    fprintf(stderr, "[kfd-helper] fuck_helper exit=%d\n", code);
+    return code == 0 ? 0 : -1;
 }
 
 /* ------------------------------------------------------------------ */
-/* 4. main                                                              */
+/* main                                                              */
 /* ------------------------------------------------------------------ */
 int main(int argc, char **argv) {
     /* 所有 fprintf(stderr,...) 同时落到日志文件（TrollStore 装的无沙盒，可写）。
@@ -293,6 +202,7 @@ int main(int argc, char **argv) {
     }
 
     uint8_t cdhash[20];
+    char cdhash_hex[41];
     const char *arg = argv[1];
 
     if (strcmp(arg, "--cdhash") == 0) {
@@ -305,6 +215,7 @@ int main(int argc, char **argv) {
             if (sscanf(argv[2] + i * 2, "%2x", &v) != 1) return 1;
             cdhash[i] = (uint8_t)v;
         }
+        memcpy(cdhash_hex, argv[2], 40); cdhash_hex[40] = 0;
     } else {
         uint8_t *macho; size_t len;
         if (load_file(arg, &macho, &len) != 0) {
@@ -314,21 +225,29 @@ int main(int argc, char **argv) {
             fprintf(stderr, "cannot extract cdhash from %s\n", arg); return 1;
         }
         free(macho);
-        fprintf(stderr, "[kfd-helper] cdhash=%s\n", argv[1]);
-        for (int i = 0; i < 20; i++) fprintf(stderr, "%02x", cdhash[i]);
-        fprintf(stderr, "\n");
+        for (int i = 0; i < 20; i++) snprintf(cdhash_hex + i * 2, 3, "%02x", cdhash[i]);
+        fprintf(stderr, "[kfd-helper] extracted cdhash=%s\n", cdhash_hex);
     }
 
-    /* libkfd 公开 API: kopen(u64 puaf_pages, u64 puaf_method, u64 kread_method, u64 kwrite_method)
-     * puaf_landa 支持 iOS 15.0–16.6.1（CVE-2023-41974，16.7 已修），本设备 iOS 16.3 在区间内。
-     * dynamic_info 偏移表见 tools/kfd/dynamic_info.h（build 时覆盖 libkfd 同名文件）。 */
-    struct kfd *kfd = (struct kfd *)kopen(2048, puaf_landa, kread_kqueue_workloop_ctl, kwrite_dup);
-    if (!kfd) { fprintf(stderr, "kopen(puaf_landa) FAILED — 设备 iOS 需在 15.0–16.6.1\n"); return 1; }
-    fprintf(stderr, "[kfd-helper] kopen OK slide=0x%llx\n", kfd->perf.kernel_slide);
+    /* 定位同目录下的 fuck_helper：argv[0] 所在目录 + "/fuck_helper"。
+     * 包内布局：<app>/bin/kfd_helper 与 <app>/bin/fuck_helper 同目录。 */
+    char helper_path[4096];
+    const char *self = argv[0];
+    if (strchr(self, '/')) {
+        char buf[4096];
+        snprintf(buf, sizeof(buf), "%s", self);
+        snprintf(helper_path, sizeof(helper_path), "%s/fuck_helper", dirname(buf));
+    } else {
+        snprintf(helper_path, sizeof(helper_path), "./fuck_helper");
+    }
+    if (access(helper_path, X_OK) != 0) {
+        fprintf(stderr, "[kfd-helper] fuck_helper not found/executable: %s\n", helper_path);
+        return 1;
+    }
+    fprintf(stderr, "[kfd-helper] invoking %s %s\n", helper_path, cdhash_hex);
 
-    int rc = inject_trust_cache(kfd, cdhash);
+    int rc = run_fuck_helper(helper_path, cdhash_hex);
 
-    kclose((u64)kfd);
-    fprintf(stderr, "[kfd-helper] %s\n", rc == 0 ? "ok" : "failed");
+    fprintf(stderr, "[kfd-helper] %s\n", rc == 0 ? "ok (trust injected)" : "failed");
     return rc == 0 ? 0 : 1;
 }

@@ -27,61 +27,68 @@ TrustEnabler.resolvePath()
 VpnManager.startVpnViaRegisteredManager()  ← 统一出口
 ```
 
+## 注入机制（v3.6.18 起：胶水版 + FuckKfdHelper 引擎）
+
+v3.6.18 之前，`kfd_helper.c` 自实现 kfd 注入，卡在 `kalloc`（内核内存分配）与"调用 `pmap_image4_trust_caches`"两个原语上（libkfd 只给 kread/kwrite，无 kalloc/kcall）。
+
+v3.6.18 起改为**复用已验证的注入引擎**（路线 A）：
+
+```
+TrustEnabler spawn kfd_helper <VpnTunnel.appex 路径>
+   │  kfd_helper（纯 C 胶水，本仓库 tools/kfd_helper.c）
+   │    1. 解析 Mach-O → 提取 VpnTunnel 的 20B cdhash（40 位 hex）
+   │    2. posix_spawn 同目录 Resources/bin/fuck_helper <40hex>
+   ▼
+fuck_helper（= Fuck 工具箱的 FuckKfdHelper，已完整逆向其机制）
+     kopen(puaf_landa) 临时拿内核读写
+     → patchfind pmap_image4_trust_caches（运行时扫内核 __text 特征，无静态偏移表）
+     → IOSurface kalloc 分配一块内核可写内存（tc_kaddr）
+     → kwrite 把 trust_cache（含 VpnTunnel 的 cdhash）写进 tc_kaddr
+     → DMA 物理写注册（IOBufferMemoryDescriptor+IODMACommand+ml_dbgwrap_halt_cpu 暂停 CPU 绕 PPL）
+     → kread 校验 tc 是否生效
+     → kclose 退出（免越狱、不留痕）
+   │
+   ▼ 返回 0 → TrustEnabler 放行 → VpnManager 起 packet-tunnel
+```
+
+**为什么用 Fuck 的引擎而非自研**：FuckKfdHelper 已在 iOS 16.3 巨魔上被验证能真连抓包，其完整机制已被逆向确认（IOSurface kalloc + DMA 物理写绕过 PPL），自研移植（ObjC/C 混合 + PPL 绕过 + halt CPU）工作量大且无法在无 Xcode 的 Linux 环境本地编译验证，风险高。Fuck 二进制在仓库 `Resources/bin/fuck_helper`（arm64，TrollStore 假签名环境可执行），自用无碍。
+
 ## 文件清单
 
 | 文件 | 作用 |
 |---|---|
-| `tools/kfd_helper.c` | 独立 arm64 可执行：kopen(puaf_landa) → 提取/接收 cdhash → 注入内核 trust cache → kclose |
-| `tools/build_kfd_helper.sh` | macOS 编译脚本（clone felix-pb/kfd + 覆盖偏移表 + clang 编 arm64） |
-| `tools/kfd/dynamic_info.h` | 现成 kfd 偏移表（iOS 16.3 A12–A16 + iOS 16.6），build 时覆盖 libkfd 同名文件 |
+| `tools/kfd_helper.c` | **纯 C 胶水**（v3.6.18 重写）：提取 VpnTunnel 的 cdhash → posix_spawn 同目录 fuck_helper，返回其退出码。不依赖 libkfd |
+| `tools/build_kfd_helper.sh` | macOS 编译脚本（纯 C + CommonCrypto，无需 clone libkfd） |
+| `Resources/bin/fuck_helper` | FuckKfdHelper 注入引擎（arm64，已验证 16.3） |
 | `Sources/TrollMCP2/TrustEnabler.swift` | Swift 探测(越狱/iOS版本/kfd区间) + 路径调度 + posix_spawn |
 | `Sources/TrollMCP2/VpnManager.swift` | `startVpn` 起手调用 `TrustEnabler.injectIfNeeded` |
 | `.github/workflows/build-trollmcp2.yml` | 加 "Build kfd_helper" step（失败不阻塞） |
 
 ## 编译
 
-CI 的 macOS runner 会自动跑 `tools/build_kfd_helper.sh` 把 `kfd_helper` 放进 `Resources/bin/`（打进 IPA）。
-本地：`bash tools/build_kfd_helper.sh`。
+CI 的 macOS runner 会自动跑 `tools/build_kfd_helper.sh` 把 `kfd_helper`（胶水版）放进 `Resources/bin/`（打进 IPA）。
+`fuck_helper` 是**预编译二进制**直接躺在 `Resources/bin/`，无需编译。本地：`bash tools/build_kfd_helper.sh`。
 
-## ✅ 已完成：kopen 偏移表整合（现成数据）
+## 逆向记录（FuckKfdHelper 机制，已完成）
 
-> **仓库名修正**：libkfd 官方仓库是 **`felix-pb/kfd`**（不是 `Felix-pb/libkfd`，后者不存在）。
-> libkfd 是 **header-only 库**——公开 API 只有 `kopen(pages, puaf, kread, kwrite)/kread/kwrite/kclose`，
-> **没有 kalloc、没有 kcall（调用内核函数）**。要注入 trust cache 必须自己实现
-> `kalloc` 分配 + 调用 `pmap_image4_trust_caches`（参考反编译 FuckKfdHelper）。
->
-> **已整合**：`tools/kfd/dynamic_info.h` 是**现成开源偏移表**（kopen 建立内核读写原语用），
-> 由 Lrdsnow/kfd_offsets（iOS 16.3 A12–A16）合并 felix-pb/kfd 原版（iOS 16.6）得到，
-> build 脚本会在编译时用它**覆盖** libkfd 的 `info/dynamic_info.h`（原版只有 16.6，匹配不到 16.3 设备）。
-> kfd_helper.c 已按 libkfd 真实 API 修正：`kopen(2048, puaf_landa, kread_kqueue_workloop_ctl, kwrite_dup)`、
-> `kfd->perf.kernel_slide`。
->
-> **CI 当前无 kfd step**：恢复自动构建时，`build_kfd_helper.sh` 已修正可用（clone felix-pb/kfd + 覆盖 + header-only 编译），
-> 或在本机 `bash tools/build_kfd_helper.sh` 编好后放进 `Resources/bin/`（build-ipa.sh 会自动打包）。
+对 `Fuck.ipa` 内的 `FuckKfdHelper` 做了完整反汇编（30794 条）+ 符号表解析，机制全部落地：
 
-## ⚠️ 未完成项
-
-1. **~~pmap_image4_trust_caches 偏移~~ —— 已用运行时 patchfind 解决（2026-09-26）**
-   FuckKfdHelper 反汇编证明其**没有静态偏移表**（Apple 私有符号、网上搜不到的原因）：
-   它用**运行时扫内核镜像 __text** 匹配 pmap 序言特征（`mov w0,#5`/`add x3,x31,#8`/`mov x29,sp`/`sub sp,sp`）
-   定位函数地址。`tools/kfd_helper.c` 的 `patchfind_pmap()` 已按同款特征实现（不再依赖 Mac 提取偏移值）。
-2. **kalloc / 调用原语（仍未解决）** —— 构造 trust cache 后的内核内存分配 + 调用 `pmap_image4_trust_caches`
-   的原语，libkfd 仅提供 kread/kwrite 无 kcall。Fuck 的调用是间接 blr 封装（0x10001055c），
-   或改用业界"改内核函数指针触发"方案。这是 VPN 真连的最后一个技术卡点。
-3. **trust_cache 结构布局** —— 已按 XNU syspolicy 约定写 `struct trust_cache`，但需对目标内核核对
-   （版本字段、entry 大小、uuid）
-
-以上是**工程化骨架**：整体流程/集成/探测已按证据对齐，但内核层细节必须在真机上对齐 libkfd 版本后才能验证，我无法在 Linux 沙箱编译 iOS arm64 或做真机测试。
+- **kalloc** = `_dg_kalloc`（0x10001f97c）：`IOSurfaceCreate` 分配用户可控内核对象 → kread 沿对象链定位内核地址（tc_kaddr）
+- **"调用 pmap"** = `_dma_perform`（0x10001055c）：不是普通 kcall，而是 **PPL 绕过的 DMA 物理写**——`IOBufferMemoryDescriptor+IODMACommand` 建立 DMA 映射 + `ml_dbgwrap_halt_cpu` 暂停 CPU → `_dma_writevirt64(pmap_addr, tc)` → `_physwrite64_mapped` → 恢复 CPU
+- **patchfind** = `_find_pmap_image4_trust_caches`（0x100010ab0）：运行时扫内核 `__text` 匹配序言特征（无静态偏移表）
+- 备选：还内置 `_dimentio`/`_tfp0`（拿 tfp0 后 kread/kwrite）、`_meow`、`_isarm64e`
 
 ## 验证方法（改完后真机）
 
-1. `bash tools/build_kfd_helper.sh` 编译通过，`file Resources/bin/kfd_helper` 显示 arm64
-2. 装 TrollAgent → 起 VPN → 看日志有无 `[kfd-helper] trust cache injected`
+1. `bash tools/build_kfd_helper.sh` 编译通过，`file Resources/bin/kfd_helper` 显示 arm64；`file Resources/bin/fuck_helper` 显示 arm64
+2. 装 TrollAgent → 起 VPN → 看日志 `/var/mobile/Documents/kfd_helper.log`：
+   - 应有 `extracted cdhash=...`、`invoking .../fuck_helper ...`、`fuck_helper exit=0`
+   - FuckKfdHelper 自身日志（NSLog/printf）也会进同一文件
 3. **硬标准**：设置→VPN 出现"TrollAgent 抓包 VPN"、能开、状态栏出现**钥匙图标**
    （App 内显示"已连接"不算，那可能只是假成功）
-4. 若 kfd 注入失败（日志 kopen failed），确认设备 iOS 在 15.5–16.6.1、且非越狱
+4. 若注入失败（日志 kopen failed / fuck_helper exit 非 0），确认设备 iOS 在 15.5–16.6.1、且非越狱
 
 ## 安全边界
 
-kfd 是公开开源的内核利用库（Felix-pb/libkfd），本方案仅用于**用户自有设备**上让 TrollAgent
+kfd 是公开开源的内核利用库，本方案仅用于**用户自有设备**上让 TrollAgent
 自身的抓包 VPN 正常工作，属自有设备调试/逆向开发，不涉及他人系统。
