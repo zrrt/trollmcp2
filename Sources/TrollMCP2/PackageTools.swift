@@ -75,14 +75,20 @@ final class PackageTool: MCPTool {
         var dataFileList: [String] = []
 
         while offset + 60 <= data.count {
-            let hdr = data[offset..<offset + 60]
-            let name = String(data: hdr[0..<16], encoding: .utf8)?
+            let hdr = safeSlice(data, offset..<offset + 60)
+            guard hdr.count >= 60 else { break }
+            let name = String(data: safeSlice(hdr, 0..<16), encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let sizeStr = String(data: hdr[48..<58], encoding: .utf8)?
+            let sizeStr = String(data: safeSlice(hdr, 48..<58), encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? "0"
             let size = Int(sizeStr) ?? 0
             let contentStart = offset + 60
-            guard contentStart + size <= data.count else { break }
+            // v3.6.16: 防御——ar size 异常(0/超界)时跳过该成员并前移, 避免 subdata 越界
+            guard size > 0, contentStart + size <= data.count else {
+                ShellDiag.log("package inspectDeb: member '\(name)' size=\(size) 异常 → 跳过 (offset=\(offset), total=\(data.count))")
+                offset = contentStart
+                continue
+            }
             let content = data.subdata(in: contentStart..<contentStart + size)
 
             // skip symbol table members
@@ -92,12 +98,15 @@ final class PackageTool: MCPTool {
                     "size": size,
                     "type": name.hasPrefix("data.tar") ? "data archive" : (name.hasPrefix("control.tar") ? "control archive" : "member")
                 ])
+                ShellDiag.log("package inspectDeb member: \(name) size=\(size)")
                 if name.hasPrefix("data.tar") {
                     dataTarName = name
                     dataFileList = tarFileList(content) ?? []
+                    ShellDiag.log("package inspectDeb data.tar=\(name) files=\(dataFileList.count)")
                 }
                 if name.hasPrefix("control.tar") {
                     controlText = controlFromTar(content)
+                    ShellDiag.log("package inspectDeb control.tar=\(name) textLen=\((controlText ?? "").count)")
                 }
             }
             offset = contentStart + size + (size % 2) // ar aligns to even
@@ -248,8 +257,8 @@ final class PackageTool: MCPTool {
             start += 2 + xlen
         }
         return data.withUnsafeBytes { (src: UnsafeRawBufferPointer) -> Data? in
-            guard start < data.count else { return nil }
-            let srcPtr = src.baseAddress!.advanced(by: start)
+            guard start < data.count, let base = src.baseAddress else { return nil }
+            let srcPtr = base.advanced(by: start)
             let srcLen = data.count - start
             var out = Data()
             let chunk = 64 * 1024
@@ -281,8 +290,8 @@ final class PackageTool: MCPTool {
     /// 绕开 compression_stream 结构体构造的 Swift 兼容坑 (CI 实测 2026-09-24）。
     private func decodeLZMA(_ data: Data, skipHeader: Int) -> Data? {
         return data.withUnsafeBytes { (src: UnsafeRawBufferPointer) -> Data? in
-            guard skipHeader < data.count else { return nil }
-            let srcPtr = src.baseAddress!.advanced(by: skipHeader).bindMemory(to: UInt8.self, capacity: data.count - skipHeader)
+            guard skipHeader < data.count, let base = src.baseAddress else { return nil }
+            let srcPtr = base.advanced(by: skipHeader).bindMemory(to: UInt8.self, capacity: data.count - skipHeader)
             let srcLen = data.count - skipHeader
             let scratchSize = compression_decode_scratch_buffer_size(COMPRESSION_LZMA)
             var scratch = [UInt8](repeating: 0, count: scratchSize)
@@ -318,19 +327,22 @@ final class PackageTool: MCPTool {
         var offset = 0
         var longName: String?
         while offset + 512 <= data.count {
-            let block = data[offset..<offset + 512]
+            let block = safeSlice(data, offset..<offset + 512)
+            guard block.count >= 512 else { break }
             if block.allSatisfy({ $0 == 0 }) { break }
-            var name = String(data: block[0..<100], encoding: .utf8)?
+            var name = String(data: safeSlice(block, 0..<100), encoding: .utf8)?
                 .trimmingCharacters(in: CharacterSet(charactersIn: "\0")) ?? ""
             if name.isEmpty { offset += 512; continue }
-            let sizeStr = String(data: block[124..<136], encoding: .ascii)?
+            let sizeStr = String(data: safeSlice(block, 124..<136), encoding: .ascii)?
                 .trimmingCharacters(in: CharacterSet(charactersIn: "\0 ")) ?? "0"
             let size = Int(sizeStr, radix: 8) ?? 0
-            let type = block[156] == 0 ? "0" : String(UnicodeScalar(block[156]))
-            let linkName = String(data: block[157..<257], encoding: .utf8)?
+            let typeByte = safeByte(block, 156) ?? 0
+            let type = typeByte == 0 ? "0" : String(UnicodeScalar(typeByte))
+            let linkName = String(data: safeSlice(block, 157..<257), encoding: .utf8)?
                 .trimmingCharacters(in: CharacterSet(charactersIn: "\0")) ?? ""
             let contentStart = offset + 512
             let contentEnd = min(contentStart + size, data.count)
+            guard contentStart <= contentEnd else { break }
             let content = data.subdata(in: contentStart..<contentEnd)
 
             if type == "L" { // GNU longname
@@ -344,9 +356,23 @@ final class PackageTool: MCPTool {
                 }
             }
             let aligned = contentStart + size + ((512 - (size % 512)) % 512)
+            if aligned <= offset { break } // 防死循环
             offset = aligned
         }
         return out
+    }
+
+    /// 越界安全切片：永远不 trap（返回实际可读部分，越界处截断为空）。
+    private func safeSlice(_ data: Data, _ range: Range<Int>) -> Data {
+        let lo = Swift.max(0, Swift.min(range.lowerBound, data.count))
+        let hi = Swift.max(lo, Swift.min(range.upperBound, data.count))
+        return data.subdata(in: lo..<hi)
+    }
+
+    /// 越界安全单字节读取。
+    private func safeByte(_ data: Data, _ i: Int) -> UInt8? {
+        guard i >= 0 && i < data.count else { return nil }
+        return data[i]
     }
 
     /// Extract a (possibly compressed) tar into dest, path-traversal safe. Returns file count.
