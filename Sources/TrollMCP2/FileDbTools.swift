@@ -34,8 +34,9 @@ final class FileExecTool: MCPTool {
             return ["path": norm, "size_bytes": size, "type": type]
         case "analyze":
             guard fm.fileExists(atPath: norm) else { throw MCPError.failed("file: no such file \(norm)") }
-            // 走 Alpine，自动桥会把 iOS 文件读进 /tmp/_bridge 再跑 file + strings
-            let out = ISHEngine.exec("file '\(norm)'; echo '--- strings (first 80) ---'; strings -a '\(norm)' 2>/dev/null | head -80", timeout: 60)
+            // v3.6.19h: 路径经 base64 传入，避免含 shell 元字符(;/`$&' 等)的路径被当作命令执行
+            let pb = Data(norm.utf8).base64EncodedString()
+            let out = ISHEngine.exec("P=$(echo '\(pb)' | base64 -d); file \"$P\"; echo '--- strings (first 80) ---'; strings -a \"$P\" 2>/dev/null | head -80", timeout: 60)
             return ["env": "alpine", "exit_code": Int(out.exitCode), "output": out.output]
         default:
             throw MCPError.invalidParams("Unknown command: \(command). Available: inspect / analyze")
@@ -91,8 +92,11 @@ final class DbExecTool: MCPTool {
             guard let sql = params["sql"] as? String, !sql.isEmpty else {
                 throw MCPError.invalidParams("sql required for query")
             }
-            let safe = sql.replacingOccurrences(of: "'", with: "'\"'\"'")
-            let out = ISHEngine.exec("sqlite3 -header -column '\(norm)' \"\(safe)\"", timeout: 90)
+            // v3.6.19h: 修复命令注入——原实现把 SQL 直接拼进 shell 双引号，单引号转义成 '"'"' 含双引号，
+            // 在双引号上下文反破引号平衡，含 ;/$/` 等元字符的 SQL 可执行任意命令。改为 base64 编码 SQL
+            // (仅 [A-Za-z0-9+/=] 安全字符)，Alpine 侧解码写临时文件，sqlite3 从 stdin 读，彻底绕开 shell 解析。
+            let b64 = Data(sql.utf8).base64EncodedString()
+            let out = ISHEngine.exec("echo '\(b64)' | base64 -d > /tmp/_db_q.sql; sqlite3 -header -column '\(norm)' < /tmp/_db_q.sql", timeout: 90)
             return ["env": "alpine", "exit_code": Int(out.exitCode), "output": out.output]
         default:
             throw MCPError.invalidParams("Unknown command: \(command). Available: list / schema / query")
