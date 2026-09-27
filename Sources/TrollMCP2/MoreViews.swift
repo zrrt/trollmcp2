@@ -1271,6 +1271,7 @@ struct KnowledgeBaseView: View {
                             }
                             refresh()
                         }
+                    }
 
                     Button {
                         showingClearConfirm = true
