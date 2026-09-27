@@ -118,8 +118,8 @@ final class SkillStore {
             ],
         ]
 
-    /// 首次启动：无 skills.json 时写入内置技能，开箱即用
-    private func seedIfEmpty() {
+    /// 首次启动：无 skills.json 时写入内置技能，开箱即用（UI 也会调用）
+    func seedIfEmpty() {
         guard !FileManager.default.fileExists(atPath: kbURL.path) else { return }
         save(Self.builtinSkills.map { SkillItem(dict: $0) })
     }
