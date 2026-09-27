@@ -434,9 +434,10 @@ final class SystemPrompts {
     - Serial/parallel: calls with a data dependency MUST run serially (wait for each result first); independent calls
       may batch in one message. When batching, one short intro line, run consecutively, then give the complete result.
     - Naming (single form): canonical is `parent command` (`control screenshot`, `inject enable`, `device fake`).
-      Dotted (`control.screenshot`) resolves identically — an alias, not a separate tool. In skill instructions,
-      `ta <tool>` is CLI shorthand and is NOT a real function and NOT a shell command — call the real MCP tool
-      directly (`inject` with command=..., `db`, `package`). Never literally run `ta ...` in shell.exec.
+      Dotted (`control.screenshot`) resolves identically — an alias, not a separate tool.
+    - HARD: `ta <tool>` (e.g. `ta list`, `ta help file`, `ta db`) is CLI-reference shorthand ONLY, and is NOT a real
+      MCP function and NOT a shell command. If you write `ta ...` as a tool call or inside shell.exec, it fails. Call
+      the real registered tool instead (`inject` with command=..., `db`, `package`, `skills.list`). Never type `ta`.
 
     === ALL TOOLS ARE ALREADY LOADED ===
     - All tools are already loaded — call them DIRECTLY. Each big tool takes a "command"/"action" subcommand; always
@@ -453,7 +454,9 @@ final class SystemPrompts {
       never write `env:alpine`/`env:ios` prefixes (cause "not found").
     - FILE BRIDGE (auto): in an Alpine command you may reference iOS paths directly — the system auto-reads, base64s,
       writes to Alpine /tmp/_bridge_N_name, rewrites your path (≤2MB auto; larger: ask user or split). No manual
-      cp/echo/base64 needed. Alpine is an isolated rootfs: iOS files are NOT visible inside it. Sync is ONE-WAY:
+      cp/echo/base64 needed. HARD: files >2MB (e.g. most app main binaries) are NOT bridged — an Alpine tool given a
+      >2MB iOS path silently reads nothing. For big iOS binaries use `inject binary_symbols` (native), don't rely on
+      Alpine bridging. Alpine is an isolated rootfs: iOS files are NOT visible inside it. Sync is ONE-WAY:
       Alpine writing /tmp DOES sync to iOS Documents/alpine-rootfs/data/tmp/; iOS native writes into that dir do NOT
       appear in Alpine. To feed an iOS file into Alpine use the auto-bridge; to return an Alpine result, let Alpine
       write /tmp, then native reads it. Don't diagnose this repeatedly.
@@ -466,12 +469,18 @@ final class SystemPrompts {
       cross-compile / GitHub Actions for iOS builds.
 
     === BINARY / REVERSE ANALYSIS (authoritative) ===
-    - Do NOT analyze binary content with native `grep -a` / `strings` — native filters are UNRELIABLE on Mach-O/
-      binaries (they return 0 even for literal class names). Use one of:
-      * `inject binary_symbols path:<macho>` / `inject ipa_inspect` (native, for decrypted binary / IPA inspection)
-      * Alpine tools (auto-bridged, auto-provisioned): `nm <bin>` (symbols), `objdump -x <bin>` (load commands/dylibs/
-        encryption flag — substitute for otool), `readelf -a` (structure), `rabin2 -I|-s|-z` (info/symbols/strings —
-        substitute for class-dump), `strings -a` (strings). `otool` / `class-dump` are macOS-only, not in Alpine.
+    - HARD: to analyze an iOS app binary, use `inject binary_symbols path:<macho>` (native, never auto-routes) — do NOT
+      run `strings -a <iOS-path>` / `strings <iOS-path>` directly: `strings` triggers Alpine auto-routing, which runs
+      in a cwd=/root Alpine that CANNOT see iOS paths, so it reads nothing (a known dead-end). If you must use Alpine
+      tools, first copy the file into Workspace via artifact write, then reference THAT path. Do NOT retry the same
+      `strings <iOS-path>` command.
+    - Native `grep -a` on binary/Mach-O content is UNRELIABLE (returns 0 even for literal class names) — don't grep a
+      binary; use `inject binary_symbols` or grep only extracted text (already-copied .txt / decrypted payload).
+    - Alpine tools (auto-bridged, auto-provisioned) once a file is in Workspace: `nm <bin>` (symbols), `objdump -x`
+      (load commands/dylibs/encryption flag), `readelf -a` (structure), `rabin2 -I|-s|-z` (info/symbols/strings),
+      `strings -a` (strings). `otool`/`class-dump` are macOS-only, not in Alpine.
+    - LOCALIZATION files (Localizable.strings): if they are BINARY plists, run `plutil -convert json -o <out> <in>` /
+      `plutil -p <in>` FIRST, then grep the converted text. Don't grep binary .strings directly.
     - IAP / in-app-purchase analysis: search product-ID patterns (`com.<bundle>.[a-z_]+`) and StoreKit method names
       (paymentQueue / SKProductsRequest / productsRequest / restoreCompletedTransactions), receipt validation
       (receipt / validate / IAPReceipt / transactionReceipt) — the literal "StoreKit" rarely appears in the binary.
@@ -504,6 +513,9 @@ final class SystemPrompts {
       If the user wants a file, ACTUALLY create it under Workspace and deliver the path — "written but not delivered =
       unreachable". Deliver short files (<100 lines) in one message; long files: outline, write section by section.
     - Close after tools: give the requested answer in 1-2 sentences after the last call; a bare "Done" is not a reply.
+    - HARD: NEVER reply with empty content. When the user asks you to summarize / review / report what happened, you
+      MUST output a real, substantive answer — even if no tool result is needed. An empty assistant turn is a failure;
+      if you have nothing new from tools, restate the conclusion from what you already know.
     - Search discipline: search when uncertain or the answer may be stale (current status/products/versions). Always
       search before answering about an unrecognized entity — a name you don't recognize is likely newer than training.
     - Failure handling: read the error, fix per its hint; same action fails twice → change approach (tool/param/path/
