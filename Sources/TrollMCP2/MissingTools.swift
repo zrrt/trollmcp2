@@ -377,6 +377,17 @@ final class KnowledgeStore {
         return (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
     }
 
+    /// v3.6.19l：清空整个知识库目录（删除所有条目，含 session_memory.md，随后自动重建）
+    func clearAll() -> Int {
+        ensure()
+        let names = list()
+        for name in names {
+            try? FileManager.default.removeItem(at: dir.appendingPathComponent(name))
+        }
+        AuditLog.shared.log("knowledge.clear", detail: "清空 \(names.count) 个知识条目")
+        return names.count
+    }
+
     /// v2.9.138：自动会话记忆 (类 code-session-memory）——AI 每done一轮文字回复，
     /// 把「用户提问 + AI 结论 + 涉及工具」追加到 knowledge/session_memory.md，
     /// 供后续会话用 knowledge.search (BM25）检索。行数上限 300，自动滚动。

@@ -781,9 +781,9 @@ final class ModelExecTool: MCPTool {
 final class KnowledgeExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "knowledge",
-        summary: "Manage knowledge base (import_text/import_file/search/delete). Use subcommand to specify action. Use for: save/search/delete knowledge entries. Don't use for: chat memory (use memory set/list). Example: search → knowledge search query:xxx; import_text → knowledge import_text text:xxx. Subcommands: import_text / import_file / search / delete.",
+        summary: "Manage knowledge base (import_text/import_file/search/delete/clear). Use subcommand to specify action. Use for: save/search/delete knowledge entries, or clear the whole base. Don't use for: chat memory (use memory set/list). Example: search → knowledge search query:xxx; clear → knowledge clear. Subcommands: import_text / import_file / search / delete / clear.",
         parameters: [
-            "command": "Subcommand: import_text / import_file / search / delete",
+            "command": "Subcommand: import_text / import_file / search / delete / clear",
             "text": "Text to import (for import_text)",
             "path": "File path (for import_file)",
             "query": "Search query (for search)",
@@ -822,9 +822,13 @@ final class KnowledgeExecTool: MCPTool {
                 throw MCPError.invalidParams("id required")
             }
             return try KnowledgeDeleteTool().invoke(["id": id])
-            
+
+        case "clear":
+            let removed = KnowledgeStore.shared.clearAll()
+            return ["cleared": true, "removed": removed, "note": "已清空知识库（含 session_memory.md，将自动重建）"]
+
         default:
-            throw MCPError.invalidParams("Unknown command: \(command). Available: import_text/import_file/search/delete")
+            throw MCPError.invalidParams("Unknown command: \(command). Available: import_text/import_file/search/delete/clear")
         }
     }
 }
