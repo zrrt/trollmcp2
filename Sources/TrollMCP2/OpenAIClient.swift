@@ -757,10 +757,12 @@ final class OpenAIClient {
                 }
             }
             if dropped > 0 && !arr.isEmpty {
-                let last = arr.count - 1
-                var m = arr[last]
+                // 把截断标记加在最后一条非空内容的消息上(避免加在空回复上不可见)
+                var anchor = arr.count - 1
+                while anchor > 0 && arr[anchor].content.isEmpty { anchor -= 1 }
+                var m = arr[anchor]
                 m.content += "\n\n[早期上下文已截断: 会话过长已省略 \(dropped) 条历史消息]"
-                arr[last] = m
+                arr[anchor] = m
             }
         }
         // --- 原图片裁剪逻辑 ---
