@@ -275,7 +275,9 @@ enum ISHEngine {
         let alt = prefixes.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "|")
         // v3.6.16: 修复正则 bug——[^\s...]+ 必须应用到整个交替，否则只拼到最后一个分支，
         // 导致 /var/mobile/ 等前缀分支只匹配到目录(如 /var/mobile/)而非完整文件路径。
-        let pattern = "(^|[\\s\"'=>(])((?:" + alt + ")[^\\s\"'<>\\)]+)"
+        // v3.6.19c: 排除集补全 shell 分隔符/标点(; | & , = : [ ] { } ` )，避免命令分隔符被吞进
+        // 路径导致"文件找不到→桥接静默跳过→Alpine 对 iOS 文件失效"；`/` 本身保留以便路径继续延伸。
+        let pattern = "(^|[\\s\"'=>(])((?:" + alt + ")[^\\s\"'<>\\);|&,=:\\[\\]{}`]+)"
         guard let re = try? NSRegularExpression(pattern: pattern) else { return (command, "", Data()) }
         let ns = result as NSString
         var seen = Set<String>()
@@ -290,6 +292,11 @@ enum ISHEngine {
             // 详细诊断：定位桥到底在哪一步断（命中/不存在/超限/读取失败）
             if !fm.fileExists(atPath: norm) {
                 ShellDiag.log("autoBridge HIT: \(norm) 存在=false → 跳过")
+                continue
+            }
+            // v3.6.19c: 仅桥接 regular file（目录/symlink/设备不桥），杜绝目录 token 误读浪费。
+            if (try? fm.attributesOfItem(atPath: norm)[.type]) as? FileAttributeType != .typeRegular {
+                ShellDiag.log("autoBridge HIT: \(norm) 非regular file(目录?) → 跳过")
                 continue
             }
             guard let size = (try? fm.attributesOfItem(atPath: norm)[.size]) as? Int else {
