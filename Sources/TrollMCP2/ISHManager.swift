@@ -1,5 +1,6 @@
 import Foundation
 import ZIPFoundation
+import SQLite3
 import CISH
 
 /// iSH-ARM64 引擎（TrollAgent 版）
@@ -60,77 +61,52 @@ enum ISHEngine {
         }
     }
 
-    // MARK: - v3.7.3 按需 bind mount：让 Alpine 直读 iOS 文件（消灭环境漂移）
-
-    /// 顶层挂载根 → Alpine 挂载点（固定，幂等）。重复 bind 同名挂载点是安全覆盖。
-    /// v3.7.3b: 只挂 Workspace（小、可控）——fakefs_bind_mount 会遍历目录写 meta.db，
-    /// 挂 /var/mobile/Documents 等大目录会因文件过多卡死/污染权限（rc=-13 教训）。
-    private static let bindRoots: [(iosPrefix: String, linuxMount: String)] = [
-        ("/var/mobile/Documents/Workspace", "/ios_workspace"),
-    ]
-
-    /// 已挂载的 Alpine 挂载点集合（避免重复挂载写 meta.db）
-    private static var mountedBindPoints = Set<String>()
-
-    /// 识别命令中的 iOS 绝对路径，bind mount 其顶层根进 Alpine，并把命令路径改写为 Alpine 内路径。
-    /// 返回 (改写后的命令, 诊断串)。失败时命令原样返回（走原 autoBridge/拦截逻辑兜底）。
-    static func bindMountForCommand(_ command: String) -> (cmd: String, diag: String) {
-        // v3.7.3b: 只处理 /var/mobile/Documents/Workspace 前缀——只有它被安全 bind 挂载。
-        // 其他 iOS 路径不 bind（避免大目录卡死），交回原路由/autoBridge 处理。
-        let prefixes = ["/var/mobile/Documents/Workspace"]
-        let alt = prefixes.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "|")
-        let pattern = "(^|[\\s\"'=>(])((?:" + alt + ")[^\\s\"'<>\\);|&,=:\\[\\]{}`]+)"
-        guard let re = try? NSRegularExpression(pattern: pattern) else { return (command, "") }
-        let ns = command as NSString
-        var rewritten = command
-        var diags: [String] = []
-        var seen = Set<String>()
-        for m in re.matches(in: command, options: [], range: NSRange(location: 0, length: ns.length)) where m.numberOfRanges >= 3 {
-            let raw = ns.substring(with: m.range(at: 2))
-            if seen.contains(raw) { continue }
-            seen.insert(raw)
-            let norm = ShellExecTool.normalizePath(raw)
-            if norm.contains("/alpine-rootfs/") { continue }
-            guard let (iosRoot, linuxMount, remainder) = mapToBindRoot(norm) else {
-                diags.append("\(norm) 无匹配挂载根"); continue
+    // MARK: - v3.7.4 启动自愈：清理残留 bind 挂载
+    /// 卸载可能残留的 bind 挂载点（旧版本自动 bind 留下的 /ios_* 挂载会污染 meta.db、
+    /// 导致新版本 Alpine 卡死）。boot 后调用，幂等，失败不致命。
+    static func cleanupStaleBinds() {
+        for mount in ["/ios_workspace", "/ios_documents", "/ios_containers", "/ios_mobile"] {
+            let rc = bindUnmount(mount)
+            if rc != 0 && rc != -1000 {
+                ShellDiag.log("cleanupStaleBinds: unmount \(mount) rc=\(rc)")
             }
-            // 确保挂载点已挂（幂等）
-            var needMount = false
-            lock.lock()
-            if !mountedBindPoints.contains(linuxMount) { needMount = true }
-            lock.unlock()
-            if needMount {
-                let rc = bindMount(linuxMount, iosRoot, readOnly: false)
-                if rc == 0 {
-                    lock.lock()
-                    mountedBindPoints.insert(linuxMount)
-                    lock.unlock()
-                    diags.append("bind:\(iosRoot)→\(linuxMount) rc=0")
-                } else {
-                    diags.append("bind:\(iosRoot)→\(linuxMount) rc=\(rc) (跳过)")
-                    continue
-                }
-            }
-            // 改写路径：/var/mobile/Documents/Workspace/foo → /ios_workspace/foo
-            let alpinePath = linuxMount + remainder
-            rewritten = rewritten.replacingOccurrences(of: raw, with: alpinePath)
-            diags.append("\(raw)→\(alpinePath)")
         }
-        return (rewritten, diags.isEmpty ? "" : diags.joined(separator: "; "))
     }
 
-    /// 把一个 iOS 路径映射到最匹配的挂载根，返回 (iosRoot, linuxMount, 剩余子路径)
-    private static func mapToBindRoot(_ path: String) -> (String, String, String)? {
-        for (iosPrefix, linuxMount) in bindRoots {
-            if path == iosPrefix {
-                return (iosPrefix, linuxMount, "")
+    // MARK: - v3.7.4 启动自愈：meta.db 损坏自动重建
+    /// 检测 meta.db 是否损坏。损坏则删除三件套（meta.db/-wal/-shm），
+    /// 让内核 cish_boot 时用 CREATE+建 schema 重建。用户无需手动删文件。
+    /// 幂等、只删损坏库；删除失败不致命（后续 boot 会报错再兜底）。
+    static func healCorruptMetaDB() {
+        let fm = FileManager.default
+        let metaDB = rootfsDir + "/meta.db"
+        let wal = rootfsDir + "/meta.db-wal"
+        let shm = rootfsDir + "/meta.db-shm"
+        guard fm.fileExists(atPath: metaDB) else { return }  // 不存在无需处理（内核会建）
+        // 用 sqlite3 只读探测能否正常打开 + 是否有 paths 表
+        var corrupt = false
+        do {
+            var db: OpaquePointer?
+            if sqlite3_open_v2(metaDB, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK, let d = db {
+                defer { sqlite3_close(d) }
+                var stmt: OpaquePointer?
+                if sqlite3_prepare_v2(d, "SELECT count(*) FROM paths", -1, &stmt, nil) == SQLITE_OK {
+                    sqlite3_finalize(stmt)
+                } else {
+                    corrupt = true
+                }
+            } else {
+                corrupt = true
             }
-            if path.hasPrefix(iosPrefix + "/") {
-                let remainder = String(path.dropFirst(iosPrefix.count))
-                return (iosPrefix, linuxMount, remainder)
-            }
+        } catch {
+            corrupt = true
         }
-        return nil
+        if corrupt {
+            ShellDiag.log("healCorruptMetaDB: meta.db 损坏 → 删除重建")
+            try? fm.removeItem(atPath: metaDB)
+            try? fm.removeItem(atPath: wal)
+            try? fm.removeItem(atPath: shm)
+        }
     }
 
     /// 确保内核已 boot（首次解压 rootfs + 挂载）。线程安全，重复调用幂等。
@@ -148,6 +124,10 @@ enum ISHEngine {
             break
         }
         state = .booting
+
+        // v3.7.4: 启动自愈——meta.db 若损坏（打不开/结构异常），自动删除让内核重建，
+        // 用户无需手动删文件。只删损坏库，不删正常库。
+        healCorruptMetaDB()
 
         // 1. rootfs 解压（首次）
         let fm = FileManager.default
@@ -183,6 +163,10 @@ enum ISHEngine {
         ShellDiag.log("ISH boot ok data=\(dataPath) (bind-mount disabled by default; use bindMount on demand)")
 
         state = .booted
+
+        // v3.7.4: 启动自愈——清理旧版本残留的 bind 挂载点（/ios_* 挂载会污染 meta.db、
+        // 导致 Alpine 卡死）。boot 后调用，幂等，失败不致命。
+        cleanupStaleBinds()
 
         // 3. 默认 cwd 为真实存在的 /root（避免名义 /workspace 误导）
         guestCwd = "/root"
