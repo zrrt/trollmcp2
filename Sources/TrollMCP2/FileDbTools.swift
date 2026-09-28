@@ -36,7 +36,7 @@ final class FileExecTool: MCPTool {
             guard fm.fileExists(atPath: norm) else { throw MCPError.failed("file: no such file \(norm)") }
             // v3.7.7: 先 autoBind 改写为 Alpine 可见路径(/ios_*)，再 base64 传路径。
             // （直接用明文 iOS 路径会被 autoBind 改写；base64 保护仍防 shell 元字符注入，但改写须先发生）
-            let boundPath = ISHManager.autoBind(norm)
+            let boundPath = ISHEngine.autoBind(norm)
             let pb = Data(boundPath.utf8).base64EncodedString()
             let out = ISHEngine.exec("P=$(echo '\(pb)' | base64 -d); file \"$P\"; echo '--- strings (first 80) ---'; strings -a \"$P\" 2>/dev/null | head -80", timeout: 60)
             return ["env": "alpine", "exit_code": Int(out.exitCode), "output": out.output]

@@ -34,8 +34,8 @@ final class SkillStore {
     }
 
     /// 内置技能版本：升级内置技能时递增，触发对已存在 skills.json 的合并补全
-    /// v3 变更：新增/删除内置技能（本版移除"客服回复"，并增加删除已废弃内置技能的能力）
-    private static let builtinsVersion = 3
+    /// v4 变更：mergeBuiltins 由"补全缺失"改为"补全+覆盖同名内置技能"，同步 v3.7.7 bind 新架构措辞
+    private static let builtinsVersion = 4
 
     private var enabledKey = "trollmcp2.skills_enabled"
 
@@ -127,10 +127,13 @@ final class SkillStore {
         guard appliedVersion < Self.builtinsVersion else { return }
         let builtinNames = Set(Self.builtinSkills.compactMap { $0["name"] })
         var list = all
-        // 1) 补全缺失的内置技能
+        // 1) 补全缺失的内置技能 + 覆盖已存在的同名内置技能内容（版本升级时同步内置技能改动，
+        //    如 v3.7.7 的 bind 新架构措辞；保留用户自定义技能不动）
         for s in Self.builtinSkills {
             guard let name = s["name"], !name.isEmpty else { continue }
-            if !list.contains(where: { $0.name == name }) {
+            if let idx = list.firstIndex(where: { $0.name == name }) {
+                list[idx] = SkillItem(dict: s)   // 覆盖内置技能内容
+            } else {
                 list.append(SkillItem(dict: s))
             }
         }
