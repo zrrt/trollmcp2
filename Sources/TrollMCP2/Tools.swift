@@ -285,9 +285,9 @@ final class ArtifactExecTool: MCPTool {
             return ["set": name]
 
         case "output_bookmark":
-            // v4.0.0: 内联自 WorkspaceOutputBookmarkTool（返回当前输出书签路径）
+            // v4.0.0: 内联自 WorkspaceOutputBookmarkTool（返回当前输出书签路径，默认工作区根）
             let key = "trollmcp2.output_bookmark"
-            return ["bookmark": UserDefaults.standard.string(forKey: key) ?? Workspace.resolve("").path]
+            return ["bookmark": UserDefaults.standard.string(forKey: key) ?? "/var/mobile/Documents/Workspace"]
 
         default:
             throw MCPError.invalidParams("Unknown command: \(command). Available: read/write/list/output_name_get/output_name_set/output_bookmark")
