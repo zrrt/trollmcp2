@@ -304,18 +304,19 @@ helper = """/* v4.0.6 guard: hide the fakefs's own backing store (the whole Docu
  * later exec rc=-13 (and cpu_run_to_interrupt segfault). Refuse ONLY this region through binds;
  * normal rootfs access (Alpine /), other app containers, and the Workspace are unaffected. */
 static bool bind_mount_target_is_backing_store(const char *host_abs) {
-    if (g_fakefs_mount == NULL)
+    if (g_fakefs_mount == NULL || g_fakefs_mount->source == NULL)
         return false;
-    /* backing store = parent of source (.../alpine-rootfs), holds data/ + meta.db */
-    char rbuf[PATH_MAX], hbuf[PATH_MAX];
-    snprintf(rbuf, sizeof(rbuf), "%s", g_fakefs_mount->source);
-    char *sx = strrchr(rbuf, '/');
-    if (sx && strcmp(sx, "/data") == 0) *sx = '\\0';
-    const char *h = host_abs, *r = rbuf;
-    if (strncmp(h, "/private/", 9) == 0) { snprintf(hbuf, sizeof(hbuf), "%s", h + 8); h = hbuf; }
-    if (strncmp(r, "/private/", 9) == 0) { r += 8; }
-    size_t len = strlen(r);
-    return strncmp(h, r, len) == 0 && (h[len] == '/' || h[len] == '\\0');
+    /* backing store = parent of source (.../alpine-rootfs), holds data/ + meta.db.
+     * v4.0.9: called on EVERY fakefs_open (entry guard) -> MUST be stack-light;
+     * PATH_MAX temporaries overflow the iSH kernel stack on deep opens. */
+    const char *r = g_fakefs_mount->source;
+    size_t rlen = strlen(r);
+    if (rlen >= 5 && strcmp(r + rlen - 5, "/data") == 0)
+        rlen -= 5;
+    const char *h = host_abs;
+    if (strncmp(h, "/private/", 9) == 0) h += 8;
+    if (strncmp(r, "/private/", 9) == 0) { r += 8; rlen -= 8; }
+    return strncmp(h, r, rlen) == 0 && (h[rlen] == '/' || h[rlen] == '\0');
 }
 
 """
@@ -347,20 +348,7 @@ if g2_old in s:
 # 2.5) v4.0.8: 入口守卫——/var/mobile 访问会先把 /ios_mobile 符号链接解析成宿主路径
 #     (/var/mobile/...)，再走 fakefs_open 的 realfs 兜底分支，绕过 G2(仅 bind 翻译分支)。
 #     故在 fakefs_open 入口对【原始路径 + 翻译后路径】都做 backing-store 检查，兜底也拦。
-g0_helper = """/* v4.0.8: true if a path (raw, or after bind translation) resolves into the
- * fakefs's own backing store (Documents/alpine-rootfs). The own rootfs lives
- * inside /var/mobile, so binding /var/mobile re-exposes it through /ios_mobile;
- * the kernel resolves the symlink to the host path before fakefs_open's bind
- * branch, so G2 alone misses it. Check both forms here. */
-static bool path_is_own_backing_store(const char *path) {
-    if (bind_mount_target_is_backing_store(path))
-        return true;
-    char ht[PATH_MAX];
-    if (bind_mount_translate_path(path, ht, sizeof(ht)))
-        return bind_mount_target_is_backing_store(ht);
-    return false;
-}
-
+g0_helper = """/* v4.0.9: entry guard uses stack-light bind_mount_target_is_backing_store directly. */
 """
 g0_anchor = """static inode_t bind_mount_ensure_inode(struct fakefs_db *fs, struct mount *mount,
 """
@@ -372,8 +360,10 @@ g0_open_old = """    if ((flags & (O_WRONLY_ | O_RDWR_ | O_CREAT_ | O_TRUNC_ | O
         return ERR_PTR(_EROFS);
     }
 """
-g0_open_new = """    /* v4.0.8: hide own backing store from ANY bind view (incl. host-resolved paths). */
-    if (path_is_own_backing_store(path))
+g0_open_new = """    /* v4.0.9: hide own backing store from ANY bind view (incl. host-resolved paths).
+     * Raw-path check only (stack-light): catches host-resolved /var/mobile/.../alpine-rootfs.
+     * Linux bind paths (/ios_mobile/...) are caught below by G2 after translation. */
+    if (bind_mount_target_is_backing_store(path))
         return ERR_PTR(_ELOOP);
     if ((flags & (O_WRONLY_ | O_RDWR_ | O_CREAT_ | O_TRUNC_ | O_APPEND_)) &&
         is_under_readonly_bind_mount(path)) {
