@@ -344,6 +344,45 @@ g2_new = """    if (bind_mount_translate_path(path, host_abs, sizeof(host_abs)))
 if g2_old in s:
     s = s.replace(g2_old, g2_new, 1)
 
+# 2.5) v4.0.8: 入口守卫——/var/mobile 访问会先把 /ios_mobile 符号链接解析成宿主路径
+#     (/var/mobile/...)，再走 fakefs_open 的 realfs 兜底分支，绕过 G2(仅 bind 翻译分支)。
+#     故在 fakefs_open 入口对【原始路径 + 翻译后路径】都做 backing-store 检查，兜底也拦。
+g0_helper = """/* v4.0.8: true if a path (raw, or after bind translation) resolves into the
+ * fakefs's own backing store (Documents/alpine-rootfs). The own rootfs lives
+ * inside /var/mobile, so binding /var/mobile re-exposes it through /ios_mobile;
+ * the kernel resolves the symlink to the host path before fakefs_open's bind
+ * branch, so G2 alone misses it. Check both forms here. */
+static bool path_is_own_backing_store(const char *path) {
+    if (bind_mount_target_is_backing_store(path))
+        return true;
+    char ht[PATH_MAX];
+    if (bind_mount_translate_path(path, ht, sizeof(ht)))
+        return bind_mount_target_is_backing_store(ht);
+    return false;
+}
+
+"""
+g0_anchor = """static inode_t bind_mount_ensure_inode(struct fakefs_db *fs, struct mount *mount,
+"""
+if g0_helper not in s and g0_anchor in s:
+    s = s.replace(g0_anchor, g0_helper + g0_anchor, 1)
+
+g0_open_old = """    if ((flags & (O_WRONLY_ | O_RDWR_ | O_CREAT_ | O_TRUNC_ | O_APPEND_)) &&
+        is_under_readonly_bind_mount(path)) {
+        return ERR_PTR(_EROFS);
+    }
+"""
+g0_open_new = """    /* v4.0.8: hide own backing store from ANY bind view (incl. host-resolved paths). */
+    if (path_is_own_backing_store(path))
+        return ERR_PTR(_ELOOP);
+    if ((flags & (O_WRONLY_ | O_RDWR_ | O_CREAT_ | O_TRUNC_ | O_APPEND_)) &&
+        is_under_readonly_bind_mount(path)) {
+        return ERR_PTR(_EROFS);
+    }
+"""
+if g0_open_old in s:
+    s = s.replace(g0_open_old, g0_open_new, 1)
+
 # 4) fakefs_bind_mount_resolve_path(host→linux)：解析进 root_fd → 不映射(纵深防御)。
 #    该函数位于 helper 定义之前，故需同时插入前向声明。
 g3_old = """bool fakefs_bind_mount_resolve_path(const char *resolved, char *out_path, size_t out_size) {
