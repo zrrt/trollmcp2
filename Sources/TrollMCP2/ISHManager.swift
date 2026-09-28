@@ -82,25 +82,20 @@ enum ISHEngine {
     /// 幂等：用 mountedBindPoints 集合记录已挂载点，已挂载的顶层跳过 bind（只 bind 一次），
     /// 避免每次命令反复 bind 同一 iOS 顶层目录而污染 iSH 内核（v3.7.3 bindMountForCommand 验证）。
     static func autoBind(_ command: String) -> String {
-        // 顶层目录 → Alpine 挂载点映射 + 是否只读。注意：/private/var/mobile 必须在
-        // /var/mobile 之前处理，否则 /private/var/mobile/X 里的 /var/mobile 子串会被先误替换
-        // 成 /private/ios_mobile/X。/System 只读（系统目录禁止 Alpine 写），用户目录可写（双向）。
+        // 顶层目录 → Alpine 挂载点映射 + 是否只读。
+        // v4.0.5: 移除 /var/mobile 与 /private/var/mobile —— 实测确认绑该根目录(即使只读 ls)
+        // 仍会污染 iSH 内核(写坏 meta.db inode 权限→后续 exec rc=-13)，4.0.3 内核补丁未根治。
+        // App 自身容器(/var/mobile/Containers/Data/...) 访问改走 autoBridge(字节拷贝)。
+        // 保留 /var/containers(bundle 读，实测安全) + 只读 /System。
         let roots: [(String, String, Bool)] = [
-            ("/private/var/mobile", "/ios_mobile", false),
-            ("/var/mobile", "/ios_mobile", false),
             ("/var/containers", "/ios_containers", false),
             ("/System", "/ios_system", true),
         ]
         let fm = FileManager.default
         var result = command
         for (iosRoot, mount, readOnly) in roots {
-            // 命令里是否引用该 iOS 根目录（排除它作为更长前缀的子串，如 /private/var/mobile）
-            let hasRef: Bool
-            if iosRoot == "/var/mobile" {
-                hasRef = result.contains(iosRoot) && !result.contains("/private/var/mobile")
-            } else {
-                hasRef = result.contains(iosRoot)
-            }
+            // 命令里是否引用该 iOS 根目录
+            let hasRef = result.contains(iosRoot)
             guard hasRef else { continue }
             // iOS 侧根目录存在才 bind
             guard fm.fileExists(atPath: iosRoot) else { continue }
