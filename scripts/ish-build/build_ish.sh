@@ -236,6 +236,48 @@ SCHEMA_PY
         log_warning "fake-db.c 未找到 SQLITE_OPEN_READWRITE，跳过 schema-init patch"
     fi
 
+    # v4.0.2: patch iSH 内核 —— fakefs_bind_mount 写 meta.db 污染权限 → 后续 exec
+    # 读到无执行位 rc=-13 (EACCES)。源码根因：bind 挂载点解析走 bind mount 表
+    # (resolve/translate_path)，不依赖 meta.db inode mode；两段 meta.db 写入是冗余且
+    # 有害的（把挂载点 inode 强制覆盖成 0755/0644，破坏原路径权限记录）。
+    # 这里删除 fake.c 里这两段（update 分支 + create 分支），只保留 symlink + bind 表。
+    if [ -f fs/fake.c ]; then
+        python3 - "$ISH_DIR" <<'BIND_PATCH_PY'
+import sys, os
+ish_dir = sys.argv[1]
+p = os.path.join(ish_dir, "fs/fake.c")
+s = open(p).read()
+orig = s
+# 第1段：update 分支里的 meta.db 写入块
+p1_start = "            /* Always refresh the meta.db mode — the read-only flag may have"
+p1_end = "                db_commit(fs);\n            }\n"
+i1 = s.find(p1_start); i2 = s.find(p1_end, i1)
+if i1 != -1 and i2 != -1:
+    s = s[:i1] + s[i2+len(p1_end):]
+# 第2段：create 分支里的 meta.db 写入块
+p2_start = "            /* Ensure the mount point exists in meta.db (dir or file), with the"
+p2_end = "            db_commit(fs);\n"
+i3 = s.find(p2_start); i4 = s.find(p2_end, i3)
+if i3 != -1 and i4 != -1:
+    s = s[:i3] + s[i4+len(p2_end):]
+# 清理因此未使用的变量定义 (dir_mode/file_mode/top_mode)
+var_block = """    uint32_t dir_mode = read_only ? 0555 : 0755;
+    uint32_t file_mode = read_only ? 0444 : 0644;
+    uint32_t top_mode = is_file_mount ? (S_IFREG | file_mode) : (S_IFDIR | dir_mode);
+
+"""
+if var_block in s:
+    s = s.replace(var_block, "", 1)
+if s != orig:
+    open(p, "w").write(s)
+    print("PATCHED fs/fake.c: removed meta.db writes from fakefs_bind_mount (rc=-13 fix)")
+else:
+    print("fake.c bind patch: no change (pattern not matched, skip)")
+BIND_PATCH_PY
+    else
+        log_warning "fs/fake.c 未找到，跳过 bind 污染 patch"
+    fi
+
     # Configure meson build
     MESON_BUILDTYPE="release"
     # meson's `release` buildtype only implies -O3; it does NOT define NDEBUG
