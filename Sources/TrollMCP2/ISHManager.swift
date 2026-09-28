@@ -15,10 +15,10 @@ enum ISHEngine {
     private static let lock = NSLock()
     private static var state: BootState = .idle
 
-    /// v4.0.2: 实测确认 bind mount 在本设备 iSH 内核上会污染后续 spawn（rc=-13），幂等不能解决。
-    /// 先禁用自动 bind（autoBindEnabled=false），回退 autoBridge（字节拷贝，稳定）。
-    /// 待真机验证"bind 用完即卸"(bind→用→unmount) 是否可行后，再决定是否恢复自动 bind。
-    static var autoBindEnabled = false
+    /// v4.0.4: 内核已根治污染——build_ish.sh 在编译期删掉 fakefs_bind_mount 写 meta.db 权限的两段
+    /// （symlink+bind 表已足够映射，meta.db 写入冗余有害），bind 不再污染后续 spawn（rc=-13 消失）。
+    /// 故恢复自动 bind（autoBindEnabled=true）重新启用 bind 大文件直读；autoBridge 仍作兜底处理未 bind 的 iOS 路径。
+    static var autoBindEnabled = true
 
     /// 已成功挂载的 bind 点集合（幂等保护）。bind 成功后才加入；autoBind 只对未挂载点 bind 一次，
     /// 避免每次命令反复 bind 同一 iOS 顶层目录而污染 iSH 内核（v3.7.3 bindMountForCommand 验证过的做法）。
