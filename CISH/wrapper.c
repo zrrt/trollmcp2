@@ -121,6 +121,8 @@ int cish_boot(const char *data_path) {
     // 原因：fakefs_bind_mount 在 boot 中途写 meta.db 会污染权限记录，导致后续 exec
     // 读到无执行位（rc=-13 EACCES，OpenMinis 上游 bind mount 为运行时调用设计）。
     // bind 能力保留在 cish_bind_mount/cish_bind_unmount，需要时显式按需挂载。
+    // v3.7.2：iSH 内核 patch —— meta.db 缺失/空时 sqlite3_open_v2 加 CREATE 并注入初始
+    // schema（paths/stats/meta），boot 不再 rc=-22，可自动重建干净 meta.db（无需手动恢复）。
 
     exit_hook = cish_exit_hook;
     atomic_store(&g_booted, 1);
