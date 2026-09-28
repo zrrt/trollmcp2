@@ -15,10 +15,15 @@ enum ISHEngine {
     private static let lock = NSLock()
     private static var state: BootState = .idle
 
-    /// v4.0.0 修复：bind mount 会污染 iSH 内核 → Alpine spawn rc=-13（v3.7.1 已踩坑、注释铁证）。
-    /// 默认关闭自动 bind，命令引用 iOS 路径时回退到可靠的 autoBridge（字节拷贝，v3.7.1 验证可用）。
-    /// 仅当用户/高级流程显式打开时才启用 bind（bindMount/bindUnmount 仍可手动按需调用）。
-    static var autoBindEnabled = false
+    /// v4.0.1 修正：bind mount 方案本身有效（v3.7.3 真机验证 21MB 直读通过）。
+    /// rc=-13 的真根因是 v3.7.7 autoBind 丢失了幂等保护（mountedBindPoints）→ 每次命令反复 bind 污染内核。
+    /// 正确修复：恢复 autoBindEnabled=true + 给 autoBind 加回 mountedBindPoints 幂等（已挂载跳过、只 bind 一次），
+    /// 保留 bind 的大文件直读能力，杜绝反复 bind 污染。
+    static var autoBindEnabled = true
+
+    /// 已成功挂载的 bind 点集合（幂等保护）。bind 成功后才加入；autoBind 只对未挂载点 bind 一次，
+    /// 避免每次命令反复 bind 同一 iOS 顶层目录而污染 iSH 内核（v3.7.3 bindMountForCommand 验证过的做法）。
+    private static var mountedBindPoints: Set<String> = []
 
     /// v4.0.0 内核自愈：连续 spawn 失败（rc=-13）达阈值时，自动重置 state→.idle 并下次重新 boot，
     /// 清除 bind mount 污染造成的损坏内核态。计数器在 boot 成功后清零。
@@ -75,7 +80,8 @@ enum ISHEngine {
     /// /System、/private/var/mobile），对存在且未挂载的顶层 bind 进 Alpine（/ios_xxx），
     /// 并把命令里的 iOS 路径改写为 Alpine 可见路径（/var/mobile/X → /ios_mobile/X）。
     /// 返回改写后的命令（未改动原命令时原样返回）。bind 保持挂载（进程生命周期内有效）。
-    /// 幂等：重复调用不会重复 bind（bindMount 对已挂载点无副作用）。
+    /// 幂等：用 mountedBindPoints 集合记录已挂载点，已挂载的顶层跳过 bind（只 bind 一次），
+    /// 避免每次命令反复 bind 同一 iOS 顶层目录而污染 iSH 内核（v3.7.3 bindMountForCommand 验证）。
     static func autoBind(_ command: String) -> String {
         // 顶层目录 → Alpine 挂载点映射 + 是否只读。注意：/private/var/mobile 必须在
         // /var/mobile 之前处理，否则 /private/var/mobile/X 里的 /var/mobile 子串会被先误替换
@@ -99,14 +105,21 @@ enum ISHEngine {
             guard hasRef else { continue }
             // iOS 侧根目录存在才 bind
             guard fm.fileExists(atPath: iosRoot) else { continue }
-            let rc = bindMount(mount, iosRoot, readOnly: readOnly)
-            if rc == 0 {
-                // 改写命令：iosRoot 前缀 → mount 前缀
-                result = result.replacingOccurrences(of: iosRoot, with: mount)
-                ShellDiag.log("autoBind: \(iosRoot) → \(mount) ro=\(readOnly) rc=0 cmd rewritten")
-            } else {
-                ShellDiag.log("autoBind: \(iosRoot) bind rc=\(rc) skip rewrite")
+            // v4.0.1 幂等：已成功挂载过则跳过 bind，只做路径改写（不重复 bind，防污染内核）。
+            // 注意：此处【不加锁】——autoBind 可能在 exec 持锁后被调用(NSLock 不可重入，加锁即死锁)；
+            // FileDbTools/ShellTool 独立调用时不持锁，至多轻微竞态(重复 bind 一次)，远优于死锁。
+            if !mountedBindPoints.contains(mount) {
+                let rc = bindMount(mount, iosRoot, readOnly: readOnly)
+                if rc == 0 {
+                    mountedBindPoints.insert(mount)
+                    ShellDiag.log("autoBind: \(iosRoot) → \(mount) ro=\(readOnly) rc=0 (首次挂载)")
+                } else {
+                    ShellDiag.log("autoBind: \(iosRoot) bind rc=\(rc) skip rewrite")
+                    continue
+                }
             }
+            // 改写命令：iosRoot 前缀 → mount 前缀（已挂载也需改写，命令引用的是挂载后的 Alpine 路径）
+            result = result.replacingOccurrences(of: iosRoot, with: mount)
         }
         return result
     }
@@ -208,6 +221,7 @@ enum ISHEngine {
         ShellDiag.log("ISH boot ok data=\(dataPath) (bind-mount disabled by default; use bindMount on demand)")
 
         spawnFailCount = 0  // v4.0.0: boot 成功即清零 spawn 失败计数
+        mountedBindPoints.removeAll()  // v4.0.1: reboot 后旧 bind 点失效, 清空使 autoBind 重新挂载
         state = .booted
 
         // v3.7.5: 启动自愈 DNS——iSH fakefs 不持久化 /etc/resolv.conf（guest 内无 DNS，
@@ -235,8 +249,7 @@ enum ISHEngine {
         // v3.7.7: 自动 bind——命令引用 iOS 主流目录(/var/mobile、/var/containers、/System)时
         // 自动挂载顶层并改写路径(/var/mobile/X → /ios_mobile/X)，Alpine 直接读写 iOS 文件。
         // 优先于 autoBridge(字节拷贝)兜底。bind 后 autoBridge 只处理未 bind 的 iOS 路径。
-        // v4.0.0: 默认关闭(autoBindEnabled=false)——bind mount 污染 iSH 内核致 Alpine spawn rc=-13，
-        // 恢复 v3.7.1 安全态；iOS 路径一律走可靠的 autoBridge(字节拷贝)。
+        // v4.0.1 修正: autoBind 已带 mountedBindPoints 幂等保护(只 bind 一次), 保留 bind 大文件直读能力。
         let bound = autoBindEnabled ? autoBind(command) : command
 
         // autoBridge（字节拷贝兜底）：处理 autoBind 未覆盖的 iOS 路径（非 /var/mobile、/var/containers、
@@ -249,7 +262,7 @@ enum ISHEngine {
         // /var/mobile/X），但 Alpine guest 里该路径经 bind 只存在于 /ios_mobile/X——直接用它做
         // `cd '...'` 前缀会在 Alpine 里失败(2>/dev/null 静默) 而掉回 /root，造成"文件夹乱跳/环境偏移"。
         // 修复：构造前缀前也对 cwd 做 autoBind 改写，把 iOS 路径同步改写为 Alpine 可见挂载点。
-        // v4.0.0: 仅 autoBindEnabled 时改写；默认关闭时保留原样(autoBridge 会处理 iOS 文件路径)。
+        // v4.0.1 修正: 构造 cwd 前缀前同样 autoBind 改写(幂等, 只 bind 一次), 避免 iOS 路径在 Alpine 里不可见。
         let cwd = autoBindEnabled ? autoBind(cwdRaw) : cwdRaw
         let tStart = Date()
         ShellDiag.log("ISH exec start cmd=\(command.prefix(80)) timeout=\(timeout) cwdRaw=\(cwdRaw) cwd=\(cwd)")
