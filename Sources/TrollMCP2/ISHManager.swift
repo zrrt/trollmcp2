@@ -105,9 +105,9 @@ enum ISHEngine {
             return "[ish] 内核初始化失败: cish_boot rc=\(rc)"
         }
 
-        // v3.7.0：cish_boot 已默认把 iOS 目录 bind mount 进 Alpine（/ios_documents 等）。
-        // 此处仅做诊断记录，不重复 bind（isBooted 此刻仍为 false）。
-        ShellDiag.log("ISH boot ok data=\(dataPath) (bind-mount iOS dirs done in cish_boot)")
+        // v3.7.1：bind mount 默认关闭（v3.7.0 在 cish_boot 自动挂载会污染 meta.db 权限
+        // 记录导致 Alpine spawn rc=-13）。需要时用 bindMount/bindUnmount 显式按需挂载。
+        ShellDiag.log("ISH boot ok data=\(dataPath) (bind-mount disabled by default; use bindMount on demand)")
 
         state = .booted
 

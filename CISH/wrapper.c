@@ -117,15 +117,10 @@ int cish_boot(const char *data_path) {
     int e2 = do_mount(&procfs, "proc", "/proc", "", 0);
     (void)e2;
 
-    // v3.7.0：把 iOS 真实目录 bind-mount 进 Alpine（fakefs_bind_mount，双向直通 host 文件）。
-    // 挂载点固定为 /ios_documents（可读写）与 /ios_workspace（可读写）——Alpine 里
-    // python/open/cat 等可直接访问 iOS 文件，消灭"Alpine 看不到 iOS"的环境漂移。
-    // 失败不致命（可运行时再挂）。
-    generic_mkdirat(AT_PWD, "/ios_documents", 0755);
-    int bm1 = fakefs_bind_mount("/ios_documents", "/var/mobile/Documents", false);
-    generic_mkdirat(AT_PWD, "/ios_workspace", 0755);
-    int bm2 = fakefs_bind_mount("/ios_workspace", "/var/mobile/Documents/Workspace", false);
-    (void)bm1; (void)bm2;
+    // v3.7.1：bind mount 默认关闭（恢复纯 boot）。
+    // 原因：fakefs_bind_mount 在 boot 中途写 meta.db 会污染权限记录，导致后续 exec
+    // 读到无执行位（rc=-13 EACCES，OpenMinis 上游 bind mount 为运行时调用设计）。
+    // bind 能力保留在 cish_bind_mount/cish_bind_unmount，需要时显式按需挂载。
 
     exit_hook = cish_exit_hook;
     atomic_store(&g_booted, 1);
