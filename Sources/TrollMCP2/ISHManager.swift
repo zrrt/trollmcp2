@@ -60,6 +60,39 @@ enum ISHEngine {
         }
     }
 
+    // MARK: - v3.7.7 自动 bind：Alpine 命令引用 iOS 路径时自动挂载并改写
+    /// 在 Alpine 命令执行前调用：识别命令中的 iOS 顶层目录（/var/mobile、/var/containers、
+    /// /System、/private/var/mobile），对存在且未挂载的顶层 bind 进 Alpine（/ios_xxx），
+    /// 并把命令里的 iOS 路径改写为 Alpine 可见路径（/var/mobile/X → /ios_mobile/X）。
+    /// 返回改写后的命令（未改动原命令时原样返回）。bind 保持挂载（进程生命周期内有效）。
+    /// 幂等：重复调用不会重复 bind（bindMount 对已挂载点无副作用）。
+    static func autoBind(_ command: String) -> String {
+        // 顶层目录 → Alpine 挂载点映射（与手工 ish.bind 一致）
+        let roots: [(String, String)] = [
+            ("/var/mobile", "/ios_mobile"),
+            ("/private/var/mobile", "/ios_mobile"),
+            ("/var/containers", "/ios_containers"),
+            ("/System", "/ios_system"),
+        ]
+        let fm = FileManager.default
+        var result = command
+        for (iosRoot, mount) in roots {
+            // 命令里是否引用该 iOS 根目录
+            guard result.contains(iosRoot) else { continue }
+            // iOS 侧根目录存在才 bind
+            guard fm.fileExists(atPath: iosRoot) else { continue }
+            let rc = bindMount(mount, iosRoot, readOnly: false)
+            if rc == 0 {
+                // 改写命令：iosRoot 前缀 → mount 前缀
+                result = result.replacingOccurrences(of: iosRoot, with: mount)
+                ShellDiag.log("autoBind: \(iosRoot) → \(mount) rc=0 cmd rewritten")
+            } else {
+                ShellDiag.log("autoBind: \(iosRoot) bind rc=\(rc) skip rewrite")
+            }
+        }
+        return result
+    }
+
     // MARK: - v3.7.5 启动自愈 DNS
     /// iSH fakefs 不持久化 /etc/resolv.conf（rootfs 预置的 DNS 不会呈现给 guest，
     /// 导致 Alpine 无网络 → apk add/python/git 全装不上，即"环境漂移"根因）。
@@ -180,10 +213,15 @@ enum ISHEngine {
         defer { lock.unlock() }
         guard case .booted = state else { return ("[ish] kernel not ready", -1, false) }
 
+        // v3.7.7: 自动 bind——命令引用 iOS 主流目录(/var/mobile、/var/containers、/System)时
+        // 自动挂载顶层并改写路径(/var/mobile/X → /ios_mobile/X)，Alpine 直接读写 iOS 文件。
+        // 优先于 autoBridge(字节拷贝)兜底。bind 后 autoBridge 只处理未 bind 的 iOS 路径。
+        let bound = autoBind(command)
+
         // P5a v3.6.15: 代码层自动单向文件桥——Alpine 命令里引用 iOS 绝对路径时，系统自动
         // "原生读文件→经 guest stdin 管道喂原始字节→Alpine 侧 head -c N 写 /tmp/_bridge_N_name"并替换路径。
         // （v3.6.8 证伪 symlink 桥；v3.6.13 base64 内联超 iSH 命令长度，v3.6.14 改走 stdin 管道）
-        let (bridged, bridgePrefix, bridgeStdin) = autoBridge(command)
+        let (bridged, bridgePrefix, bridgeStdin) = autoBridge(bound)
         ShellDiag.log("ISH exec bridge: prefixEmpty=\(bridgePrefix.isEmpty) stdin=\(bridgeStdin.count)B execCmd=\(String(bridged.prefix(100)))")
 
         let cwd = guestCwd

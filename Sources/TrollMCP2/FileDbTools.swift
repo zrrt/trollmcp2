@@ -1,12 +1,12 @@
 import Foundation
 
-// MARK: - v3.6.12 P5 高层跨环境工具 (复用 ISHEngine 自动单向文件桥）
+// MARK: - v3.6.12 P5 高层跨环境工具 (v3.7.7: 复用 ISHEngine 自动 bind——Alpine 直接读写 iOS 文件)
 
-/// 高层文件检查/分析工具。inspect 走原生读元信息；analyze 走 Alpine (自动桥 iOS 文件进 /tmp) 跑 file+strings。
+/// 高层文件检查/分析工具。inspect 走原生读元信息；analyze 走 Alpine (自动 bind 直读 iOS 文件) 跑 file+strings。
 final class FileExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "file",
-        summary: "High-level cross-environment file inspection (uses the automatic iOS→Alpine bridge). inspect → native metadata (size, magic type, sqlite/zip/macho detection). analyze → auto-bridge the iOS file into Alpine and run `file` + `strings` on it. Use for: quickly identify what a file is, extract strings from a decrypted binary/db. Don't use for: edit files (shell), network. Example: file inspect path:/var/mobile/.../x.db; file analyze path:/var/mobile/.../binary. Subcommands: inspect / analyze. REQUIRED: path (iOS absolute path).",
+        summary: "High-level cross-environment file inspection (uses automatic iOS bind — Alpine reads iOS files directly). inspect → native metadata (size, magic type, sqlite/zip/macho detection). analyze → Alpine `file` + `strings` on the iOS file. Use for: quickly identify what a file is, extract strings from a decrypted binary/db. Don't use for: edit files (shell), network. Example: file inspect path:/var/mobile/.../x.db; file analyze path:/var/mobile/.../binary. Subcommands: inspect / analyze. REQUIRED: path (iOS absolute path).",
         parameters: [
             "command": "Subcommand (required): inspect / analyze",
             "path": "iOS absolute file path (required)"
@@ -60,14 +60,14 @@ final class FileExecTool: MCPTool {
     }
 }
 
-/// 高层 SQLite 分析工具。自动桥 iOS .db 文件进 Alpine，跑 sqlite3。子命令 list / schema / query。
+/// 高层 SQLite 分析工具。自动 bind 直读 iOS .db 文件进 Alpine，跑 sqlite3。子命令 list / schema / query。
 final class DbExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "db",
-        summary: "High-level SQLite database analysis (auto-bridges the iOS .db file into Alpine and runs sqlite3 there). list → table names; schema → CREATE statements; query → run an SQL SELECT. Use for: inspect/query an iOS .db (WeChat/Alipay/etc). Don't use for: editing schema/data. Example: db list path:/var/mobile/.../x.db; db schema path:...; db query path:... sql:SELECT * FROM t LIMIT 5. Subcommands: list / schema / query. REQUIRED: path; query needs sql.",
+        summary: "High-level SQLite database analysis (auto-binds the iOS .db file into Alpine and runs sqlite3 there). list → table names; schema → CREATE statements; query → run an SQL SELECT. Use for: inspect/query an iOS .db (WeChat/Alipay/etc). Don't use for: editing schema/data. Example: db list path:/var/mobile/.../x.db; db schema path:...; db query path:... sql:SELECT * FROM t LIMIT 5. Subcommands: list / schema / query. REQUIRED: path; query needs sql.",
         parameters: [
             "command": "Subcommand (required): list / schema / query",
-            "path": "iOS absolute db path (required, auto-bridged)",
+            "path": "iOS absolute db path (required, auto-bind Alpine reads directly)",
             "sql": "SQL for query (required when command=query)"
         ], verified: true, category: "data")
 
