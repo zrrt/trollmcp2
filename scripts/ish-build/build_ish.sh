@@ -194,8 +194,20 @@ build_ish() {
     # SQLITE_OPEN_READWRITE 无 CREATE，且空库缺初始 schema 会让 fakefs_migrate 失败)。
     # 这里: 1) 加 CREATE 标志；2) 在 busy_timeout 后注入"paths 表不存在则建初始三表"。
     if grep -q 'SQLITE_OPEN_READWRITE' fs/fake-db.c; then
-        sed -i 's/SQLITE_OPEN_READWRITE, NULL/SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL/' fs/fake-db.c
+        # macOS BSD sed 的 -i 需带后缀，直接改用 python 做替换（跨平台、稳妥）
         python3 - "$ISH_DIR" <<'PATCH_PY'
+import sys, os
+ish_dir = sys.argv[1]
+p = os.path.join(ish_dir, "fs/fake-db.c")
+s = open(p).read()
+old = "sqlite3_open_v2(db_path, &fs->db, SQLITE_OPEN_READWRITE, NULL);"
+new = "sqlite3_open_v2(db_path, &fs->db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);"
+assert old in s, "open-line not found in fake-db.c"
+s = s.replace(old, new, 1)
+open(p, "w").write(s)
+print("PATCHED fake-db.c: SQLITE_OPEN_CREATE added")
+PATCH_PY
+        python3 - "$ISH_DIR" <<'SCHEMA_PY'
 import sys, os
 ish_dir = sys.argv[1]
 p = os.path.join(ish_dir, "fs/fake-db.c")
@@ -219,7 +231,7 @@ init = anchor + """
 s = s.replace(anchor, init, 1)
 open(p, "w").write(s)
 print("PATCHED fake-db.c: CREATE + schema-init injected")
-PATCH_PY
+SCHEMA_PY
     else
         log_warning "fake-db.c 未找到 SQLITE_OPEN_READWRITE，跳过 schema-init patch"
     fi
