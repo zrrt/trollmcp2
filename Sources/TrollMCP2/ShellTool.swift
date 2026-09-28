@@ -36,7 +36,7 @@ enum ShellDiag {
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "Run a shell command (terminal/command line). FIRST: for app-analysis use `app ai_analyze` (one-step analyze), for binary analysis use `inject binary_symbols`, for SQLite use `db`, for unpacking deb/ipa use `package` — prefer these dedicated tools over manually chaining shell commands. Use shell.exec only for file ops / system info / raw commands. 环境：系统按命令类型自动路由——装包/解包/完整工具链/复杂脚本(python、git、apk、tar、unzip、zip、file、sh -c、heredoc等开头)自动走 Alpine Linux(真工具链)；纯文件操作/系统信息/网络默认 iOS 原生。v4.1.0: Alpine 自动 bind：工作区(/var/mobile/Documents/Workspace→/ios_workspace)、/var/containers(→/ios_containers)、/System(→/ios_system 只读)；读 App 数据容器用 bind_app(→/ios_data_<app>)或原生工具。绝不绑整棵 /var/mobile(自引用崩溃源)。Alpine 命令引用这些 iOS 路径时自动挂载并改写，直接读写(无 2MB 限制)；DNS 自动配置；缺工具自动 apk add。iOS 原生模式：36 个原生命令直通真实 iOS——ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/base64/curl/plutil/sqlite3/strings/nm + df/free/uname/uptime/hostname/ps/top/kill + ifconfig/netstat/nslookup。支持管道/分号/重定向/&&/||，支持 VAR=赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat/base64。iOS 原生不支持 for/while/case/heredoc/多行脚本。二进制分析用原生 strings/nm(直读大文件无上限)。SQLite 用内置 sqlite3：`sqlite3 <db> \".tables\"`。注意：不要输入 `ta <tool>`/`ta list`/`ta help`——`ta` 是 CLI/脚本用的原生 offload 命令名，不是给 AI 的 MCP 工具；要调用能力直接调用对应 MCP 工具(inject/db/package/app/device...)。Use for: file ops, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*).",
+        summary: "Run a shell command (terminal/command line). FIRST: for app-analysis use `app ai_analyze` (one-step analyze), for binary analysis use `binary.symbols`, for SQLite use `db`, for unpacking deb/ipa use `package` — prefer these dedicated tools over manually chaining shell commands. Use shell.exec only for file ops / system info / raw commands. 环境：系统按命令类型自动路由——装包/解包/完整工具链/复杂脚本(python、git、apk、tar、unzip、zip、file、sh -c、heredoc等开头)自动走 Alpine Linux(真工具链)；纯文件操作/系统信息/网络默认 iOS 原生。v4.1.0: Alpine 自动 bind：工作区(/var/mobile/Documents/Workspace→/ios_workspace)、/var/containers(→/ios_containers)、/System(→/ios_system 只读)；读 App 数据容器用 bind_app(→/ios_data_<app>)或原生工具。绝不绑整棵 /var/mobile(自引用崩溃源)。Alpine 命令引用这些 iOS 路径时自动挂载并改写，直接读写(无 2MB 限制)；DNS 自动配置；缺工具自动 apk add。iOS 原生模式：36 个原生命令直通真实 iOS——ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/base64/curl/plutil/sqlite3/strings/nm + df/free/uname/uptime/hostname/ps/top/kill + ifconfig/netstat/nslookup。支持管道/分号/重定向/&&/||，支持 VAR=赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat/base64。iOS 原生不支持 for/while/case/heredoc/多行脚本。二进制分析用原生 strings/nm(直读大文件无上限)。SQLite 用内置 sqlite3：`sqlite3 <db> \".tables\"`。注意：不要输入 `ta <tool>`/`ta list`/`ta help`——`ta` 是 CLI/脚本用的原生 offload 命令名，不是给 AI 的 MCP 工具；要调用能力直接调用对应 MCP 工具(inject/db/package/app/device...)。Use for: file ops, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*).",
         parameters: [
             "command": "Shell command to execute (required)",
             "timeout": "Timeout seconds (default 30, max 120)",
@@ -146,7 +146,7 @@ final class ShellExecTool: MCPTool {
             if let guardMsg = ShellExecTool.alpineIOSPathGuard(boundCmd) {
                 return ["command": trimmed, "exit_code": 1, "ios_native": false,
                         "stdout": guardMsg,
-                        "hint": "该命令会被路由到 Alpine，但 Alpine 读不到 iOS 大文件/不存在路径。改用原生 shell 直接访问(该工具原生支持 strings/nm/hexdump 直读大文件)，或对二进制用 inject binary_symbols 分析。"]
+                        "hint": "该命令会被路由到 Alpine，但 Alpine 读不到 iOS 大文件/不存在路径。改用原生 shell 直接访问(该工具原生支持 strings/nm/hexdump 直读大文件)，或对二进制用 binary.symbols 分析。"]
             }
             let (output, exitCode, timedOut) = ISHEngine.exec(boundCmd, timeout: timeout)            // P3 按需补给：Alpine 输出显示缺工具(command not found)且命中白名单 → 自动 apk add 并重跑一次，
             // 免 agent 反复探测缺什么、也避免"先探测→再装→再跑"的多轮试探。
@@ -567,7 +567,7 @@ final class ShellExecTool: MCPTool {
         }
         guard !blocked.isEmpty else { return nil }
         return "该命令将走 Alpine，引用了 Alpine 未能自动 bind 的 iOS 文件：\n" + blocked.joined(separator: "\n") +
-               "\n(v3.7.7: 主流 iOS 目录已自动 bind 直读，>2MB 大文件可直读；此提示仅当 bind 失败或路径不在自动 bind 范围内时出现)。请：① 确认路径在 /var/mobile、/var/containers、/System 下（会被自动 bind）；② 若在别处，先用原生 shell 直接访问；③ 分析二进制用 inject binary_symbols。"
+               "\n(v3.7.7: 主流 iOS 目录已自动 bind 直读，>2MB 大文件可直读；此提示仅当 bind 失败或路径不在自动 bind 范围内时出现)。请：① 确认路径在工作区(/var/mobile/Documents/Workspace)、/var/containers、/System 下（会被自动 bind）；App 数据容器用 bind_app 绑定；② 若在别处，先用原生 shell 直接访问；③ 分析二进制用 binary.symbols。"
     }
     
     /// 按管道/分号/逻辑符拆分命令 (尊重引号），返回 [(命令段, 连接符)]，连接符: | ; && ||
