@@ -60,6 +60,53 @@ enum ISHEngine {
         }
     }
 
+    // MARK: - v3.7.5 启动自愈 DNS
+    /// iSH fakefs 不持久化 /etc/resolv.conf（rootfs 预置的 DNS 不会呈现给 guest，
+    /// 导致 Alpine 无网络 → apk add/python/git 全装不上，即"环境漂移"根因）。
+    /// boot 后调用，强制向 guest /etc/resolv.conf 写入国内可达公共 DNS。
+    /// 幂等、失败不致命（仅记录日志）；不复用 exec（避免在 ensureBooted 持锁时死锁），
+    /// 直接用 cish_spawn + read 循环执行写文件。
+    static func ensureDNS() {
+        let cmd = "echo nameserver 223.5.5.5 > /etc/resolv.conf; echo nameserver 119.29.29.29 >> /etc/resolv.conf; echo nameserver 8.8.8.8 >> /etc/resolv.conf; cat /etc/resolv.conf"
+        var outFds: [Int32] = [-1, -1], errFds: [Int32] = [-1, -1], notifyFds: [Int32] = [-1, -1]
+        guard pipe(&outFds) == 0, pipe(&errFds) == 0, pipe(&notifyFds) == 0 else {
+            ShellDiag.log("ensureDNS: pipe fail")
+            return
+        }
+        let argvBuf = buildCStringArray(["/bin/sh", "-c", cmd])
+        let envpBuf = buildDefaultEnvp()
+        let pid = argvBuf.withCString { av in
+            envpBuf.withCString { ev in
+                cmd.withCString { _ in
+                    "/bin/sh".withCString { p in
+                        cish_spawn(p, av, ev, 3, -1, outFds[1], errFds[1], notifyFds[1])
+                    }
+                }
+            }
+        }
+        close(outFds[1]); close(errFds[1]); close(notifyFds[1])
+        if pid <= 0 {
+            close(outFds[0]); close(errFds[0]); close(notifyFds[0])
+            ShellDiag.log("ensureDNS: spawn fail pid=\(pid)")
+            return
+        }
+        // 后台读输出 + 等待退出
+        let done = DispatchSemaphore(value: 0)
+        var out = Data()
+        DispatchQueue.global(qos: .userInitiated).async {
+            var b = [UInt8](repeating: 0, count: 4096)
+            while true {
+                let n = read(outFds[0], &b, b.count)
+                if n <= 0 { break }
+                out.append(contentsOf: b[0..<n])
+            }
+            close(outFds[0]); close(errFds[0]); close(notifyFds[0])
+            done.signal()
+        }
+        _ = done.wait(timeout: .now() + 5)  // 最多等 5s，超时不致命
+        ShellDiag.log("ensureDNS: pid=\(pid) out=\(String(decoding: out, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n", with: "|"))")
+    }
+
     /// 确保内核已 boot（首次解压 rootfs + 挂载）。线程安全，重复调用幂等。
     static func ensureBooted() -> String? {
         lock.lock()
@@ -110,6 +157,10 @@ enum ISHEngine {
         ShellDiag.log("ISH boot ok data=\(dataPath) (bind-mount disabled by default; use bindMount on demand)")
 
         state = .booted
+
+        // v3.7.5: 启动自愈 DNS——iSH fakefs 不持久化 /etc/resolv.conf（guest 内无 DNS，
+        // apk add/python/git 全装不上 = 环境漂移根因）。boot 后强制写入，使 Alpine 网络即开即用。
+        ensureDNS()
 
         // 3. 默认 cwd 为真实存在的 /root（避免名义 /workspace 误导）
         guestCwd = "/root"
