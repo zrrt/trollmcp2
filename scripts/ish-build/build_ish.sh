@@ -297,20 +297,25 @@ helper_anchor = """/* Auto-create a meta.db entry for a path under a bind mount.
  * Probes the host filesystem to determine if it's a file or directory. */
 static inode_t bind_mount_ensure_inode(struct fakefs_db *fs, struct mount *mount,
 """
-helper = """/* v4.0.6 guard: hide the fakefs's own backing store (root_fd = .../Documents/alpine-rootfs/data)
- * from bind-mounted views. The app rootfs lives under /var/mobile, so binding /var/mobile
- * makes /ios_mobile/.../alpine-rootfs/data re-enter the fakefs backing store -> self-referential
- * cycle -> corrupts meta.db inodes -> later exec rc=-13. Refuse ONLY this region through binds;
- * normal rootfs access (Alpine /) and other app containers/workspace are unaffected. */
+helper = """/* v4.0.6 guard: hide the fakefs's own backing store (the whole Documents/alpine-rootfs
+ * directory, which contains both data/ and meta.db) from bind-mounted views. The app rootfs
+ * lives under /var/mobile, so binding /var/mobile makes /ios_mobile/.../alpine-rootfs re-enter
+ * the fakefs backing store -> self-referential cycle -> corrupts its own meta.db/inodes ->
+ * later exec rc=-13 (and cpu_run_to_interrupt segfault). Refuse ONLY this region through binds;
+ * normal rootfs access (Alpine /), other app containers, and the Workspace are unaffected. */
 static bool bind_mount_target_is_backing_store(const char *host_abs) {
     if (g_fakefs_mount == NULL)
         return false;
-    char hbuf[PATH_MAX], sbuf[PATH_MAX];
-    const char *h = host_abs, *s = g_fakefs_mount->source;
+    /* backing store = parent of source (.../alpine-rootfs), holds data/ + meta.db */
+    char rbuf[PATH_MAX], hbuf[PATH_MAX];
+    snprintf(rbuf, sizeof(rbuf), "%s", g_fakefs_mount->source);
+    char *sx = strrchr(rbuf, '/');
+    if (sx && strcmp(sx, "/data") == 0) *sx = '\\0';
+    const char *h = host_abs, *r = rbuf;
     if (strncmp(h, "/private/", 9) == 0) { snprintf(hbuf, sizeof(hbuf), "%s", h + 8); h = hbuf; }
-    if (strncmp(s, "/private/", 9) == 0) { snprintf(sbuf, sizeof(sbuf), "%s", s + 8); s = sbuf; }
-    size_t len = strlen(s);
-    return strncmp(h, s, len) == 0 && (h[len] == '/' || h[len] == '\\0');
+    if (strncmp(r, "/private/", 9) == 0) { r += 8; }
+    size_t len = strlen(r);
+    return strncmp(h, r, len) == 0 && (h[len] == '/' || h[len] == '\\0');
 }
 
 """
