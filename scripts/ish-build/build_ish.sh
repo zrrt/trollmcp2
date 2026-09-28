@@ -339,10 +339,13 @@ g2_new = """    if (bind_mount_translate_path(path, host_abs, sizeof(host_abs)))
 if g2_old in s:
     s = s.replace(g2_old, g2_new, 1)
 
-# 4) fakefs_bind_mount_resolve_path(host→linux)：解析进 root_fd → 不映射(纵深防御)
+# 4) fakefs_bind_mount_resolve_path(host→linux)：解析进 root_fd → 不映射(纵深防御)。
+#    该函数位于 helper 定义之前，故需同时插入前向声明。
 g3_old = """bool fakefs_bind_mount_resolve_path(const char *resolved, char *out_path, size_t out_size) {
     for (int i = 0; i < FAKEFS_MAX_BIND_MOUNTS; i++) {"""
-g3_new = """bool fakefs_bind_mount_resolve_path(const char *resolved, char *out_path, size_t out_size) {
+g3_new = """static bool bind_mount_target_is_backing_store(const char *host_abs); /* v4.0.6 fwd decl */
+
+bool fakefs_bind_mount_resolve_path(const char *resolved, char *out_path, size_t out_size) {
     if (bind_mount_target_is_backing_store(resolved))
         return false; /* v4.0.6: hide own rootfs via bind (reverse mapping) */
     for (int i = 0; i < FAKEFS_MAX_BIND_MOUNTS; i++) {"""
