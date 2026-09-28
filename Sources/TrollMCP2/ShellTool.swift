@@ -564,8 +564,8 @@ final class ShellExecTool: MCPTool {
             }
         }
         guard !blocked.isEmpty else { return nil }
-        return "该命令将走 Alpine，但引用了 Alpine 无法读取的 iOS 文件：\n" + blocked.joined(separator: "\n") +
-               "\nAlpine 是隔离 rootfs，看不到 iOS 路径；>2MB 文件不会被自动桥接。请：① 若工具原生支持(如 strings/nm/hexdump 直读大文件)，直接在 iOS 原生 shell 运行；② 分析二进制用 inject binary_symbols；③ 小文件会自动桥接(≤2MB)，无需手动处理。"
+        return "该命令将走 Alpine，引用了 Alpine 未能自动 bind 的 iOS 文件：\n" + blocked.joined(separator: "\n") +
+               "\n(v3.7.7: 主流 iOS 目录已自动 bind 直读，>2MB 大文件可直读；此提示仅当 bind 失败或路径不在自动 bind 范围内时出现)。请：① 确认路径在 /var/mobile、/var/containers、/System 下（会被自动 bind）；② 若在别处，先用原生 shell 直接访问；③ 分析二进制用 inject binary_symbols。"
     }
     
     /// 按管道/分号/逻辑符拆分命令 (尊重引号），返回 [(命令段, 连接符)]，连接符: | ; && ||

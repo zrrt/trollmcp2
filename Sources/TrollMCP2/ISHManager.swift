@@ -67,25 +67,33 @@ enum ISHEngine {
     /// 返回改写后的命令（未改动原命令时原样返回）。bind 保持挂载（进程生命周期内有效）。
     /// 幂等：重复调用不会重复 bind（bindMount 对已挂载点无副作用）。
     static func autoBind(_ command: String) -> String {
-        // 顶层目录 → Alpine 挂载点映射（与手工 ish.bind 一致）
-        let roots: [(String, String)] = [
-            ("/var/mobile", "/ios_mobile"),
-            ("/private/var/mobile", "/ios_mobile"),
-            ("/var/containers", "/ios_containers"),
-            ("/System", "/ios_system"),
+        // 顶层目录 → Alpine 挂载点映射 + 是否只读。注意：/private/var/mobile 必须在
+        // /var/mobile 之前处理，否则 /private/var/mobile/X 里的 /var/mobile 子串会被先误替换
+        // 成 /private/ios_mobile/X。/System 只读（系统目录禁止 Alpine 写），用户目录可写（双向）。
+        let roots: [(String, String, Bool)] = [
+            ("/private/var/mobile", "/ios_mobile", false),
+            ("/var/mobile", "/ios_mobile", false),
+            ("/var/containers", "/ios_containers", false),
+            ("/System", "/ios_system", true),
         ]
         let fm = FileManager.default
         var result = command
-        for (iosRoot, mount) in roots {
-            // 命令里是否引用该 iOS 根目录
-            guard result.contains(iosRoot) else { continue }
+        for (iosRoot, mount, readOnly) in roots {
+            // 命令里是否引用该 iOS 根目录（排除它作为更长前缀的子串，如 /private/var/mobile）
+            let hasRef: Bool
+            if iosRoot == "/var/mobile" {
+                hasRef = result.contains(iosRoot) && !result.contains("/private/var/mobile")
+            } else {
+                hasRef = result.contains(iosRoot)
+            }
+            guard hasRef else { continue }
             // iOS 侧根目录存在才 bind
             guard fm.fileExists(atPath: iosRoot) else { continue }
-            let rc = bindMount(mount, iosRoot, readOnly: false)
+            let rc = bindMount(mount, iosRoot, readOnly: readOnly)
             if rc == 0 {
                 // 改写命令：iosRoot 前缀 → mount 前缀
                 result = result.replacingOccurrences(of: iosRoot, with: mount)
-                ShellDiag.log("autoBind: \(iosRoot) → \(mount) rc=0 cmd rewritten")
+                ShellDiag.log("autoBind: \(iosRoot) → \(mount) ro=\(readOnly) rc=0 cmd rewritten")
             } else {
                 ShellDiag.log("autoBind: \(iosRoot) bind rc=\(rc) skip rewrite")
             }

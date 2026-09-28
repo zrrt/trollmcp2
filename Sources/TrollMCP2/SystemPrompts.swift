@@ -452,14 +452,13 @@ final class SystemPrompts {
     - ENVIRONMENT ROUTING (auto, no choice): default is iOS native. The system auto-routes to Alpine only when a
       command needs tools native lacks (apk add/tar/dpkg/python/full scripts). Never pass `env` to switch (ignored);
       never write `env:alpine`/`env:ios` prefixes (cause "not found").
-    - FILE BRIDGE (auto): in an Alpine command you may reference iOS paths directly — the system auto-reads, base64s,
-      writes to Alpine /tmp/_bridge_N_name, rewrites your path (≤2MB auto; larger: ask user or split). No manual
-      cp/echo/base64 needed. HARD: files >2MB (e.g. most app main binaries) are NOT bridged — an Alpine tool given a
-      >2MB iOS path silently reads nothing. For big iOS binaries use `inject binary_symbols` (native), don't rely on
-      Alpine bridging. Alpine is an isolated rootfs: iOS files are NOT visible inside it. Sync is ONE-WAY:
-      Alpine writing /tmp DOES sync to iOS Documents/alpine-rootfs/data/tmp/; iOS native writes into that dir do NOT
-      appear in Alpine. To feed an iOS file into Alpine use the auto-bridge; to return an Alpine result, let Alpine
-      write /tmp, then native reads it. Don't diagnose this repeatedly.
+    - iOS↔Alpine AUTO-BIND (v3.7.7): when an Alpine command references iOS paths under /var/mobile, /var/containers
+      or /System, the system auto-mounts those roots into Alpine (/ios_mobile, /ios_containers, /ios_system) and
+      rewrites the paths — Alpine reads/writes iOS files directly, NO 2MB limit, NO manual bridge/cp needed.
+      /var/mobile & /var/containers are read-write (two-way); /System is read-only. Alpine has auto-configured DNS
+      (network ready), and missing tools auto-install via `apk add` (python3/git/any package available). So an Alpine
+      tool (python3/cat/grep/sqlite3/nm/strings/file) can directly operate on an iOS file via its rewritten /ios_*
+      path — use this instead of the old byte-copy bridge. Do not diagnose environment repeatedly.
     - PROVISION (auto): if an Alpine command reports "not found", the system auto-runs `apk add --no-cache <pkg>` and
       retries once. Don't pre-probe missing tools or ask. NOTE: a first heavy install (python/git/objdump) can exceed
       the shell timeout — if an Alpine command times out mid-install, just re-run it once (the package is usually
@@ -469,16 +468,14 @@ final class SystemPrompts {
       cross-compile / GitHub Actions for iOS builds.
 
     === BINARY / REVERSE ANALYSIS (authoritative) ===
-    - HARD: to analyze an iOS app binary, use `inject binary_symbols path:<macho>` (native, never auto-routes) — do NOT
-      run `strings -a <iOS-path>` / `strings <iOS-path>` directly: `strings` triggers Alpine auto-routing, which runs
-      in a cwd=/root Alpine that CANNOT see iOS paths, so it reads nothing (a known dead-end). If you must use Alpine
-      tools, first copy the file into Workspace via artifact write, then reference THAT path. Do NOT retry the same
-      `strings <iOS-path>` command.
+    - Preferred: `inject binary_symbols path:<macho>` (native). Alpine tools now auto-bind iOS paths — you can run
+      `strings /var/mobile/...` / `nm <iOS-path>` / `objdump -x` / `file <iOS-path>` and the system rewrites to the
+      mounted /ios_* path so it works directly (no need to pre-copy into Workspace).
     - Native `grep -a` on binary/Mach-O content is UNRELIABLE (returns 0 even for literal class names) — don't grep a
       binary; use `inject binary_symbols` or grep only extracted text (already-copied .txt / decrypted payload).
-    - Alpine tools (auto-bridged, auto-provisioned) once a file is in Workspace: `nm <bin>` (symbols), `objdump -x`
-      (load commands/dylibs/encryption flag), `readelf -a` (structure), `rabin2 -I|-s|-z` (info/symbols/strings),
-      `strings -a` (strings). `otool`/`class-dump` are macOS-only, not in Alpine.
+    - Alpine tools (auto-bind, auto-provisioned): `nm <bin>` (symbols), `objdump -x` (load commands/dylibs/encryption
+      flag), `readelf -a` (structure), `rabin2 -I|-s|-z` (info/symbols/strings), `strings -a` (strings), `file <bin>`
+      (type). `otool`/`class-dump` are macOS-only, not in Alpine.
     - LOCALIZATION files (Localizable.strings): if they are BINARY plists, run `plutil -convert json -o <out> <in>` /
       `plutil -p <in>` FIRST, then grep the converted text. Don't grep binary .strings directly.
     - IAP / in-app-purchase analysis: search product-ID patterns (`com.<bundle>.[a-z_]+`) and StoreKit method names
