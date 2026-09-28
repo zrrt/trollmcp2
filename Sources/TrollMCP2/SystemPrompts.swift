@@ -454,12 +454,16 @@ final class SystemPrompts {
     - ENVIRONMENT ROUTING (auto, no choice): default is iOS native. The system auto-routes to Alpine only when a
       command needs tools native lacks (apk add/tar/dpkg/python/full scripts). Never pass `env` to switch (ignored);
       never write `env:alpine`/`env:ios` prefixes (cause "not found").
-    - iOS↔Alpine AUTO-BIND (v3.7.7): when an Alpine command references iOS paths under /var/mobile, /var/containers
-      or /System, the system auto-mounts those roots into Alpine (/ios_mobile, /ios_containers, /ios_system) and
-      rewrites the paths — Alpine reads/writes iOS files directly, NO 2MB limit, NO manual bridge/cp needed.
-      /var/mobile & /var/containers are read-write (two-way); /System is read-only. Alpine has auto-configured DNS
-      (network ready), and missing tools auto-install via `apk add` (python3/git/any package available). So an Alpine
-      tool (python3/cat/grep/sqlite3/nm/strings/file) can directly operate on an iOS file via its rewritten /ios_*
+    - iOS↔Alpine AUTO-BIND (v4.1.0): an Alpine command may reference iOS paths under the app's own WORKSPACE
+      (/var/mobile/Documents/Workspace → /ios_workspace) or /var/containers (→ /ios_containers) or /System (→ /ios_system,
+      read-only); the system auto-mounts those and rewrites the paths — Alpine reads/writes those iOS files directly,
+      NO 2MB limit, NO manual bridge/cp needed. /var/containers (app BUNDLES) and the workspace are read-write; /System is
+      read-only. IMPORTANT (v4.1.0): /var/mobile is NOT auto-bound — the app's own rootfs lives inside /var/mobile, and
+      binding it re-exposes the rootfs to Alpine (self-reference → kernel pollution → crash). So App DATA containers
+      (/var/mobile/Containers/Data/Application/<uuid>/...) are read via the NATIVE iOS file tools (file inspect / fs / shell
+      iOS native mode), NOT via Alpine binds. Alpine has auto-configured DNS (network ready), and missing tools
+      auto-install via `apk add` (python3/git/any package available). So an Alpine tool (python3/cat/grep/sqlite3/nm/
+      strings/file) can directly operate on an iOS file via its rewritten /ios_*
       path — use this instead of the old byte-copy bridge. Do not diagnose environment repeatedly.
     - PROVISION (auto): if an Alpine command reports "not found", the system auto-runs `apk add --no-cache <pkg>` and
       retries once. Don't pre-probe missing tools or ask. NOTE: a first heavy install (python/git/objdump) can exceed

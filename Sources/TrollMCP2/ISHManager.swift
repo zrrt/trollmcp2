@@ -83,15 +83,15 @@ enum ISHEngine {
     /// 避免每次命令反复 bind 同一 iOS 顶层目录而污染 iSH 内核（v3.7.3 bindMountForCommand 验证）。
     static func autoBind(_ command: String) -> String {
         // 顶层目录 → Alpine 挂载点映射 + 是否只读。
-        // v4.0.6: 恢复 /var/mobile 绑定。内核新增"访问时刻守卫"(build_ish.sh GUARD_PATCH)：
-        // fakefs_open / bind_mount_ensure_inode 会拒绝任何通过绑定绕回自身 root_fd
-        // (Documents/alpine-rootfs/data) 的路径(返回 ELOOP/跳过建 inode)，从而隐藏 rootfs 区域、
-        // 消除自引用成环→rc=-13。故整棵 /var/mobile 可安全一次绑定，jinx 等各 App 容器、
-        // 工作区(Documents/Workspace，非 rootfs)均直读写；仅自身 rootfs 经绑定不可达。
-        // 保留 /var/containers(bundle 读) + 只读 /System。
+        // v4.1.0: 【不整棵绑 /var/mobile】。自身 rootfs(Documents/alpine-rootfs) 位于
+        // /var/mobile 内，整棵绑定会把自身 rootfs 暴露回 Alpine → 自引用成环 →
+        // 内核污染 → cpu_run_to_interrupt 段错误（4.0.6~4.0.9 守卫均未根治）。
+        // 根治：只绑工作区(=/var/mobile/Documents/Workspace，rootfs 的兄弟目录，非 rootfs 本身)
+        // + /var/containers(bundle 读，已验证不污染) + 只读 /System。
+        // jinx 等 App 的【数据容器】在 /var/mobile/Containers/Data，走原生 FS 工具(file/fs)读取，
+        // 不走 Alpine 绑定（避免再次暴露 /var/mobile）。
         let roots: [(String, String, Bool)] = [
-            ("/private/var/mobile", "/ios_mobile", false),
-            ("/var/mobile", "/ios_mobile", false),
+            ("/var/mobile/Documents/Workspace", "/ios_workspace", false),
             ("/var/containers", "/ios_containers", false),
             ("/System", "/ios_system", true),
         ]
