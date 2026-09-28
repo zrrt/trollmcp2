@@ -1291,6 +1291,8 @@ public final class ToolRegistry: ObservableObject {
         // v3.6.12 P5 高层跨环境工具 (复用自动单向文件桥)
         register(FileExecTool())
         register(DbExecTool())
+        // v3.7.5: bind mount 验证工具 (iSH 内核级 iOS→Alpine 目录挂载)
+        register(ISHBindTool())
 
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
     }
