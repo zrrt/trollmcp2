@@ -124,42 +124,7 @@ jobs:
           cp ../scripts/ish-build/prepare_alpine_rootfs.sh .
           git clone --depth 1 -q -b feature-arm64 https://github.com/OpenMinis/ish-arm64.git ish
           cd ish && git submodule update --init --recursive --depth 1 -q && cd ..
-          # v3.7.2: patch iSH 内核 —— meta.db 缺失时 sqlite3_open_v2 无 CREATE 标志导致 boot rc=-22。
-          # 改为 READWRITE|CREATE，并在 open 后检查 paths 表不存在时先建初始三表(schema)，
-          # 让内核在 meta.db 缺失/空时自动创建可用库（根治，无需手动恢复）。
-          cd ish
-          if grep -q 'SQLITE_OPEN_READWRITE' fs/fake-db.c; then
-            sed -i 's/SQLITE_OPEN_READWRITE, NULL/SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL/' fs/fake-db.c
-            echo "PATCHED open: $(grep -n 'SQLITE_OPEN' fs/fake-db.c | head -2)"
-            # 在 fake_db_init 的 busy_timeout 之后注入"表不存在则建初始 schema"
-            python3 - <<'PY'
-import re
-p = "fs/fake-db.c"
-s = open(p).read()
-anchor = "    sqlite3_busy_timeout(fs->db, 5000);"
-init_sql = r"""    sqlite3_busy_timeout(fs->db, 5000);
-    // v3.7.2: ensure initial schema exists (meta.db missing/empty -> create tables)
-    { sqlite3_stmt *t = db_prepare(fs, "select name from sqlite_master where type='table' and name='paths'");
-      int has = (sqlite3_step(t) == SQLITE_ROW); sqlite3_finalize(t);
-      if (!has) {
-        char *init = "create table paths (path blob primary key, inode integer);"
-                     "create table stats (inode integer primary key, stat blob);"
-                     "create table meta (key text primary key, value text);"
-                     "insert into meta (key, value) values ('db_inode', '0');";
-        char *er = 0; if (sqlite3_exec(fs->db, init, 0, 0, &er) != SQLITE_OK) {
-          printk("fake_db_init schema init failed: %s\n", er ? er : "?"); sqlite3_free(er); }
-        printk("fake_db_init: created empty schema (meta.db was missing/empty)\n");
-      } }
-"""
-assert anchor in s, "anchor not found"
-s = s.replace(anchor, init_sql, 1)
-open(p, "w").write(s)
-print("INJECTED schema-init after busy_timeout")
-PY
-          else
-            echo "PATCH WARN: fake-db.c 未找到 SQLITE_OPEN_READWRITE"
-          fi
-          cd ..
+          # v3.7.2: meta.db 缺失/空时 boot rc=-22 的 patch 已内置在 build_ish.sh（SQLITE_OPEN_CREATE + 初始 schema 注入）
           bash build_ish.sh
           bash prepare_alpine_rootfs.sh
           echo "=== iSH 产物 ==="

@@ -190,6 +190,40 @@ build_ish() {
 
     cd "$ISH_DIR"
 
+    # v3.7.2: patch iSH 内核 —— meta.db 缺失/空时 boot rc=-22 (fake_db_init 用
+    # SQLITE_OPEN_READWRITE 无 CREATE，且空库缺初始 schema 会让 fakefs_migrate 失败)。
+    # 这里: 1) 加 CREATE 标志；2) 在 busy_timeout 后注入"paths 表不存在则建初始三表"。
+    if grep -q 'SQLITE_OPEN_READWRITE' fs/fake-db.c; then
+        sed -i 's/SQLITE_OPEN_READWRITE, NULL/SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL/' fs/fake-db.c
+        python3 - "$ISH_DIR" <<'PATCH_PY'
+import sys, os
+ish_dir = sys.argv[1]
+p = os.path.join(ish_dir, "fs/fake-db.c")
+s = open(p).read()
+anchor = "    sqlite3_busy_timeout(fs->db, 5000);"
+assert anchor in s, "anchor not found in fake-db.c"
+init = anchor + """
+    // v3.7.2: ensure initial schema exists when meta.db was missing/empty
+    { sqlite3_stmt *t = db_prepare(fs, "select name from sqlite_master where type='table' and name='paths'");
+      int has = (sqlite3_step(t) == SQLITE_ROW); sqlite3_finalize(t);
+      if (!has) {
+        char *init = "create table paths (path blob primary key, inode integer);"
+                     "create table stats (inode integer primary key, stat blob);"
+                     "create table meta (key text primary key, value text);"
+                     "insert into meta (key, value) values ('db_inode', '0');";
+        char *er = 0;
+        if (sqlite3_exec(fs->db, init, 0, 0, &er) != SQLITE_OK) {
+          printk("fake_db_init schema init failed: %s\\n", er ? er : "?"); sqlite3_free(er); }
+        else printk("fake_db_init: created empty schema (meta.db was missing/empty)\\n");
+      } }"""
+s = s.replace(anchor, init, 1)
+open(p, "w").write(s)
+print("PATCHED fake-db.c: CREATE + schema-init injected")
+PATCH_PY
+    else
+        log_warning "fake-db.c 未找到 SQLITE_OPEN_READWRITE，跳过 schema-init patch"
+    fi
+
     # Configure meson build
     MESON_BUILDTYPE="release"
     # meson's `release` buildtype only implies -O3; it does NOT define NDEBUG
