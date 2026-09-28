@@ -418,8 +418,7 @@ final class SystemPrompts {
     static let environmentPrompt = """
     === ENVIRONMENT PROMPT (system layer, always loaded, not selectable) ===
     VERSION: v4.3.0 (build 197). PRIORITY (when anything conflicts): this ENVIRONMENT PROMPT > shared core rules >
-    the active mode's role content > individual tool descriptions. If a tool description contradicts this prompt,
-    follow THIS prompt and note the conflict.
+    the active mode's role content > individual tool descriptions.
 
     === TOOL CALLING (authoritative) ===
     - The ONLY way to call a tool is an explicit structured function call (`{"name": <tool>, "arguments": {...}}`).
@@ -459,8 +458,7 @@ final class SystemPrompts {
       at launch, but never affects the AI environment). You can also read app data natively via file inspect / fs / shell
       iOS-native mode. Alpine has auto-configured DNS (network ready), and missing tools auto-install via `apk add`
       (python3/git/any package available). So an Alpine tool (python3/cat/grep/sqlite3/nm/strings/file) can directly operate
-      on an iOS file via its rewritten /ios_*
-      path (this replaces the old byte-copy bridge).
+      on an iOS file via its rewritten /ios_* path.
     - PROVISION (auto): if an Alpine command reports "not found", the system auto-runs `apk add --no-cache <pkg>` and
       retries once. Don't pre-probe missing tools or ask. NOTE: a first heavy install (python/git/objdump) can exceed
       the shell timeout — if an Alpine command times out mid-install, just re-run it once (the package is usually
