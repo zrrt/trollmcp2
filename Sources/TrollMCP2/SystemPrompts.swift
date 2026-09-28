@@ -41,7 +41,7 @@ final class SystemPrompts {
             - Failure recovery: read the error's `reason`/`next_step`; fix the param or switch tools; max 2 retries
               per tool, then change approach. Don't retry the same malformed call.
             - Tool selection (simple op → dedicated tool; batch/complex → shell):
-              * read single file → artifact read; write → artifact write; list dir → artifact list; find → artifact find;
+              * read single file → artifact read; write → artifact write; list dir → artifact list; find → shell.exec("find ...");
                 batch(10+)/complex script → shell.exec
               * browser: open/navigate → browser.open; read text → browser.text; HTML/structure → browser.snapshot;
                 type/fill → browser.fill_form; click → browser.submit

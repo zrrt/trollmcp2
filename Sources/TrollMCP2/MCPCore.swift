@@ -1211,9 +1211,8 @@ public final class ToolRegistry: ObservableObject {
         // v3.6.12 P5 高层跨环境工具 (v3.7.7: 自动 bind 直读 iOS 文件)
         register(FileExecTool())
         register(DbExecTool())
-        // v3.7.5: bind mount 验证工具 (iSH 内核级 iOS→Alpine 目录挂载)
-        register(ISHBindTool())
-
+        // v3.7.7c: 移除 ish.bind 注册——bind mount 已由 autoBind 全自动（命令引用 iOS 路径自动挂载+改写），
+        // 手动 bind 工具对 AI 是误导（会以为要手动挂载）。类定义保留供开发者调试/真机验证。
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
     }
 }
