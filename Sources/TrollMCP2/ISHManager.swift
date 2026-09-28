@@ -63,12 +63,10 @@ enum ISHEngine {
     // MARK: - v3.7.3 按需 bind mount：让 Alpine 直读 iOS 文件（消灭环境漂移）
 
     /// 顶层挂载根 → Alpine 挂载点（固定，幂等）。重复 bind 同名挂载点是安全覆盖。
-    /// 只挂稳定顶层目录（Documents/containers 等），不逐文件挂，避免 meta.db 膨胀。
+    /// v3.7.3b: 只挂 Workspace（小、可控）——fakefs_bind_mount 会遍历目录写 meta.db，
+    /// 挂 /var/mobile/Documents 等大目录会因文件过多卡死/污染权限（rc=-13 教训）。
     private static let bindRoots: [(iosPrefix: String, linuxMount: String)] = [
         ("/var/mobile/Documents/Workspace", "/ios_workspace"),
-        ("/var/mobile/Documents", "/ios_documents"),
-        ("/var/containers", "/ios_containers"),
-        ("/var/mobile", "/ios_mobile"),
     ]
 
     /// 已挂载的 Alpine 挂载点集合（避免重复挂载写 meta.db）
@@ -77,7 +75,9 @@ enum ISHEngine {
     /// 识别命令中的 iOS 绝对路径，bind mount 其顶层根进 Alpine，并把命令路径改写为 Alpine 内路径。
     /// 返回 (改写后的命令, 诊断串)。失败时命令原样返回（走原 autoBridge/拦截逻辑兜底）。
     static func bindMountForCommand(_ command: String) -> (cmd: String, diag: String) {
-        let prefixes = ["/var/mobile/", "/private/var/mobile/", "/var/containers/"]
+        // v3.7.3b: 只处理 /var/mobile/Documents/Workspace 前缀——只有它被安全 bind 挂载。
+        // 其他 iOS 路径不 bind（避免大目录卡死），交回原路由/autoBridge 处理。
+        let prefixes = ["/var/mobile/Documents/Workspace"]
         let alt = prefixes.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "|")
         let pattern = "(^|[\\s\"'=>(])((?:" + alt + ")[^\\s\"'<>\\);|&,=:\\[\\]{}`]+)"
         guard let re = try? NSRegularExpression(pattern: pattern) else { return (command, "") }
