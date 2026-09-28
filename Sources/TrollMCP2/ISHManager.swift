@@ -15,6 +15,16 @@ enum ISHEngine {
     private static let lock = NSLock()
     private static var state: BootState = .idle
 
+    /// v4.0.0 修复：bind mount 会污染 iSH 内核 → Alpine spawn rc=-13（v3.7.1 已踩坑、注释铁证）。
+    /// 默认关闭自动 bind，命令引用 iOS 路径时回退到可靠的 autoBridge（字节拷贝，v3.7.1 验证可用）。
+    /// 仅当用户/高级流程显式打开时才启用 bind（bindMount/bindUnmount 仍可手动按需调用）。
+    static var autoBindEnabled = false
+
+    /// v4.0.0 内核自愈：连续 spawn 失败（rc=-13）达阈值时，自动重置 state→.idle 并下次重新 boot，
+    /// 清除 bind mount 污染造成的损坏内核态。计数器在 boot 成功后清零。
+    private static var spawnFailCount = 0
+    private static let spawnFailThreshold = 3
+
     /// iSH 会话 cwd（guest 路径，与旧 ios_system 的 iOS 沙箱路径隔离）
     private static var guestCwd = "/root"
 
@@ -197,6 +207,7 @@ enum ISHEngine {
         // 记录导致 Alpine spawn rc=-13）。需要时用 bindMount/bindUnmount 显式按需挂载。
         ShellDiag.log("ISH boot ok data=\(dataPath) (bind-mount disabled by default; use bindMount on demand)")
 
+        spawnFailCount = 0  // v4.0.0: boot 成功即清零 spawn 失败计数
         state = .booted
 
         // v3.7.5: 启动自愈 DNS——iSH fakefs 不持久化 /etc/resolv.conf（guest 内无 DNS，
@@ -224,7 +235,9 @@ enum ISHEngine {
         // v3.7.7: 自动 bind——命令引用 iOS 主流目录(/var/mobile、/var/containers、/System)时
         // 自动挂载顶层并改写路径(/var/mobile/X → /ios_mobile/X)，Alpine 直接读写 iOS 文件。
         // 优先于 autoBridge(字节拷贝)兜底。bind 后 autoBridge 只处理未 bind 的 iOS 路径。
-        let bound = autoBind(command)
+        // v4.0.0: 默认关闭(autoBindEnabled=false)——bind mount 污染 iSH 内核致 Alpine spawn rc=-13，
+        // 恢复 v3.7.1 安全态；iOS 路径一律走可靠的 autoBridge(字节拷贝)。
+        let bound = autoBindEnabled ? autoBind(command) : command
 
         // autoBridge（字节拷贝兜底）：处理 autoBind 未覆盖的 iOS 路径（非 /var/mobile、/var/containers、
         // /System 顶层）。读 iOS 文件→stdin 管道喂字节→Alpine 写 /tmp/_bridge_N_name→替换路径。
@@ -236,7 +249,8 @@ enum ISHEngine {
         // /var/mobile/X），但 Alpine guest 里该路径经 bind 只存在于 /ios_mobile/X——直接用它做
         // `cd '...'` 前缀会在 Alpine 里失败(2>/dev/null 静默) 而掉回 /root，造成"文件夹乱跳/环境偏移"。
         // 修复：构造前缀前也对 cwd 做 autoBind 改写，把 iOS 路径同步改写为 Alpine 可见挂载点。
-        let cwd = autoBind(cwdRaw)
+        // v4.0.0: 仅 autoBindEnabled 时改写；默认关闭时保留原样(autoBridge 会处理 iOS 文件路径)。
+        let cwd = autoBindEnabled ? autoBind(cwdRaw) : cwdRaw
         let tStart = Date()
         ShellDiag.log("ISH exec start cmd=\(command.prefix(80)) timeout=\(timeout) cwdRaw=\(cwdRaw) cwd=\(cwd)")
 
@@ -286,6 +300,17 @@ enum ISHEngine {
             close(outFds[0]); close(errFds[0]); close(notifyFds[0])
             if stdinFds[0] >= 0 { close(stdinFds[0]); close(stdinFds[1]) }
             ShellDiag.log("ISH exec spawn fail pid=\(pid)")
+
+            // v4.0.0 内核自愈：连续 spawn 失败(rc=-13，bind mount 污染/内核态损坏)达阈值，
+            // 重置 state→.idle 使下一次 exec 的 ensureBooted 重新 cish_boot，清除损坏内核态。
+            // 锁已持有(exec 顶部 lock.lock)，此处直接改 state 安全。boot 成功后 spawnFailCount 清零。
+            spawnFailCount += 1
+            if spawnFailCount >= spawnFailThreshold {
+                ShellDiag.log("ISH kernel degraded: \(spawnFailCount) consecutive spawn failures, scheduling re-boot (state→idle)")
+                state = .idle
+                spawnFailCount = 0
+                // guestCwd 保留 /root 默认值即可，reboot 后 /root 仍存在
+            }
             return ("[ish] process creation failed rc=\(pid)", -1, false)
         }
         ShellDiag.log("ISH spawned pid=\(pid)")
