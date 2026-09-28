@@ -85,69 +85,6 @@ final class ArtifactListTool: MCPTool {
 /// 递归扫描工作区，按文件名/扩展名查找文件 (如 .dylib / .deb），
 /// 帮 AI 快速定位 GitHub 下载产物中的注入源 dylib (Theos 打包的裸 dylib 在
 /// downloads/run_*/private/.theos/obj/debug/ 下，.deb 是归档包不是目录）。
-final class ArtifactFindTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "artifact.find",
-        summary: "Find files in workspace by name or extension. Use for: locate a specific file (e.g. find all .ipa files). Don't use for: list directory (use artifact.list), search file contents (use fs.grep). Example: user says 'where are the IPA files in workspace' → find by extension.",
-    verified: true, category: "filesystem")
-
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let ext = (params["ext"] as? String ?? "").lowercased()
-        let nameFrag = (params["name"] as? String ?? "").lowercased()
-        let maxDepth = (params["max_depth"] as? NSNumber)?.intValue ?? 8
-        let limit = (params["limit"] as? NSNumber)?.intValue ?? 20
-        var results: [[String: Any]] = []
-        var skipped: [String] = []
-
-        let root = Workspace.root.path
-        func walk(_ dir: String, _ depth: Int) {
-            guard depth <= maxDepth, results.count < limit else { return }
-            guard let items = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return }
-            for item in items {
-                let p = (dir as NSString).appendingPathComponent(item)
-                var isD: ObjCBool = false
-                guard FileManager.default.fileExists(atPath: p, isDirectory: &isD) else { continue }
-                if isD.boolValue {
-                    // 跳过无意义目录
-                    if item == ".git" || item == "node_modules" { continue }
-                    walk(p, depth + 1)
-                } else {
-                    let lower = item.lowercased()
-                    var hit = true
-                    if !ext.isEmpty, !lower.hasSuffix("." + ext) { hit = false }
-                    if hit, !nameFrag.isEmpty, !lower.contains(nameFrag) { hit = false }
-                    if hit {
-                        let attrs = try? FileManager.default.attributesOfItem(atPath: p)
-                        let size = (attrs?[.size] as? NSNumber)?.int64Value ?? 0
-                        results.append(["name": item, "path": p, "size": size])
-                        if results.count >= limit { return }
-                    }
-                }
-            }
-        }
-        walk(root, 0)
-        skipped = results.count >= limit ? ["hit limit=\(limit), narrow with a more precise ext/name"] : []
-        return [
-            "query": ["ext": ext, "name": nameFrag],
-            "total": results.count,
-            "matches": results,
-            "hint": "Theos builds usually produce both a raw dylib (.../.theos/obj/debug/xxx.dylib) and a .deb archive; pass the raw dylib path to injection.enable's dylib_path.",
-            "note": skipped
-        ]
-    }
-}
-
-// MARK: - 基础工具
-
-final class PingTool: MCPTool {
-    let definition = ToolDefinition(name: "ping", summary: "Connectivity test. Use for: check if TrollAgent is responsive. Don't use for: check network connectivity (use shell.exec ping), check device info (use device.info). Example: user says 'are you still there' → ping test.",
-        parameters: [:])
-
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        ["pong": true, "ts": Int(Date().timeIntervalSince1970)]
-    }
-}
-
 final class DeviceInfoTool: MCPTool {
     let definition = ToolDefinition(name: "device.info", summary: "Get device info: iOS version, iPhone model, memory/storage, battery, TrollAgent version, workspace path. Use for: check what iOS version, know device specs, find workspace path. Don't use for: spoof/change device info (use device.fake), wipe keychain (use device.keychain_wipe). Example: user says 'what model is my phone' → get device info.", verified: true, category: "device")
 

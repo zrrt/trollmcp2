@@ -531,9 +531,10 @@ final class ShellExecTool: MCPTool {
     }
 
     /// v3.6.19l: Alpine 执行前保护护栏。
-    /// 若命令将被路由到 Alpine，则检查其中引用的每个 iOS 绝对路径是否能被自动桥接。
-    /// 桥接不了的(>2MB 超限 / 文件不存在) → Alpine 必然读不到，返回拦截提示；否则返回 nil 放行。
-    /// 复用 ISHManager.autoBridge 的同一套 iOS 路径识别正则，保证护栏与桥接判定一致。
+    /// v3.7.7: 命令会先经 autoBind（自动 bind 主流 iOS 目录并改写为 /ios_*）——改写后 iOS 路径消失，
+    /// guard 扫描不到即放行；仅当 autoBind 未覆盖的 iOS 路径（非 /var/mobile、/var/containers、/System 顶层）
+    /// 或 bind 失败时，guard 才检查其能否被 autoBridge 桥接(>2MB/不存在)并拦截。
+    /// 复用与 autoBridge 同一套 iOS 路径识别正则，保证护栏与桥接兜底判定一致。
     static func alpineIOSPathGuard(_ command: String) -> String? {
         let fm = FileManager.default
         let prefixes = ["/var/mobile/", "/private/var/mobile/", "/System/", "/var/containers/"]
