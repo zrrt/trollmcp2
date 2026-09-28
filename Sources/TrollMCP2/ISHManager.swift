@@ -108,6 +108,10 @@ enum ISHEngine {
                 return (false, nil, nil, nil, "backup failed before writable bind — abort to protect \(bundleId)")
             }
         }
+        // v4.3.1.1: 挂载前确保 iSH 内核已 boot(否则 bindMount 返回 -1000 = isBooted false)
+        if let bootErr = ensureBooted() {
+            return (false, nil, nil, nil, bootErr)
+        }
         if !mountedBindPoints.contains(mount) {
             let rc = bindMount(mount, host, readOnly: readOnly)
             if rc != 0 { return (false, nil, nil, nil, "bind failed rc=\(rc)") }
