@@ -2698,54 +2698,6 @@ final class ShellExecTool: MCPTool {
         return ["command": command, "exit_code": 1, "ios_native": true,
                 "stdout": "native unzip 不支持真实解压（已弃用假列表实现）。unzip/zip 会自动路由到 Alpine 真工具链——直接写 `unzip <iOS路径>/x.zip -d <iOS路径>/out` 即可，系统会 autoBind 并真解压。"]
     }
-        
-        var zipPath = ""
-        var outputDir = ""
-        
-        for i in 1..<parts.count {
-            if parts[i] == "-d", i + 1 < parts.count {
-                outputDir = parts[i+1]
-            } else if !parts[i].hasPrefix("-") {
-                zipPath = parts[i]
-            }
-        }
-        
-        let path = ShellExecTool.normalizePath((zipPath as NSString).expandingTildeInPath)
-        if outputDir.isEmpty {
-            outputDir = (path as NSString).deletingLastPathComponent
-        }
-        let outDir = ShellExecTool.normalizePath((outputDir as NSString).expandingTildeInPath)
-        guard fm.fileExists(atPath: path) else {
-            return ["command": command, "exit_code": 1, "stdout": "unzip: \(path): No such file", "ios_native": true]
-        }
-        
-        // 用 NSFileCoordinator 解压 (iOS 原生支持）
-        // 实际上 iOS 没有原生 unzip API，这里用快捷预览的方式
-        // 先列出 zip 内容
-        do {
-            let data = try Data(contentsOf: URL(fileURLWithPath: path))
-            // 简单读取 zip 中央目录 (简化版）
-            var output: [String] = ["Archive: \(path)"]
-            output.append("  Length      Date    Time    Name")
-            output.append("---------  ---------- -----   ----")
-            
-            // 简化：只显示文件大小
-            let fileSize = data.count
-            output.append(String(format: "%9d  2026-09-23 12:00   %@", fileSize, (path as NSString).lastPathComponent))
-            output.append("---------                     -------")
-            output.append(String(format: "%9d                     1 file", fileSize))
-            
-            return [
-                "command": command,
-                "exit_code": 0,
-                "stdout": output.joined(separator: "\n"),
-                "ios_native": true,
-                "hint": "hint: use fs.zip for full extraction, this only lists contents"
-            ]
-        } catch {
-            return ["command": command, "exit_code": 1, "stdout": "unzip failed: \(error.localizedDescription)", "ios_native": true]
-        }
-    }
     
     /// v3.1.33: iOS 原生 df 命令——磁盘空间
     private static func runIOSDf(_ command: String) -> [String: Any] {
