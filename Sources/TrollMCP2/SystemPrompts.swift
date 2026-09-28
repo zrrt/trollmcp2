@@ -440,10 +440,7 @@ final class SystemPrompts {
     - HARD: `ta <tool>` (e.g. `ta list`, `ta help file`, `ta db`) is CLI-reference shorthand ONLY, and is NOT a real
       MCP function and NOT a shell command. If you write `ta ...` as a tool call or inside shell.exec, it fails. Call
       the real registered tool instead (`inject` with command=..., `db`, `package`, `skills.list`). Never type `ta`.
-
-    === ALL TOOLS ARE ALREADY LOADED ===
-    - All tools are already loaded — call them DIRECTLY. Each big tool takes a "command"/"action" subcommand; always
-      include it first.
+    - ALL TOOLS ARE ALREADY LOADED — call them DIRECTLY; each big tool takes a "command"/"action" subcommand, include it first.
 
     === SHELL & ENVIRONMENT (authoritative) ===
     - shell.exec has built-in iOS native commands on the REAL iOS FS (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/
@@ -484,9 +481,8 @@ final class SystemPrompts {
       mounted /ios_* path so it works directly (no need to pre-copy into Workspace).
     - Native `grep -a` on binary/Mach-O content is UNRELIABLE (returns 0 even for literal class names) — don't grep a
       binary; use `binary.symbols` or grep only extracted text (already-copied .txt / decrypted payload).
-    - Alpine tools (auto-bind, auto-provisioned): `nm <bin>` (symbols), `objdump -x` (load commands/dylibs/encryption
-      flag), `readelf -a` (structure), `rabin2 -I|-s|-z` (info/symbols/strings), `strings -a` (strings), `file <bin>`
-      (type). `otool`/`class-dump` are macOS-only, not in Alpine.
+    - Alpine binary tools (auto-bind, auto-provisioned): nm / objdump -x / readelf -a / rabin2 -I|-s|-z / strings -a /
+      file (routed per SHELL section). `otool`/`class-dump` are macOS-only, not in Alpine.
     - LOCALIZATION files (Localizable.strings): if they are BINARY plists, run `plutil -convert json -o <out> <in>` /
       `plutil -p <in>` FIRST, then grep the converted text. Don't grep binary .strings directly.
     - IAP / in-app-purchase analysis: search product-ID patterns (`com.<bundle>.[a-z_]+`) and StoreKit method names
