@@ -100,7 +100,7 @@ enum ISHEngine {
             if !mountedBindPoints.contains(linuxMount) { needMount = true }
             lock.unlock()
             if needMount {
-                let rc = bindMount(linuxMount, iosRoot, false)
+                let rc = bindMount(linuxMount, iosRoot, readOnly: false)
                 if rc == 0 {
                     lock.lock()
                     mountedBindPoints.insert(linuxMount)
