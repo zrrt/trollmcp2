@@ -74,6 +74,44 @@ enum ISHEngine {
         }
     }
 
+    // MARK: - v4.1.0 按需选择性绑定 App 数据容器（替代整棵 /var/mobile 绑定）
+    /// 把指定 App 的数据容器（LSApplicationWorkspace 私有 API 解析 dataContainerURL）
+    /// 绑进 Alpine → /ios_data_<app>，让 Alpine 的 python3/sqlite3/strings 直接读该 App 的
+    /// Documents / Library（内购票据、购买状态等）。
+    /// 铁律：绝【不】绑自身容器（其 Documents/alpine-rootfs 是 rootfs → 自引用→内核污染崩溃），
+    /// 也绝【不】绑整棵 /var/mobile。只绑目标 App 的容器路径，无自引用 → 无污染 → 不崩。
+    /// 幂等：已绑过则直接返回 mount。返回 (ok, mountPath, hostPath, error)。
+    static func bindAppContainer(bundleId: String) -> (ok: Bool, mountPath: String?, hostPath: String?, error: String?) {
+        guard autoBindEnabled else { return (false, nil, nil, "autoBind disabled") }
+        let ownHome = (NSHomeDirectory() as NSString).standardizingPath
+        guard let app = AppCatalog.list().first(where: { $0.bundleId == bundleId }),
+              let cp = app.containerPath, !cp.isEmpty else {
+            return (false, nil, nil, "app or data container not found: \(bundleId)")
+        }
+        let normCp = (cp as NSString).standardizingPath
+        // 拒绝绑自身容器：其 Documents/alpine-rootfs 暴露即自引用
+        if normCp == ownHome || normCp.hasPrefix(ownHome + "/") {
+            return (false, nil, nil, "refusing to bind own container (would expose own rootfs): \(cp)")
+        }
+        let host = cp
+        let mount = "/ios_data_" + bindAppSanitize(bundleId)
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: host) else { return (false, nil, nil, "container path missing: \(host)") }
+        if !mountedBindPoints.contains(mount) {
+            let rc = bindMount(mount, host, readOnly: false)
+            if rc != 0 { return (false, nil, nil, "bind failed rc=\(rc)") }
+            mountedBindPoints.insert(mount)
+            ShellDiag.log("bindAppContainer: \(bundleId) \(host) → \(mount) rc=0 (按需容器绑定)")
+        }
+        return (true, mount, host, nil)
+    }
+
+    /// 容器挂点名安全化：非字母数字 → '_'，小写。com.appstudio.Jinx → com_appstudio_jinx
+    private static func bindAppSanitize(_ s: String) -> String {
+        let alnum = CharacterSet.alphanumerics
+        return String(s.unicodeScalars.map { alnum.contains($0) ? Character($0) : "_" }).lowercased()
+    }
+
     // MARK: - v3.7.7 自动 bind：Alpine 命令引用 iOS 路径时自动挂载并改写
     /// 在 Alpine 命令执行前调用：识别命令中的 iOS 顶层目录（/var/mobile、/var/containers、
     /// /System、/private/var/mobile），对存在且未挂载的顶层 bind 进 Alpine（/ios_xxx），
