@@ -85,19 +85,20 @@ enum ISHEngine {
     static func bindAppContainer(bundleId: String, readOnly: Bool = true)
         -> (ok: Bool, mountPath: String?, hostPath: String?, backupPath: String?, error: String?) {
         guard autoBindEnabled else { return (false, nil, nil, nil, "autoBind disabled") }
-        let ownHome = (NSHomeDirectory() as NSString).standardizingPath
         guard let app = AppCatalog.list().first(where: { $0.bundleId == bundleId }),
               let cp = app.containerPath, !cp.isEmpty else {
             return (false, nil, nil, nil, "app or data container not found: \(bundleId)")
         }
-        let normCp = (cp as NSString).standardizingPath
-        // 拒绝绑自身容器：其 Documents/alpine-rootfs 暴露即自引用
-        if normCp == ownHome || normCp.hasPrefix(ownHome + "/") {
-            return (false, nil, nil, nil, "refusing to bind own container (would expose own rootfs): \(cp)")
+        // 真正的自引用源：目标容器里含本 App 的 rootfs (Documents/alpine-rootfs) 才拒绝。
+        // 不再用 NSHomeDirectory() 前缀判"自己容器"——它在 TrollStore/iSH 环境下返回异常，
+        // 会把所有 app 容器都误判为自身(实测微信/抖音/小红书全被拒, bind_app 完全不可用)。
+        // jinx 等普通 App 容器不含 alpine-rootfs → 允许绑定。
+        let fm = FileManager.default
+        if fm.fileExists(atPath: cp + "/Documents/alpine-rootfs") {
+            return (false, nil, nil, nil, "refusing to bind own rootfs host (contains Documents/alpine-rootfs): \(cp)")
         }
         let host = cp
         let mount = "/ios_data_" + bindAppSanitize(bundleId)
-        let fm = FileManager.default
         guard fm.fileExists(atPath: host) else { return (false, nil, nil, nil, "container path missing: \(host)") }
         // 可写绑定：必须先备份（就地修改可还原）
         var backupPath: String? = nil
