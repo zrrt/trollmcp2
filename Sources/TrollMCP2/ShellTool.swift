@@ -136,6 +136,21 @@ final class ShellExecTool: MCPTool {
             if trimmed == "ta" || trimmed.hasPrefix("ta ") {
                 return OffloadRouter.run(trimmed)
             }
+            // v3.7.3: 按需 bind mount——Alpine 命令引用 iOS 路径时，自动把顶层根挂载进 Alpine，
+            // 并改写命令为 Alpine 内路径。成功后 Alpine 直读 iOS 文件（目录/大文件均无 2MB 限制）。
+            let (bindCmd, bindDiag) = ISHEngine.bindMountForCommand(trimmed)
+            if bindCmd != trimmed {
+                ShellDiag.log("ISH bind-mount rewrite: \(bindDiag)")
+                let (bout, bexit, btimed) = ISHEngine.exec(bindCmd, timeout: timeout)
+                var br: [String: Any] = [
+                    "command": bindCmd, "exit_code": bexit, "stdout": ShellExecTool.filterNoise(bout),
+                    "cwd": ISHEngine.cwd, "ios_native": false,
+                    "hint": "Alpine + bind-mount(直读 iOS): \(bindDiag)"
+                ]
+                if btimed { br["timed_out"] = true }
+                AuditLog.shared.log("shell.exec (alpine bind)", detail: String(bindCmd.prefix(100)))
+                return br
+            }
             // v3.6.19l: Alpine 执行前保护护栏——凡命令要进 Alpine 却引用了"桥接不了"的 iOS 文件
             // (>2MB 超限 / 不存在)，Alpine 必然读不到 → 执行前直接拦截并给出明确下一步，
             // 而不是放进去跑出空结果让 AI 反复瞎试（根治 jinx 会话 40 次工具调用绕圈的根因）。

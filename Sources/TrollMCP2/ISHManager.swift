@@ -60,6 +60,79 @@ enum ISHEngine {
         }
     }
 
+    // MARK: - v3.7.3 按需 bind mount：让 Alpine 直读 iOS 文件（消灭环境漂移）
+
+    /// 顶层挂载根 → Alpine 挂载点（固定，幂等）。重复 bind 同名挂载点是安全覆盖。
+    /// 只挂稳定顶层目录（Documents/containers 等），不逐文件挂，避免 meta.db 膨胀。
+    private static let bindRoots: [(iosPrefix: String, linuxMount: String)] = [
+        ("/var/mobile/Documents/Workspace", "/ios_workspace"),
+        ("/var/mobile/Documents", "/ios_documents"),
+        ("/var/containers", "/ios_containers"),
+        ("/var/mobile", "/ios_mobile"),
+    ]
+
+    /// 已挂载的 Alpine 挂载点集合（避免重复挂载写 meta.db）
+    private static var mountedBindPoints = Set<String>()
+
+    /// 识别命令中的 iOS 绝对路径，bind mount 其顶层根进 Alpine，并把命令路径改写为 Alpine 内路径。
+    /// 返回 (改写后的命令, 诊断串)。失败时命令原样返回（走原 autoBridge/拦截逻辑兜底）。
+    static func bindMountForCommand(_ command: String) -> (cmd: String, diag: String) {
+        let prefixes = ["/var/mobile/", "/private/var/mobile/", "/var/containers/"]
+        let alt = prefixes.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "|")
+        let pattern = "(^|[\\s\"'=>(])((?:" + alt + ")[^\\s\"'<>\\);|&,=:\\[\\]{}`]+)"
+        guard let re = try? NSRegularExpression(pattern: pattern) else { return (command, "") }
+        let ns = command as NSString
+        var rewritten = command
+        var diags: [String] = []
+        var seen = Set<String>()
+        for m in re.matches(in: command, options: [], range: NSRange(location: 0, length: ns.length)) where m.numberOfRanges >= 3 {
+            let raw = ns.substring(with: m.range(at: 2))
+            if seen.contains(raw) { continue }
+            seen.insert(raw)
+            let norm = ShellExecTool.normalizePath(raw)
+            if norm.contains("/alpine-rootfs/") { continue }
+            guard let (iosRoot, linuxMount, remainder) = mapToBindRoot(norm) else {
+                diags.append("\(norm) 无匹配挂载根"); continue
+            }
+            // 确保挂载点已挂（幂等）
+            var needMount = false
+            lock.lock()
+            if !mountedBindPoints.contains(linuxMount) { needMount = true }
+            lock.unlock()
+            if needMount {
+                let rc = bindMount(linuxMount, iosRoot, false)
+                if rc == 0 {
+                    lock.lock()
+                    mountedBindPoints.insert(linuxMount)
+                    lock.unlock()
+                    diags.append("bind:\(iosRoot)→\(linuxMount) rc=0")
+                } else {
+                    diags.append("bind:\(iosRoot)→\(linuxMount) rc=\(rc) (跳过)")
+                    continue
+                }
+            }
+            // 改写路径：/var/mobile/Documents/Workspace/foo → /ios_workspace/foo
+            let alpinePath = linuxMount + remainder
+            rewritten = rewritten.replacingOccurrences(of: raw, with: alpinePath)
+            diags.append("\(raw)→\(alpinePath)")
+        }
+        return (rewritten, diags.isEmpty ? "" : diags.joined(separator: "; "))
+    }
+
+    /// 把一个 iOS 路径映射到最匹配的挂载根，返回 (iosRoot, linuxMount, 剩余子路径)
+    private static func mapToBindRoot(_ path: String) -> (String, String, String)? {
+        for (iosPrefix, linuxMount) in bindRoots {
+            if path == iosPrefix {
+                return (iosPrefix, linuxMount, "")
+            }
+            if path.hasPrefix(iosPrefix + "/") {
+                let remainder = String(path.dropFirst(iosPrefix.count))
+                return (iosPrefix, linuxMount, remainder)
+            }
+        }
+        return nil
+    }
+
     /// 确保内核已 boot（首次解压 rootfs + 挂载）。线程安全，重复调用幂等。
     static func ensureBooted() -> String? {
         lock.lock()
