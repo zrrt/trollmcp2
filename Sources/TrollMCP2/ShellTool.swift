@@ -36,7 +36,7 @@ enum ShellDiag {
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "Run a shell command (terminal/command line). FIRST: for app-analysis use `app ai_analyze` (one-step analyze), for binary analysis use `inject binary_symbols`, for SQLite use `db` — prefer these over manually chaining shell commands. Use this only for file ops / system info / raw commands. 环境：系统按命令类型自动路由——装包/解包/完整工具链/复杂脚本(python、git、apk、tar、sh -c、heredoc等开头)自动走 Alpine Linux；文件操作/系统信息/网络默认 iOS 原生。v3.7.7: Alpine 已自动 bind iOS 主流目录(/var/mobile、/var/containers、/System)——Alpine 命令引用 iOS 路径时会自动挂载并改写路径(如 /var/mobile/X → /ios_mobile/X)，可直接读写 iOS 文件(无 2MB 限制)；DNS 自动配置；缺工具自动 apk add(python3/git/任何包直接可用，无需先装)。iOS 原生模式：36 个原生命令直通真实 iOS 系统——文件操作(ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/base64/curl/plutil/sqlite3/unzip/strings/nm) + 系统信息(df/free/uname/uptime/hostname/ps/top/kill) + 网络(ifconfig/netstat/nslookup)。支持管道/分号/重定向/&&/||，支持 VAR=value 赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat/base64。iOS 原生不支持 for/while/case/heredoc/多行脚本。二进制分析用原生 strings/nm（直读大文件无 2MB 上限）。SQLite .db 在原生里用内置 sqlite3：`sqlite3 <db> \".tables\"` / `sqlite3 <db> \"SELECT ...\"`。注意：不要输入 `ta <tool>` 或 `ta list`/`ta help`——`ta` 是 CLI/脚本用的原生 offload 命令名，不是给 AI 的 MCP 工具；要调用能力直接调用对应 MCP 工具(inject/db/package/app/device...)。Use for: file operations, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*).",
+        summary: "Run a shell command (terminal/command line). FIRST: for app-analysis use `app ai_analyze` (one-step analyze), for binary analysis use `inject binary_symbols`, for SQLite use `db`, for unpacking deb/ipa use `package` — prefer these dedicated tools over manually chaining shell commands. Use shell.exec only for file ops / system info / raw commands. 环境：系统按命令类型自动路由——装包/解包/完整工具链/复杂脚本(python、git、apk、tar、unzip、zip、file、sh -c、heredoc等开头)自动走 Alpine Linux(真工具链)；纯文件操作/系统信息/网络默认 iOS 原生。v3.7.7: Alpine 已自动 bind iOS 主流目录(/var/mobile、/var/containers、/System)——Alpine 命令引用 iOS 路径时自动挂载并改写(如 /var/mobile/X → /ios_mobile/X)，直接读写 iOS 文件(无 2MB 限制)；DNS 自动配置；缺工具自动 apk add。iOS 原生模式：36 个原生命令直通真实 iOS——ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/base64/curl/plutil/sqlite3/strings/nm + df/free/uname/uptime/hostname/ps/top/kill + ifconfig/netstat/nslookup。支持管道/分号/重定向/&&/||，支持 VAR=赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat/base64。iOS 原生不支持 for/while/case/heredoc/多行脚本。二进制分析用原生 strings/nm(直读大文件无上限)。SQLite 用内置 sqlite3：`sqlite3 <db> \".tables\"`。注意：不要输入 `ta <tool>`/`ta list`/`ta help`——`ta` 是 CLI/脚本用的原生 offload 命令名，不是给 AI 的 MCP 工具；要调用能力直接调用对应 MCP 工具(inject/db/package/app/device...)。Use for: file ops, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*).",
         parameters: [
             "command": "Shell command to execute (required)",
             "timeout": "Timeout seconds (default 30, max 120)",
@@ -507,13 +507,14 @@ final class ShellExecTool: MCPTool {
         // 明确的 Alpine 需求标记：装包/解包/完整工具链/复杂脚本结构
         let alpineMarkers: [String] = [
             #"^\s*apk\s+"#,           // apk add / apk update
-            #"^\s*(tar|dpkg|dpkg-deb|rpm)\s+"#,  // 解包/装包 (原生缺失→Alpine)。注意 strings/nm/hexdump 原生已有且能直读大文件, 不在此路由
-            #"\|\s*(tar|dpkg|dpkg-deb)\s+"#,  // 管道中间的解包命令 (curl x | tar -x)
+            #"^\s*(tar|dpkg|dpkg-deb|rpm|unzip|zip)\s+"#,  // 解包/装包 (原生缺失或假实现→Alpine 真工具链)。strings/nm/hexdump 原生已有且能直读大文件, 不在此路由
+            #"\|\s*(tar|dpkg|dpkg-deb|unzip)\s+"#,  // 管道中间的解包命令 (curl x | tar -x)
             #"^\s*python3?\s+"#,      // python / python3
             #"^\s*(pip3?)\s+"#,        // pip / pip3
             #"^\s*(git|wget|make|cmake|gcc|clang)\s+"#,  // 工具链
             #"^\s*sh\s+"#,             // 任意 sh 脚本(含无 flag) → Alpine 全功能 shell
             #"^\s*bash\s+"#,
+            #"^\s*file\s+"#,           // native 无 file 命令 → Alpine 的 file(真实现, autoBind 后能读 iOS 文件)
             #"<<\s*[A-Za-z_][A-Za-z0-9_]*"#,  // heredoc
         ]
         for m in alpineMarkers {
@@ -1978,17 +1979,26 @@ final class ShellExecTool: MCPTool {
         let fm = FileManager.default
         let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
         
-        guard parts.count >= 2 else {
-            return ["command": command, "exit_code": 1, "stdout": "Usage: rm <path>", "ios_native": true]
+        // v4.0.0: 支持 -r/-f/-rf 等选项，跳过选项取真正的路径参数（修复 `rm -rf <dir>` 把 -rf 当文件名）
+        let paths = parts.dropFirst().filter { !$0.hasPrefix("-") }
+        guard !paths.isEmpty else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: rm [-rf] <path>", "ios_native": true]
         }
-        
-        let path = ShellExecTool.normalizePath((parts[1] as NSString).expandingTildeInPath)
-        do {
-            try fm.removeItem(atPath: path)
-            return ["command": command, "exit_code": 0, "stdout": "Removed: \(path)", "ios_native": true]
-        } catch {
-            return ["command": command, "exit_code": 1, "stdout": "rm failed: \(error.localizedDescription)", "ios_native": true]
+        var removed: [String] = []
+        var firstErr: String? = nil
+        for p in paths {
+            let path = ShellExecTool.normalizePath((p as NSString).expandingTildeInPath)
+            do {
+                try fm.removeItem(atPath: path)
+                removed.append(path)
+            } catch {
+                if firstErr == nil { firstErr = error.localizedDescription }
+            }
         }
+        if removed.isEmpty {
+            return ["command": command, "exit_code": 1, "stdout": "rm failed: \(firstErr ?? "no path removed")", "ios_native": true]
+        }
+        return ["command": command, "exit_code": 0, "stdout": "Removed: \(removed.joined(separator: ", "))", "ios_native": true]
     }
     
     /// v3.1.32: iOS 原生 mv 命令——移动/重命名
@@ -1996,12 +2006,14 @@ final class ShellExecTool: MCPTool {
         let fm = FileManager.default
         let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
         
-        guard parts.count >= 3 else {
-            return ["command": command, "exit_code": 1, "stdout": "Usage: mv <source> <destination>", "ios_native": true]
+        // v4.0.0: 支持选项(如 -n/-f)，跳过选项取源/目标路径（修复 mv -f src dst 参数错位）
+        let args = parts.dropFirst().filter { !$0.hasPrefix("-") }
+        guard args.count >= 2 else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: mv [-f] <source> <destination>", "ios_native": true]
         }
         
-        let src = ShellExecTool.normalizePath((parts[1] as NSString).expandingTildeInPath)
-        let dst = ShellExecTool.normalizePath((parts[2] as NSString).expandingTildeInPath)
+        let src = ShellExecTool.normalizePath((args[0] as NSString).expandingTildeInPath)
+        let dst = ShellExecTool.normalizePath((args[1] as NSString).expandingTildeInPath)
         do {
             try fm.moveItem(atPath: src, toPath: dst)
             return ["command": command, "exit_code": 0, "stdout": "Moved: \(src) -> \(dst)", "ios_native": true]
@@ -2015,12 +2027,14 @@ final class ShellExecTool: MCPTool {
         let fm = FileManager.default
         let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
         
-        guard parts.count >= 3 else {
-            return ["command": command, "exit_code": 1, "stdout": "Usage: cp <source> <destination>", "ios_native": true]
+        // v4.0.0: 支持选项(如 -r)，跳过选项取源/目标路径（修复 cp -r src dst 参数错位）
+        let args = parts.dropFirst().filter { !$0.hasPrefix("-") }
+        guard args.count >= 2 else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: cp [-r] <source> <destination>", "ios_native": true]
         }
         
-        let src = ShellExecTool.normalizePath((parts[1] as NSString).expandingTildeInPath)
-        let dst = ShellExecTool.normalizePath((parts[2] as NSString).expandingTildeInPath)
+        let src = ShellExecTool.normalizePath((args[0] as NSString).expandingTildeInPath)
+        let dst = ShellExecTool.normalizePath((args[1] as NSString).expandingTildeInPath)
         do {
             try fm.copyItem(atPath: src, toPath: dst)
             return ["command": command, "exit_code": 0, "stdout": "Copied: \(src) -> \(dst)", "ios_native": true]
@@ -2678,12 +2692,12 @@ final class ShellExecTool: MCPTool {
     
     /// v3.1.32: iOS 原生 unzip 命令——解压 zip 文件
     private static func runIOSUnzip(_ command: String) -> [String: Any] {
-        let fm = FileManager.default
-        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-        
-        guard parts.count >= 2 else {
-            return ["command": command, "exit_code": 1, "stdout": "Usage: unzip <file.zip> -d <dir>", "ios_native": true]
-        }
+        // v4.0.0: native 无真解压实现（旧实现只列表内容、假装解压成功，误导 AI）。
+        // unzip/zip 命令已由 autoRouteNeedsAlpine 自动路由到 Alpine 真工具链（真解压，autoBind 后能读 iOS 文件）。
+        // 这里兜底：明确报错指向 Alpine，绝不再静默返回假列表。
+        return ["command": command, "exit_code": 1, "ios_native": true,
+                "stdout": "native unzip 不支持真实解压（已弃用假列表实现）。unzip/zip 会自动路由到 Alpine 真工具链——直接写 `unzip <iOS路径>/x.zip -d <iOS路径>/out` 即可，系统会 autoBind 并真解压。"]
+    }
         
         var zipPath = ""
         var outputDir = ""
