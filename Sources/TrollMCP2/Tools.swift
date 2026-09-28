@@ -1,90 +1,10 @@
 import Foundation
 import UIKit
 
-// MARK: - 文件桥 (对齐原版 artifact.* 工具）
+// MARK: - 已内联进大工具的历史独立工具（保留类供引用/兼容）：
+//   artifact.* → ArtifactExecTool（read/write/list 内联，见 v4.0.0）
+//   device.* → DeviceExecTool（委托调用 DeviceInfoTool/DeviceProbeTool 等）
 
-final class ArtifactReadTextTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "artifact.read_text",
-        summary: "Read a text file from the workspace. Use for: read files you created or downloaded. Don't use for: browse directory (use fs.tree), read app container files (use fs.read with bundle_id). Example: user says 'read that report' → read text file from workspace.",
-        parameters: ["path": "File path relative to workspace (e.g. reports/data.txt)"], verified: true, category: "filesystem")
-
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let path = params["path"] as? String else {
-            throw MCPError.invalidParams("path required")
-        }
-        let url = try Workspace.resolve(path)
-        let text = try String(contentsOf: url, encoding: .utf8)
-        return ["content": text]
-    }
-}
-
-final class ArtifactWriteTextTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "artifact.write_text",
-        summary: "Write a text file to the workspace. Use for: create new file, save text results. Don't use for: write to app container (use container.write_text), edit existing file (use fs.edit). Example: user says 'save this result to a file' → write to workspace.",
-        parameters: ["path": "File path", "content": "File content"]
-    )
-
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let path = params["path"] as? String,
-              let content = params["content"] as? String else {
-            throw MCPError.invalidParams("path and content required")
-        }
-        let url = try Workspace.resolve(path)
-        try FileManager.default.createDirectory(
-            at: url.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try content.write(to: url, atomically: true, encoding: .utf8)
-        return ["written": true, "bytes": content.utf8.count]
-    }
-}
-
-final class ArtifactListTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "artifact.list",
-        summary: "List files in the workspace directory. Use for: see what files are in workspace, browse downloaded files. Don't use for: browse app container files (use fs.tree), read file content (use fs.read). Example: user says 'what files are in workspace' → list artifacts.",
-    verified: true, category: "filesystem")
-
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let sub = params["subpath"] as? String ?? ""
-        let dir = try Workspace.resolve(sub)
-        var isDir: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: dir.path, isDirectory: &isDir) else {
-            return ["entries": [], "error": "path does not exist: \(sub)"]
-        }
-        // v2.9.33：subpath 是文件时返回该文件信息 (修复 AI 列 .deb 文件报 Not a directory）
-        if !isDir.boolValue {
-            let attrs = try? FileManager.default.attributesOfItem(atPath: dir.path)
-            let size = (attrs?[.size] as? NSNumber)?.int64Value ?? 0
-            return ["entries": [
-                ["name": dir.lastPathComponent,
-                 "path": dir.path,
-                 "isDirectory": false,
-                 "size": size,
-                 "hint": "this is a file not a directory; to read it use artifact.read_text (text) or check the same-named raw dylib in the download directory"]
-            ]]
-        }
-        let items = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
-        // v2.9.33：标注类型，AI 可区分文件/目录
-        let entries = items.map { name -> [String: Any] in
-            var isD: ObjCBool = false
-            let p = (dir.path as NSString).appendingPathComponent(name)
-            _ = FileManager.default.fileExists(atPath: p, isDirectory: &isD)
-            return ["name": name, "path": p, "isDirectory": isD.boolValue]
-        }
-        // v2.9.68：限制最多 50 条，避免目录文件多时上下文爆炸
-        let limited = Array(entries.prefix(50))
-        return ["entries": limited, "total": entries.count, "truncated": entries.count > 50, "hint": entries.count > 50 ? "directory has \(entries.count) items, only first 50 returned; use artifact.find by name/extension for precise search" : ""]
-    }
-}
-
-// MARK: - v2.9.33 递归查找工具
-
-/// 递归扫描工作区，按文件名/扩展名查找文件 (如 .dylib / .deb），
-/// 帮 AI 快速定位 GitHub 下载产物中的注入源 dylib (Theos 打包的裸 dylib 在
-/// downloads/run_*/private/.theos/obj/debug/ 下，.deb 是归档包不是目录）。
 final class DeviceInfoTool: MCPTool {
     let definition = ToolDefinition(name: "device.info", summary: "Get device info: iOS version, iPhone model, memory/storage, battery, TrollAgent version, workspace path. Use for: check what iOS version, know device specs, find workspace path. Don't use for: spoof/change device info (use device.fake), wipe keychain (use device.keychain_wipe). Example: user says 'what model is my phone' → get device info.", verified: true, category: "device")
 
@@ -302,7 +222,10 @@ final class ArtifactExecTool: MCPTool {
             guard let filename = params["filename"] as? String else {
                 throw MCPError.invalidParams("filename required. Usage: artifact read filename:report.txt")
             }
-            return try ArtifactReadTextTool().invoke(["filename": filename])
+            // v4.0.0: 内联自 ArtifactReadTextTool（修复原委托调用传参 key 不一致的隐藏 bug）
+            let url = try Workspace.resolve(filename)
+            let text = try String(contentsOf: url, encoding: .utf8)
+            return ["content": text]
             
         case "write":
             guard let filename = params["filename"] as? String else {
@@ -311,10 +234,43 @@ final class ArtifactExecTool: MCPTool {
             guard let text = params["text"] as? String else {
                 throw MCPError.invalidParams("text required. Usage: artifact write filename:notes.txt text:<content>")
             }
-            return try ArtifactWriteTextTool().invoke(["filename": filename, "text": text])
+            // v4.0.0: 内联自 ArtifactWriteTextTool（修复委托传参 key 不一致的隐藏 bug）
+            let url = try Workspace.resolve(filename)
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try text.write(to: url, atomically: true, encoding: .utf8)
+            return ["written": true, "bytes": text.utf8.count]
             
         case "list":
-            return try ArtifactListTool().invoke([:])
+            // v4.0.0: 内联自 ArtifactListTool（subpath 可选；文件返回单条，目录返回前 50 条）
+            let sub = params["subpath"] as? String ?? ""
+            let dir = try Workspace.resolve(sub)
+            var isDir: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: dir.path, isDirectory: &isDir) else {
+                return ["entries": [], "error": "path does not exist: \(sub)"]
+            }
+            if !isDir.boolValue {
+                let attrs = try? FileManager.default.attributesOfItem(atPath: dir.path)
+                let size = (attrs?[.size] as? NSNumber)?.int64Value ?? 0
+                return ["entries": [
+                    ["name": dir.lastPathComponent,
+                     "path": dir.path,
+                     "isDirectory": false,
+                     "size": size,
+                     "hint": "this is a file not a directory; to read it use artifact read (text) or shell.exec for the raw file"]
+                ]]
+            }
+            let items = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
+            let entries = items.map { name -> [String: Any] in
+                var isD: ObjCBool = false
+                let p = (dir.path as NSString).appendingPathComponent(name)
+                _ = FileManager.default.fileExists(atPath: p, isDirectory: &isD)
+                return ["name": name, "path": p, "isDirectory": isD.boolValue]
+            }
+            let limited = Array(entries.prefix(50))
+            return ["entries": limited, "total": entries.count, "truncated": entries.count > 50, "hint": entries.count > 50 ? "directory has \(entries.count) items, only first 50 returned; use shell.exec find for precise search" : ""]
 
         case "output_name_get":
             return try WorkspaceOutputNameTool().invoke([:])
