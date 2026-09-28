@@ -15,11 +15,10 @@ enum ISHEngine {
     private static let lock = NSLock()
     private static var state: BootState = .idle
 
-    /// v4.0.1 修正：bind mount 方案本身有效（v3.7.3 真机验证 21MB 直读通过）。
-    /// rc=-13 的真根因是 v3.7.7 autoBind 丢失了幂等保护（mountedBindPoints）→ 每次命令反复 bind 污染内核。
-    /// 正确修复：恢复 autoBindEnabled=true + 给 autoBind 加回 mountedBindPoints 幂等（已挂载跳过、只 bind 一次），
-    /// 保留 bind 的大文件直读能力，杜绝反复 bind 污染。
-    static var autoBindEnabled = true
+    /// v4.0.2: 实测确认 bind mount 在本设备 iSH 内核上会污染后续 spawn（rc=-13），幂等不能解决。
+    /// 先禁用自动 bind（autoBindEnabled=false），回退 autoBridge（字节拷贝，稳定）。
+    /// 待真机验证"bind 用完即卸"(bind→用→unmount) 是否可行后，再决定是否恢复自动 bind。
+    static var autoBindEnabled = false
 
     /// 已成功挂载的 bind 点集合（幂等保护）。bind 成功后才加入；autoBind 只对未挂载点 bind 一次，
     /// 避免每次命令反复 bind 同一 iOS 顶层目录而污染 iSH 内核（v3.7.3 bindMountForCommand 验证过的做法）。

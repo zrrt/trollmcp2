@@ -1414,7 +1414,7 @@ private func httpGet(port: Int, path: String, timeout: TimeInterval = 4) -> (Int
 final class AiAnalyzeTool: MCPTool {
     let definition = ToolDefinition(
         name: "ai.analyze_app",
-        summary: "AI-powered app analysis (reverse engineering). Use for: understand how an app works internally, find VIP check logic, find ad SDK classes. Don't use for: simple file reading (use fs.read), memory modification (use memory). Prerequisite: inject ProbeAgent first. Example: user says 'analyze how 小红书 checks VIP' → analyze app with vip direction.",
+        summary: "AI-powered app analysis (reverse engineering). Use for: understand how an app works internally, find VIP check logic, find ad SDK classes. Don't use for: simple file reading (use fs.read), memory modification (use memory). Prerequisite: inject ProbeAgent first. IMPORTANT: if this returns TARGET_INCOMPATIBLE / 'target App is encrypted (cryptid=1)', the App Store app is encrypted — do NOT retry; run `app decrypt` to砸壳 first, then retry. Example: user says 'analyze how 小红书 checks VIP' → analyze app with vip direction.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
             "direction": "What to analyze: vip / remove_ads / bypass_detection / full / custom",
