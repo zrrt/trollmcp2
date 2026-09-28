@@ -1,6 +1,5 @@
 import Foundation
 import ZIPFoundation
-import SQLite3
 import CISH
 
 /// iSH-ARM64 引擎（TrollAgent 版）
@@ -61,54 +60,6 @@ enum ISHEngine {
         }
     }
 
-    // MARK: - v3.7.4 启动自愈：清理残留 bind 挂载
-    /// 卸载可能残留的 bind 挂载点（旧版本自动 bind 留下的 /ios_* 挂载会污染 meta.db、
-    /// 导致新版本 Alpine 卡死）。boot 后调用，幂等，失败不致命。
-    static func cleanupStaleBinds() {
-        for mount in ["/ios_workspace", "/ios_documents", "/ios_containers", "/ios_mobile"] {
-            let rc = bindUnmount(mount)
-            if rc != 0 && rc != -1000 {
-                ShellDiag.log("cleanupStaleBinds: unmount \(mount) rc=\(rc)")
-            }
-        }
-    }
-
-    // MARK: - v3.7.4 启动自愈：meta.db 损坏自动重建
-    /// 检测 meta.db 是否损坏。损坏则删除三件套（meta.db/-wal/-shm），
-    /// 让内核 cish_boot 时用 CREATE+建 schema 重建。用户无需手动删文件。
-    /// 幂等、只删损坏库；删除失败不致命（后续 boot 会报错再兜底）。
-    static func healCorruptMetaDB() {
-        let fm = FileManager.default
-        let metaDB = rootfsDir + "/meta.db"
-        let wal = rootfsDir + "/meta.db-wal"
-        let shm = rootfsDir + "/meta.db-shm"
-        guard fm.fileExists(atPath: metaDB) else { return }  // 不存在无需处理（内核会建）
-        // 用 sqlite3 只读探测能否正常打开 + 是否有 paths 表
-        var corrupt = false
-        do {
-            var db: OpaquePointer?
-            if sqlite3_open_v2(metaDB, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK, let d = db {
-                defer { sqlite3_close(d) }
-                var stmt: OpaquePointer?
-                if sqlite3_prepare_v2(d, "SELECT count(*) FROM paths", -1, &stmt, nil) == SQLITE_OK {
-                    sqlite3_finalize(stmt)
-                } else {
-                    corrupt = true
-                }
-            } else {
-                corrupt = true
-            }
-        } catch {
-            corrupt = true
-        }
-        if corrupt {
-            ShellDiag.log("healCorruptMetaDB: meta.db 损坏 → 删除重建")
-            try? fm.removeItem(atPath: metaDB)
-            try? fm.removeItem(atPath: wal)
-            try? fm.removeItem(atPath: shm)
-        }
-    }
-
     /// 确保内核已 boot（首次解压 rootfs + 挂载）。线程安全，重复调用幂等。
     static func ensureBooted() -> String? {
         lock.lock()
@@ -124,10 +75,6 @@ enum ISHEngine {
             break
         }
         state = .booting
-
-        // v3.7.4: 启动自愈——meta.db 若损坏（打不开/结构异常），自动删除让内核重建，
-        // 用户无需手动删文件。只删损坏库，不删正常库。
-        healCorruptMetaDB()
 
         // 1. rootfs 解压（首次）
         let fm = FileManager.default
@@ -163,10 +110,6 @@ enum ISHEngine {
         ShellDiag.log("ISH boot ok data=\(dataPath) (bind-mount disabled by default; use bindMount on demand)")
 
         state = .booted
-
-        // v3.7.4: 启动自愈——清理旧版本残留的 bind 挂载点（/ios_* 挂载会污染 meta.db、
-        // 导致 Alpine 卡死）。boot 后调用，幂等，失败不致命。
-        cleanupStaleBinds()
 
         // 3. 默认 cwd 为真实存在的 /root（避免名义 /workspace 误导）
         guestCwd = "/root"
