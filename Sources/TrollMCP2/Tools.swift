@@ -273,16 +273,21 @@ final class ArtifactExecTool: MCPTool {
             return ["entries": limited, "total": entries.count, "truncated": entries.count > 50, "hint": entries.count > 50 ? "directory has \(entries.count) items, only first 50 returned; use shell.exec find for precise search" : ""]
 
         case "output_name_get":
-            return try WorkspaceOutputNameTool().invoke([:])
+            // v4.0.0: 内联自 WorkspaceOutputNameTool
+            return ["name": UserDefaults.standard.string(forKey: "trollmcp2.output_name") ?? "artifact"]
 
         case "output_name_set":
             guard let name = params["name"] as? String else {
                 throw MCPError.invalidParams("name required. Usage: artifact output_name_set name:<output name>")
             }
-            return try WorkspaceOutputNameTool().invoke(["name": name])
+            // v4.0.0: 内联自 WorkspaceOutputNameTool
+            UserDefaults.standard.set(name, forKey: "trollmcp2.output_name")
+            return ["set": name]
 
         case "output_bookmark":
-            return try WorkspaceOutputBookmarkTool().invoke([:])
+            // v4.0.0: 内联自 WorkspaceOutputBookmarkTool（返回当前输出书签路径）
+            let key = "trollmcp2.output_bookmark"
+            return ["bookmark": UserDefaults.standard.string(forKey: key) ?? Workspace.resolve("").path]
 
         default:
             throw MCPError.invalidParams("Unknown command: \(command). Available: read/write/list/output_name_get/output_name_set/output_bookmark")

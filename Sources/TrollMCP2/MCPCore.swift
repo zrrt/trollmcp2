@@ -1150,7 +1150,7 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.56: 删 BuildRunnerTokenTool (shell.exec curl 可以实现）
         // v3.1.62: 删 ProjectGenerateTweakTool (已合并到 ProjectTool：project generate_tweak）
         // v3.1.55: 删旧的 model 工具 (已合并到 ModelExecTool）
-        // v3.1.62: 删 WorkspaceOutputBookmarkTool / WorkspaceOutputNameTool (已合并到 ArtifactExecTool）
+        // v4.0.0: 删 WorkspaceOutputBookmarkTool / WorkspaceOutputNameTool（已内联进 ArtifactExecTool，消除"注释称删实未删"矛盾）
 
         // M8 本机编译/构建 (v2.9.3，设备端编译桥）
         // v3.1.46: 删 BuildEnvironmentTool (shell.exec 可以实现：shell.exec("which clang")）

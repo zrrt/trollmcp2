@@ -275,32 +275,3 @@ final class ModelSelectedProfileIDTool: MCPTool {
         return ["selected": current.name, "id": current.id.uuidString]
     }
 }
-
-// MARK: - 原版缺失工具：workspace.output*
-
-final class WorkspaceOutputBookmarkTool: MCPTool {
-    let definition = ToolDefinition(name: "workspace.outputBookmark", summary: "Get or set output directory bookmark. Use for: remember where you save output files. Don't use for: set output file name (use workspace.outputName), list files (use artifact.list). Example: user says 'set output directory bookmark to download' → set bookmark.",
-        parameters: ["bookmark": "Bookmark name to save (optional)"], verified: true)
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let key = "trollmcp2.output_bookmark"
-        if let bookmark = params["bookmark"] as? String {
-            UserDefaults.standard.set(bookmark, forKey: key)
-            AuditLog.shared.log("workspace.outputBookmark", detail: bookmark)
-            return ["set": bookmark]
-        }
-        return ["bookmark": UserDefaults.standard.string(forKey: key) ?? "Output"]
-    }
-}
-
-final class WorkspaceOutputNameTool: MCPTool {
-    let definition = ToolDefinition(name: "workspace.outputName", summary: "Get or set the default name for output files. Use for: set how saved files are named. Don't use for: save file (use artifact.write_text), list files (use artifact.list). Example: user says 'name saved files report from now on' → set output name.",
-        parameters: ["name": "New output file name (optional)"], verified: true, category: "system")
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let key = "trollmcp2.output_name"
-        if let name = params["name"] as? String {
-            UserDefaults.standard.set(name, forKey: key)
-            return ["set": name]
-        }
-        return ["name": UserDefaults.standard.string(forKey: key) ?? "artifact"]
-    }
-}
