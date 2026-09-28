@@ -1077,6 +1077,8 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.41: 删旧的 3 个 container.* 工具 (已合并到 container 大工具）
         // v4.1.0: 按需选择性绑定 App 数据容器（替代整棵 /var/mobile 绑定）
         register(BindAppTool())
+        // v4.2.0: 可写就地修改 App 数据容器（绑定前强制备份）
+        register(BindAppWriteTool())
         // v2.9.99：一键新机 (绿盾式组合）
         // v3.1.62: 删 NewDeviceTool (已合并到 DeviceExecTool：device new_device）
         // v2.9.100：AI 分析引擎

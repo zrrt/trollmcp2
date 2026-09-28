@@ -81,29 +81,58 @@ enum ISHEngine {
     /// 铁律：绝【不】绑自身容器（其 Documents/alpine-rootfs 是 rootfs → 自引用→内核污染崩溃），
     /// 也绝【不】绑整棵 /var/mobile。只绑目标 App 的容器路径，无自引用 → 无污染 → 不崩。
     /// 幂等：已绑过则直接返回 mount。返回 (ok, mountPath, hostPath, error)。
-    static func bindAppContainer(bundleId: String) -> (ok: Bool, mountPath: String?, hostPath: String?, error: String?) {
-        guard autoBindEnabled else { return (false, nil, nil, "autoBind disabled") }
+    /// v4.2.0: readOnly=true 分析用(安全只读); readOnly=false 就地修改用, 且【先备份】到工作区。
+    static func bindAppContainer(bundleId: String, readOnly: Bool = true)
+        -> (ok: Bool, mountPath: String?, hostPath: String?, backupPath: String?, error: String?) {
+        guard autoBindEnabled else { return (false, nil, nil, nil, "autoBind disabled") }
         let ownHome = (NSHomeDirectory() as NSString).standardizingPath
         guard let app = AppCatalog.list().first(where: { $0.bundleId == bundleId }),
               let cp = app.containerPath, !cp.isEmpty else {
-            return (false, nil, nil, "app or data container not found: \(bundleId)")
+            return (false, nil, nil, nil, "app or data container not found: \(bundleId)")
         }
         let normCp = (cp as NSString).standardizingPath
         // 拒绝绑自身容器：其 Documents/alpine-rootfs 暴露即自引用
         if normCp == ownHome || normCp.hasPrefix(ownHome + "/") {
-            return (false, nil, nil, "refusing to bind own container (would expose own rootfs): \(cp)")
+            return (false, nil, nil, nil, "refusing to bind own container (would expose own rootfs): \(cp)")
         }
         let host = cp
         let mount = "/ios_data_" + bindAppSanitize(bundleId)
         let fm = FileManager.default
-        guard fm.fileExists(atPath: host) else { return (false, nil, nil, "container path missing: \(host)") }
-        if !mountedBindPoints.contains(mount) {
-            let rc = bindMount(mount, host, readOnly: false)
-            if rc != 0 { return (false, nil, nil, "bind failed rc=\(rc)") }
-            mountedBindPoints.insert(mount)
-            ShellDiag.log("bindAppContainer: \(bundleId) \(host) → \(mount) rc=0 (按需容器绑定)")
+        guard fm.fileExists(atPath: host) else { return (false, nil, nil, nil, "container path missing: \(host)") }
+        // 可写绑定：必须先备份（就地修改可还原）
+        var backupPath: String? = nil
+        if !readOnly {
+            backupPath = backupAppContainer(host, app: app.bundleId)
+            if backupPath == nil {
+                return (false, nil, nil, nil, "backup failed before writable bind — abort to protect \(bundleId)")
+            }
         }
-        return (true, mount, host, nil)
+        if !mountedBindPoints.contains(mount) {
+            let rc = bindMount(mount, host, readOnly: readOnly)
+            if rc != 0 { return (false, nil, nil, nil, "bind failed rc=\(rc)") }
+            mountedBindPoints.insert(mount)
+            ShellDiag.log("bindAppContainer: \(bundleId) \(host) → \(mount) ro=\(readOnly) rc=0 (按需容器绑定)\(backupPath.map{" backup="+$0} ?? "")")
+        }
+        return (true, mount, host, backupPath, nil)
+    }
+
+    /// 可写绑定前，把 App 容器的 Documents + Library（不含 Caches/tmp）备份到工作区 backups/。
+    private static func backupAppContainer(_ host: String, app: String) -> String? {
+        let backupRoot = "/var/mobile/Documents/Workspace/backups"
+        let ts = Int(Date().timeIntervalSince1970)
+        let dest = "\(backupRoot)/\(bindAppSanitize(app))_\(ts)"
+        let fm = FileManager.default
+        guard (try? fm.createDirectory(atPath: dest, withIntermediateDirectories: true)) != nil else { return nil }
+        for sub in ["Documents", "Library"] {
+            let src = host + "/" + sub
+            var isDir: ObjCBool = false
+            if fm.fileExists(atPath: src, isDirectory: &isDir), isDir.boolValue {
+                do {
+                    try fm.copyItem(atPath: src, toPath: dest + "/" + sub)
+                } catch { /* 个别文件失败不致命, 尽力而为 */ }
+            }
+        }
+        return fm.fileExists(atPath: dest) ? dest : nil
     }
 
     /// 容器挂点名安全化：非字母数字 → '_'，小写。com.appstudio.Jinx → com_appstudio_jinx

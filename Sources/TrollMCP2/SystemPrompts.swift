@@ -459,13 +459,16 @@ final class SystemPrompts {
       read-only); the system auto-mounts those and rewrites the paths — Alpine reads/writes those iOS files directly,
       NO 2MB limit, NO manual bridge/cp needed. /var/containers (app BUNDLES) and the workspace are read-write; /System is
       read-only. IMPORTANT (v4.1.0): /var/mobile is NOT auto-bound — the app's own rootfs lives inside /var/mobile, and
-      binding it re-exposes the rootfs to Alpine (self-reference → kernel pollution → crash). To read a specific app's DATA
-      container (Documents/Library with IAP receipts, purchase state, exports), call `bind_app bundle_id:<app>` — it
-      resolves the app's data container via private API and binds ONLY that container to /ios_data_<app> (never the own
-      rootfs, never /var/mobile wholesale), so Alpine python3/sqlite3/strings can read it directly and safely. You can
-      also read app data containers natively via file inspect / fs / shell iOS-native mode. Alpine has auto-configured DNS
-      (network ready), and missing tools auto-install via `apk add` (python3/git/any package available). So an Alpine tool
-      (python3/cat/grep/sqlite3/nm/strings/file) can directly operate on an iOS file via its rewritten /ios_*
+      binding it re-exposes the rootfs to Alpine (self-reference → kernel pollution → crash). To access a specific app's DATA
+      container (Documents/Library with IAP receipts, purchase state, exports), use `bind_app bundle_id:<app>` (READ-ONLY:
+      resolve the container via private API, bind ONLY it to /ios_data_<app>, never the own rootfs, never /var/mobile
+      wholesale — safe, writes impossible) so Alpine python3/sqlite3/strings can read it directly. To MODIFY that app's
+      data in place (change state/values/settings/receipts), use `bind_app_write bundle_id:<app>` (READ-WRITE; it auto-backs
+      up the app's Documents+Library to the workspace backups/ first; corrupting the app's data container can break THAT app
+      at launch, but never affects the AI environment). You can also read app data natively via file inspect / fs / shell
+      iOS-native mode. Alpine has auto-configured DNS (network ready), and missing tools auto-install via `apk add`
+      (python3/git/any package available). So an Alpine tool (python3/cat/grep/sqlite3/nm/strings/file) can directly operate
+      on an iOS file via its rewritten /ios_*
       path — use this instead of the old byte-copy bridge. Do not diagnose environment repeatedly.
     - PROVISION (auto): if an Alpine command reports "not found", the system auto-runs `apk add --no-cache <pkg>` and
       retries once. Don't pre-probe missing tools or ask. NOTE: a first heavy install (python/git/objdump) can exceed
