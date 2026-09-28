@@ -211,8 +211,8 @@ enum ISHEngine {
     }
 
     /// 执行命令。返回 (输出, 退出码, 是否超时)。未 boot 时自动尝试 boot，失败返回错误串。
-    /// v3.6.8: Alpine 为纯隔离 rootfs(fakefs 不解析跨 iOS 的 symlink)，不做路径改写；
-    /// 读 iOS 文件走原生 shell，Alpine 工具链需 iOS 文件时先 cp 进 rootfs(/tmp)。
+    /// v3.7.7: 命令引用 iOS 路径时自动 bind 挂载顶层并改写为 /ios_*（见 autoBind），Alpine 直接读写；
+    /// 未 bind 的 iOS 路径由 autoBridge(字节拷贝) 兜底。
     static func exec(_ command: String, timeout: TimeInterval) -> (output: String, exitCode: Int32, timedOut: Bool) {
         if case .booted = state {} else {
             if let e = ensureBooted() { return (e, -1, false) }
@@ -226,9 +226,8 @@ enum ISHEngine {
         // 优先于 autoBridge(字节拷贝)兜底。bind 后 autoBridge 只处理未 bind 的 iOS 路径。
         let bound = autoBind(command)
 
-        // P5a v3.6.15: 代码层自动单向文件桥——Alpine 命令里引用 iOS 绝对路径时，系统自动
-        // "原生读文件→经 guest stdin 管道喂原始字节→Alpine 侧 head -c N 写 /tmp/_bridge_N_name"并替换路径。
-        // （v3.6.8 证伪 symlink 桥；v3.6.13 base64 内联超 iSH 命令长度，v3.6.14 改走 stdin 管道）
+        // autoBridge（字节拷贝兜底）：处理 autoBind 未覆盖的 iOS 路径（非 /var/mobile、/var/containers、
+        // /System 顶层）。读 iOS 文件→stdin 管道喂字节→Alpine 写 /tmp/_bridge_N_name→替换路径。
         let (bridged, bridgePrefix, bridgeStdin) = autoBridge(bound)
         ShellDiag.log("ISH exec bridge: prefixEmpty=\(bridgePrefix.isEmpty) stdin=\(bridgeStdin.count)B execCmd=\(String(bridged.prefix(100)))")
 
@@ -384,11 +383,9 @@ enum ISHEngine {
         return (stdout, exitCode, timedOut)
     }
 
-    /// P5a v3.6.14: 自动单向文件桥。识别 Alpine 命令里的 iOS 绝对路径 token，自动
-    /// "原生读文件→经 guest stdin 管道喂原始字节→Alpine 侧 head -c N > /tmp/_bridge_N_name"并替换路径。
-    /// 返回 (替换后命令, 需前置的建文件片段, 需经 stdin 管道写入的原始字节拼接)。
-    /// 不用 base64 内联进命令串（v3.6.13 实测 122KB db 会超 iSH 命令长度，bridge 文件建不出来）。
-    /// >maxBytes 的文件跳过（走显式协议，如 inject binary_symbols）。
+    /// autoBridge（字节拷贝兜底）：autoBind 未覆盖的 iOS 路径，原生读文件→stdin 管道喂字节→
+    /// Alpine 写 /tmp/_bridge_N_name→替换路径。返回 (替换后命令, 建文件前缀片段, stdin 原始字节)。
+    /// 不用 base64 内联进命令串（大文件会超 iSH 命令长度）。>maxBytes 跳过（走 inject binary_symbols 等）。
     private static func autoBridge(_ command: String, maxBytes: Int = 2 * 1024 * 1024) -> (String, String, Data) {
         let fm = FileManager.default
         var result = command

@@ -1031,66 +1031,43 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.39: artifact 大工具 + 子命令 (合并 3 个 artifact.* 工具）
         register(ArtifactExecTool())
         // v3.1.39: 删旧的 3 个 artifact.* 工具 (已合并到 artifact 大工具）
-        // 已删：ArtifactReadTextTool / ArtifactWriteTextTool / ArtifactListTool
         // v3.1.46: 删 ArtifactFindTool (shell.exec 可以实现：shell.exec("find xxx")）
         // v3.1.46: 删 PingTool (shell.exec 可以实现：shell.exec("ping -c 4 xxx")）
         // v3.1.40: device 大工具 + 子命令 (合并 4 个 device.* 工具）
         register(DeviceExecTool())
         // v3.1.40: 删旧的 4 个 device.* 工具 (已合并到 device 大工具）
-        // 已删：DeviceInfoTool / DeviceProbeTool / DeviceFakeTool / DeviceRestoreTool
         register(MemoryTweakTool())   // v2.9.60：H5GG式内存修改 (需先注入MemoryTweak.dylib）
         // v3.1.34: control 大工具 + 子命令 (合并 10 个 control.* 工具）
         register(ControlExecTool())
         // v3.1.34: 删旧的 10 个 control.* 工具 (已合并到 control 大工具）
-        // 已删：ControlInjectTool / ControlStatusTool / ControlUITreeTool / ControlScreenshotTool
-        // 已删：ControlTapTool / ControlSwipeTool / ControlTypeTool / ControlKeyTool
         // v3.1.46: 删 WorkspaceInfoTool (shell.exec 可以实现：shell.exec("pwd")）
-        // 已删：ToolHealthTool (用 shell.exec 代替）
-        // register(ToolHealthTool())   // v2.9.128：工具健康度自查
         // v3.1.33: 清理工具已删 (用 shell 代替）
-        // 已删：CleanupScanTool / CleanupExecuteTool / CleanupAiTool
-        // 已删：SystemCleanupScanTool / SystemCleanupExecuteTool
         // 代替成：shell.exec("du -sh ...") / shell.exec("rm -rf ...")
 
         // M2 助理记忆 (原版命名）
         // v3.1.43: memory 大工具 + 子命令 (合并 3 个 assistant.memory.* 工具）
         register(MemoryExecTool())
         // v3.1.43: 删旧的 3 个 assistant.memory.* 工具 (已合并到 memory 大工具）
-        // 已删：AssistantMemorySetTool / AssistantMemoryListTool / AssistantMemoryDeleteTool
 
         // M2 应用与设备
         // v3.1.37: 删旧的 4 个 app.* 工具 (已合并到 app 大工具）
-        // 已删：AppCacheInspectTool / AppCacheClearTool / AppOpenAndInputTool / AppDepsTool
 
         // v3.0.90：系统概览工具 (AI 全局视角目录）
         // v3.1.64: 删 SystemOverviewTool (用 shell.exec("uname -a") / shell.exec("df -h") / shell.exec("free") 代替）
-        // 已删：SystemLessonsTool / TaskProgressTool / VerifyInjectTool (用 shell.exec 代替）
-        // register(SystemLessonsTool())  // v3.0.90：AI 经验教训库
-        // register(TaskProgressTool())   // v3.0.90：任务进度跟踪
-        // register(VerifyInjectTool())   // v3.0.90：结果验证
         // v3.1.44: verify 大工具 + 子命令 (合并 2 个 verify.* 工具）
         register(VerifyExecTool())
         // v3.1.44: 删旧的 2 个 verify.* 工具 (已合并到 verify 大工具）
-        // 已删：VerifyFileTool / VerifyAppRunningTool
 
         // v3.1.34: inject 大工具 + 子命令 (合并 7 个 injection.* 工具）
         register(InjectionExecTool())
         // v3.1.34: 删旧的 7 个 injection.* 工具 (已合并到 inject 大工具）
-        // 已删：InjectionEnableTool / InjectionDisableTool / InjectionStaticTool
-        // 已删：InjectionStatusTool / InjectionInspectTool / InjectionListTool
-        // 已删：JailbreakStatusTool / JailbreakInjectTool (用 shell.exec 代替）
-        // register(JailbreakStatusTool())  // v3.1.1：Jailbreak 状态检测
-        // register(JailbreakInjectTool())   // v3.1.1：ElleKit 运行时注入
         // v3.1.37: 删旧的 3 个 inject.* 工具 (已合并到 inject 大工具）
-        // 已删：InjectionRemoveTool / InjectionRestoreTool / InjectionMemTool
         // v3.1.38: rescue 大工具 + 子命令 (合并 3 个 rescue.* 工具）
         register(RescueExecTool())
         // v3.1.38: 删旧的 3 个 rescue.* 工具 (已合并到 rescue 大工具）
-        // 已删：RescueScanTool / RescueRecoverAllTool / RescueCleanupTool
         // v2.9.90：高级工具组 (类探测/配置化 Hook/设备伪装）
         // v3.1.60: 删 ProbeInspectTool / HookApplyTool (已合并到 inject 大工具）
         // v3.1.55: 删旧的 device 工具 (已合并到 DeviceExecTool）
-        // 已删：DeviceFakeTool / DeviceRestoreTool
         // v2.9.95：设备指纹 / 容器 / entitlements (对齐 Fuck 工具箱 + 绿盾式）
         // v3.1.59: 删 AppEntitlementsTool (已合并到 app 大工具：app entitlements）
         // v3.1.60: 删 KeychainWipeTool (已合并到 inject 大工具：inject keychain_wipe）
@@ -1098,7 +1075,6 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.41: container 大工具 + 子命令 (合并 3 个 container.* 工具）
         register(ContainerExecTool())
         // v3.1.41: 删旧的 3 个 container.* 工具 (已合并到 container 大工具）
-        // 已删：RefreshContainerTool / ContainerWriteTextTool / ContainerDeleteTool
         // v2.9.99：一键新机 (绿盾式组合）
         // v3.1.62: 删 NewDeviceTool (已合并到 DeviceExecTool：device new_device）
         // v2.9.100：AI 分析引擎
@@ -1108,7 +1084,6 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.45: ssh 大工具 + 子命令 (合并 2 个 ssh.* 工具）
         register(SshExecTool())
         // v3.1.45: 删旧的 2 个 ssh.* 工具 (已合并到 ssh 大工具）
-        // 已删：SSHTool / SCPTool
         // v3.1.59: 删 AppDecryptTool / AppReplaceDecryptedTool / AppEncryptInfoTool (已合并到 app 大工具）
 
         // v2.9.69：质量与诊断工具
@@ -1123,17 +1098,14 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.34: app 大工具 + 子命令 (合并 5 个 app.* 工具）
         register(AppExecTool())
         // v3.1.34: 删旧的 5 个 app.* 工具 (已合并到 app 大工具）
-        // 已删：AppStartTool / AppStopTool / AppRestartTool / AppStatusTool / AppStatsTool
         // v3.1.56: 删 TestRunTool (shell.exec 可以实现）
 
         // v3.1.42: diagnose 大工具 + 子命令 (合并 2 个 diagnose.* 工具）
         register(DiagnoseExecTool())
         // v3.1.42: 删旧的 2 个 diagnose.* 工具 (已合并到 diagnose 大工具）
-        // 已删：DiagnoseStartupTool / InjectionDiagnoseTool
         // v3.1.36: server 大工具 + 子命令 (合并 3 个 server.* 工具）
         register(ServerExecTool())
         // v3.1.36: 删旧的 3 个 server.* 工具 (已合并到 server 大工具）
-        // 已删：ServerStartTool / ServerStopTool / ServerStatusTool
 
         // v2.9.72：知识库 + 清理 + 符号 + 插件 + 兼容矩阵 + 崩溃复现
         // v3.1.63: 删 KnowledgeBaseTool (用 shell.exec 写文件/读文件/搜索文件代替）
@@ -1147,31 +1119,18 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.63: 删 TaskTool (用 shell.exec 直接运行命令代替）
 
         // M4 Gateway + 自动化 (含原版命名）
-        // register(GatewayStatusTool())  // 和远程终端重复，去掉
-        // register(GatewayConnectTool())
-        // register(GatewayNodeInvokeTool())
-        // register(GatewayChannelSendTool())
-        // register(GatewayCronCreateTool())
-        // register(GatewayCronRunTool())
-        // register(GatewayCronCancelTool())
         // v3.1.62: 删 CronFireTool (已合并到 AutomationExecTool：automation cron_fire）
         // v3.1.35: automation 大工具 + 子命令 (合并 7 个 automation.* 工具）
         register(AutomationExecTool())
         // v3.1.35: 删旧的 7 个 automation.* 工具 (已合并到 automation 大工具）
-        // 已删：AutomationRunNowTool / AutomationListTool / AutomationJobsTool
-        // 已删：AutomationStopTool / AutomationHistoryTool / AutomationSetEnabledTool / AutomationStatusTool
 
         // M5 系统能力
         // v3.1.64: 删 ContactsSearchTool (用得少，隐私敏感，用系统电话 App 搜索联系人）
         // v3.1.64: 删 CalendarExecTool (用得少，用系统日历 App）
         // v3.1.57: 删旧的日历工具 (已合并到 CalendarExecTool）
-        // 已删：CalendarListTool / CalendarCreateEventTool
         register(ReminderExecTool())   // v3.1.57: 提醒事项大工具 (合并 create/schedule/recurring）
         // v3.1.57: 删旧的提醒事项工具 (已合并到 ReminderExecTool）
-        // 已删：ReminderCreateTool / ReminderScheduleTool / ReminderScheduleRecurring
         // v3.1.61: 删 LocationGetTool (已合并到 LocationExecTool：location get）
-        // 已删：NotificationSendTool (用 shell.exec 代替）
-        // register(NotificationSendTool())
         // v3.1.64: 删 ScanQRTool (AI 是文字对话，不能扫码）
         // v3.1.33: 删 ProcessListTool (用 shell ps 代替）
         register(ShellExecTool())   // v3.0.28：内置终端，执行 shell 命令
@@ -1180,10 +1139,6 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.47: browser 大工具 + 子命令 (合并 13 个 browser.* 工具）
         register(BrowserExecTool())
         // v3.1.47: 删旧的 13 个 browser.* 工具 (已合并到 browser 大工具）
-        // 已删：BrowserStatusTool / BrowserNavigateTool / BrowserWaitTool / BrowserSnapshotTool
-        // 已删：BrowserClickTool / BrowserTypeTool / BrowserSubmitTool / BrowserTextTool
-        // 已删：BrowserScrollTool / BrowserEvalTool / BrowserFormFieldsTool
-        // 已删：BrowserFillFormTool / BrowserWaitForTool
         // v2.9.131：AI 安装/卸载 App (trollstorehelper 优先）——补全下载→安装→注入→控制链路
         // v3.1.59: 删 AppInstallTool / AppUninstallTool / AppDuplicateTool (已合并到 app 大工具）
         // v2.9.132：failed边界一条龙——注入健康检查 + 启动failed判因
@@ -1195,7 +1150,6 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.56: 删 BuildRunnerTokenTool (shell.exec curl 可以实现）
         // v3.1.62: 删 ProjectGenerateTweakTool (已合并到 ProjectTool：project generate_tweak）
         // v3.1.55: 删旧的 model 工具 (已合并到 ModelExecTool）
-        // 已删：ModelConfigTool / ModelUpdateTool / ModelAuthenticationTool / ModelSelectedProfileIDTool
         // v3.1.62: 删 WorkspaceOutputBookmarkTool / WorkspaceOutputNameTool (已合并到 ArtifactExecTool）
 
         // M8 本机编译/构建 (v2.9.3，设备端编译桥）
@@ -1204,91 +1158,57 @@ public final class ToolRegistry: ObservableObject {
 
         // M9 GitHub 线上编译 (v2.9.9：账号状态 / 触发编译 / 查进度 / 下载产物）
         // v3.1.52: 删 github 大工具 (shell.exec 可以实现：shell.exec("curl https://api.github.com/...")）
-        // 已删：GitHubAccountStatusTool / GitHubTriggerBuildTool
-        // 已删：GitHubFetchRunsTool / GitHubDownloadArtifactTool / GitHubExecTool
 
         // M7 补齐缺失设备端工具
         // v3.1.57: 删 CalendarCreateEventTool (已合并到 CalendarExecTool）
         // v3.1.57: 删 ReminderScheduleTool / ReminderScheduleRecurringTool (已合并到 ReminderExecTool）
         // v3.1.62: 删 DeviceSnapshotTool (已合并到 DeviceExecTool：device snapshot）
         // v3.1.54: 删 WebSearchTool / WebFetchTool (shell.exec curl 可以实现）
-        // 已删：WebSearchTool / WebFetchTool
         // v3.1.50: knowledge 大工具 + 子命令 (合并 4 个 knowledge.* 工具）
         register(KnowledgeExecTool())
         // v3.1.50: 删旧的 4 个 knowledge.* 工具 (已合并到 knowledge 大工具）
-        // 已删：KnowledgeImportTextTool / KnowledgeImportFileTool
-        // 已删：KnowledgeSearchTool / KnowledgeDeleteTool
         // v3.1.64: 删 PhoneExecTool (用得少，用系统电话 App 打电话）
         // v3.1.61: 删旧的电话工具 (已合并到 PhoneExecTool）
-        // 已删：PhoneCallTool / PhoneScheduleCallTool
         // v3.1.64: 删 SkillsSetEnabledTool (用 shell.exec 修改配置文件代替）
         // v3.6.19l: 恢复注册 skills.* —— 之前注释说"用 shell.exec 代替"但 shell.exec 并无 skills 子命令，
         //           导致 AI 永远拿不到 skills.list/read/set_enabled 工具，"AI 说调用不了技能"。恢复后按需加载机制真正生效。
         register(SkillsListTool())        // v2.9.17：技能可被 AI 发现（按需搜索，不塞全量）
         register(SkillsReadTool())        // v2.9.17：技能可被 AI 读取（完整指令）
         register(SkillsSetEnabledTool())  // 技能启停
-        // 已删：ToolSearchTool (直接全量加载所有工具！不用搜索！）
-        // register(ToolSearchTool())   // v2.9.16：渐进式披露元工具
-        // 已删：ClipboardReadTool / ClipboardWriteTool (用 shell.exec 代替）
-        // register(ClipboardReadTool())   // v2.9.108：剪贴板读取 (ios-mcp 借鉴）
-        // register(ClipboardWriteTool())  // v2.9.108：剪贴板写入 (ios-mcp 借鉴）
         // v3.1.31: 之前 shell 是 Alpine，访问不到 iOS 文件系统，所以 fs.* 工具加回来了
         // v3.1.46: 现在 shell.exec 已经做了 iOS 原生命令，可以访问 iOS 文件系统了！
         // 删掉 12 个 fs.* 工具 (shell.exec 可以实现）
-        // 已删：FSTreeTool / FSReadTool / FSHexdumpTool / FSSQLTool / FSGrepTool
-        // 已删：FSWriteTool / FSEditTool / FSDiffTool / FSHashTool / FSFindTool
-        // 已删：FSDownloadTool / FSPropertyListTool
         // v3.1.64: 删 FSZipTool (用 shell.exec("zip/unzip") 代替）
         // v3.1.64: 删 FSImageInfoTool (用 shell.exec("file 图片路径") 代替）
 
         // v2.9.139：AI 控制任意 App (HID 触摸injected + 进度横幅 + 控制会话）
         // v3.1.55: 删旧的 control 工具 (已合并到 ControlExecTool）
-        // 已删：UITapTool / UISwipeTool / UILongPressTool / UIClipboardTool / UIScreenshotTool
-        // 已删：ProgressNotifyTool / ControlBeginTool / ControlUpdateTool / ControlFinishTool
         // v2.9.139：启动带参数 + 定位模拟
         // v3.1.59: 删 AppLaunchOptionsTool (已合并到 app 大工具：app launch_options）
         // v3.1.51: location 大工具 + 子命令 (合并 4 个 location.* 工具）
         register(LocationExecTool())
         // v3.1.51: 删旧的 4 个 location.* 工具 (已合并到 location 大工具）
-        // 已删：LocationGetTool / LocationFakeTool / LocationFakeStatusTool / LocationFakeClearTool
         // v2.9.141：跨 App 数据桥 (沙箱破坏者）+ AI 操作宏录制/回放
         // v3.1.46: 删 6 个 bridge.* 工具 (shell.exec 可以实现）
-        // 已删：BridgeContainerTool / BridgeLsTool / BridgeReadTool
-        // 已删：BridgeCopyTool / BridgeExportTool / BridgeImportTool
         // v3.1.53: debug 大工具 + 子命令 (合并 4 个 debug.* 工具）
-        // 已删：DebugExecTool (用 shell.exec 代替）
-        // register(DebugExecTool())
         // v3.1.53: 删旧的 4 个 debug.* 工具 (已合并到 debug 大工具）
-        // 已删：DebugDumpConversationsTool / DebugDumpConversationTool
-        // 已删：DebugDumpModelConfigsTool / DebugDumpNetworkLogTool
         // v3.1.58: Chat 工具 (测试用，不是给用户用的！）
-        // 已删：ChatSendTool / ChatReplyTool (测试用，不挂进去！）
-        // register(ChatSendTool())
-        // register(ChatReplyTool())
         // v3.1.49: model 大工具 + 子命令 (合并 6 个 model.* 工具）
         // v3.1.64: 删 ModelExecTool (是测试用的）
         // v3.1.49: 删旧的 6 个 model.* 工具 (已合并到 model 大工具）
-        // 已删：ModelConfigTool / ModelUpdateTool / ModelAuthenticationTool
-        // 已删：ModelSelectedProfileIDTool / ModelListTool / ModelSwitchTool
         // v3.1.55: 删旧的 debug 工具 (已合并到 DebugExecTool）
-        // 已删：DebugDumpModelConfigsTool / DebugDumpNetworkLogTool
         // v3.1.48: macro 大工具 + 子命令 (合并 6 个 macro.* 工具）
         register(MacroExecTool())
         // v3.1.48: 删旧的 6 个 macro.* 工具 (已合并到 macro 大工具）
-        // 已删：MacroRecordTool / MacroStopTool / MacroListTool
-        // 已删：MacroRunTool / MacroDeleteTool / MacroExportTool
 
         // v3.0.67：toolchain 工具
         // v3.1.56: 删 toolchain 工具 (shell.exec 可以实现：which clang / apt-get install clang）
-        // 已删：ToolchainStatusTool / ToolchainInstallTool / ToolchainUninstallTool
         // v3.0.71：AI 自我进化——加载外部 dylib 注册新工具
         // v3.1.60: 删 ToolLoadDylibTool (已合并到 inject 大工具：inject load_dylib）
         // v3.0.72：语义化 UI 操作 + OCR
         // v3.1.62: 删 ControlTapTextTool / ControlTypeTextTool (已合并到 ControlExecTool）
-        // 已删：OCRImageTool (用 shell.exec 代替）
-        // register(OCRImageTool())
 
-        // v3.6.12 P5 高层跨环境工具 (复用自动单向文件桥)
+        // v3.6.12 P5 高层跨环境工具 (v3.7.7: 自动 bind 直读 iOS 文件)
         register(FileExecTool())
         register(DbExecTool())
         // v3.7.5: bind mount 验证工具 (iSH 内核级 iOS→Alpine 目录挂载)
