@@ -278,6 +278,87 @@ BIND_PATCH_PY
         log_warning "fs/fake.c 未找到，跳过 bind 污染 patch"
     fi
 
+    # v4.0.6: patch iSH 内核 —— 访问时刻守卫(隐藏自身 rootfs)。真根因：绑 /var/mobile 时，
+    # 符号链接 data/ios_mobile 建在 root_fd(Documents/alpine-rootfs/data) 里，而 /var/mobile
+    # 又包含 root_fd → 自引用成环。Alpine 经 /ios_mobile/.../alpine-rootfs/data 绕回自身底层存储，
+    # fakefs 对自己 meta.db/inode 建记录 → 写坏 → 后续 exec rc=-13。
+    # 守卫：fakefs_open 对落在 root_fd 的绑定路径返回 _ELOOP(隐藏)，bind_mount_ensure_inode
+    # 跳过建 inode(不污染)。Alpine 的 /(root_fd) 正常访问、apk 装工具均不受影响。
+    if [ -f fs/fake.c ]; then
+        python3 - "$ISH_DIR" <<'GUARD_PATCH_PY'
+import sys, os
+ish_dir = sys.argv[1]
+p = os.path.join(ish_dir, "fs/fake.c")
+s = open(p).read()
+orig = s
+
+# 1) 在 bind_mount_ensure_inode 前插入守卫 helper
+helper_anchor = """/* Auto-create a meta.db entry for a path under a bind mount.
+ * Probes the host filesystem to determine if it's a file or directory. */
+static inode_t bind_mount_ensure_inode(struct fakefs_db *fs, struct mount *mount,
+"""
+helper = """/* v4.0.6 guard: hide the fakefs's own backing store (root_fd = .../Documents/alpine-rootfs/data)
+ * from bind-mounted views. The app rootfs lives under /var/mobile, so binding /var/mobile
+ * makes /ios_mobile/.../alpine-rootfs/data re-enter the fakefs backing store -> self-referential
+ * cycle -> corrupts meta.db inodes -> later exec rc=-13. Refuse ONLY this region through binds;
+ * normal rootfs access (Alpine /) and other app containers/workspace are unaffected. */
+static bool bind_mount_target_is_backing_store(const char *host_abs) {
+    if (g_fakefs_mount == NULL)
+        return false;
+    char hbuf[PATH_MAX], sbuf[PATH_MAX];
+    const char *h = host_abs, *s = g_fakefs_mount->source;
+    if (strncmp(h, "/private/", 9) == 0) { snprintf(hbuf, sizeof(hbuf), "%s", h + 8); h = hbuf; }
+    if (strncmp(s, "/private/", 9) == 0) { snprintf(sbuf, sizeof(sbuf), "%s", s + 8); s = sbuf; }
+    size_t len = strlen(s);
+    return strncmp(h, s, len) == 0 && (h[len] == '/' || h[len] == '\\0');
+}
+
+"""
+if helper_anchor in s and "bind_mount_target_is_backing_store" not in s:
+    s = s.replace(helper_anchor, helper + helper_anchor, 1)
+
+# 2) bind_mount_ensure_inode：翻译出的 host 落在 root_fd → 跳过建 inode
+g1_old = """    if (bind_mount_translate_path(path, host_abs, sizeof(host_abs))) {
+        if (stat(host_abs, &host_stat) < 0)
+            return 0;"""
+g1_new = """    if (bind_mount_translate_path(path, host_abs, sizeof(host_abs))) {
+        if (bind_mount_target_is_backing_store(host_abs))
+            return 0; /* v4.0.6: don't create meta.db inode for own rootfs via bind */
+        if (stat(host_abs, &host_stat) < 0)
+            return 0;"""
+if g1_old in s:
+    s = s.replace(g1_old, g1_new, 1)
+
+# 3) fakefs_open：绑定路径落 root_fd → 拒绝(隐藏)
+g2_old = """    if (bind_mount_translate_path(path, host_abs, sizeof(host_abs))) {
+        int real_flags = 0;"""
+g2_new = """    if (bind_mount_translate_path(path, host_abs, sizeof(host_abs))) {
+        if (bind_mount_target_is_backing_store(host_abs))
+            return ERR_PTR(_ELOOP); /* v4.0.6: hide own rootfs via bind */
+        int real_flags = 0;"""
+if g2_old in s:
+    s = s.replace(g2_old, g2_new, 1)
+
+# 4) fakefs_bind_mount_resolve_path(host→linux)：解析进 root_fd → 不映射(纵深防御)
+g3_old = """bool fakefs_bind_mount_resolve_path(const char *resolved, char *out_path, size_t out_size) {
+    for (int i = 0; i < FAKEFS_MAX_BIND_MOUNTS; i++) {"""
+g3_new = """bool fakefs_bind_mount_resolve_path(const char *resolved, char *out_path, size_t out_size) {
+    if (bind_mount_target_is_backing_store(resolved))
+        return false; /* v4.0.6: hide own rootfs via bind (reverse mapping) */
+    for (int i = 0; i < FAKEFS_MAX_BIND_MOUNTS; i++) {"""
+if g3_old in s:
+    s = s.replace(g3_old, g3_new, 1)
+
+if s != orig:
+    open(p, "w").write(s)
+    print("PATCHED fs/fake.c: access-time guard (hide own rootfs via bind) added")
+else:
+    print("fake.c guard patch: no change (pattern not matched, skip)")
+GUARD_PATCH_PY
+    else
+        log_warning "fs/fake.c 未找到，跳过 bind 守卫 patch"
+    fi
+
     # Configure meson build
     MESON_BUILDTYPE="release"
     # meson's `release` buildtype only implies -O3; it does NOT define NDEBUG
