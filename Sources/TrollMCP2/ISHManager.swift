@@ -231,9 +231,14 @@ enum ISHEngine {
         let (bridged, bridgePrefix, bridgeStdin) = autoBridge(bound)
         ShellDiag.log("ISH exec bridge: prefixEmpty=\(bridgePrefix.isEmpty) stdin=\(bridgeStdin.count)B execCmd=\(String(bridged.prefix(100)))")
 
-        let cwd = guestCwd
+        let cwdRaw = guestCwd
+        // v4.0.0: cwd 若存的是 iOS 路径（如 Alpine 里 `cd /var/mobile/X` 后 guestCwd 记录为
+        // /var/mobile/X），但 Alpine guest 里该路径经 bind 只存在于 /ios_mobile/X——直接用它做
+        // `cd '...'` 前缀会在 Alpine 里失败(2>/dev/null 静默) 而掉回 /root，造成"文件夹乱跳/环境偏移"。
+        // 修复：构造前缀前也对 cwd 做 autoBind 改写，把 iOS 路径同步改写为 Alpine 可见挂载点。
+        let cwd = autoBind(cwdRaw)
         let tStart = Date()
-        ShellDiag.log("ISH exec start cmd=\(command.prefix(80)) timeout=\(timeout) cwd=\(cwd)")
+        ShellDiag.log("ISH exec start cmd=\(command.prefix(80)) timeout=\(timeout) cwdRaw=\(cwdRaw) cwd=\(cwd)")
 
         // 纯 cd 命令：执行后额外取真实路径
         let trimmed = bridged.trimmingCharacters(in: .whitespacesAndNewlines)
