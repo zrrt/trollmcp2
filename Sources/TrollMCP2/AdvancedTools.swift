@@ -909,8 +909,8 @@ final class ProbeInspectTool: MCPTool {
         if let pmo = MachOAnalyzer.analyze(probeMainBin), pmo.cryptID > 0 {
             return ["error": "target App is encrypted (cryptid=\(pmo.cryptID)), ProbeAgent cannot inject to read class structure",
                     "code": "TARGET_INCOMPATIBLE", "reason": "target",
-                    "next_step": "run app.decrypt first, then retry probe.inspect",
-                    "hint": "all App Store apps are encrypted, must decrypt first"]
+                    "next_step": "switch to terminal: shell.exec run 'app.decrypt \(bundleId)' to decrypt, then use terminal to analyze decrypted_work/ decrypted binary. Do NOT retry probe.inspect (permanently ineffective)",
+                    "hint": "all App Store apps are encrypted; probe is permanently ineffective here"]
         }
 
         var probeInjected = false
@@ -1507,7 +1507,8 @@ final class AiAnalyzeTool: MCPTool {
         let mainBin = app.path + "/" + exeName
         if let mo = MachOAnalyzer.analyze(mainBin), mo.cryptID > 0 {
             return ["error": "target App is encrypted (cryptid=\(mo.cryptID)), ProbeAgent cannot inject to read class structure",
-                    "next_step": "run app.decrypt first, then retry ai.analyze_app",
+                    "code": "TARGET_INCOMPATIBLE", "reason": "target",
+                    "next_step": "switch to terminal: shell.exec run 'app.decrypt \(bundleId)' to decrypt, then use terminal to analyze decrypted_work/ decrypted binary. Do NOT retry ai.analyze_app (permanently ineffective)",
                     "hint": "all App Store apps are encrypted, must decrypt first"]
         }
 
