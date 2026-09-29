@@ -488,8 +488,10 @@ final class AppInjectPackageTool: MCPTool {
                 helper = candidates.first { FileManager.default.fileExists(atPath: $0) } ?? helper
             }
             let (c, out) = im.spawnRoot(helper, args: ["install", "installd", "force", outIpa], timeout: 240)
-            if c != 0 { return ["ok": false, "message": "install failed(\(c)): \(String(out.prefix(400)))", "data": diag] }
-            return ["ok": true, "message": "install OK, independent new App \(newBid)", "data": diag, "install_output": String(out.prefix(600))]
+            // v4.3.24: 184=app has additional encrypted binaries (子 framework 加密由系统解密, 非致命, 安装成功) 182=developer mode
+            if c != 0 && c != 184 && c != 182 { return ["ok": false, "message": "install failed(\(c)): \(String(out.prefix(400)))", "data": diag] }
+            return ["ok": true, "message": c == 0 ? "install OK, independent new App \(newBid)" : "installed \(newBid) (exit=\(c): \(c == 184 ? "sub-binary encrypted, decrypted by system, non-fatal" : "developer mode"))",
+                    "data": diag, "install_output": String(out.prefix(600))]
         }
         return ["ok": true, "message": "ipa ready (auto_install=false, not installed)", "data": diag]
     }

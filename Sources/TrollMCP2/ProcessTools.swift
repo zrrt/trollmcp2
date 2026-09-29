@@ -628,10 +628,10 @@ final class AppExecTool: MCPTool {
             return try AppDepsTool().invoke(["bundle_id": bundleId])
 
         case "install":
-            guard let path = params["path"] as? String else {
-                throw MCPError.invalidParams("path required (IPA file path)")
+            guard let path = params["ipa_path"] as? String ?? params["path"] as? String else {
+                throw MCPError.invalidParams("ipa_path required (IPA file path)")
             }
-            return try AppInstallTool().invoke(["path": path])
+            return try AppInstallTool().invoke(["ipa_path": path])
 
         case "uninstall":
             guard let bundleId = params["bundle_id"] as? String else {
