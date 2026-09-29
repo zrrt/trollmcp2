@@ -36,7 +36,7 @@ enum ShellDiag {
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "Run a shell command (terminal/command line). FIRST: for app-analysis use `app ai_analyze` (one-step analyze), for binary analysis use `binary.symbols`, for SQLite use `db`, for unpacking deb/ipa use `package` — prefer these dedicated tools over manually chaining shell commands. Use shell.exec only for file ops / system info / raw commands. 环境：系统按命令类型自动路由——装包/解包/完整工具链/复杂脚本(python、git、apk、tar、unzip、zip、file、sh -c、heredoc等开头)自动走 Alpine Linux(真工具链)；纯文件操作/系统信息/网络默认 iOS 原生。v4.1.0: Alpine 自动 bind：工作区(/var/mobile/Documents/Workspace→/ios_workspace)、/var/containers(→/ios_containers)、/System(→/ios_system 只读)；读 App 数据容器用 bind_app(→/ios_data_<app>)或原生工具。绝不绑整棵 /var/mobile(自引用崩溃源)。Alpine 命令引用这些 iOS 路径时自动挂载并改写，直接读写(无 2MB 限制)；DNS 自动配置；缺工具自动 apk add。iOS 原生模式：36 个原生命令直通真实 iOS——ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/base64/curl/plutil/sqlite3/strings/nm + df/free/uname/uptime/hostname/ps/top/kill + ifconfig/netstat/nslookup。支持管道/分号/重定向/&&/||，支持 VAR=赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat/base64。iOS 原生不支持 for/while/case/heredoc/多行脚本。二进制分析用原生 strings/nm(直读大文件无上限)。SQLite 用内置 sqlite3：`sqlite3 <db> \".tables\"`。注意：不要输入 `ta <tool>`/`ta list`/`ta help`——`ta` 是 CLI/脚本用的原生 offload 命令名，不是给 AI 的 MCP 工具；要调用能力直接调用对应 MCP 工具(inject/db/package/app/device...)。Use for: file ops, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*).",
+        summary: "Run a shell command (terminal/command line). FIRST: for app-analysis use `app ai_analyze` (one-step analyze), for binary analysis use `binary.symbols`, for SQLite use `db`, for unpacking deb/ipa use `package` — prefer these dedicated tools over manually chaining shell commands. Use shell.exec only for file ops / system info / raw commands. 环境：系统按命令类型自动路由——装包/解包/完整工具链/复杂脚本(python、git、apk、tar、unzip、zip、file、sh -c、heredoc等开头)自动走 Alpine Linux(真工具链)；纯文件操作/系统信息/网络默认 iOS 原生。v4.1.0: Alpine 自动 bind：工作区(/var/mobile/Documents/Workspace→/ios_workspace)、/var/containers(→/ios_containers)、/System(→/ios_system 只读)；读 App 数据容器用 bind_app(→/ios_data_<app>)或原生工具。绝不绑整棵 /var/mobile(自引用崩溃源)。Alpine 命令引用这些 iOS 路径时自动挂载并改写，直接读写(无 2MB 限制)；DNS 自动配置；缺工具自动 apk add。iOS 原生模式：36 个原生命令直通真实 iOS——ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/base64/curl/plutil/sqlite3/strings/nm + df/free/uname/uptime/hostname/ps/top/kill + ifconfig/netstat/nslookup。支持管道/分号/重定向/&&/||，支持 VAR=赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat/base64。iOS 原生不支持 for/while/case/heredoc/多行脚本。二进制分析用原生 strings/nm(直读大文件无上限)。SQLite 用内置 sqlite3：`sqlite3 <db> \".tables\"`。注意：不要输入 `ta <tool>`/`ta list`/`ta help`——`ta` 是 CLI/脚本用的原生 offload 命令名，不是给 AI 的 MCP 工具；要调用能力直接调用对应 MCP 工具(inject/db/package/app/device...)。Use for: file ops, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*). v4.3.13: ①`base64 -d <b64file> > outfile` 现直接解码写二进制目标(不再写 .decoded)；②`plutil -p` 支持二进制 plist 全类型打印(Data/Date/Bool)、`plutil -convert xml1 [-o out.xml]`；③`find` 支持 `-type f|d`；④`cp -f` 可覆盖已存在目标、目标为目录时复制到 dst/原名；⑤默认超时收紧到 20s——iSH 是 x86 模拟器 CPU 开销极高，超长 Alpine 命令/死循环约 13s CPU 即触发系统 watchdog 导致手机重启/闪退，故长任务请拆小步、指定合理 timeout。",
         parameters: [
             "command": "Shell command to execute (required)",
             "timeout": "Timeout seconds (default 30, max 120)",
@@ -77,7 +77,9 @@ final class ShellExecTool: MCPTool {
             ISHEngine.resetCwd()
         }
         
-        let timeout = min(max((params["timeout"] as? Double) ?? 30, 1), 120)
+        // v4.3.13: 默认超时 30→20s（收紧）。iSH(x86 模拟器) CPU 开销极高，后台长命令/死循环
+        // 约 13s CPU 即触发系统 watchdog(Elapsed CPU time 超限)→ panic/重启/闪退。收紧默认超时 + ISH kill 兜底。
+        let timeout = min(max((params["timeout"] as? Double) ?? 20, 1), 120)
         
         // v3.1.32: iOS 原生命令拦截——直接用 iOS FileManager 执行，不经过 Alpine
         // 这样就能访问整个 iOS 文件系统了！
@@ -813,14 +815,24 @@ final class ShellExecTool: MCPTool {
                 let word = firstWord(c)
                 let isIOSCmd = iosNativeCommands.contains(word)
                 if isIOSCmd { anyIOS = true }
-                let (body, redirect, append, outFile) = extractRedirect(c)
+                let (body, redirect0, append, outFile) = extractRedirect(c)
+                // v4.3.13: base64 -d 带重定向时改为 var，特判后置 false 跳过文本重定向
+                var redirect = redirect0
                 
                 if cidx == 0 {
                     // 生产段：iOS 原生执行 或 Alpine
                     var result: [String: Any]
                     if isIOSCmd {
-                        result = runIOSNativeSegment(body)
-                        result["ios_native"] = true
+                        // v4.3.13: base64 -d <in> > outFile —— 解码写二进制目标文件。
+                        // 旧实现把解码硬写 .decoded + pipeline 把提示文本重定向到 outFile，目标被写成提示串(损坏)。
+                        if word == "base64", redirect, body.contains("-d"),
+                           let msg = ShellExecTool.base64DecodeRedirect(body, outFile: outFile) {
+                            result = ["command": body, "exit_code": 0, "stdout": msg, "ios_native": true]
+                            redirect = false  // 已直接写二进制，跳过下方文本 writeRedirected
+                        } else {
+                            result = runIOSNativeSegment(body)
+                            result["ios_native"] = true
+                        }
                     } else {
                         var (output, outputExit, timedOut) = ISHEngine.exec(body, timeout: 30)
                         // P3 按需补给：缺工具自动 apk add 并重跑一次
@@ -978,6 +990,28 @@ final class ShellExecTool: MCPTool {
             return "/var" + p.dropFirst("/private/var".count)
         }
         return p
+    }
+    
+    /// v4.3.13: base64 -d <input> > outFile 辅助——解码后直接以二进制写入目标文件。
+    /// 修复旧实现缺陷：runIOSBase64 decode 硬编码写 `.decoded` 文件并返回提示文本，
+    /// 而 pipeline 又把提示文本当 stdout 重定向到 `> outFile`，导致目标被写成提示串而非解码数据。
+    /// 此辅助解析 body 取输入文件，解码后二进制写入 outFile（走文本 writeRedirected 会损坏二进制）。
+    /// 返回成功提示；输入缺失/无效返回 nil（交由正常路径报错）。
+    static func base64DecodeRedirect(_ body: String, outFile: String) -> String? {
+        var parts = body.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        // 剥掉命令名/选项/stdin 重定向符，只留输入文件路径
+        parts = parts.filter { $0 != "base64" && $0 != "-d" && $0 != "<" && $0 != ">" && $0 != ">>" }
+        guard let raw = parts.first(where: { !$0.hasPrefix("-") }), !raw.isEmpty else { return nil }
+        let input = normalizePath((raw as NSString).expandingTildeInPath)
+        guard FileManager.default.fileExists(atPath: input) else { return nil }
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: input)),
+              let decoded = Data(base64Encoded: data, options: .ignoreUnknownCharacters) else { return nil }
+        do {
+            try decoded.write(to: URL(fileURLWithPath: outFile))
+            return "Decoded \(data.count) b64 → \(outFile) (\(decoded.count) bytes)"
+        } catch {
+            return nil
+        }
     }
     
     // MARK: - Swift 管道过滤器 (iOS 原生管道右侧）
@@ -1645,7 +1679,7 @@ final class ShellExecTool: MCPTool {
             return [
                 "command": command,
                 "exit_code": 1,
-                "stdout": "Usage: find <path> [-name|-iname '<pattern>'] [-maxdepth N]",
+                "stdout": "Usage: find <path> [-name|-iname '<pattern>'] [-type f|d] [-maxdepth N]",
                 "ios_native": true
             ]
         }
@@ -1655,6 +1689,8 @@ final class ShellExecTool: MCPTool {
         var namePattern: String? = nil
         var ignoreCase = false
         var maxDepth = 5
+        // v4.3.13: 支持 -type f/d (缺省 = 全部)。旧实现无类型过滤，AI 发 `find ... -type f` 直接 Usage。
+        var fileType: Character? = nil
         var i = 1
         while i < parts.count {
             let p = parts[i]
@@ -1666,6 +1702,13 @@ final class ShellExecTool: MCPTool {
                     continue
                 }
                 i += 1
+                continue
+            }
+            if p == "-type" {
+                if i + 1 < parts.count, let t = parts[i+1].first {
+                    fileType = t == "f" || t == "d" ? t : fileType
+                }
+                i += 2
                 continue
             }
             if p == "-maxdepth" {
@@ -1685,7 +1728,7 @@ final class ShellExecTool: MCPTool {
             return [
                 "command": command,
                 "exit_code": 1,
-                "stdout": "Usage: find <path> [-name|-iname '<pattern>'] [-maxdepth N]",
+                "stdout": "Usage: find <path> [-name|-iname '<pattern>'] [-type f|d] [-maxdepth N]",
                 "ios_native": true
             ]
         }
@@ -1694,7 +1737,7 @@ final class ShellExecTool: MCPTool {
             return [
                 "command": command,
                 "exit_code": 1,
-                "stdout": "Usage: find <path> [-name|-iname '<pattern>'] [-maxdepth N]",
+                "stdout": "Usage: find <path> [-name|-iname '<pattern>'] [-type f|d] [-maxdepth N]",
                 "ios_native": true
             ]
         }
@@ -1703,7 +1746,7 @@ final class ShellExecTool: MCPTool {
             return [
                 "command": command,
                 "exit_code": 1,
-                "stdout": "Usage: find <path> [-name|-iname '<pattern>'] [-maxdepth N]",
+                "stdout": "Usage: find <path> [-name|-iname '<pattern>'] [-type f|d] [-maxdepth N]",
                 "ios_native": true
             ]
         }
@@ -1720,13 +1763,17 @@ final class ShellExecTool: MCPTool {
                 let items = try fm.contentsOfDirectory(atPath: dir)
                 for item in items {
                     let fullPath = dir + "/" + item
+                    var isDir: ObjCBool = false
+                    fm.fileExists(atPath: fullPath, isDirectory: &isDir)
+                    // v4.3.13: -type f/d 过滤 (缺省全列)
+                    let typeOK = fileType == nil
+                        || (fileType == "f" && !isDir.boolValue)
+                        || (fileType == "d" && isDir.boolValue)
                     // 匹配文件名 (-name 精确大小写；-iname 忽略大小写）
-                    if item.range(of: nameRegex, options: compareOpts) != nil {
+                    if item.range(of: nameRegex, options: compareOpts) != nil, typeOK {
                         results.append(fullPath)
                     }
                     // 递归子目录
-                    var isDir: ObjCBool = false
-                    fm.fileExists(atPath: fullPath, isDirectory: &isDir)
                     if isDir.boolValue, depth < maxDepth {
                         findRecursive(dir: fullPath, depth: depth + 1)
                     }
@@ -2054,17 +2101,42 @@ final class ShellExecTool: MCPTool {
         let fm = FileManager.default
         let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
         
-        // v4.0.0: 支持选项(如 -r)，跳过选项取源/目标路径（修复 cp -r src dst 参数错位）
+        let options = parts.dropFirst().filter { $0.hasPrefix("-") }
+        let force = options.contains("-f")
+        _ = options.contains("-r")  // copyItem 天然递归目录，-r 仅语义兼容
+        
+        // v4.0.0: 支持选项(如 -r/-f)，跳过选项取源/目标路径
         let args = parts.dropFirst().filter { !$0.hasPrefix("-") }
         guard args.count >= 2 else {
-            return ["command": command, "exit_code": 1, "stdout": "Usage: cp [-r] <source> <destination>", "ios_native": true]
+            return ["command": command, "exit_code": 1, "stdout": "Usage: cp [-r] [-f] <source> <destination>", "ios_native": true]
         }
         
         let src = ShellExecTool.normalizePath((args[0] as NSString).expandingTildeInPath)
         let dst = ShellExecTool.normalizePath((args[1] as NSString).expandingTildeInPath)
+        guard fm.fileExists(atPath: src) else {
+            return ["command": command, "exit_code": 1, "stdout": "cp: \(src): No such file or directory", "ios_native": true]
+        }
+        
+        // v4.3.13: 目标若是已存在目录 → 复制到 dst/(basename)。旧实现 dst=目录且含同名文件时报"同名项目"。
+        var dstIsDir: ObjCBool = false
+        fm.fileExists(atPath: dst, isDirectory: &dstIsDir)
+        let target = dstIsDir.boolValue
+            ? (dst as NSString).appendingPathComponent((src as NSString).lastPathComponent)
+            : dst
+        
+        if fm.fileExists(atPath: target), !force {
+            return ["command": command, "exit_code": 1, "stdout": "cp: \(target) already exists (use cp -f to overwrite)", "ios_native": true]
+        }
+        if fm.fileExists(atPath: target) {
+            // -f 覆盖：先删已存在目标再复制
+            do { try fm.removeItem(atPath: target) }
+            catch {
+                return ["command": command, "exit_code": 1, "stdout": "cp: failed to remove \(target): \(error.localizedDescription)", "ios_native": true]
+            }
+        }
         do {
-            try fm.copyItem(atPath: src, toPath: dst)
-            return ["command": command, "exit_code": 0, "stdout": "Copied: \(src) -> \(dst)", "ios_native": true]
+            try fm.copyItem(atPath: src, toPath: target)
+            return ["command": command, "exit_code": 0, "stdout": "Copied: \(src) -> \(target)", "ios_native": true]
         } catch {
             return ["command": command, "exit_code": 1, "stdout": "cp failed: \(error.localizedDescription)", "ios_native": true]
         }
@@ -2535,15 +2607,30 @@ final class ShellExecTool: MCPTool {
         let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
         
         guard parts.count >= 2 else {
-            return ["command": command, "exit_code": 1, "stdout": "Usage: plutil -p <file.plist>", "ios_native": true]
+            return ["command": command, "exit_code": 1, "stdout": "Usage: plutil -p <file.plist>  或  plutil -convert xml1 [-o out.xml] <file.plist>", "ios_native": true]
         }
         
+        // 解析参数：-convert xml1 / -o <out> / -p；文件路径=首个非 - 参数
+        var convertXML = false
+        var outPath: String? = nil
         var filePath = ""
-        for i in 1..<parts.count {
-            if !parts[i].hasPrefix("-") {
-                filePath = parts[i]
-                break
+        var i = 1
+        while i < parts.count {
+            let p = parts[i]
+            if p == "-convert" || p == "-c" {
+                convertXML = true
+                if i + 1 < parts.count && (parts[i+1] == "xml1" || parts[i+1] == "xml") { i += 1 }
+            } else if p == "-o", i + 1 < parts.count {
+                outPath = parts[i+1]
+                i += 1
+            } else if !p.hasPrefix("-") && filePath.isEmpty {
+                filePath = p
             }
+            i += 1
+        }
+        
+        guard !filePath.isEmpty else {
+            return ["command": command, "exit_code": 1, "stdout": "plutil: no file specified", "ios_native": true]
         }
         
         let path = ShellExecTool.normalizePath((filePath as NSString).expandingTildeInPath)
@@ -2551,21 +2638,68 @@ final class ShellExecTool: MCPTool {
             return ["command": command, "exit_code": 1, "stdout": "plutil: \(path): No such file or directory", "ios_native": true]
         }
         
-        guard let plist = NSDictionary(contentsOfFile: path) else {
-            return ["command": command, "exit_code": 1, "stdout": "plutil: Failed to read plist", "ios_native": true]
+        // v4.3.13: 改用 PropertyListSerialization 全类型解析——支持二进制 plist、嵌套 Data/Date/数字/布尔。
+        // 旧实现用 NSDictionary(contentsOfFile:)+JSONSerialization，遇 Data/Date 抛错、二进制 plist 读取失败 → 空输出。
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) else {
+            return ["command": command, "exit_code": 1, "stdout": "plutil: Failed to read plist (binary/xml parse)", "ios_native": true]
         }
         
-        do {
-            let data = try JSONSerialization.data(withJSONObject: plist, options: .prettyPrinted)
-            let json = String(data: data, encoding: .utf8) ?? "{}"
-            return [
-                "command": command,
-                "exit_code": 0,
-                "stdout": json,
-                "ios_native": true
-            ]
-        } catch {
-            return ["command": command, "exit_code": 1, "stdout": "plutil failed: \(error.localizedDescription)", "ios_native": true]
+        if convertXML {
+            guard let xml = try? PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0) else {
+                return ["command": command, "exit_code": 1, "stdout": "plutil: Failed to convert to xml1", "ios_native": true]
+            }
+            if let out = outPath {
+                let dest = ShellExecTool.normalizePath((out as NSString).expandingTildeInPath)
+                do {
+                    try xml.write(to: URL(fileURLWithPath: dest))
+                    return ["command": command, "exit_code": 0, "stdout": "Converted plist to XML: \(dest)", "ios_native": true]
+                } catch {
+                    return ["command": command, "exit_code": 1, "stdout": "plutil: failed to write \(dest): \(error.localizedDescription)", "ios_native": true]
+                }
+            }
+            return ["command": command, "exit_code": 0, "stdout": String(data: xml, encoding: .utf8) ?? "", "ios_native": true]
+        }
+        
+        // -p 打印：递归序列化为可读文本（全类型）
+        return ["command": command, "exit_code": 0, "stdout": plutilPrint(plist, indent: 0), "ios_native": true]
+    }
+    
+    /// v4.3.13: plutil -p 打印辅助——递归把 plist 全类型(字典/数组/Data/Date/数字/布尔/字符串)转为可读文本
+    private static func plutilPrint(_ value: Any, indent: Int) -> String {
+        let pad = String(repeating: "  ", count: indent)
+        switch value {
+        case let d as [String: Any]:
+            if d.isEmpty { return pad + "{}" }
+            var lines: [String] = []
+            for (k, v) in d.sorted(by: { $0.key < $1.key }) {
+                let child = plutilPrint(v, indent: indent + 1)
+                lines.append(pad + "\(k) => \(child.trimmingCharacters(in: .newlines))")
+            }
+            return lines.joined(separator: "\n")
+        case let a as [Any]:
+            if a.isEmpty { return pad + "()" }
+            return a.map { plutilPrint($0, indent: indent).trimmingCharacters(in: .newlines) }.joined(separator: "\n")
+        case let s as String:
+            return "\"\(s)\""
+        case let b as Bool:
+            // v4.3.13: Bool 须在 NSNumber 之前匹配（__NSCFBoolean 是 NSNumber 子类，否则输出 0/1）
+            return b ? "true" : "false"
+        case let n as NSNumber:
+            return "\(n)"
+        case let data as Data:
+            let hex = data.prefix(64).map { String(format: "%02x", $0) }.joined(separator: " ")
+            let tail = data.count > 64 ? " ... (\(data.count) bytes)" : ""
+            return "<data: \(hex)\(tail)>"
+        case let date as Date:
+            let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm:ss Z"; f.locale = Locale(identifier: "en_US_POSIX")
+            return "<date: \(f.string(from: date))>"
+        case let b as Bool:
+            return b ? "true" : "false"
+        case is NSNull:
+            return "<null>"
+        default:
+            return "\(value)"
         }
     }
     
