@@ -470,9 +470,9 @@ final class AppInjectPackageTool: MCPTool {
             let (c2, o2) = im.runAsRoot("cp", args: ["-p", dylibPath, destDylib])
             if c2 != 0 {
                 // spawnRoot 失败兜底: 用 ISHEngine(Alpine cp, 工作区内路径) 
-                let alt = ISHEngine.exec("cp -f '\(dylibPath)' '\(destDylib)'", timeout: 90)
+                let altR = ISHEngine.exec("cp -f '\(dylibPath)' '\(destDylib)'", timeout: 90)
                 if !FileManager.default.fileExists(atPath: destDylib) {
-                    return ["ok": false, "error": "copy dylib failed(\(c2)): \(o2)", "alt": String(alt.prefix(200))]
+                    return ["ok": false, "error": "copy dylib failed(\(c2)): \(o2)", "alt": String(altR.output.prefix(200))]
                 }
             }
         }
