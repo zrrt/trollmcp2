@@ -1262,7 +1262,13 @@ final class InjectionExecTool: MCPTool {
             guard let path = params["path"] as? String else {
                 throw MCPError.invalidParams("path required (binary file path)")
             }
-            return try BinarySymbolsTool().invoke(["path": path])
+            // v4.3.11: 透传 direction——定向分析(内购/VIP/广告)由 BinarySymbolsTool 生效,
+            // 之前只传 path 导致 direction 丢失, 定向模式永远不触发
+            var bsParams: [String: Any] = ["path": path]
+            if let dir = params["direction"] as? String, !dir.isEmpty {
+                bsParams["direction"] = dir
+            }
+            return try BinarySymbolsTool().invoke(bsParams)
 
         case "hook_apply":
             guard let bundleId = params["bundle_id"] as? String else {
