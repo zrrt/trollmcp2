@@ -450,7 +450,7 @@ final class AppInjectPackageTool: MCPTool {
         // 5. 打包 ipa (含 Payload/ 顶层)
         let outIpa = ws + "/" + newBid + ".ipa"
         _ = try? FileManager.default.removeItem(atPath: outIpa)
-        guard DecryptEngine.createZip(at: outIpa, fromDirectory: workDir) else {
+        guard ZipStorer.createZip(at: outIpa, fromDirectory: workDir) else {
             return ["ok": false, "error": "repack ipa failed", "workdir": workDir]
         }
         let diag: [String: Any] = ["new_bundle_id": newBid, "app": appDirName,
