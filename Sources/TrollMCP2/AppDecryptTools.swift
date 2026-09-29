@@ -462,9 +462,20 @@ final class AppInjectPackageTool: MCPTool {
                     "pre_loads": preLoads, "post_loads": postLoads, "insert_out": "exit0"]
         }
 
-        // 4. 拷 dylib 到 app 根目录
-        let (c2, o2) = im.runAsRoot("cp", args: ["-p", dylibPath, appPath + "/" + dylibName])
-        if c2 != 0 { return ["ok": false, "error": "copy dylib failed(\(c2)): \(o2)"] }
+        // 4. 拷 dylib 到 app 根目录 (幂等: 目标已存在同大小则跳过, 避免 runAsRoot cp 对已注入目录失败)
+        let destDylib = appPath + "/" + dylibName
+        let srcSize = (try? FileManager.default.attributesOfItem(atPath: dylibPath)[.size] as? Int) ?? -1
+        let dstSize = (try? FileManager.default.attributesOfItem(atPath: destDylib)[.size] as? Int) ?? -2
+        if srcSize != dstSize {
+            let (c2, o2) = im.runAsRoot("cp", args: ["-p", dylibPath, destDylib])
+            if c2 != 0 {
+                // spawnRoot 失败兜底: 用 ISHEngine(Alpine cp, 工作区内路径) 
+                let alt = ISHEngine.exec("cp -f '\(dylibPath)' '\(destDylib)'", timeout: 90)
+                if !FileManager.default.fileExists(atPath: destDylib) {
+                    return ["ok": false, "error": "copy dylib failed(\(c2)): \(o2)", "alt": String(alt.prefix(200))]
+                }
+            }
+        }
 
         // 5. 打包 ipa (含 Payload/ 顶层) —— ZipStorer Swift 原生 (iOS 路径, 不依赖系统 zip / iSH 挂载)
         let outIpa = ws + "/" + newBid + ".ipa"
