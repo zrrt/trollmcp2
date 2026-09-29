@@ -5,7 +5,7 @@
 #import <dlfcn.h>
 #import <string.h>
 #import <mach/mach.h>
-#import <mach/mach_vm.h>
+#import <mach/vm_map.h>
 
 static void _log(NSString *msg) {
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
@@ -22,9 +22,9 @@ static void _log(NSString *msg) {
 static uintptr_t _readPtr(const void *p) {
     if (!p) return 0;
     uint64_t val = 0;
-    mach_vm_size_t outSize = 0;
-    kern_return_t kr = mach_vm_read_overwrite(mach_task_self(),
-        (mach_vm_address_t)p, sizeof(uint64_t), (mach_vm_address_t)&val, &outSize);
+    vm_size_t outSize = 0;
+    kern_return_t kr = vm_read_overwrite(mach_task_self(),
+        (vm_address_t)p, sizeof(uint64_t), (vm_address_t)&val, &outSize);
     if (kr != KERN_SUCCESS || outSize != sizeof(uint64_t)) return 0;
     return (uintptr_t)val;
 }
@@ -32,9 +32,9 @@ static uintptr_t _readPtr(const void *p) {
 static int32_t _readI32(const void *p) {
     if (!p) return 0;
     int32_t val = 0;
-    mach_vm_size_t outSize = 0;
-    kern_return_t kr = mach_vm_read_overwrite(mach_task_self(),
-        (mach_vm_address_t)p, sizeof(int32_t), (mach_vm_address_t)&val, &outSize);
+    vm_size_t outSize = 0;
+    kern_return_t kr = vm_read_overwrite(mach_task_self(),
+        (vm_address_t)p, sizeof(int32_t), (vm_address_t)&val, &outSize);
     if (kr != KERN_SUCCESS || outSize != sizeof(int32_t)) return 0;
     return val;
 }
@@ -42,9 +42,9 @@ static int32_t _readI32(const void *p) {
 static uint16_t _readU16(const void *p) {
     if (!p) return 0;
     uint16_t val = 0;
-    mach_vm_size_t outSize = 0;
-    kern_return_t kr = mach_vm_read_overwrite(mach_task_self(),
-        (mach_vm_address_t)p, sizeof(uint16_t), (mach_vm_address_t)&val, &outSize);
+    vm_size_t outSize = 0;
+    kern_return_t kr = vm_read_overwrite(mach_task_self(),
+        (vm_address_t)p, sizeof(uint16_t), (vm_address_t)&val, &outSize);
     if (kr != KERN_SUCCESS || outSize != sizeof(uint16_t)) return 0;
     return val;
 }
@@ -52,21 +52,21 @@ static uint16_t _readU16(const void *p) {
 static uint32_t _readU32(const void *p) {
     if (!p) return 0;
     uint32_t val = 0;
-    mach_vm_size_t outSize = 0;
-    kern_return_t kr = mach_vm_read_overwrite(mach_task_self(),
-        (mach_vm_address_t)p, sizeof(uint32_t), (mach_vm_address_t)&val, &outSize);
+    vm_size_t outSize = 0;
+    kern_return_t kr = vm_read_overwrite(mach_task_self(),
+        (vm_address_t)p, sizeof(uint32_t), (vm_address_t)&val, &outSize);
     if (kr != KERN_SUCCESS || outSize != sizeof(uint32_t)) return 0;
     return val;
 }
 // 页是否可读（用于字符串/结构边界判断）
 static BOOL _readable(const void *p) {
     if (!p) return NO;
-    mach_vm_address_t addr = (mach_vm_address_t)p;
-    mach_vm_size_t sz = 0;
+    vm_address_t addr = (vm_address_t)p;
+    vm_size_t sz = 0;
     vm_region_submap_info_data_64_t info;
     mach_msg_type_number_t cnt = VM_REGION_SUBMAP_INFO_COUNT_64;
-    natural_t depth = 16;
-    kern_return_t kr = mach_vm_region(mach_task_self(), &addr, &sz, VM_REGION_SUBMAP_INFO_COUNT_64,
+    uint32_t depth = 16;
+    kern_return_t kr = vm_region_recurse_64(mach_task_self(), &addr, &sz, &depth,
                                      (vm_region_recurse_info_t)&info, &cnt);
     if (kr != KERN_SUCCESS) return NO;
     return (info.protection & VM_PROT_READ) != 0;
