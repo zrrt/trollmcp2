@@ -181,259 +181,263 @@ final class ShellExecTool: MCPTool {
         // v3.1.71：先做变量展开 (P=/xxx 赋值 + $P 引用），否则 "$P" 被当字面路径报 No such file (AI 实测）
         let expanded = ShellExecTool.expandVars(trimmed)
         if ShellExecTool.containsShellSyntax(expanded) {
-            let result = ShellExecTool.runIOSPipeline(expanded, limit: outLimit, offset: offsetParam)
+            let result = ShellExecTool.runIOSPipeline(ShellExecTool.alpineToIOSPath(expanded), limit: outLimit, offset: offsetParam)
             AuditLog.shared.log("shell.exec (ios pipeline)", detail: String(expanded.prefix(100)))
             return result
         }
         
+        // v4.3.9: 反向路径翻译——原生命令收到 Alpine 挂载路径(/ios_workspace 等)时翻译回 iOS 真实路径,
+        // 消除 grep/cat/ls 收到 /ios_workspace 找不到文件的割裂(AI 不必手动换路径)。
+        let iosCmd = ShellExecTool.alpineToIOSPath(trimmed)
+        
         // 1. ls 命令——iOS 原生实现
         if trimmed.hasPrefix("ls ") || trimmed == "ls" {
-            let result = ShellExecTool.runIOSls(trimmed)
+            let result = ShellExecTool.runIOSls(iosCmd)
             AuditLog.shared.log("shell.exec (ios ls)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 2. cat 命令——iOS 原生实现 (读文件）
         if trimmed.hasPrefix("cat ") {
-            let result = ShellExecTool.runIOSCat(trimmed)
+            let result = ShellExecTool.runIOSCat(iosCmd)
             AuditLog.shared.log("shell.exec (ios cat)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 3. find 命令——iOS 原生实现 (找文件）
         if trimmed.hasPrefix("find ") {
-            let result = ShellExecTool.runIOSFind(trimmed)
+            let result = ShellExecTool.runIOSFind(iosCmd)
             AuditLog.shared.log("shell.exec (ios find)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 4. grep 命令——iOS 原生实现 (搜文本）
         if trimmed.hasPrefix("grep ") {
-            let result = ShellExecTool.runIOSGrep(trimmed)
+            let result = ShellExecTool.runIOSGrep(iosCmd)
             AuditLog.shared.log("shell.exec (ios grep)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 5. 写文件命令 (echo > / >>）——iOS 原生实现
         if trimmed.range(of: #"^echo\s+.*>\s+"#, options: .regularExpression) != nil {
-            let result = ShellExecTool.runIOSWrite(trimmed)
+            let result = ShellExecTool.runIOSWrite(iosCmd)
             AuditLog.shared.log("shell.exec (ios write)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 6. mkdir 命令——iOS 原生实现 (建目录）
         if trimmed.hasPrefix("mkdir ") {
-            let result = ShellExecTool.runIOSMkdir(trimmed)
+            let result = ShellExecTool.runIOSMkdir(iosCmd)
             AuditLog.shared.log("shell.exec (ios mkdir)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 7. rm 命令——iOS 原生实现 (删文件/目录）
         if trimmed.hasPrefix("rm ") {
-            let result = ShellExecTool.runIOSRm(trimmed)
+            let result = ShellExecTool.runIOSRm(iosCmd)
             AuditLog.shared.log("shell.exec (ios rm)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 8. mv 命令——iOS 原生实现 (移动/重命名）
         if trimmed.hasPrefix("mv ") {
-            let result = ShellExecTool.runIOSMv(trimmed)
+            let result = ShellExecTool.runIOSMv(iosCmd)
             AuditLog.shared.log("shell.exec (ios mv)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 9. cp 命令——iOS 原生实现 (复制）
         if trimmed.hasPrefix("cp ") {
-            let result = ShellExecTool.runIOCp(trimmed)
+            let result = ShellExecTool.runIOCp(iosCmd)
             AuditLog.shared.log("shell.exec (ios cp)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 10. tail 命令——iOS 原生实现 (看文件末尾）
         if trimmed.hasPrefix("tail ") {
-            let result = ShellExecTool.runIOSTail(trimmed)
+            let result = ShellExecTool.runIOSTail(iosCmd)
             AuditLog.shared.log("shell.exec (ios tail)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 11. head 命令——iOS 原生实现 (看文件开头）
         if trimmed.hasPrefix("head ") {
-            let result = ShellExecTool.runIOSHead(trimmed)
+            let result = ShellExecTool.runIOSHead(iosCmd)
             AuditLog.shared.log("shell.exec (ios head)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 12. sed 命令——iOS 原生实现 (替换内容）
         if trimmed.hasPrefix("sed ") {
-            let result = ShellExecTool.runIOSSed(trimmed)
+            let result = ShellExecTool.runIOSSed(iosCmd)
             AuditLog.shared.log("shell.exec (ios sed)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 13. pwd 命令——iOS 原生实现 (显示当前目录）
         if trimmed == "pwd" {
-            let result = ShellExecTool.runIOSPwd(trimmed)
+            let result = ShellExecTool.runIOSPwd(iosCmd)
             AuditLog.shared.log("shell.exec (ios pwd)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 14. cd 命令——iOS 原生实现 (切换目录）
         if trimmed.hasPrefix("cd ") || trimmed == "cd" {
-            let result = ShellExecTool.runIOSCd(trimmed)
+            let result = ShellExecTool.runIOSCd(iosCmd)
             AuditLog.shared.log("shell.exec (ios cd)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 15. touch 命令——iOS 原生实现 (创建空文件）
         if trimmed.hasPrefix("touch ") {
-            let result = ShellExecTool.runIOSTouch(trimmed)
+            let result = ShellExecTool.runIOSTouch(iosCmd)
             AuditLog.shared.log("shell.exec (ios touch)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 16. wc 命令——iOS 原生实现 (统计行数/字数）
         if trimmed.hasPrefix("wc ") {
-            let result = ShellExecTool.runIOSWc(trimmed)
+            let result = ShellExecTool.runIOSWc(iosCmd)
             AuditLog.shared.log("shell.exec (ios wc)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 17. md5sum / sha256sum 命令——iOS 原生实现 (计算哈希）
         if trimmed.hasPrefix("md5sum ") || trimmed.hasPrefix("sha256sum ") {
-            let result = ShellExecTool.runIOSHash(trimmed)
+            let result = ShellExecTool.runIOSHash(iosCmd)
             AuditLog.shared.log("shell.exec (ios hash)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 18. diff 命令——iOS 原生实现 (比较两个文件）
         if trimmed.hasPrefix("diff ") {
-            let result = ShellExecTool.runIOSDiff(trimmed)
+            let result = ShellExecTool.runIOSDiff(iosCmd)
             AuditLog.shared.log("shell.exec (ios diff)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 19. hexdump 命令——iOS 原生实现 (二进制十六进制）
         if trimmed.hasPrefix("hexdump ") || trimmed.hasPrefix("xxd ") {
-            let result = ShellExecTool.runIOSHexdump(trimmed)
+            let result = ShellExecTool.runIOSHexdump(iosCmd)
             AuditLog.shared.log("shell.exec (ios hexdump)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 20. curl -O / wget 命令——iOS 原生实现 (下载文件）
         if trimmed.hasPrefix("curl ") || trimmed.hasPrefix("wget ") {
-            let result = ShellExecTool.runIOSDownload(trimmed)
+            let result = ShellExecTool.runIOSDownload(iosCmd)
             AuditLog.shared.log("shell.exec (ios download)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 21. plutil 命令——iOS 原生实现 (读 plist）
         if trimmed.hasPrefix("plutil ") {
-            let result = ShellExecTool.runIOSPlutil(trimmed)
+            let result = ShellExecTool.runIOSPlutil(iosCmd)
             AuditLog.shared.log("shell.exec (ios plutil)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 22. sqlite3 命令——iOS 原生实现 (查询 SQLite）
         if trimmed.hasPrefix("sqlite3 ") {
-            let result = ShellExecTool.runIOSSqlite(trimmed)
+            let result = ShellExecTool.runIOSSqlite(iosCmd)
             AuditLog.shared.log("shell.exec (ios sqlite)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 23. unzip 命令——iOS 原生实现 (解压 zip）
         if trimmed.hasPrefix("unzip ") {
-            let result = ShellExecTool.runIOSUnzip(trimmed)
+            let result = ShellExecTool.runIOSUnzip(iosCmd)
             AuditLog.shared.log("shell.exec (ios unzip)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 24. df 命令——iOS 原生 (磁盘空间）
         if trimmed == "df" || trimmed.hasPrefix("df ") {
-            let result = ShellExecTool.runIOSDf(trimmed)
+            let result = ShellExecTool.runIOSDf(iosCmd)
             AuditLog.shared.log("shell.exec (ios df)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 25. free 命令——iOS 原生 (内存）
         if trimmed == "free" || trimmed.hasPrefix("free ") {
-            let result = ShellExecTool.runIOSFree(trimmed)
+            let result = ShellExecTool.runIOSFree(iosCmd)
             AuditLog.shared.log("shell.exec (ios free)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 26. uname 命令——iOS 原生 (系统信息）
         if trimmed == "uname" || trimmed.hasPrefix("uname ") {
-            let result = ShellExecTool.runIOSUname(trimmed)
+            let result = ShellExecTool.runIOSUname(iosCmd)
             AuditLog.shared.log("shell.exec (ios uname)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 27. uptime 命令——iOS 原生 (运行时间）
         if trimmed == "uptime" {
-            let result = ShellExecTool.runIOSUptime(trimmed)
+            let result = ShellExecTool.runIOSUptime(iosCmd)
             AuditLog.shared.log("shell.exec (ios uptime)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 28. hostname 命令——iOS 原生 (设备名）
         if trimmed == "hostname" {
-            let result = ShellExecTool.runIOSHostname(trimmed)
+            let result = ShellExecTool.runIOSHostname(iosCmd)
             AuditLog.shared.log("shell.exec (ios hostname)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 29. ps 命令——iOS 原生 (进程列表）
         if trimmed == "ps" || trimmed.hasPrefix("ps ") {
-            let result = ShellExecTool.runIOSPs(trimmed)
+            let result = ShellExecTool.runIOSPs(iosCmd)
             AuditLog.shared.log("shell.exec (ios ps)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 30. top 命令——iOS 原生 (CPU/内存）
         if trimmed == "top" || trimmed.hasPrefix("top ") {
-            let result = ShellExecTool.runIOSTop(trimmed)
+            let result = ShellExecTool.runIOSTop(iosCmd)
             AuditLog.shared.log("shell.exec (ios top)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 31. kill 命令——iOS 原生 (杀进程）
         if trimmed.hasPrefix("kill ") {
-            let result = ShellExecTool.runIOSKill(trimmed)
+            let result = ShellExecTool.runIOSKill(iosCmd)
             AuditLog.shared.log("shell.exec (ios kill)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 32. ifconfig 命令——iOS 原生 (网络接口）
         if trimmed == "ifconfig" || trimmed.hasPrefix("ifconfig ") {
-            let result = ShellExecTool.runIOSIfconfig(trimmed)
+            let result = ShellExecTool.runIOSIfconfig(iosCmd)
             AuditLog.shared.log("shell.exec (ios ifconfig)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 33. netstat 命令——iOS 原生 (网络连接）
         if trimmed == "netstat" || trimmed.hasPrefix("netstat ") {
-            let result = ShellExecTool.runIOSNetstat(trimmed)
+            let result = ShellExecTool.runIOSNetstat(iosCmd)
             AuditLog.shared.log("shell.exec (ios netstat)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 34. nslookup 命令——iOS 原生 (DNS 查询）
         if trimmed.hasPrefix("nslookup ") {
-            let result = ShellExecTool.runIOSNslookup(trimmed)
+            let result = ShellExecTool.runIOSNslookup(iosCmd)
             AuditLog.shared.log("shell.exec (ios nslookup)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 35. tar 命令——iOS 原生 (打包/解压）
         if trimmed.hasPrefix("tar ") {
-            let result = ShellExecTool.runIOStar(trimmed)
+            let result = ShellExecTool.runIOStar(iosCmd)
             AuditLog.shared.log("shell.exec (ios tar)", detail: String(trimmed.prefix(100)))
             return result
         }
         
         // 36. gzip 命令——iOS 原生 (压缩）
         if trimmed.hasPrefix("gzip ") || trimmed.hasPrefix("gunzip ") {
-            let result = ShellExecTool.runIOSGzip(trimmed)
+            let result = ShellExecTool.runIOSGzip(iosCmd)
             AuditLog.shared.log("shell.exec (ios gzip)", detail: String(trimmed.prefix(100)))
             return result
         }
@@ -688,51 +692,74 @@ final class ShellExecTool: MCPTool {
         "ta", "base64", "strings", "nm", "kfd_diag"
     ]
     
+    /// v4.3.9: 反向路径翻译——iOS 原生命令收到 Alpine 挂载路径时翻译回 iOS 真实路径。
+    /// 正向(iOS→Alpine)已由 ISHEngine.autoBind 完成; 原生侧缺反向, 导致 grep/cat/ls
+    /// 收到 /ios_workspace 等挂载路径时找不到文件(AI 被迫手动换"真实 iOS 路径")。
+    /// 这里统一反向: /ios_workspace→/var/mobile/Documents/Workspace, /ios_containers→/var/containers,
+    /// /ios_system→/System。原生命令处理前调用, 让 AI 任意写挂载路径都能被原生读到。
+    static func alpineToIOSPath(_ command: String) -> String {
+        var result = command
+        let reverse: [(String, String)] = [
+            ("/ios_workspace/", "/var/mobile/Documents/Workspace/"),
+            ("/ios_workspace", "/var/mobile/Documents/Workspace"),
+            ("/ios_containers/", "/var/containers/"),
+            ("/ios_containers", "/var/containers"),
+            ("/ios_system/", "/System/"),
+            ("/ios_system", "/System"),
+        ]
+        for (alpine, ios) in reverse {
+            result = result.replacingOccurrences(of: alpine, with: ios)
+        }
+        return result
+    }
+    
     /// 执行单段 iOS 原生命令 (首段），返回 [String: Any]
     private static func runIOSNativeSegment(_ segment: String) -> [String: Any] {
         let trimmed = segment.trimmingCharacters(in: .whitespaces)
+        // v4.3.9: 反向路径翻译——原生单段命令也统一应用(消除 /ios_workspace 等挂载路径找不到)
+        let iosCmd = ShellExecTool.alpineToIOSPath(trimmed)
         let word = firstWord(trimmed)
         switch word {
-        case "ls": return runIOSls(trimmed)
-        case "cat": return runIOSCat(trimmed)
-        case "find": return runIOSFind(trimmed)
-        case "grep": return runIOSGrep(trimmed)
-        case "echo": return runIOSEcho(trimmed)
-        case "mkdir": return runIOSMkdir(trimmed)
-        case "rm": return runIOSRm(trimmed)
-        case "mv": return runIOSMv(trimmed)
-        case "cp": return runIOCp(trimmed)
-        case "tail": return runIOSTail(trimmed)
-        case "head": return runIOSHead(trimmed)
-        case "sed": return runIOSSed(trimmed)
-        case "pwd": return runIOSPwd(trimmed)
-        case "cd": return runIOSCd(trimmed)
-        case "touch": return runIOSTouch(trimmed)
-        case "wc": return runIOSWc(trimmed)
-        case "md5sum", "sha256sum": return runIOSHash(trimmed)
-        case "diff": return runIOSDiff(trimmed)
-        case "hexdump": return runIOSHexdump(trimmed)
-        case "curl", "wget": return runIOSDownload(trimmed)
-        case "plutil": return runIOSPlutil(trimmed)
-        case "sqlite3": return runIOSSqlite(trimmed)
-        case "unzip": return runIOSUnzip(trimmed)
-        case "df": return runIOSDf(trimmed)
-        case "free": return runIOSFree(trimmed)
-        case "uname": return runIOSUname(trimmed)
-        case "uptime": return runIOSUptime(trimmed)
-        case "hostname": return runIOSHostname(trimmed)
-        case "ps": return runIOSPs(trimmed)
-        case "top": return runIOSTop(trimmed)
-        case "kill": return runIOSKill(trimmed)
-        case "ifconfig": return runIOSIfconfig(trimmed)
-        case "netstat": return runIOSNetstat(trimmed)
-        case "nslookup": return runIOSNslookup(trimmed)
-        case "tar": return runIOStar(trimmed)
-        case "gzip", "gunzip": return runIOSGzip(trimmed)
+        case "ls": return runIOSls(iosCmd)
+        case "cat": return runIOSCat(iosCmd)
+        case "find": return runIOSFind(iosCmd)
+        case "grep": return runIOSGrep(iosCmd)
+        case "echo": return runIOSEcho(iosCmd)
+        case "mkdir": return runIOSMkdir(iosCmd)
+        case "rm": return runIOSRm(iosCmd)
+        case "mv": return runIOSMv(iosCmd)
+        case "cp": return runIOCp(iosCmd)
+        case "tail": return runIOSTail(iosCmd)
+        case "head": return runIOSHead(iosCmd)
+        case "sed": return runIOSSed(iosCmd)
+        case "pwd": return runIOSPwd(iosCmd)
+        case "cd": return runIOSCd(iosCmd)
+        case "touch": return runIOSTouch(iosCmd)
+        case "wc": return runIOSWc(iosCmd)
+        case "md5sum", "sha256sum": return runIOSHash(iosCmd)
+        case "diff": return runIOSDiff(iosCmd)
+        case "hexdump": return runIOSHexdump(iosCmd)
+        case "curl", "wget": return runIOSDownload(iosCmd)
+        case "plutil": return runIOSPlutil(iosCmd)
+        case "sqlite3": return runIOSSqlite(iosCmd)
+        case "unzip": return runIOSUnzip(iosCmd)
+        case "df": return runIOSDf(iosCmd)
+        case "free": return runIOSFree(iosCmd)
+        case "uname": return runIOSUname(iosCmd)
+        case "uptime": return runIOSUptime(iosCmd)
+        case "hostname": return runIOSHostname(iosCmd)
+        case "ps": return runIOSPs(iosCmd)
+        case "top": return runIOSTop(iosCmd)
+        case "kill": return runIOSKill(iosCmd)
+        case "ifconfig": return runIOSIfconfig(iosCmd)
+        case "netstat": return runIOSNetstat(iosCmd)
+        case "nslookup": return runIOSNslookup(iosCmd)
+        case "tar": return runIOStar(iosCmd)
+        case "gzip", "gunzip": return runIOSGzip(iosCmd)
         case "base64": return runIOSBase64(trimmed)
-        case "strings": return runIOSStrings(trimmed)
-        case "nm": return runIOSNm(trimmed)
-        case "kfd_diag": return runIOSKfdDiag(trimmed)
+        case "strings": return runIOSStrings(iosCmd)
+        case "nm": return runIOSNm(iosCmd)
+        case "kfd_diag": return runIOSKfdDiag(iosCmd)
         case "ta": return OffloadRouter.run(trimmed)
         default:
             return [
