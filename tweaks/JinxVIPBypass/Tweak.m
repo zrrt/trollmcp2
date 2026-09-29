@@ -3,6 +3,7 @@
 #import <objc/runtime.h>
 #import <UIKit/UIKit.h>
 #import <dlfcn.h>
+#import <string.h>
 
 static void _log(NSString *msg) {
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
@@ -18,7 +19,6 @@ static void* _rel(void* base, uint32_t off) {
     int32_t disp = *(int32_t*)((uint8_t*)base + off);
     return (uint8_t*)base + off + disp;
 }
-static NSString* _str(void* p){ return p ? [NSString stringWithUTF8String:(const char*)p] : @"-"; }
 
 // dump one Swift/ObjC class
 static void _dumpClass(Class cls) {
@@ -78,11 +78,11 @@ static void _init(void){
     for (NSString *n in want){ Class c=NSClassFromString(n); if(c) _dumpClass(c); else _log([n stringByAppendingString:@" = NIL"]); }
 
     // 额外：列出运行时所有 Jinx.* 类名（建立全量类清单）
-    unsigned cc=0; const char **all=objc_copyClassList(&cc);
+    unsigned cc=0; Class *all=objc_copyClassList(&cc);
     int hit=0;
     NSMutableString *list=[NSMutableString string];
     for (unsigned i=0;i<cc;i++){
-        const char *cn=class_getName(objc_getClass(all[i]));
+        const char *cn=class_getName(all[i]);
         if (strncmp(cn,"Jinx.",5)==0){ [list appendFormat:@"%s\n",cn]; hit++; }
     }
     _log([NSString stringWithFormat:@"---- all Jinx.* classes (%d) ----\n%@", hit, list]);
