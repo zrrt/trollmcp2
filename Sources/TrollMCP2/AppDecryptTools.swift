@@ -407,11 +407,22 @@ final class AppInjectPackageTool: MCPTool {
         let autoInstall = (params["auto_install"] as? Bool) ?? true
         let im = InjectionManager.shared
         let ws = "/var/mobile/Documents/Workspace"
-        let workDir = ws + "/inject_pkg_" + String(Int(Date().timeIntervalSince1970))
+        var workDir = ws + "/inject_pkg_" + String(Int(Date().timeIntervalSince1970))
 
-        // 1. 解压砸壳 ipa
-        do { try ZipExtractor.unzip(URL(fileURLWithPath: ipaPath), to: URL(fileURLWithPath: workDir, isDirectory: true)) }
-        catch { return ["ok": false, "error": "unzip failed: \(error.localizedDescription)"] }
+        // 1. 解压砸壳 ipa (优先 App 内置 python3 真解压大 ipa, 失败回退 ZipExtractor)
+        //    若 ipa_path 已是一个含 Payload 的解压目录则直接复用 (跳过解压)
+        if FileManager.default.fileExists(atPath: ipaPath + "/Payload") {
+            workDir = ipaPath
+        } else {
+            try? FileManager.default.createDirectory(atPath: workDir, withIntermediateDirectories: true)
+            let py = "import zipfile,os; zipfile.ZipFile('\(ipaPath)').extractall('\(workDir)')"
+            let (pc, po) = InjectionManager.shared.spawn("/usr/bin/python3", args: ["-c", py], timeout: 180)
+            let payloadOK = FileManager.default.fileExists(atPath: workDir + "/Payload")
+            if pc != 0 || !payloadOK {
+                do { try ZipExtractor.unzip(URL(fileURLWithPath: ipaPath), to: URL(fileURLWithPath: workDir, isDirectory: true)) }
+                catch { return ["ok": false, "error": "unzip failed: \(error.localizedDescription)", "python_unzip": String(po.prefix(200))] }
+            }
+        }
         let payload = workDir + "/Payload"
         guard let apps = try? FileManager.default.contentsOfDirectory(atPath: payload),
               let appDirName = apps.first(where: { $0.hasSuffix(".app") }) else {
