@@ -1232,13 +1232,18 @@ final class InjectionExecTool: MCPTool {
             guard let bundleId = params["bundle_id"] as? String else {
                 throw MCPError.invalidParams("bundle_id required")
             }
-            return try InjectionMemTool().invoke(["bundle_id": bundleId])
+            var memP: [String: Any] = ["bundle_id": bundleId]
+            if let d = params["dylib_path"] as? String { memP["dylib_path"] = d }
+            if let al = params["auto_launch"] as? Bool { memP["auto_launch"] = al }
+            return try InjectionMemTool().invoke(memP)
 
         case "diagnose":
             guard let bundleId = params["bundle_id"] as? String else {
                 throw MCPError.invalidParams("bundle_id required")
             }
-            return try InjectionDiagnoseTool().invoke(["bundle_id": bundleId])
+            var diagP: [String: Any] = ["bundle_id": bundleId]
+            if let d = params["dylib_path"] as? String { diagP["dylib_path"] = d }
+            return try InjectionDiagnoseTool().invoke(diagP)
 
         case "verify":
             guard let bundleId = params["bundle_id"] as? String else {
@@ -1250,7 +1255,9 @@ final class InjectionExecTool: MCPTool {
             guard let path = params["path"] as? String else {
                 throw MCPError.invalidParams("path required (IPA file path)")
             }
-            return try IPAInspectTool().invoke(["path": path])
+            var ipaP: [String: Any] = ["path": path]
+            if let dt = params["detail"] as? String { ipaP["detail"] = dt }
+            return try IPAInspectTool().invoke(ipaP)
 
         case "dylib_inspect":
             guard let path = params["path"] as? String else {
@@ -1274,13 +1281,22 @@ final class InjectionExecTool: MCPTool {
             guard let bundleId = params["bundle_id"] as? String else {
                 throw MCPError.invalidParams("bundle_id required")
             }
-            return try HookApplyTool().invoke(["bundle_id": bundleId])
+            // v4.3.11: 透传 config(必选)+restart——之前只传bundle_id丢config, hook_apply必然失败
+            var hookP: [String: Any] = ["bundle_id": bundleId]
+            if let cfg = params["config"] { hookP["config"] = cfg }
+            if let rst = params["restart"] as? Bool { hookP["restart"] = rst }
+            return try HookApplyTool().invoke(hookP)
 
         case "probe_inspect":
             guard let bundleId = params["bundle_id"] as? String else {
                 throw MCPError.invalidParams("bundle_id required")
             }
-            return try ProbeInspectTool().invoke(["bundle_id": bundleId])
+            // v4.3.11: 透传 query/class_name/prefix——之前只传bundle_id丢查询参数
+            var probeP: [String: Any] = ["bundle_id": bundleId]
+            if let q = params["query"] as? String { probeP["query"] = q }
+            if let cn = params["class_name"] as? String { probeP["class_name"] = cn }
+            if let pfx = params["prefix"] as? String { probeP["prefix"] = pfx }
+            return try ProbeInspectTool().invoke(probeP)
 
         case "plugin_list":
             return try PluginTool().invoke([:])
