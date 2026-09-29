@@ -453,6 +453,14 @@ final class AppInjectPackageTool: MCPTool {
             if c1 != 0 { return ["ok": false, "error": "insert_dylib failed(\(c1)): \(o1)", "next": "check dylib arch/签名"] }
             insertMsg = "injected"
         }
+        // v4.3.23：insert_dylib 后真实验证 load command (报 injected 但可能没写入 → 立即暴露)
+        let postLoads = MachOAnalyzer.analyze(mainBin)?.dylibs ?? []
+        let injectedOK = postLoads.contains(iname)
+        insertMsg = injectedOK ? "injected" : "injected_verify_failed"
+        if !injectedOK {
+            return ["ok": false, "error": "insert_dylib did not add load command",
+                    "pre_loads": preLoads, "post_loads": postLoads, "insert_out": "exit0"]
+        }
 
         // 4. 拷 dylib 到 app 根目录
         let (c2, o2) = im.runAsRoot("cp", args: ["-p", dylibPath, appPath + "/" + dylibName])
