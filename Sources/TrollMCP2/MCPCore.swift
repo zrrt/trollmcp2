@@ -1079,6 +1079,9 @@ public final class ToolRegistry: ObservableObject {
         register(BindAppTool())
         // v4.2.0: 可写就地修改 App 数据容器（绑定前强制备份）
         register(BindAppWriteTool())
+        // v4.3.3: 原生可写通道——fakefs 挂载点固定只读(bind_app_write 实测写不进, Errno 30),
+        // 写 App 数据容器改用 iOS 原生 FileManager 直写(绕开 Alpine), 写前自动备份。
+        register(AppWriteFileTool())
         // v2.9.99：一键新机 (绿盾式组合）
         // v3.1.62: 删 NewDeviceTool (已合并到 DeviceExecTool：device new_device）
         // v2.9.100：AI 分析引擎

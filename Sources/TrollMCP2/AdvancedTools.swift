@@ -124,6 +124,18 @@ final class BinarySymbolsTool: MCPTool {
 
                 result["strings_total"] = strings.count
 
+            } else {
+
+                // v4.3.3: bin/strings 未打包时, 用 Swift 原生分块扫描(不依赖外部工具)。
+                // 原生 iOS 读大文件(如 22MB 砸壳二进制)内存充足, 不触发 Alpine OOM。
+                let native = extractStringsNative(path: path, search: search)
+
+                result["strings"] = Array(native.prefix(limit))
+
+                result["strings_total"] = native.count
+
+                result["strings_native"] = true
+
             }
 
         }
@@ -162,6 +174,46 @@ final class BinarySymbolsTool: MCPTool {
 
         return result
 
+    }
+
+
+
+    /// v4.3.3: 原生 strings 扫描（bin/strings 未打包时的 fallback）。
+    /// 用 FileManager/Data 分块读取并扫描可读 ASCII 串, 不依赖外部二进制, 大文件(22MB)原生读不 OOM。
+    private func extractStringsNative(path: String, search: String) -> [String] {
+        guard let handle = FileHandle(forReadingAtPath: path) else { return [] }
+        defer { try? handle.close() }
+        let chunkSize = 4 * 1024 * 1024
+        var strings: [String] = []
+        var tail = Data()
+        var total = 0
+        while true {
+            let chunk = (try? handle.read(upToCount: chunkSize)) ?? nil
+            guard let chunk, !chunk.isEmpty else { break }
+            total += chunk.count
+            if total > 256 * 1024 * 1024 { break } // 防御: 超 256MB 截断, 防耗时
+            var buf = tail; buf.append(chunk)
+            // 拆可读 ASCII 串
+            var cur = Data()
+            for byte in buf {
+                if byte >= 0x20 && byte <= 0x7e {
+                    cur.append(byte)
+                } else {
+                    if cur.count >= 4, let s = String(data: cur, encoding: .utf8),
+                       (search.isEmpty || s.localizedCaseInsensitiveContains(search)) {
+                        strings.append(s)
+                    }
+                    cur = Data()
+                }
+            }
+            // 保留末尾未闭合串到下一块(避免跨块切断)
+            tail = cur
+        }
+        if tail.count >= 4, let s = String(data: tail, encoding: .utf8),
+           (search.isEmpty || s.localizedCaseInsensitiveContains(search)) {
+            strings.append(s)
+        }
+        return strings
     }
 
 }
