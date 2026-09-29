@@ -99,6 +99,38 @@ final class AppReplaceDecryptedTool: MCPTool {
         let (c1, o1) = im.runAsRoot("cp", args: ["-p", decryptedMain, installedMain])
         if c1 != 0 { return ["ok": false, "error": "replace main binary failed (\(c1)): \(o1)"] }
         _ = im.coreTrustBypass(installedMain, teamID: im.realTeamID(for: bundleId, appPath: app.path))
+
+        // v4.3.17 修复：完整重签整个 bundle——只重签主二进制+删 SC_Info 仍让部分 App 就地替换后启动失败
+        // (-109：_CodeSignature 里其它文件 hash 与替换后主二进制不匹配)。策略：
+        //   1. 从原密文主二进制 backup 提取 entitlements (保留 get-task-allow / platform 等)
+        //   2. 删旧 _CodeSignature + SC_Info (签名目录与砸壳二进制不匹配)
+        //   3. 对 bundle 内所有 mach-o 可执行 (主二进制 + .dylib + .framework 内二进制 + PlugIns) 用原 entitlements ldid -S 重签
+        //   4. 重新 chown 33:33
+        let entPath = workspace + "/replace_ent_\(bundleId.replacingOccurrences(of: ".", with: "_")).plist"
+        _ = im.runAsRoot("rm", args: ["-f", entPath])
+        let (ec, eo) = im.runAsRoot("ldid", args: ["-e", backup], timeout: 20)
+        var entArgs = ["-S"]
+        if ec == 0, !eo.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            _ = try? eo.data(using: .utf8)?.write(to: URL(fileURLWithPath: entPath))
+            entArgs = ["-S" + entPath]
+        }
+        let csDir = app.path + "/_CodeSignature"
+        if FileManager.default.fileExists(atPath: csDir) {
+            _ = im.runAsRoot("rm", args: ["-rf", csDir])
+        }
+        // 枚举所有可执行文件并重签
+        let (fc, fo) = im.runAsRoot("find", args: [app.path, "-type", "f"], timeout: 40)
+        if fc == 0 {
+            for f in fo.split(separator: "\n").map(String.init) {
+                let ext = (f as NSString).pathExtension
+                let isMachO = f == installedMain || ext == "dylib" || ext == "framework" ||
+                              f.contains("/PlugIns/") || f.hasSuffix(".appex/") || ext == "appex" ||
+                              (f.contains("/Frameworks/"))
+                if isMachO {
+                    _ = im.runAsRoot("ldid", args: entArgs + [f], timeout: 20)
+                }
+            }
+        }
         _ = im.runAsRoot("chown", args: ["33:33", installedMain])
 
         // 6. 验证 cryptID
