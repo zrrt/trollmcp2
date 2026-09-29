@@ -458,15 +458,13 @@ final class AppInjectPackageTool: MCPTool {
         let (c2, o2) = im.runAsRoot("cp", args: ["-p", dylibPath, appPath + "/" + dylibName])
         if c2 != 0 { return ["ok": false, "error": "copy dylib failed(\(c2)): \(o2)"] }
 
-        // 5. 打包 ipa (含 Payload/ 顶层) —— Alpine zip 可靠处理大目录/symlink (ZipStorer 对 40MB+ 目录有写坏 bug, 系统 /usr/bin/zip 在 iOS 不存在)
+        // 5. 打包 ipa (含 Payload/ 顶层) —— ZipStorer Swift 原生 (iOS 路径, 不依赖系统 zip / iSH 挂载)
         let outIpa = ws + "/" + newBid + ".ipa"
         _ = try? FileManager.default.removeItem(atPath: outIpa)
-        let iosWork = "/ios_workspace/" + (workDir as NSString).lastPathComponent
-        let outIos = "/ios_workspace/" + (outIpa as NSString).lastPathComponent
-        let zipCmd = "apk add --no-cache zip >/dev/null 2>&1; cd /ios_workspace && zip -r -q -y " + (outIos as NSString).lastPathComponent + " " + (workDir as NSString).lastPathComponent
-        let (zo, ze, zt) = ISHEngine.exec(zipCmd, timeout: 240)
-        guard FileManager.default.fileExists(atPath: outIpa) else {
-            return ["ok": false, "error": "repack ipa failed", "alpine_zip": String(zo.prefix(200)), "zip_workdir": iosWork]
+        guard ZipStorer.createZip(at: outIpa, fromDirectory: workDir),
+              FileManager.default.fileExists(atPath: outIpa),
+              (try? FileManager.default.attributesOfItem(atPath: outIpa)[.size] as? Int) ?? 0 > 0 else {
+            return ["ok": false, "error": "repack ipa failed", "workdir": workDir, "ipa": outIpa]
         }
         let diag: [String: Any] = ["new_bundle_id": newBid, "app": appDirName,
                                    "load_command": iname, "dylib": dylibName,
