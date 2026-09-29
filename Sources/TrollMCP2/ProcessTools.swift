@@ -686,8 +686,34 @@ final class AppExecTool: MCPTool {
             if let ipa = params["ipa_path"] as? String { p["ipa_path"] = ipa }
             return try AppReplaceDecryptedTool().invoke(p)
 
+        case "restore_binary":
+            // v4.3.16：就地替换后若目标 App 无法启动，用 runAsRoot 把 .troll-fools.bak 恢复回主二进制
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            guard let app = AppCatalog.find(bundleId) else {
+                throw MCPError.failed("app not found: \(bundleId)")
+            }
+            let exec = (NSDictionary(contentsOfFile: app.path + "/Info.plist")?["CFBundleExecutable"] as? String) ?? ""
+            guard !exec.isEmpty else { throw MCPError.failed("no CFBundleExecutable in \(bundleId)") }
+            let installedMain = app.path + "/" + exec
+            let backup = installedMain + ".troll-fools.bak"
+            guard FileManager.default.fileExists(atPath: backup) else {
+                throw MCPError.failed("no backup at \(backup)")
+            }
+            let im = InjectionManager.shared
+            let (c0, o0) = im.runAsRoot("cp", args: ["-p", backup, installedMain])
+            if c0 != 0 { throw MCPError.failed("restore failed (\(c0)): \(o0)") }
+            _ = im.runAsRoot("chown", args: ["33:33", installedMain])
+            let mo = MachOAnalyzer.analyze(installedMain)
+            AppCatalog.invalidateCache()
+            return ["ok": true, "message": "restored original main binary from backup",
+                    "data": ["bundle_id": bundleId, "installed_main": installedMain,
+                             "cryptID": (mo?.cryptID).map { Int($0) } ?? -1,
+                             "restored": true]]
+
         default:
-            throw MCPError.invalidParams("Unknown command: \(command). Available: launch/stop/restart/status/stats/cache_inspect/cache_clear/open_and_input/deps/install/uninstall/duplicate/diagnose/encrypt_info/entitlements/decrypt/replace_decrypted/launch_options/ai_analyze")
+            throw MCPError.invalidParams("Unknown command: \(command). Available: launch/stop/restart/status/stats/cache_inspect/cache_clear/open_and_input/deps/install/uninstall/duplicate/diagnose/encrypt_info/entitlements/decrypt/replace_decrypted/restore_binary/launch_options/ai_analyze")
         }
     }
 }
