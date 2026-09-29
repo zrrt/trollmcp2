@@ -1436,9 +1436,20 @@ final class InjectionManager {
             // 目标 Mach-O 统一加 @executable_path/Frameworks (@executable_path 始终指向 App 根目录）
             if useFramework {
                 let (r, o) = runAsRoot("install_name_tool", args: ["-add_rpath", "@executable_path/Frameworks", targetMachO])
-                rpathExit = r; rpathOutput = o
-                if r != 0 {
-                    // 已有该 rpath 或 App Store 加密段未重签；insert_dylib 前已伪签，继续不阻断
+                // v4.3.5: install_name_tool 对【已存在】的 rpath 返回 error
+                //   "would duplicate path, file already has LC_RPATH for: ..."
+                //   这是"已存在=已正确"的正常情况(业界共识: already set = correct), 应视为成功而非 error。
+                //   避免每次注入都污染 audit 日志为 exit=1 error。
+                let alreadySet = o.localizedCaseInsensitiveContains("already has LC_RPATH")
+                    || o.contains("would duplicate path")
+                if r == 0 || alreadySet {
+                    rpathExit = 0; rpathOutput = o
+                    if alreadySet {
+                        AuditLog.shared.log("injection.rpath", detail: "rpath already present (idempotent ok) \(targetMachO)")
+                    }
+                } else {
+                    // 真错误(App Store 加密段未重签等)：伪签已做, 继续不阻断, 但如实记录
+                    rpathExit = r; rpathOutput = o
                     AuditLog.shared.log("injection.rpath", detail: "exit=\(r) \(o)")
                 }
             }
