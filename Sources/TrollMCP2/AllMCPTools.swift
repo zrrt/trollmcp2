@@ -1162,8 +1162,8 @@ final class InjectionExecTool: MCPTool {
             "dylib_path": "Dylib path (for enable)",
             "query": "Search query (for list)"
         ],
-        verified: true, category: "injection", prerequisites: ["enable/static/enable_persisted 前确认 App 已安装且 bundle_id 有效 (先 app status 确认)", "iOS 17+ 注入依赖 ct_bypass 可能失效 (先用 inject diagnose 确认环境)"])
-    
+        verified: true, category: "injection", prerequisites: ["enable/static/enable_persisted 前确认 App 已安装且 bundle_id 有效 (先 app status 确认)", "iOS 17+ 注入依赖 ct_bypass 可能失效 (先用 inject diagnose 确认环境)", "【密文 App(cryptid=1)无法注入 hook】——报 spawnRoot failed 85 / sandbox blocked mmap 时不重试: 必须先 app command=decrypt 砸壳 → app command=replace_decrypted 就地替换(自动完整重签) → App 能启动后再注入。注入失败时看 message 里的归因(diag)决定方向, 连续失败2次换方法。", "hook 完整链路: project action=generate_tweak name=<tweak> bundle_id=<app> → 写 tweaks/<name>/Tweak.x → github command=trigger_build workflow=build-tweak.yml tweak=<name> → github command=download_artifact 取 dylib → dylib 传目标 App 数据容器 Documents(工作区会被 sandbox 挡 mmap) → inject command=enable bundle_id=<app> dylib_path=<App容器内dylib路径> → app restart 验证"])
+
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let command = params["command"] as? String else {
             throw MCPError.invalidParams("command required")

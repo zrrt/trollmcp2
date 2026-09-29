@@ -549,15 +549,18 @@ func findPidByPsName(_ execName: String) -> Int32 {
 final class AppExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "app",
-        summary: "Manage apps AND analyze how an app works. FIRST CHOICE for understanding an app's internals: use `app ai_analyze` (one-step: auto decrypt-check + ProbeAgent inject + collect classes + analyze direction), instead of manually chaining shell.exec commands. Use for: launch/stop/restart app, install/uninstall, diagnose, check encryption (encrypt_info), view entitlements, decrypt (app decrypt), and AI analyze app (ai_analyze). Don't use for: inject dylib (use inject.*), UI control (use control.*). Example: analyze how an app checks VIP → `app ai_analyze bundle_id:com.xxx direction:vip`; launch → `app launch bundle_id:com.xxx`; install → `app install path:/path/to.ipa`. Subcommands: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps / install / uninstall / duplicate / diagnose / encrypt_info / entitlements / decrypt / launch_options / ai_analyze.",
+        summary: "Manage apps AND analyze how an app works. FIRST CHOICE for understanding an app's internals: use `app ai_analyze` (one-step: auto decrypt-check + ProbeAgent inject + collect classes + analyze direction), instead of manually chaining shell.exec commands. Use for: launch/stop/restart app, install/uninstall, diagnose, check encryption (encrypt_info), view entitlements, decrypt (app decrypt), and AI analyze app (ai_analyze). Don't use for: inject dylib (use inject.*), UI control (use control.*). Example: analyze how an app checks VIP → `app ai_analyze bundle_id:com.xxx direction:vip`; launch → `app launch bundle_id:com.xxx`; install → `app install path:/path/to.ipa`. Subcommands: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps / install / uninstall / duplicate / diagnose / encrypt_info / entitlements / decrypt / replace_decrypted / restore_binary / launch_options / ai_analyze. 【加密 App 处理流程(v4.3.17)】encrypt_info 显示 cryptid=1 时: 密文版既不能静态分析也不能注入 hook(报 TARGET_INCOMPATIBLE / spawnRoot failed 85), 要分析/hook 必须先砸壳: `app command=decrypt bundle_id=..` 砸壳出 IPA → `app command=replace_decrypted bundle_id=.. ipa_path=<decrypted ipa>` 就地替换(自动完整重签整个 bundle, 尽力让 App 能启动) → 若替换后 App 无法启动(direct_exec -109), 用 `app command=restore_binary bundle_id=..` 恢复原密文版。砸壳后注入 hook 走 inject 工具(见 inject prerequisites)。",
         parameters: [
-            "command": "Subcommand: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps / install / uninstall / duplicate / diagnose / encrypt_info / entitlements / decrypt / launch_options / ai_analyze",
+            "command": "Subcommand: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps / install / uninstall / duplicate / diagnose / encrypt_info / entitlements / decrypt / replace_decrypted / restore_binary / launch_options / ai_analyze",
             "bundle_id": "App bundle ID (e.g. com.xingin.discover)",
             "path": "IPA file path (for install)",
+            "ipa_path": "Decrypted IPA path (for replace_decrypted)",
+            "output_name": "Output name for decrypted IPA (for decrypt, optional)",
+            "direction": "Analysis direction for ai_analyze (e.g. vip / iap / iap_price / vpn / login / anti-cheat)",
             "duration": "Duration seconds (for stats)",
             "text": "Text to input (for open_and_input)"
         ],
-        verified: true, category: "app_control")
+        verified: true, category: "app_control", prerequisites: ["analyze/hook 加密 App(cryptid=1)必须先砸壳: decrypt → replace_decrypted → restore_binary 恢复(流程见 summary)", "ai_analyze 对加密 App 无效, 先 app encrypt_info 确认 cryptid", "install/uninstall 需 TrollStore entitlements; 失败看 diagnose"])
     
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let command = params["command"] as? String else {

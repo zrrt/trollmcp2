@@ -784,6 +784,9 @@ final class GitHubExecTool: MCPTool {
         summary: "Manage GitHub CI (account_status/trigger_build/fetch_runs/download_artifact). Use subcommand to specify action. Use for: trigger build, check status, download artifact. Don't use for: code search (use web.search). Example: trigger_build → github trigger_build; fetch_runs → github fetch_runs. Subcommands: account_status / trigger_build / fetch_runs / download_artifact.",
         parameters: [
             "command": "Subcommand: account_status / trigger_build / fetch_runs / download_artifact",
+            "workflow": "Workflow file for trigger_build: build-trollmcp2.yml (default, build IPA) or build-tweak.yml (build tweak dylib)",
+            "tweak": "Only for tweak trigger_build: tweak project name (e.g. JinxVIPBypass / ProbeAgent / CompileProbe)",
+            "ref": "Git branch to build (default main)",
             "run_id": "Run ID (for download_artifact)"
         ],
         verified: true, category: "system")
@@ -800,10 +803,10 @@ final class GitHubExecTool: MCPTool {
             return try GitHubAccountStatusTool().invoke([:])
             
         case "trigger_build":
-            return try GitHubTriggerBuildTool().invoke([:])
+            return try GitHubTriggerBuildTool().invoke(params)
             
         case "fetch_runs":
-            return try GitHubFetchRunsTool().invoke([:])
+            return try GitHubFetchRunsTool().invoke(params)
             
         case "download_artifact":
             guard let runId = params["run_id"] as? Int else {
