@@ -1503,13 +1503,32 @@ final class AiAnalyzeTool: MCPTool {
         let prefix = (params["prefix"] as? String) ?? ""
         let exeName = ProcessHelper.executableName(for: app)
 
-        // v2.9.116：前置自检 1——加密 App 直接提示砸壳，不浪费 opainject
+        // v4.3.8: 加密 App → 自动砸壳 + 替换主二进制 + 重启, 真正一键分析(不再报错踢给 AI/终端)
+        // (原 v2.9.116 只"检测加密→报错转终端", 导致 AI 死磕 ai_analyze; 现改为自动完成砸壳前置)
         let mainBin = app.path + "/" + exeName
         if let mo = MachOAnalyzer.analyze(mainBin), mo.cryptID > 0 {
-            return ["error": "target App is encrypted (cryptid=\(mo.cryptID)), ProbeAgent cannot inject to read class structure",
-                    "code": "TARGET_INCOMPATIBLE", "reason": "target",
-                    "next_step": "switch to terminal: shell.exec run 'app.decrypt \(bundleId)' to decrypt, then use terminal to analyze decrypted_work/ decrypted binary. Do NOT retry ai.analyze_app (permanently ineffective)",
-                    "hint": "all App Store apps are encrypted, must decrypt first"]
+            // 1) 自动砸壳 (app.decrypt, 需 App 运行——先拉起)
+            _ = ProcessHelper.launchApp(bundleId: bundleId)
+            for _ in 0..<12 { usleep(500_000); if ProcessHelper.pidOf(executableName: exeName) != nil { break } }
+            let decRes = try AppDecryptTool().invoke(["bundle_id": bundleId])
+            guard (decRes["ok"] as? Bool) == true,
+                  let decData = decRes["data"] as? [String: Any],
+                  let outputPath = decData["output_path"] as? String, !outputPath.isEmpty else {
+                return ["error": "auto-decrypt failed for encrypted App \(bundleId)", "code": "DECRYPT_FAILED",
+                        "detail": String(describing: decRes),
+                        "next_step": "open the App then retry, or decrypt manually: app.decrypt \(bundleId)",
+                        "hint": "decrypted ipa goes to workspace/decrypted/"]
+            }
+            // 2) 替换主二进制为砸壳版 (自动备份, 使后续可注入探针)
+            let repRes = try AppReplaceDecryptedTool().invoke(["bundle_id": bundleId])
+            guard (repRes["ok"] as? Bool) == true else {
+                return ["error": "replace-decrypted failed after decrypt", "code": "REPLACE_FAILED",
+                        "detail": String(describing: repRes),
+                        "next_step": "run app.replace_decrypted \(bundleId) manually, or use terminal to analyze decrypted_work/ decrypted binary"]
+            }
+            // 3) 替换后重启 App, 使砸壳版生效, 再走下方探针注入 → 采集类 → LLM hook 方案
+            _ = ProcessHelper.launchApp(bundleId: bundleId)
+            for _ in 0..<12 { usleep(500_000); if ProcessHelper.pidOf(executableName: exeName) != nil { break } }
         }
 
         // 1) 确保 ProbeAgent 在目标进程里 (复用 probe 注入逻辑）
