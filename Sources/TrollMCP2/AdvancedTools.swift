@@ -936,7 +936,8 @@ final class ProbeInspectTool: MCPTool {
             "prefix": "Filter classes by name prefix (reduces noise)",
             "limit": "Max classes to return (default 30, max 100)",
             "cleanup": "Remove ProbeAgent after query (default false)"
-        ]
+        ],
+        prerequisites: ["【密文 App(cryptid=1)此工具无效】——报 TARGET_INCOMPATIBLE / 'encrypted (cryptid=1)' 时不重试, 先 app command=decrypt 砸壳 + replace_decrypted 后再分析", "必须先 inject enable ProbeAgent 注入探针(前置): 对加密 App 无法注入(见 inject prerequisites)"]
     )
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
