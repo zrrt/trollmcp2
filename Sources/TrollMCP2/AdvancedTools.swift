@@ -902,6 +902,17 @@ final class ProbeInspectTool: MCPTool {
         let query = (params["query"] as? String) ?? "classes"
         let exeName = ProcessHelper.executableName(for: app)
 
+        // v4.3.6: 前置自检——加密 App(cryptid=1) 直接提示先砸壳, 不浪费 opainject。
+        // 之前 probe.inspect 无此检测, 对加密 app 直接试注入→TARGET_INCOMPATIBLE→AI 同参数循环重试。
+        // 注入前拦截, 返回明确 code=TARGET_INCOMPATIBLE + next_step, 杜绝"加密 app 探针失败"循环源头。
+        let probeMainBin = app.path + "/" + exeName
+        if let pmo = MachOAnalyzer.analyze(probeMainBin), pmo.cryptID > 0 {
+            return ["error": "target App is encrypted (cryptid=\(pmo.cryptID)), ProbeAgent cannot inject to read class structure",
+                    "code": "TARGET_INCOMPATIBLE", "reason": "target",
+                    "next_step": "run app.decrypt first, then retry probe.inspect",
+                    "hint": "all App Store apps are encrypted, must decrypt first"]
+        }
+
         var probeInjected = false
         if let pid = ProcessHelper.pidOf(executableName: exeName) {
             if let (code, _) = httpGet(port: 4791, path: "/status"), code == 200 {
