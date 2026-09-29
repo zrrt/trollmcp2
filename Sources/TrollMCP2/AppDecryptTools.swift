@@ -380,3 +380,96 @@ final class AppEncryptInfoTool: MCPTool {
         return 0
     }
 }
+
+// MARK: - v4.3.19: 改包名 + 注入 dylib + TrollStore 静默安装为独立新 App
+/// 适用 App Store 原装 App：iOS 只加载加密原版，就地替换无效。
+/// 方案：解压砸壳 ipa → 改 CFBundleIdentifier/Name → insert_dylib 给主二进制加 dylib
+/// load command → 拷 dylib → 打包 ipa → trollstorehelper 安装成新 bundle_id 的独立 App。
+final class AppInjectPackageTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "app.inject_package",
+        summary: "改包名+注入 dylib+打包+TrollStore 静默安装成独立新 App(不碰原 App)。用于 App Store 原装 App(就地替换无效)。流程: 解压砸壳 ipa → 改 CFBundleIdentifier→new_bundle_id → insert_dylib 给主二进制加 dylib load command → 拷 dylib → 打包 ipa → trollstorehelper 安装。参数: ipa_path(源砸壳 ipa), dylib_path(JinxVIPBypass.dylib 绝对路径), new_bundle_id(新包名, 如 com.trollagent.jinx), new_name(显示名, 可选), auto_install(默认 true)。Example: app inject_package ipa_path:/var/mobile/Documents/Workspace/decrypted/xxx.ipa dylib_path:/var/mobile/Documents/Workspace/JinxVIPBypass.dylib new_bundle_id:com.trollagent.jinx",
+        parameters: [
+            "ipa_path": "源砸壳 ipa 绝对路径 (required)",
+            "dylib_path": "要注入的 dylib 绝对路径 (required)",
+            "new_bundle_id": "新包名 (required, 如 com.trollagent.jinx)",
+            "new_name": "显示名 (可选)",
+            "auto_install": "是否 TrollStore 安装 (默认 true)"
+        ], verified: true, category: "app_control", prerequisites: ["ipa 与 dylib 路径已存在(先 shell.exec ls 确认)", "new_bundle_id 不要与已装 App 冲突", "TrollStore 已安装(trollstorehelper 可用)"])
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        guard let ipaPath = params["ipa_path"] as? String, !ipaPath.isEmpty else { throw MCPError.invalidParams("ipa_path required") }
+        guard let dylibPath = params["dylib_path"] as? String, !dylibPath.isEmpty else { throw MCPError.invalidParams("dylib_path required") }
+        guard let newBid = params["new_bundle_id"] as? String, !newBid.isEmpty else { throw MCPError.invalidParams("new_bundle_id required") }
+        guard FileManager.default.fileExists(atPath: ipaPath) else { return ["ok": false, "error": "ipa not found: \(ipaPath)"] }
+        guard FileManager.default.fileExists(atPath: dylibPath) else { return ["ok": false, "error": "dylib not found: \(dylibPath)"] }
+        let newName = params["new_name"] as? String
+        let autoInstall = (params["auto_install"] as? Bool) ?? true
+        let im = InjectionManager.shared
+        let ws = "/var/mobile/Documents/Workspace"
+        let workDir = ws + "/inject_pkg_" + String(Int(Date().timeIntervalSince1970))
+
+        // 1. 解压砸壳 ipa
+        do { try ZipExtractor.unzip(URL(fileURLWithPath: ipaPath), to: URL(fileURLWithPath: workDir, isDirectory: true)) }
+        catch { return ["ok": false, "error": "unzip failed: \(error.localizedDescription)"] }
+        let payload = workDir + "/Payload"
+        guard let apps = try? FileManager.default.contentsOfDirectory(atPath: payload),
+              let appDirName = apps.first(where: { $0.hasSuffix(".app") }) else {
+            return ["ok": false, "error": "no Payload/*.app after unzip", "payload": payload]
+        }
+        let appPath = payload + "/" + appDirName
+
+        // 2. 改 Info.plist (CFBundleIdentifier → new_bundle_id)
+        guard let plist = NSMutableDictionary(contentsOfFile: appPath + "/Info.plist") else {
+            return ["ok": false, "error": "Info.plist unreadable"]
+        }
+        plist["CFBundleIdentifier"] = newBid
+        if let n = newName, !n.isEmpty { plist["CFBundleName"] = n; plist["CFBundleDisplayName"] = n }
+        guard plist.write(toFile: appPath + "/Info.plist", atomically: true) else {
+            return ["ok": false, "error": "Info.plist write failed"]
+        }
+        let exec = (plist["CFBundleExecutable"] as? String) ?? ""
+        guard !exec.isEmpty else { return ["ok": false, "error": "no CFBundleExecutable in Info.plist"] }
+        let mainBin = appPath + "/" + exec
+
+        // 3. insert_dylib 给主二进制加 dylib load command (幂等：已含同名则跳过)
+        let dylibName = (dylibPath as NSString).lastPathComponent
+        let iname = "@executable_path/" + dylibName
+        let preLoads = MachOAnalyzer.analyze(mainBin)?.dylibs ?? []
+        var insertMsg = "skip (load command already present)"
+        if !preLoads.contains(iname) {
+            let (c1, o1) = im.runAsRoot("insert_dylib", args: [iname, mainBin, "--inplace", "--overwrite", "--no-strip-codesig", "--all-yes"])
+            if c1 != 0 { return ["ok": false, "error": "insert_dylib failed(\(c1)): \(o1)", "next": "check dylib arch/签名"] }
+            insertMsg = "injected"
+        }
+
+        // 4. 拷 dylib 到 app 根目录
+        let (c2, o2) = im.runAsRoot("cp", args: ["-p", dylibPath, appPath + "/" + dylibName])
+        if c2 != 0 { return ["ok": false, "error": "copy dylib failed(\(c2)): \(o2)"] }
+
+        // 5. 打包 ipa (含 Payload/ 顶层)
+        let outIpa = ws + "/" + newBid + ".ipa"
+        _ = try? FileManager.default.removeItem(atPath: outIpa)
+        guard DecryptEngine.createZip(at: outIpa, fromDirectory: workDir) else {
+            return ["ok": false, "error": "repack ipa failed", "workdir": workDir]
+        }
+        let diag: [String: Any] = ["new_bundle_id": newBid, "app": appDirName,
+                                   "load_command": iname, "dylib": dylibName,
+                                   "insert": insertMsg, "ipa": outIpa, "workdir": workDir]
+
+        // 6. TrollStore 静默安装
+        if autoInstall {
+            let tsPath = AppCatalog.list().first { $0.bundleId == "com.opa334.TrollStore" }?.path ?? ""
+            var helper = tsPath.isEmpty ? "/var/usr/bin/trollstorehelper" : tsPath + "/trollstorehelper"
+            if !FileManager.default.fileExists(atPath: helper) {
+                let candidates = [tsPath + "/trollstorehelper", tsPath + "/TrollStore.app/trollstorehelper",
+                                  (tsPath as NSString).deletingLastPathComponent + "/trollstorehelper"]
+                helper = candidates.first { FileManager.default.fileExists(atPath: $0) } ?? helper
+            }
+            let (c, out) = im.spawnRoot(helper, args: ["install", "installd", "force", outIpa], timeout: 240)
+            if c != 0 { return ["ok": false, "message": "install failed(\(c)): \(String(out.prefix(400)))", "data": diag] }
+            return ["ok": true, "message": "install OK, independent new App \(newBid)", "data": diag, "install_output": String(out.prefix(600))]
+        }
+        return ["ok": true, "message": "ipa ready (auto_install=false, not installed)", "data": diag]
+    }
+}

@@ -549,7 +549,7 @@ func findPidByPsName(_ execName: String) -> Int32 {
 final class AppExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "app",
-        summary: "Manage apps AND analyze how an app works. FIRST CHOICE for understanding an app's internals: use `app ai_analyze` (one-step: auto decrypt-check + ProbeAgent inject + collect classes + analyze direction), instead of manually chaining shell.exec commands. Use for: launch/stop/restart app, install/uninstall, diagnose, check encryption (encrypt_info), view entitlements, decrypt (app decrypt), and AI analyze app (ai_analyze). Don't use for: inject dylib (use inject.*), UI control (use control.*). Example: analyze how an app checks VIP → `app ai_analyze bundle_id:com.xxx direction:vip`; launch → `app launch bundle_id:com.xxx`; install → `app install path:/path/to.ipa`. Subcommands: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps / install / uninstall / duplicate / diagnose / encrypt_info / entitlements / decrypt / replace_decrypted / restore_binary / launch_options / ai_analyze. 【加密 App 处理流程(v4.3.17)】encrypt_info 显示 cryptid=1 时: 密文版既不能静态分析也不能注入 hook(报 TARGET_INCOMPATIBLE / spawnRoot failed 85), 要分析/hook 必须先砸壳: `app command=decrypt bundle_id=..` 砸壳出 IPA → `app command=replace_decrypted bundle_id=.. ipa_path=<decrypted ipa>` 就地替换(自动完整重签整个 bundle, 尽力让 App 能启动) → 若替换后 App 无法启动(direct_exec -109), 用 `app command=restore_binary bundle_id=..` 恢复原密文版。砸壳后注入 hook 走 inject 工具(见 inject prerequisites)。",
+        summary: "Manage apps AND analyze how an app works. FIRST CHOICE for understanding an app's internals: use `app ai_analyze` (one-step: auto decrypt-check + ProbeAgent inject + collect classes + analyze direction), instead of manually chaining shell.exec commands. Use for: launch/stop/restart app, install/uninstall, diagnose, check encryption (encrypt_info), view entitlements, decrypt (app decrypt), and AI analyze app (ai_analyze). Don't use for: inject dylib (use inject.*), UI control (use control.*). Example: analyze how an app checks VIP → `app ai_analyze bundle_id:com.xxx direction:vip`; launch → `app launch bundle_id:com.xxx`; install → `app install path:/path/to.ipa`. Subcommands: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps / install / uninstall / duplicate / diagnose / encrypt_info / entitlements / decrypt / replace_decrypted / restore_binary / launch_options / ai_analyze / inject_package. 【加密 App 处理流程(v4.3.17)】encrypt_info 显示 cryptid=1 时: 密文版既不能静态分析也不能注入 hook(报 TARGET_INCOMPATIBLE / spawnRoot failed 85), 要分析/hook 必须先砸壳: `app command=decrypt bundle_id=..` 砸壳出 IPA → `app command=replace_decrypted bundle_id=.. ipa_path=<decrypted ipa>` 就地替换(自动完整重签整个 bundle, 尽力让 App 能启动) → 若替换后 App 无法启动(direct_exec -109), 用 `app command=restore_binary bundle_id=..` 恢复原密文版。砸壳后注入 hook 走 inject 工具(见 inject prerequisites)。【App Store 原装 App(v4.3.19)】就地替换无效(iOS 只加载加密原版, 冷启动仍报 cryptid=1)。要 hook 必须改包名+TrollStore 重装成独立新 App: `app command=inject_package ipa_path:<砸壳ipa> dylib_path:<JinxVIPBypass.dylib> new_bundle_id:com.trollagent.xxx`(自动改包名→insert_dylib 加 load command→拷 dylib→打包→TrollStore 静默安装, 不碰原 App)。",
         parameters: [
             "command": "Subcommand: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps / install / uninstall / duplicate / diagnose / encrypt_info / entitlements / decrypt / replace_decrypted / restore_binary / launch_options / ai_analyze",
             "bundle_id": "App bundle ID (e.g. com.xingin.discover)",
@@ -688,6 +688,16 @@ final class AppExecTool: MCPTool {
             var p: [String: Any] = ["bundle_id": bundleId]
             if let ipa = params["ipa_path"] as? String { p["ipa_path"] = ipa }
             return try AppReplaceDecryptedTool().invoke(p)
+
+        case "inject_package":
+            // v4.3.19: 改包名+注入 dylib+打包+TrollStore 静默安装成独立新 App
+            var ip: [String: Any] = [:]
+            if let v = params["ipa_path"] as? String { ip["ipa_path"] = v }
+            if let v = params["dylib_path"] as? String { ip["dylib_path"] = v }
+            if let v = params["new_bundle_id"] as? String { ip["new_bundle_id"] = v }
+            if let v = params["new_name"] as? String { ip["new_name"] = v }
+            if let v = params["auto_install"] as? Bool { ip["auto_install"] = v }
+            return try AppInjectPackageTool().invoke(ip)
 
         case "restore_binary":
             // v4.3.16：就地替换后若目标 App 无法启动，用 runAsRoot 把 .troll-fools.bak 恢复回主二进制
