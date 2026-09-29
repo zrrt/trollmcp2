@@ -678,8 +678,16 @@ final class AppExecTool: MCPTool {
             }
             return try AiAnalyzeTool().invoke(["bundle_id": bundleId])
 
+        case "replace_decrypted":
+            guard let bundleId = params["bundle_id"] as? String else {
+                throw MCPError.invalidParams("bundle_id required")
+            }
+            var p: [String: Any] = ["bundle_id": bundleId]
+            if let ipa = params["ipa_path"] as? String { p["ipa_path"] = ipa }
+            return try AppReplaceDecryptedTool().invoke(p)
+
         default:
-            throw MCPError.invalidParams("Unknown command: \(command). Available: launch/stop/restart/status/stats/cache_inspect/cache_clear/open_and_input/deps/install/uninstall/duplicate/diagnose/encrypt_info/entitlements/decrypt/launch_options/ai_analyze")
+            throw MCPError.invalidParams("Unknown command: \(command). Available: launch/stop/restart/status/stats/cache_inspect/cache_clear/open_and_input/deps/install/uninstall/duplicate/diagnose/encrypt_info/entitlements/decrypt/replace_decrypted/launch_options/ai_analyze")
         }
     }
 }
