@@ -1742,17 +1742,9 @@ final class ShellExecTool: MCPTool {
             ]
         }
         
-        guard let pattern = namePattern, !pattern.isEmpty else {
-            return [
-                "command": command,
-                "exit_code": 1,
-                "stdout": "Usage: find <path> [-name|-iname '<pattern>'] [-type f|d] [-maxdepth N]",
-                "ios_native": true
-            ]
-        }
-        
+        // v4.3.13: 无 -name/-iname 时列出全部（按 -type/-maxdepth 过滤），不强制 pattern
         let resolvedPath = resolved
-        let nameRegex = pattern.replacingOccurrences(of: "*", with: ".*")
+        let nameRegex = (namePattern ?? "*").replacingOccurrences(of: "*", with: ".*")
         let compareOpts: String.CompareOptions = ignoreCase ? [.regularExpression, .caseInsensitive] : [.regularExpression]
         
         var results: [String] = []
