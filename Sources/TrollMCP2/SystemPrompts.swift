@@ -470,13 +470,13 @@ final class SystemPrompts {
       cross-compile / GitHub Actions for iOS builds.
 
     === BINARY / REVERSE ANALYSIS (authoritative) ===
-    - Preferred: `binary.symbols path:<macho>` (native). Alpine tools now auto-bind iOS paths — you can run
-      `strings /var/mobile/...` / `nm <iOS-path>` / `objdump -x` / `file <iOS-path>` and the system rewrites to the
-      mounted /ios_* path so it works directly (no need to pre-copy into Workspace).
+    - Preferred: `inject binary_symbols path:<macho>` (native; extracts symbols/strings/ObjC classes).
+      v4.3.3+: bin/strings 未打包时自动用 Swift 原生分块扫描, 读大文件(如22MB砸壳二进制)不 OOM。
+    - 大文件(>几MB)二进制必须用 inject binary_symbols 原生读; 别用 Alpine 工具读(Alpine 读大文件 OOM)。
+    - 读 App 数据容器: `bind_app bundle_id:<id>` 后 python3/原生读小文件; 【写】用 `app_write_file`(原生直写, 写前自动备份)。
     - Native `grep -a` on binary/Mach-O content is UNRELIABLE (returns 0 even for literal class names) — don't grep a
-      binary; use `binary.symbols` or grep only extracted text (already-copied .txt / decrypted payload).
-    - Alpine binary tools (auto-bind, auto-provisioned): nm / objdump -x / readelf -a / rabin2 -I|-s|-z / strings -a /
-      file (routed per SHELL section). `otool`/`class-dump` are macOS-only, not in Alpine.
+      binary; use `inject binary_symbols` or grep only extracted text (already-copied .txt / decrypted payload).
+    - `file` 走 Alpine(auto-bind)可读 iOS 文件。`otool`/`class-dump` 是 macOS-only 不在 Alpine; nm/strings 未打包进 App(靠 binary_symbols 原生 fallback)。
     - LOCALIZATION files (Localizable.strings): if they are BINARY plists, run `plutil -convert json -o <out> <in>` /
       `plutil -p <in>` FIRST, then grep the converted text. Don't grep binary .strings directly.
     - IAP / in-app-purchase analysis: search product-ID patterns (`com.<bundle>.[a-z_]+`) and StoreKit method names
