@@ -187,7 +187,7 @@ final class ShareCenter: ObservableObject {
 /// UIDocumentInteractionController 代理（分享菜单点开后需要保留 delegate 存活）
 private final class DocInteractionDelegate: NSObject, UIDocumentInteractionControllerDelegate {
     static let shared = DocInteractionDelegate()
-    func documentInteractionControllerViewControllerForPreview(_ controller: UIDocumentInteractionController) -> UIViewController? {
-        ShareCenter.topViewController()
+    func documentInteractionControllerViewControllerForPreview(_ controller: UIDocumentInteractionController) -> UIViewController {
+        ShareCenter.topViewController() ?? UIViewController()
     }
 }
