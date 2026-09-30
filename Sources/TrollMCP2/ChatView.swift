@@ -1701,14 +1701,15 @@ struct FileCardRow: View {
         .buttonStyle(PlainButtonStyle())
         .contextMenu {
             SharePresenter.menuShare(url: url)
-            // v4.3.43：iOS16+ 用 ShareLink（侧载稳定，系统在正确 scene 呈现分享页），
-            // iOS15 兜底命令式 present（已带防重入+转场等待）
-            if #available(iOS 16, *) {
+            // v4.3.44：iOS16.4+ 用 ShareLink（侧载稳定，系统在正确 scene 呈现分享页），
+            // 16.4 以下先弹 QuickLook 预览，由系统在预览页呈现分享面板（规避侧载
+            // 手写 present UIActivityViewController 的 MobileIcons/CoreImage SIGSEGV）
+            if #available(iOS 16.4, *) {
                 ShareLink(item: url) {
                     Label("用 TrollStore 安装", systemImage: "shippingbox")
                 }
             } else {
-                Button(action: { openInTrollStore() }) {
+                Button(action: { ShareCenter.shared.presentQuickLook(url: url) }) {
                     Label("用 TrollStore 安装", systemImage: "shippingbox")
                 }
             }
@@ -1716,19 +1717,6 @@ struct FileCardRow: View {
         .sheet(isPresented: $showPreview) {
             QLFilePreview(urls: [url])
         }
-    }
-
-    // v4.3.41：统一走 iOS 系统完整分享页（TrollStore 侧载同样可用）
-    private func shareFile() {
-        SharePresenter.present([url])
-    }
-
-    // 直接用 TrollStore URL scheme 安装
-    private func openInTrollStore() {
-        // TrollStore 的 URL scheme 是 trollstore://install?url=...
-        // 但本地文件需要先复制到 TrollStore 能访问的位置
-        // 这里直接用 OpenIn 菜单让用户选 TrollStore
-        shareFile()
     }
 }
 
