@@ -38,6 +38,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         LocationProvider.shared.start()
         // v2.9.10：网络与生命周期监控（切后台重连 / 网络恢复提示）
         AppLifecycleMonitor.shared.start()
+        // v4.3.39：启动静默检查更新——后台跑，不打扰；发现新版点亮设置页"检查更新"红点
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 3) {
+            let ver = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? ""
+            UpdateManager.shared.checkForUpdate(currentVersion: ver)
+        }
         // v2.9.66：启动时上报设备信息到统计后台（安装量/机型分布，需在设置中开启并配置服务器地址）
         DeviceReporter.shared.reportIfNeeded()
         // v2.9.180：远程诊断——启动即开始轮询云端指令；上报安装信息 + 上次崩溃未上报的日志。

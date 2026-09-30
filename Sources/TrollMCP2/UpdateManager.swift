@@ -13,6 +13,8 @@ final class UpdateManager: ObservableObject {
     @Published var downloadProgress: Double = 0
     @Published var latestVersion: String?
     @Published var updateAvailable = false
+    /// v4.3.39：新版红点——启动静默检查发现新版时点亮，设置页"检查更新"行显示红点；用户主动检查或安装成功后熄灭
+    @Published var hasUpdateRedDot = false
     @Published var errorMessage: String?
     @Published var downloadedIPAURL: URL?
     /// v4.3.35：自动安装成功提示（副标题/状态行显示"已自动安装"）
@@ -268,6 +270,8 @@ final class UpdateManager: ObservableObject {
         latestVersion = v
         let newer = isVersionNewer(v, than: currentVersion)
         updateAvailable = newer
+        // v4.3.39：发现新版即点亮红点（启动静默检查/手动检查均生效）
+        if newer { hasUpdateRedDot = true }
         completion?(newer)
     }
 
@@ -297,6 +301,8 @@ final class UpdateManager: ObservableObject {
 
     /// 一键更新：检查（多源）→ 有新版自动下载（多源）→ 调起 TrollStore 安装
     func updateNow(currentVersion: String) {
+        // v4.3.39：用户主动点检查更新 = 已看到红点，先熄灭
+        hasUpdateRedDot = false
         checkForUpdate(currentVersion: currentVersion) { [weak self] newer in
             guard let self = self else { return }
             if newer {
@@ -423,6 +429,8 @@ final class UpdateManager: ObservableObject {
                 isDownloading = false
                 downloadedIPAURL = nil
                 updateAvailable = false
+                // v4.3.39：已自动安装 → 红点熄灭
+                hasUpdateRedDot = false
                 var suffix = ""
                 if code == 184 { suffix = " (子二进制加密, 非致命)" }
                 else if code == 182 { suffix = " (developer mode)" }

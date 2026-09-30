@@ -12,6 +12,8 @@ struct SettingsItem: Identifiable {
     var action: (() -> Void)?
     var isOn: (() -> Bool)?
     var onToggle: ((Bool) -> Void)?
+    /// v4.3.39：行尾红点（新版提醒等），闭包返回是否显示
+    var redDot: (() -> Bool)?
 }
 
 struct SettingsGroup {
@@ -259,9 +261,11 @@ struct SettingsView: View {
                          icon: "exclamationmark.triangle.fill", color: .red,
                          destination: AnyView(CrashLogView())),
             // v4.3.29：一键更新——单行点击即 检查GitHub最新→下载→调起TrollStore安装
+            // v4.3.39：发现新版时行尾显示红点提醒
             SettingsItem(title: L10n.t("row_check_update"),
                          subtitle: updateSubtitle(),
                          icon: "arrow.triangle.2.circlepath.circle.fill", color: .green,
+                         redDot: { UpdateManager.shared.hasUpdateRedDot },
                          action: {
                              updateManager.updateNow(currentVersion: ver)
                          }),
@@ -490,6 +494,13 @@ struct SettingRowContent: View {
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
+            }
+            Spacer(minLength: 0)
+            // v4.3.39：行尾红点提醒（新版更新等）——红点在行尾右侧，点击行即处理
+            if let redDot = item.redDot, redDot() {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 9, height: 9)
             }
         }
     }
