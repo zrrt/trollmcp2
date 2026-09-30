@@ -344,15 +344,22 @@ final class UpdateManager: ObservableObject {
         var req = URLRequest(url: url)
         req.timeoutInterval = 30
         let task = URLSession.shared.downloadTask(with: req) { [weak self] tempURL, resp, error in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
-                if error != nil || status != 200 || tempURL == nil {
+            guard let self = self else { return }
+            let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+            if error != nil || status != 200 || tempURL == nil {
+                DispatchQueue.main.async {
                     self.attemptDownload(attempts, index: index + 1, version: version)
-                    return
                 }
-                if !self.processDownloaded(tempURL!, isArtifact: attempt.isArtifact, version: version) {
-                    self.attemptDownload(attempts, index: index + 1, version: version)
+                return
+            }
+            // v4.3.38: 解压+安装挪后台线程——之前整个 processDownloaded (含同步阻塞等待安装, 最长240s)
+            // 跑在 DispatchQueue.main.async 里, 主线程无响应超过 iOS watchdog 阈值会被系统杀进程 (表现为"检查更新闪退")。
+            DispatchQueue.global(qos: .userInitiated).async {
+                let ok = self.processDownloaded(tempURL!, isArtifact: attempt.isArtifact, version: version)
+                if !ok {
+                    DispatchQueue.main.async {
+                        self.attemptDownload(attempts, index: index + 1, version: version)
+                    }
                 }
             }
         }
@@ -422,18 +429,22 @@ final class UpdateManager: ObservableObject {
                 installMessage = "已自动安装 v\(latestVersion ?? "")\(suffix)"
                 return
             }
-            // 2) 静默安装失败 → 降级分享菜单(用户手动选 TrollStore 打开)
-            SharePresenter.present([url]) { [weak self] completed, error in
-                if let error = error {
-                    self?.errorMessage = "静默安装失败(exit \(code)), 分享调起也失败: \(error.localizedDescription)"
+            // 2) 静默安装失败 → 降级分享菜单(用户手动选 TrollStore 打开)。分享 UI 必须主线程
+            DispatchQueue.main.async {
+                SharePresenter.present([url]) { [weak self] completed, error in
+                    if let error = error {
+                        self?.errorMessage = "静默安装失败(exit \(code)), 分享调起也失败: \(error.localizedDescription)"
+                    }
                 }
             }
             return
         }
-        // 3) 无 trollstorehelper → 分享菜单兜底
-        SharePresenter.present([url]) { [weak self] completed, error in
-            if let error = error {
-                self?.errorMessage = "安装调起失败: \(error.localizedDescription)"
+        // 3) 无 trollstorehelper → 分享菜单兜底 (UI 必须主线程)
+        DispatchQueue.main.async {
+            SharePresenter.present([url]) { [weak self] completed, error in
+                if let error = error {
+                    self?.errorMessage = "安装调起失败: \(error.localizedDescription)"
+                }
             }
         }
     }
