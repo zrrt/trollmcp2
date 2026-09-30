@@ -1045,3 +1045,17 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 - 场景D 入口同步补 binary_symbols 提示。
 
 **校验**：SystemPrompts 括号配对全过；版本 4.3.31。真实编译走 GitHub Actions。
+
+### v4.3.33（2026-09-30）撤销 binary.scan + AI 自主搜索路线
+
+**用户明确反对**：组合/一键工具堆得越来越多没意义（binary.scan 被点名否决）——要的是 AI **自己去搜索互联网和知识库** 弄懂方法论、再组合基础工具自主分析。
+
+**改动**：
+1. **撤销 v4.3.32 binary.scan**（git revert 1583203 → 3a88df4；已取消其 CI run）：删除 BinaryScanTool.swift、注册行、SystemPrompts binary.scan 引导；版本回 4.3.31。
+2. **知识库预置**（MissingTools.swift KnowledgeStore）：新增 seedBuiltinIfNeeded()（版本键 trollmcp2.knowledge_seed_version，变更时删除前缀"内置-"条目重播，保留用户自建）——预置 2 条可检索知识：
+   - `内置-逆向分析-方法论.md`：侦察→静态→动态→结论 + iOS 专项 + App 内/电脑侧边界。
+   - `内置-插件安全-风险判定.md`：高危/中危/低危命中规则 + 域名白名单 + 结论格式。
+3. **SystemPrompts**：BINARY 权威段 + 方法论知识库段改为"自主搜索先行"——遇逆向类问题先 knowledge.search（查内置条目）+ web.search/web.fetch（查资料/风险情报），再组合基础工具（binary.symbols / inject binary_symbols / fs / shell / package / app encrypt_info）分析；明确不依赖封装组合工具。
+4. 版本 4.3.33。静态括号检查全过。
+
+**事实核对**：App 内 web.search(Bing→DDG 免Key)/web.fetch/knowledge.search/import 均已存在（MissingTools.swift 122/303/419+）——能力本就有，本次是"引导 + 知识内容"落地。

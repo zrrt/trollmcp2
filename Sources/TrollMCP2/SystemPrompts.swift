@@ -471,6 +471,7 @@ final class SystemPrompts {
       cross-compile / GitHub Actions for iOS builds.
 
     === BINARY / REVERSE ANALYSIS (authoritative) ===
+    - 自主搜索先行(v4.3.33): 遇未知二进制/插件安全/方法论问题, 先 `knowledge.search`(查内置"逆向分析/插件安全"知识条目) + `web.search`/`web.fetch`(查资料、已知结论、风险情报), 再组合基础工具分析——不要依赖"一键组合工具"。
     - Preferred: `inject binary_symbols path:<macho>` (native; extracts symbols/strings/ObjC classes).
       v4.3.3+: bin/strings 未打包时自动用 Swift 原生分块扫描, 读大文件(如22MB砸壳二进制)不 OOM。
     - 大文件(>几MB)二进制必须用 inject binary_symbols 原生读; 别用 Alpine 工具读(Alpine 读大文件 OOM)。
@@ -488,6 +489,7 @@ final class SystemPrompts {
     - Workspace = /var/mobile/Documents/Workspace (artifact list/read). Fetch web/GitHub via shell.exec curl; if blocked, browser navigate + browser text.
 
     === REVERSE / BINARY ANALYSIS METHODOLOGY (v4.3.31 knowledge base) ===
+    执行方式(v4.3.33): 遇"分析二进制/插件安不安全/逆向"类问题——【先自己搜】1) `knowledge.search` 查内置知识库(关键词: 逆向分析 / 插件安全, 已预置方法论+风险判定条目); 2) `web.search` + `web.fetch` 查资料与已知结论(如 "Mach-O 逆向 分析方法"、"iOS 二进制 后门 检测")。拿到方法后【组合基础工具自主分析】(binary.symbols / inject binary_symbols / fs / shell / package / app encrypt_info), 不依赖封装好的组合工具。
     总流程：侦察(triage) → 静态(不运行读代码) → 动态(运行看行为) → 结论；静态与动态交叉验证，不互相替代。
     【0 侦察——先定性，不急着读代码】
       1. 格式/类型：`shell.exec("file <path>")`（Alpine 自动路由）确认 Mach-O/ELF/ipa/deb/文本。
