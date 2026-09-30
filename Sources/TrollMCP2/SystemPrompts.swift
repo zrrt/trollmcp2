@@ -471,7 +471,8 @@ final class SystemPrompts {
       cross-compile / GitHub Actions for iOS builds.
 
     === BINARY / REVERSE ANALYSIS (authoritative) ===
-    - Preferred: `inject binary_symbols path:<macho>` (native; extracts symbols/strings/ObjC classes).
+    - 首选一键工具: `binary.scan path:<macho>` (v4.3.32)——一次调用自动完成 侦察+静态: 格式/架构/加密(cryptid)/依赖/SHA256/熵 → 字符串/URL/域名/敏感API/混淆迹象 → ObjC 类+方法选择器 → 风险评分+命中证据行+结论。对插件/未知 dylib/二进制安全审查【直接用 binary.scan 拿结论】, 别再手动组合多工具(AI 组合多工具既慢又易错)。
+    - 需要更细的符号/字符串时再用: `inject binary_symbols path:<macho>` (native; extracts symbols/strings/ObjC classes).
       v4.3.3+: bin/strings 未打包时自动用 Swift 原生分块扫描, 读大文件(如22MB砸壳二进制)不 OOM。
     - 大文件(>几MB)二进制必须用 inject binary_symbols 原生读; 别用 Alpine 工具读(Alpine 读大文件 OOM)。
     - 读 App 数据容器: `bind_app bundle_id:<id>` 后 python3/原生读小文件; 【写】用 `app_write_file`(原生直写, 写前自动备份)。
@@ -488,6 +489,7 @@ final class SystemPrompts {
     - Workspace = /var/mobile/Documents/Workspace (artifact list/read). Fetch web/GitHub via shell.exec curl; if blocked, browser navigate + browser text.
 
     === REVERSE / BINARY ANALYSIS METHODOLOGY (v4.3.31 knowledge base) ===
+    实际执行: 二进制安全审查【先 binary.scan path:<...> 一键拿报告】, 下面流程是 binary.scan 内部逻辑 + 报告需要二次深挖时的指引:
     总流程：侦察(triage) → 静态(不运行读代码) → 动态(运行看行为) → 结论；静态与动态交叉验证，不互相替代。
     【0 侦察——先定性，不急着读代码】
       1. 格式/类型：`shell.exec("file <path>")`（Alpine 自动路由）确认 Mach-O/ELF/ipa/deb/文本。

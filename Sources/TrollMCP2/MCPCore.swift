@@ -1139,6 +1139,8 @@ public final class ToolRegistry: ObservableObject {
         register(VpnTool())
         // v3.3.4: 解包查看别人的包（deb / ipa：列结构、解包到工作区）
         register(PackageTool())
+        // v4.3.32: 一键二进制安全/逆向扫描报告（侦察+静态自动完成 → 风险评分+证据行）
+        register(BinaryScanTool())
 
         // v3.1.34: app 大工具 + 子命令 (合并 5 个 app.* 工具）
         register(AppExecTool())
