@@ -619,6 +619,11 @@ final class ConversationStore: ObservableObject {
     private var pendingParamCorrection: String? = nil
     /// v3.5.6：参数纠正连续次数——同一 tool 决策最多纠正 2 次仍缺参就放行执行，避免死循环。
     private var paramCorrectionCount = 0
+    /// v4.3.25：空回复纠正——工具结果回来、模型最终却输出空文本时，注入"请给结论"纠正
+    /// 重跑一轮，不再静默结束（用户实测"空结果会卡死，AI 不进行下一步，必须重新发消息"）。
+    private var pendingEmptyReplyCorrection: String? = nil
+    /// v4.3.25：空回复纠正连续次数——最多 2 次仍空就停止，避免无限重跑。
+    private var emptyReplyCorrectionCount = 0
     /// v3.1.70：活动请求绑定的会话 ID——请求由哪个会话发起就写回哪个会话。
     /// 修复"请求进行中切换会话，AI 输出错位/写错会话" (用户实测：老会话未暂停，切换新会话后输出仍乱）。
     private var activeConvId: UUID?
@@ -752,6 +757,9 @@ final class ConversationStore: ObservableObject {
         // v3.5.6：重置工具参数预校验纠正状态
         paramCorrectionCount = 0
         pendingParamCorrection = nil
+        // v4.3.25：重置空回复纠正状态（跨任务不残留）
+        emptyReplyCorrectionCount = 0
+        pendingEmptyReplyCorrection = nil
         var msg = ChatMessage(role: "user", content: text)
         if let imgs = imageDataURLs, !imgs.isEmpty {
             msg.imageDataURLs = imgs
@@ -935,6 +943,11 @@ final class ConversationStore: ObservableObject {
             history.append(ChatMessage(role: "user", content: pcorr))
             self.pendingParamCorrection = nil
         }
+        // v4.3.25：空回复纠正注入——上一轮工具执行后模型输出空白，拼到请求末尾逼其给结论。
+        if let ecorr = self.pendingEmptyReplyCorrection, !ecorr.isEmpty {
+            history.append(ChatMessage(role: "user", content: ecorr))
+            self.pendingEmptyReplyCorrection = nil
+        }
 
         client.send(messages: history, tools: effectiveTools, onStatus: { status in
             DispatchQueue.main.async {
@@ -1060,6 +1073,40 @@ final class ConversationStore: ObservableObject {
                             self.attachTrail(to: am.id, thinking: thinking)
                         }
                     }
+                    // v4.3.25：空回复兜底——工具结果回来、模型最终却输出空文本时，
+                    // 不再静默结束（用户实测"空结果会卡死，AI 不进行下一步，必须重新发消息"）。
+                    // 若会话末尾是 tool 结果消息且本条回复为空白，注入纠正重跑一轮逼模型给结论；
+                    // 最多 2 次仍空就停止，避免无限重跑。
+                    let trimmedFinal = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    var lastMsgIsTool = false
+                    if let ci = self.activeConvIndex {
+                        if let last = self.conversations[ci].messages.last {
+                            lastMsgIsTool = (last.role == "tool")
+                        }
+                    }
+                    if trimmedFinal.isEmpty && lastMsgIsTool && self.emptyReplyCorrectionCount < 2 {
+                        self.emptyReplyCorrectionCount += 1
+                        self.pendingEmptyReplyCorrection = "你刚刚执行了工具但回复正文是空的。请基于已返回的工具结果，用一两句话向用户给出明确结论（或说明下一步该做什么），不要只回复空白或「Done」。"
+                        self.trailStep(.done(.note, "空回复纠正", detail: "模型空文本回复，注入纠正重跑", ok: false))
+                        // 清掉刚渲染的空 assistant 消息，避免界面残留空白气泡
+                        if let sid = self.streamingMessageId {
+                            self.removeMessage(id: sid)
+                        } else if let ci = self.activeConvIndex {
+                            var msgs = self.conversations[ci].messages
+                            if let li = msgs.indices.last,
+                               msgs[li].role == "assistant",
+                               msgs[li].content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                msgs.remove(at: li)
+                                self.conversations[ci].messages = msgs
+                            }
+                        }
+                        self.streamingMessageId = nil
+                        self.liveProducedID = nil
+                        self.thinkBuffer = ""
+                        self.runLoop(config: config, tools: tools, disclosed: disclosed, depth: depth + 1, reasoningLevel: reasoningLevel)
+                        return
+                    }
+                    self.emptyReplyCorrectionCount = 0
                     // v3.5.3：文本工具调用兜底——模型把 shell.exec("...")/shell_exec(...) 写成文本
                     // (而非结构化 tool_call) 时，系统本不执行、任务卡死。这里检测最终文本里的文本式
                     // shell 调用，提取命令并真正执行，继续 agent 循环（提示词兜底不住，代码兜底保证）。

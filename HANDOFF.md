@@ -926,3 +926,23 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 **待实测**：
 1. "无法解析响应"是否自动恢复（不再需要手动点继续）。
 2. 注入 EPERM：用户需卸载重装 v2.9.48（含 v2.9.47 的 TSRootBinaries 修复），看 `[bin-setuid=0|1]` 诊断。
+
+### v4.3.25（2026-09-30）修 ai_analyze 空结果卡死 / 一直执行中（执行链路三连修）
+
+**用户实测问题**：AI 调 `app ai_analyze`（如 bundle_id:com.appstudio.Jinx，含 direction:iap）时：
+1. 命令长期停留在"工具执行中…"，结果回来后模型转述"Tool ran without output or errors"（空结果）；
+2. 空结果后 AI 不进行下一步，必须重新发消息才能恢复。
+
+**根因（三处独立 bug）**：
+1. **direction 参数被丢弃**：`app` 工具 dispatch 的 `ai_analyze` 分支只透传 bundle_id，`direction/custom_hint/max_classes/prefix` 全丢 → AI 带方向调用永远跑默认"全面"分析，结果与预期不符、显得"没输出"。与 v4.3.11 修的 binary_symbols direction 同款 bug。
+2. **15s 超时看门狗是死代码**：`dispatch` 里 `timedOut` 标记只写不读（invoke 超 15s 后 AI 收不到任何"慢"信号）→ 长工具（砸壳/LLM 等待可达分钟级）被误判为"空结果"。且慢结果仍写缓存，把"慢"当常态复读。
+3. **工具后空文本回复静默结束**：模型在工具结果后输出空正文时，`.success(.text)` 分支直接收尾（activeConvId=nil）→ UI 无新内容、链已断 → 用户必须重新发消息。
+
+**修复**：
+1. `ProcessTools.swift` ai_analyze 分支透传 direction/custom_hint/max_classes/prefix。
+2. `MCPCore.swift` dispatch：invoke 返回后若 timedOut，结果加 `_slow=true` + `_slow_note`（明示"长工具慢是正常的，不是空结果"）；慢结果不写缓存。
+3. `Models.swift`：新增空回复纠正机制——`.success(.text)` 收到空白正文、且会话末尾是 tool 结果消息时，移除空气泡、注入"请基于工具结果给结论"纠正消息重跑一轮（上限 2 次，防无限重跑；新请求自动重置计数）。
+
+**校验**：三文件括号配对 + 字符串/raw-string/注释感知 tokenizer 全过；未改变 AiAnalyzeTool 签名与调用方；版本 4.3.25（Info.plist）。
+
+**说明（边界）**：本版只修通用执行链路健壮性（参数透传/慢调用标记/空回复兜底），不涉及任何目标 App 的 hook 方案生成或绕过逻辑本身。

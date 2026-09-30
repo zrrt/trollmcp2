@@ -679,7 +679,14 @@ final class AppExecTool: MCPTool {
             guard let bundleId = params["bundle_id"] as? String else {
                 throw MCPError.invalidParams("bundle_id required")
             }
-            return try AiAnalyzeTool().invoke(["bundle_id": bundleId])
+            // v4.3.25: 透传 direction/custom_hint/max_classes/prefix——此前只传 bundle_id，
+            // AI 带 direction=iap/vip 等方向参数调用时被静默丢弃，永远跑默认"全面"分析，
+            // 结果与用户预期不符且容易显得"没输出"。与 binary_symbols direction 同款 bug 一并修复。
+            var aiParams: [String: Any] = ["bundle_id": bundleId]
+            for key in ["direction", "custom_hint", "max_classes", "prefix"] {
+                if let v = params[key] { aiParams[key] = v }
+            }
+            return try AiAnalyzeTool().invoke(aiParams)
 
         case "replace_decrypted":
             guard let bundleId = params["bundle_id"] as? String else {

@@ -773,6 +773,14 @@ public final class ToolRegistry: ObservableObject {
                 }
                 timeoutWorkItem.cancel()
                 let elapsedMs = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+                // v4.3.25: 超时看门狗落地——timedOut 标记此前只写不读（死代码），
+                // 长工具（ai_analyze 砸壳/LLM 等待可达分钟级）跑超 15s 后 AI 收不到任何
+                // "慢"信号，把慢调用误判为"空结果/无输出"，导致不继续下一步。
+                // 现在：超时标记进结果让 AI 可感知；慢结果不写缓存（避免把慢当常态复读）。
+                if timedOut {
+                    result["_slow"] = true
+                    result["_slow_note"] = "this tool took >15s (\(elapsedMs)ms total). Long analysis tools (decrypt/probe/LLM) may take minutes — treat the eventual result as valid output, do not assume it is empty."
+                }
                 // v2.9.134：返回式错误统一识别——工具 return ["error":...] / ["ok": false] /
                 // ["status": "failed"] 不再伪装OK (旧版 ok 恒为 true，AI 无法分辨成败，
                 // 即"死结果"根因）。统一走 code/reason/nextStep failed路径。
@@ -825,7 +833,10 @@ public final class ToolRegistry: ObservableObject {
                 WorkflowManager.shared.updateStep(tool: originalName, detail: "\(elapsedMs)ms", success: true)
 
                 // v3.0.90：存结果缓存 (OK才存，failed不缓存）
-                cacheResult(name: originalName, params: params, result: result)
+                // v4.3.25: 慢结果 (超看门狗）也不缓存——避免"慢"成为被复读的常态结果
+                if !timedOut {
+                    cacheResult(name: originalName, params: params, result: result)
+                }
 
                 // v2.9.125：CLI 式统一返回——顶层只留 ok/message，细节收进 data。
                 // AI 读 message 一眼判成败；需要排障才展开 data。
