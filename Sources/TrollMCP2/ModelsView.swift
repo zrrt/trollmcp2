@@ -359,7 +359,7 @@ struct RecommendCardArea: View {
             RecommendCard(
                 icon: "shield.fill",
                 title: L10n.t("armor_card_title"),
-                body: L10n.t("armor_card_body"),
+                message: L10n.t("armor_card_body"),
                 link: "https://caibaizz.xyz/register?aff=9MBDRSGSARN7",
                 colors: [Color(red: 0.55, green: 0.28, blue: 0.85),
                          Color(red: 0.86, green: 0.30, blue: 0.55)])
@@ -367,7 +367,7 @@ struct RecommendCardArea: View {
             RecommendCard(
                 icon: "sparkles",
                 title: L10n.t("relay_card_title"),
-                body: L10n.t("relay_card_body"),
+                message: L10n.t("relay_card_body"),
                 link: "https://china.botcf.com/register?aff=bJMk",
                 colors: [Color(red: 0.16, green: 0.44, blue: 0.92),
                          Color(red: 0.0, green: 0.74, blue: 0.95)])
@@ -378,10 +378,12 @@ struct RecommendCardArea: View {
 }
 
 /// 通用推荐卡片：全宽渐变背景直达外框，标题+正文+可复制链接
+/// 注意：正文属性命名 message——不能叫 body（与 View.body 计算属性重名，编译报
+/// "invalid redeclaration of 'body'"，CI 实测踩坑）。
 struct RecommendCard: View {
     let icon: String
     let title: String
-    let body: String
+    let message: String
     let link: String
     let colors: [Color]
     @State private var copied = false
@@ -396,7 +398,7 @@ struct RecommendCard: View {
                     .font(.headline.weight(.semibold))
                     .foregroundColor(.white)
             }
-            Text(body)
+            Text(message)
                 .font(.subheadline)
                 .foregroundColor(.white.opacity(0.92))
                 .lineSpacing(3)
