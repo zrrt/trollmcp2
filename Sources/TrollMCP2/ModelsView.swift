@@ -246,13 +246,23 @@ struct ModelRow: View {
                     .foregroundColor(.purple)
             }
             .buttonStyle(.plain)
-            // v2.9.126：分享深链——trollagent://import?...，对方点链接即可导入（对齐 cc-switch DeepLinkImportDialog）
-            Button(action: shareDeepLink) {
-                Image(systemName: "link")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.teal)
+            // v2.9.126：分享深链——trollagent://import?...，对方点链接即可导入
+            // v4.3.42：iOS16+ 用 ShareLink 系统分享页（侧载稳定），iOS15 兜底命令式
+            if #available(iOS 16, *) {
+                ShareLink(item: makeDeepLink()) {
+                    Image(systemName: "link")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.teal)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button(action: { SharePresenter.present([makeDeepLink()]) }) {
+                    Image(systemName: "link")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.teal)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
             if !config.isDefault {
                 Button(action: activate) {
                     Image(systemName: "checkmark.circle")
@@ -295,8 +305,8 @@ struct ModelRow: View {
         AuditLog.shared.log("model.duplicate", detail: config.name)
     }
 
-    /// v2.9.126：生成深链并唤起系统分享（对方设备装 TrollAgent 点链接即可导入）
-    private func shareDeepLink() {
+    /// v2.9.126：生成导入深链（v4.3.42 改为纯函数，由 ShareLink/按钮调用）
+    private func makeDeepLink() -> String {
         let enc = { (s: String) in
             s.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? s
         }
@@ -306,10 +316,7 @@ struct ModelRow: View {
         if config.temperature != 0.7 { link += "&temperature=\(config.temperature)" }
         if config.maxTokens != 2048 { link += "&maxTokens=\(config.maxTokens)" }
         if config.contextTokens != 16000 { link += "&contextTokens=\(config.contextTokens)" }
-
-        // v2.9.169：统一 SharePresenter（旧裸 present 在子页 sheet 上再 present 必崩）
-        SharePresenter.present([link])
-        AuditLog.shared.log("model.share_deeplink", detail: config.name)
+        return link
     }
 
     /// v2.9.107：供应商测速（GET /models，8s 超时）

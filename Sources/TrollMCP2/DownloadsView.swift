@@ -154,13 +154,9 @@ struct DownloadsView: View {
             }
         }
         .contextMenu {
-            Button(action: {
-                if !item.isDir {
-                    // v4.3.41：直接弹系统分享页
-                    SharePresenter.present([URL(fileURLWithPath: item.path)])
-                }
-            }) {
-                Label("分享", systemImage: "square.and.arrow.up")
+            // v4.3.42：iOS16+ ShareLink 系统分享页（侧载稳定），iOS15 兜底命令式
+            if !item.isDir {
+                SharePresenter.menuShare(url: URL(fileURLWithPath: item.path))
             }
             Button(action: { try? FileManager.default.removeItem(atPath: item.path); refresh() }) {
                 Label("删除", systemImage: "trash")

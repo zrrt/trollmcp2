@@ -1,4 +1,4 @@
-import UIKit
+import SwiftUI
 
 /// v4.3.41：统一分享器——优先弹出 iOS 系统完整分享页 UIActivityViewController
 /// （微信/短信/隔空投送/存储到文件/用 TrollStore 打开/复制 等全部活动项）。
@@ -117,5 +117,64 @@ enum SharePresenter {
             return win
         }
         return UIApplication.shared.windows.first
+    }
+}
+
+// MARK: - SwiftUI 系统分享入口（v4.3.42）
+//
+// 关键：iOS16+ 用 SwiftUI 原生 ShareLink。它由 SwiftUI/系统在正确的 window scene 与
+// 宿主控制器上下文里呈现 UIActivityViewController，不经过手写的 keyWindow/顶层VC 查找——
+// 这是 TrollStore 生态 App（如 TrollFools）验证过的稳定做法，规避侧载环境下手写 present
+// 枚举分享扩展时的闪退。iOS15 无 ShareLink，兜底走命令式 SharePresenter。
+extension SharePresenter {
+
+    /// 上下文菜单里的"分享"项（文件 URL）
+    @ViewBuilder
+    static func menuShare(url: URL, label: String = "分享",
+                          systemImage: String = "square.and.arrow.up") -> some View {
+        if #available(iOS 16, *) {
+            ShareLink(item: url) { Label(label, systemImage: systemImage) }
+        } else {
+            Button { present([url]) } label: { Label(label, systemImage: systemImage) }
+        }
+    }
+
+    /// 上下文菜单里的"分享"项（文本）
+    @ViewBuilder
+    static func menuShare(text: String, label: String = "分享",
+                          systemImage: String = "square.and.arrow.up") -> some View {
+        if #available(iOS 16, *) {
+            ShareLink(item: text) { Label(label, systemImage: systemImage) }
+        } else {
+            Button { present([text]) } label: { Label(label, systemImage: systemImage) }
+        }
+    }
+
+    /// 工具栏里的"分享"图标按钮（文本）
+    @ViewBuilder
+    static func toolbarShare(text: String) -> some View {
+        if #available(iOS 16, *) {
+            ShareLink(item: text) {
+                Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
+            }
+        } else {
+            Button { present([text]) } label: {
+                Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
+            }
+        }
+    }
+
+    /// 工具栏里的"分享"图标按钮（文件 URL）
+    @ViewBuilder
+    static func toolbarShare(url: URL) -> some View {
+        if #available(iOS 16, *) {
+            ShareLink(item: url) {
+                Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
+            }
+        } else {
+            Button { present([url]) } label: {
+                Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
+            }
+        }
     }
 }

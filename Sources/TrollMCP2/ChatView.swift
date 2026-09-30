@@ -97,11 +97,8 @@ struct ChatView: View {
                                     .font(.system(size: 18, weight: .semibold))
                             }
                             .disabled(selectedIds.isEmpty)
-                            Button(action: shareSelected) {
-                                Image(systemName: "square.and.arrow.up")
-                                    .font(.system(size: 18, weight: .semibold))
-                            }
-                            .disabled(selectedIds.isEmpty)
+                            SharePresenter.toolbarShare(text: exportText())
+                                .disabled(selectedIds.isEmpty)
                         }
                     } else {
                         HStack(spacing: 14) {
@@ -1329,14 +1326,12 @@ struct MessageBubble: View {
                 withAnimation { expanded.toggle() }
             }
         }
-        // v2.9.2：长按消息 → 复制 / 分享到其他 App
+        // v4.3.42：长按消息 → 复制 / 系统分享页（iOS16+ ShareLink，侧载稳定）
         .contextMenu {
             Button(action: { onCopy?() }) {
                 Label("复制", systemImage: "doc.on.doc")
             }
-            Button(action: { onShare?() }) {
-                Label("分享", systemImage: "square.and.arrow.up")
-            }
+            SharePresenter.menuShare(text: message.content)
         }
         // v3.4.5：打字机效果——内容增长即逐字显示，直到完整
         .onAppear {
@@ -1705,9 +1700,7 @@ struct FileCardRow: View {
         }
         .buttonStyle(PlainButtonStyle())
         .contextMenu {
-            Button(action: { shareFile() }) {
-                Label("分享", systemImage: "square.and.arrow.up")
-            }
+            SharePresenter.menuShare(url: url)
             Button(action: { openInTrollStore() }) {
                 Label("用 TrollStore 安装", systemImage: "shippingbox")
             }
