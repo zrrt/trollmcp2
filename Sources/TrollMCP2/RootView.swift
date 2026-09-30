@@ -23,6 +23,8 @@ struct RootView: View {
     // v2.9.126：深链导入确认页（trollagent://import?...）
     @ObservedObject private var pendingImport = PendingImport.shared
     @State private var importResult: String?
+    // v4.3.44：QuickLook 分享中间层状态（侧载环境分享面板安全路径）
+    @ObservedObject private var shareCenter = ShareCenter.shared
 
     private static func onboardingNeeded() -> Bool {
         let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -130,7 +132,7 @@ struct RootView: View {
         // v4.3.44：QuickLook 分享中间层——TrollStore 侧载环境手写分享面板会触发
         // MobileIcons/CoreImage 系统级 SIGSEGV（闪退）。照抄 TrollFools：文件分享先弹
         // QuickLook 预览，由系统在自身上下文呈现分享面板，规避崩溃路径。
-        .quickLookPreview($ShareCenter.shared.quickLookURL)
+        .quickLookPreview($shareCenter.quickLookURL)
     }
 
     private func drawerWidth(for geo: GeometryProxy) -> CGFloat {
