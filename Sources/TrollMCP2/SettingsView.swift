@@ -265,10 +265,10 @@ struct SettingsView: View {
             SettingsItem(title: L10n.t("row_check_update"),
                          subtitle: updateSubtitle(),
                          icon: "arrow.triangle.2.circlepath.circle.fill", color: .green,
-                         redDot: { UpdateManager.shared.hasUpdateRedDot },
                          action: {
                              updateManager.updateNow(currentVersion: ver)
-                         }),
+                         },
+                         redDot: { UpdateManager.shared.hasUpdateRedDot }),
             // v4.3.30：多源镜像配置——GitHub 被墙时备用通道
             SettingsItem(title: "更新镜像源",
                          subtitle: mirrorSubtitle(),
