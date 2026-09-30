@@ -549,18 +549,17 @@ func findPidByPsName(_ execName: String) -> Int32 {
 final class AppExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "app",
-        summary: "Manage apps AND analyze how an app works. FIRST CHOICE for understanding an app's internals: use `app ai_analyze` (one-step: auto decrypt-check + ProbeAgent inject + collect classes + analyze direction), instead of manually chaining shell.exec commands. Use for: launch/stop/restart app, install/uninstall, diagnose, check encryption (encrypt_info), view entitlements, decrypt (app decrypt), and AI analyze app (ai_analyze). Don't use for: inject dylib (use inject.*), UI control (use control.*). Example: analyze how an app checks VIP → `app ai_analyze bundle_id:com.xxx direction:vip`; launch → `app launch bundle_id:com.xxx`; install → `app install path:/path/to.ipa`. Subcommands: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps / install / uninstall / duplicate / diagnose / encrypt_info / entitlements / decrypt / replace_decrypted / restore_binary / launch_options / ai_analyze / inject_package. 【加密 App 处理流程(v4.3.17)】encrypt_info 显示 cryptid=1 时: 密文版既不能静态分析也不能注入 hook(报 TARGET_INCOMPATIBLE / spawnRoot failed 85), 要分析/hook 必须先砸壳: `app command=decrypt bundle_id=..` 砸壳出 IPA → `app command=replace_decrypted bundle_id=.. ipa_path=<decrypted ipa>` 就地替换(自动完整重签整个 bundle, 尽力让 App 能启动) → 若替换后 App 无法启动(direct_exec -109), 用 `app command=restore_binary bundle_id=..` 恢复原密文版。砸壳后注入 hook 走 inject 工具(见 inject prerequisites)。【App Store 原装 App(v4.3.19)】就地替换无效(iOS 只加载加密原版, 冷启动仍报 cryptid=1)。要 hook 必须改包名+TrollStore 重装成独立新 App: `app command=inject_package ipa_path:<砸壳ipa> dylib_path:<JinxVIPBypass.dylib> new_bundle_id:com.trollagent.xxx`(自动改包名→insert_dylib 加 load command→拷 dylib→打包→TrollStore 静默安装, 不碰原 App)。",
+        summary: "Manage apps AND analyze how an app works. Use for: launch/stop/restart app, install/uninstall, diagnose, check encryption (encrypt_info), view entitlements, decrypt (app decrypt). Don't use for: inject dylib (use inject.*), UI control (use control.*). Example: launch → `app launch bundle_id:com.xxx`; install → `app install path:/path/to.ipa`. Subcommands: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps / install / uninstall / duplicate / diagnose / encrypt_info / entitlements / decrypt / replace_decrypted / restore_binary / launch_options / inject_package. 【加密 App 处理流程(v4.3.17)】encrypt_info 显示 cryptid=1 时: 密文版既不能静态分析也不能注入 hook(报 TARGET_INCOMPATIBLE / spawnRoot failed 85), 要分析/hook 必须先砸壳: `app command=decrypt bundle_id=..` 砸壳出 IPA → `app command=replace_decrypted bundle_id=.. ipa_path=<decrypted ipa>` 就地替换(自动完整重签整个 bundle, 尽力让 App 能启动) → 若替换后 App 无法启动(direct_exec -109), 用 `app command=restore_binary bundle_id=..` 恢复原密文版。砸壳后注入 hook 走 inject 工具(见 inject prerequisites)。【App Store 原装 App(v4.3.19)】就地替换无效(iOS 只加载加密原版, 冷启动仍报 cryptid=1)。要 hook 必须改包名+TrollStore 重装成独立新 App: `app command=inject_package ipa_path:<砸壳ipa> dylib_path:<JinxVIPBypass.dylib> new_bundle_id:com.trollagent.xxx`(自动改包名→insert_dylib 加 load command→拷 dylib→打包→TrollStore 静默安装, 不碰原 App)。",
         parameters: [
-            "command": "Subcommand: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps / install / uninstall / duplicate / diagnose / encrypt_info / entitlements / decrypt / replace_decrypted / restore_binary / launch_options / ai_analyze",
+            "command": "Subcommand: launch / stop / restart / status / stats / cache_inspect / cache_clear / open_and_input / deps / install / uninstall / duplicate / diagnose / encrypt_info / entitlements / decrypt / replace_decrypted / restore_binary / launch_options / inject_package",
             "bundle_id": "App bundle ID (e.g. com.xingin.discover)",
             "path": "IPA file path (for install)",
             "ipa_path": "Decrypted IPA path (for replace_decrypted)",
             "output_name": "Output name for decrypted IPA (for decrypt, optional)",
-            "direction": "Analysis direction for ai_analyze (e.g. vip / iap / iap_price / vpn / login / anti-cheat)",
             "duration": "Duration seconds (for stats)",
             "text": "Text to input (for open_and_input)"
         ],
-        verified: true, category: "app_control", prerequisites: ["analyze/hook 加密 App(cryptid=1)必须先砸壳: decrypt → replace_decrypted → restore_binary 恢复(流程见 summary)", "ai_analyze 对加密 App 无效, 先 app encrypt_info 确认 cryptid", "install/uninstall 需 TrollStore entitlements; 失败看 diagnose"])
+        verified: true, category: "app_control", prerequisites: ["analyze/hook 加密 App(cryptid=1)必须先砸壳: decrypt → replace_decrypted → restore_binary 恢复(流程见 summary)", "install/uninstall 需 TrollStore entitlements; 失败看 diagnose"])
     
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let command = params["command"] as? String else {
@@ -675,19 +674,6 @@ final class AppExecTool: MCPTool {
             }
             return try AppLaunchOptionsTool().invoke(["bundle_id": bundleId])
 
-        case "ai_analyze":
-            guard let bundleId = params["bundle_id"] as? String else {
-                throw MCPError.invalidParams("bundle_id required")
-            }
-            // v4.3.25: 透传 direction/custom_hint/max_classes/prefix——此前只传 bundle_id，
-            // AI 带 direction=iap/vip 等方向参数调用时被静默丢弃，永远跑默认"全面"分析，
-            // 结果与用户预期不符且容易显得"没输出"。与 binary_symbols direction 同款 bug 一并修复。
-            var aiParams: [String: Any] = ["bundle_id": bundleId]
-            for key in ["direction", "custom_hint", "max_classes", "prefix"] {
-                if let v = params[key] { aiParams[key] = v }
-            }
-            return try AiAnalyzeTool().invoke(aiParams)
-
         case "replace_decrypted":
             guard let bundleId = params["bundle_id"] as? String else {
                 throw MCPError.invalidParams("bundle_id required")
@@ -733,7 +719,7 @@ final class AppExecTool: MCPTool {
                              "restored": true]]
 
         default:
-            throw MCPError.invalidParams("Unknown command: \(command). Available: launch/stop/restart/status/stats/cache_inspect/cache_clear/open_and_input/deps/install/uninstall/duplicate/diagnose/encrypt_info/entitlements/decrypt/replace_decrypted/restore_binary/launch_options/ai_analyze")
+            throw MCPError.invalidParams("Unknown command: \(command). Available: launch/stop/restart/status/stats/cache_inspect/cache_clear/open_and_input/deps/install/uninstall/duplicate/diagnose/encrypt_info/entitlements/decrypt/replace_decrypted/restore_binary/launch_options")
         }
     }
 }

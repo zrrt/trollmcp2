@@ -255,7 +255,6 @@ final class TaskTemplateRunner {
         case performanceRegression = "perf_regression"
         case emergencyRecover = "emergency_recover"
         case networkProbe = "network_probe"
-        case aiAnalyze = "ai_analyze"
         case crashTriage = "crash_triage"
     }
 
@@ -276,7 +275,6 @@ final class TaskTemplateRunner {
             ["id": "perf_regression", "name": "performance regression test", "desc": "launch -> sample 30s -> compare history -> output regression verdict"],
             ["id": "emergency_recover", "name": "紧急恢复", "desc": "扫描注入状态→恢复全部备份→Verify launch (App 打不开时的保命流程)"],
             ["id": "network_probe", "name": "抓包分析", "desc": "injected NetworkTweak→打开App采集→stop→Request list→Statistical analysis"],
-            ["id": "ai_analyze", "name": "AI分析App", "desc": "采集类结构→当前模型LLM生成hook方案→自动应用 (VIP/去广告/绕过检测)"],
             ["id": "crash_triage", "name": "闪退诊断", "desc": "启动诊断→崩溃分析→Log collection→给出原因与修复建议"]
         ]
     }
@@ -520,20 +518,6 @@ final class TaskTemplateRunner {
                 steps.append(["step": "Statistical analysis", "success": true, "detail": "done"])
                 summary = "抓包done：\(reqCount) entries请求。\n" + ((anaResult["summary"] as? String) ?? "")
                 success = reqCount > 0
-            }
-
-        case .aiAnalyze:
-            let aiTool = AiAnalyzeTool()
-            var opts = options
-            if opts["bundle_id"] == nil { opts["bundle_id"] = bundleId }
-            if let result = try? aiTool.invoke(opts) {
-                let st = result["status"] as? String ?? ""
-                steps.append(["step": "AI 分析", "success": st == "analyzed_and_applied",
-                              "detail": (result["ai_output"] as? String ?? "").prefix(120).description])
-                summary = (result["applied"] as? [String: Any])?["note"] as? String ?? "已生成 hook 方案并应用"
-                success = st == "analyzed_and_applied"
-            } else {
-                summary = "AI 分析执行failed (检查模型配置)"
             }
 
         case .crashTriage:

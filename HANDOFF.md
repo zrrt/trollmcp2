@@ -1059,3 +1059,17 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 4. 版本 4.3.33。静态括号检查全过。
 
 **事实核对**：App 内 web.search(Bing→DDG 免Key)/web.fetch/knowledge.search/import 均已存在（MissingTools.swift 122/303/419+）——能力本就有，本次是"引导 + 知识内容"落地。
+
+### v4.3.34（2026-09-30）删除组合工具 ai_analyze + 提示词里的组合工具调用方式
+
+**用户指令**："删掉组合工具和环境提示词里的组合工具调用方式"（组合工具=把多步分析封装成一键的工具，AI 应自主搜索+组合基础工具）。
+
+**删除清单**：
+1. **AiAnalyzeTool 类本体**（AdvancedTools.swift 整类，采集类结构→LLM→生成hook方案→应用 的一键分析引擎）。
+2. **ProcessTools.swift app 大工具**：case "ai_analyze" 分发块、summary 里 "FIRST CHOICE ... one-step" 指引与 ai_analyze 示例、command 参数列表、direction 参数、prerequisites 条目、Unknown command 报错列表。
+3. **ShellTool.swift shell.exec summary**："for app-analysis use app ai_analyze (one-step analyze)" 指引删除（保留 binary.symbols/db/package 基础工具指引）。
+4. **ProjectAndTasks.swift**：宏枚举 case aiAnalyze、模板列表 ["id":"ai_analyze"]、执行块（.aiAnalyze → AiAnalyzeTool 调用）。
+5. SystemPrompts：无 ai_analyze 引用（v4.3.33 已是"自主搜索先行+不要依赖组合工具"引导，保留）。
+6. 版本 4.3.34。静态括号检查全过；编译由 GitHub Actions 实测。
+
+**注意**：ai_analyze 曾是 app 内"VIP/去广告/绕过检测"自动分析入口——删除后相关自动化能力不再可用（用户明确要求）；基础分析仍可用 inject binary_symbols / 自主 web+knowledge 搜索。
