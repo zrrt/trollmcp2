@@ -1045,15 +1045,3 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 - 场景D 入口同步补 binary_symbols 提示。
 
 **校验**：SystemPrompts 括号配对全过；版本 4.3.31。真实编译走 GitHub Actions。
-
-### v4.3.32（2026-09-30）一键二进制安全扫描工具 binary.scan
-
-**用户痛点**：ai_analyze 等"集合工具"没意义——AI 不会自己主动编排多工具组合分析。知识库(v4.3.31)只是教方法，落地靠真一键工具。
-
-**新增** Sources/TrollMCP2/BinaryScanTool.swift（独立注册工具 binary.scan）：
-- 一次调用自动完成 侦察+静态：MachOAnalyzer(格式/架构/加密cryptid/依赖/签名) + SHA256(CryptoKit) + 分块原生字符串(≤384MB防御, 200k上限) + URL/外连域名提取(内置知名SDK域名白名单) + 10类敏感API命中(通讯录/短信/定位/相册/keychain/动态加载/网络回传/远程控制/持久化rootkit/文件访问, 每类带证据行) + 熵/字符串密度混淆信号(UPX检测) + ObjC类名与方法选择器(直读 __objc_classname/__objc_methname 段: LC_SEGMENT_64+section解析, fat-arm64支持) + 风险评分(加权)/分级(高≥50/中≥20/低≥5)/命中清单/结论。
-- 注册: MCPCore.swift registerBuiltinTools → register(BinaryScanTool())。
-- SystemPrompts BINARY 段: binary.scan 列为首选一键工具; 方法论知识库开头注明"实际执行先 binary.scan"。
-- 版本 4.3.32。静态括号检查全过；编译由 GitHub Actions 实测。
-
-**复用点**：MachOAnalyzer(现成) + extractStringsNative 思路(重写为 BinaryScanTool 私有版) + 沙箱 python ObjC 解析经验(转 Swift 段读取, 不做 PAC/class_ro 深度解析——第一版取类名+方法选择器即可)。
