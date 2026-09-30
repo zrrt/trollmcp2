@@ -76,7 +76,7 @@ final class OpenAIClient {
     /// v2.9.96：试探级 (L0-L4）超时已压到 25s，预算放宽到 220s 给 L5 流式留足时间。
     private var overallDeadline = Date.distantFuture
     private let overallBudget: TimeInterval = 220
-    /// v2.9.20：本轮推理强度 (0=低 1=中 2=高），由 ChatView 传入并真实作用于请求。
+    /// v2.9.20：本轮推理强度 (0=低 1=中 2=高 3=最高max 4=关闭none），由 ChatView 传入并真实作用于请求。
     var currentReasoningLevel = 0  // v2.9.49：默认 low (medium/high 推理显著增加延迟，对标 Codex CLI 默认 low）
 
     init(_ config: ModelConfig) {
@@ -296,8 +296,8 @@ final class OpenAIClient {
                 if !hasReasoningText, reasoningTokens <= 0, lowMid, !self.didAutoEscalateReasoning {
                     self.didAutoEscalateReasoning = true
                     let saved = self.currentReasoningLevel
-                    self.currentReasoningLevel = 2
-                    NetworkLog.shared.log("\(self.config.name): 低/中档响应无思考痕迹 (reasoning_tokens=\(reasoningTokens))，自动升为 high 重试")
+                    self.currentReasoningLevel = 3   // v4.3.37：升到最高档 max (比 high 思考更多)
+                    NetworkLog.shared.log("\(self.config.name): 低/中档响应无思考痕迹 (reasoning_tokens=\(reasoningTokens))，自动升为 max 重试")
                     onStatus?("该中转低/中档未触发思考，已自动升为最高档重试…")
                     self.attempt(level: level, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking, avoidL5: avoidL5, completion: completion)
                     self.currentReasoningLevel = saved
@@ -416,12 +416,14 @@ final class OpenAIClient {
         return preferred
     }
 
-    /// v2.9.20：推理强度名。0=low 1=medium 2=high 3=none (完全不思考）
+    /// v2.9.20：推理强度名。0=low 1=medium 2=high 3=max(最高档) 4=none (完全不思考)
+    /// v4.3.37：新增 3=max——破甲站实测 max 比 high 思考更多 (responses 68 vs 29 tokens)。
     private func reasoningEffortName() -> String {
         switch currentReasoningLevel {
         case 0: return "low"
         case 2: return "high"
-        case 3: return "none"
+        case 3: return "max"
+        case 4: return "none"
         default: return "medium"
         }
     }
@@ -1305,8 +1307,8 @@ final class OpenAIClient {
                 if !hasReasoningItem, respReasoningTokens <= 0, lowMidResp, !self.didAutoEscalateReasoning {
                     self.didAutoEscalateReasoning = true
                     let saved = self.currentReasoningLevel
-                    self.currentReasoningLevel = 2
-                    NetworkLog.shared.log("\(self.config.name): Responses 流式低/中档无思考 (reasoning_tokens=\(respReasoningTokens))，切非流式以 high 重试")
+                    self.currentReasoningLevel = 3   // v4.3.37：升到最高档 max
+                    NetworkLog.shared.log("\(self.config.name): Responses 流式低/中档无思考 (reasoning_tokens=\(respReasoningTokens))，切非流式以 max 重试")
                     onStatus?("该中转低/中档未触发思考，已自动升为最高档重试…")
                     self.performResponses(messages: messages, tools: tools, onStatus: onStatus, onThinking: onThinking, completion: guardedCompletion)
                     self.currentReasoningLevel = saved

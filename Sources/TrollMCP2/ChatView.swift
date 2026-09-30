@@ -10,7 +10,7 @@ struct ChatView: View {
     @State private var inputText = ""
     @State private var inputHeight: CGFloat = 36
     // v2.9.234：推理强度/智能搜索持久化(@AppStorage)——之前纯@State,关app重开必丢
-    @AppStorage("chat_reasoning") private var reasoning = 0   // 0=低 1=中 2=高
+    @AppStorage("chat_reasoning") private var reasoning = 0   // 0=低 1=中 2=高 3=最高(max)
     @AppStorage("chat_smart_search") private var smartSearch = true
     // v3.1.25：思考模型总开关——关闭时完全不思考，直接回复（reasoning_effort=none）
     @AppStorage("chat_think_enabled") private var thinkEnabled = true
@@ -511,7 +511,7 @@ struct ChatView: View {
         guard let cfg = modelStore.defaultConfig else { return }
         if store.selectedId == nil { store.newConversation() }
         inputText = ""
-        store.send(text, using: cfg, reasoningLevel: thinkEnabled ? reasoning : 3, smartSearch: smartSearch)
+        store.send(text, using: cfg, reasoningLevel: thinkEnabled ? reasoning : 4, smartSearch: smartSearch)
     }
 
     private var messageList: some View {
@@ -627,7 +627,7 @@ struct ChatView: View {
                 // v3.4.5：六个胶囊统一同宽同高（76×32），比例完全一致、长度略长
                 // v3.4.7：推理用"大脑"图标、思考用"灯泡"图标（用户指定，勿对调）
                 ChatChip(label: "推理·\(reasoningLabel())", action: {
-                    reasoning = (reasoning + 1) % 3
+                    reasoning = (reasoning + 1) % 4
                 }, accent: true, icon: "brain").frame(width: 76, height: 32)
                 ChatChip(label: "思考·\(thinkEnabled ? "开" : "关")", action: {
                     thinkEnabled.toggle()
@@ -745,7 +745,9 @@ struct ChatView: View {
     }
 
     private func reasoningLabel() -> String {
-        ["低", "中", "高"][reasoning]
+        // v4.3.37：档位扩为 低/中/高/最高——最高档映射 effort=max (破甲站实测 max 比 high 思考更多)
+        let labels = ["低", "中", "高", "最高"]
+        return reasoning >= 0 && reasoning < labels.count ? labels[reasoning] : "高"
     }
 
     /// v3.3.4：+ 展开的快捷附件行（应用 / 相册 / 文件 / 浏览器），对齐微信式附件栏
