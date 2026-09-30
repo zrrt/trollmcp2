@@ -32,8 +32,6 @@ struct ChatView: View {
     // v2.9.2：多选模式（勾选会话内容 → 复制 / 分享到其他 App）
     @State private var selectionMode = false
     @State private var selectedIds = Set<UUID>()
-    @State private var showShare = false
-    @State private var shareText = ""
     @State private var showToast = false
     @State private var toastText = "已复制"
 
@@ -289,30 +287,7 @@ struct ChatView: View {
                 showToast("已回到前台")
             }
         }
-        // 自定义分享面板（侧载环境下 UIActivityViewController 会闪退）
-        .confirmationDialog("分享到...", isPresented: $showShare, titleVisibility: .visible) {
-            Button("复制到剪贴板") {
-                UIPasteboard.general.string = shareText
-                showToast("已复制")
-            }
-            Button("短信分享") {
-                let escaped = shareText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-                if let url = URL(string: "sms:&body=\(escaped)") {
-                    UIApplication.shared.open(url)
-                }
-            }
-            Button("微信分享") {
-                // 微信分享到聊天：用 pasteboard 复制后提示用户去微信粘贴
-                UIPasteboard.general.string = shareText
-                if let url = URL(string: "weixin://") {
-                    UIApplication.shared.open(url)
-                    showToast("已复制，请在微信粘贴发送")
-                }
-            }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("选择分享方式")
-        }
+        // v4.3.41：分享统一走系统分享页（SharePresenter.present），不再用自定义 ActionSheet
     }
 
     private var emptyState: some View {
@@ -1030,7 +1005,6 @@ struct ChatView: View {
     }
 
     private func shareMessage(_ m: ChatMessage) {
-        shareText = m.content
         presentShareSheet(text: m.content)
     }
 
@@ -1042,21 +1016,21 @@ struct ChatView: View {
     }
 
     private func shareSelected() {
-        let text = exportText()
-        shareText = text
-        presentShareSheet(text: text)
+        presentShareSheet(text: exportText())
     }
 
-    // v2.9.179：分享面板在侧载环境下会系统级 Segfault（MobileIcons/CoreImage）
-    // 改成自定义分享 ActionSheet，列出常用分享目标
+    // v4.3.41：直接弹出 iOS 系统完整分享页（TrollStore 侧载同样可用，见 SharePresenter）
     private func presentShareSheet(text: String) {
         let content = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty else {
             showToast("没有可分享的内容")
             return
         }
-        shareText = content
-        showShare = true
+        SharePresenter.present([content]) { ok, error in
+            if !ok, let e = error {
+                showToast(e.localizedDescription)
+            }
+        }
     }
 
     /// 把勾选的消息拼成可读文本（按会话内顺序），用于复制 / 分享。
@@ -1743,10 +1717,9 @@ struct FileCardRow: View {
         }
     }
 
-    // 用 UIDocumentInteractionController 分享文件（不枚举图标，避免侧载环境系统级 Segfault）
+    // v4.3.41：统一走 iOS 系统完整分享页（TrollStore 侧载同样可用）
     private func shareFile() {
-        let controller = UIDocumentInteractionController(url: url)
-        controller.presentOpenInMenu(from: CGRect(x: 0, y: 0, width: 100, height: 100), in: UIApplication.shared.windows.first ?? UIView(), animated: true)
+        SharePresenter.present([url])
     }
 
     // 直接用 TrollStore URL scheme 安装

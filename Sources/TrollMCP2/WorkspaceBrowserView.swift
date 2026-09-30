@@ -16,10 +16,6 @@ struct WorkspaceBrowserView: View {
     @State private var query = ""
     @State private var items: [FileItem] = []
     @State private var previewItem: FileItem?
-    @State private var showShare = false
-    @State private var shareURL: URL?
-    @State private var sharePath: String = ""
-    @State private var documentController: UIDocumentInteractionController?
     @State private var confirmDelete: FileItem?
     @State private var showNewFolder = false
     @State private var newFolderName = ""
@@ -177,8 +173,8 @@ struct WorkspaceBrowserView: View {
                             Button { copyPath(item.path) } label: { Label("复制路径", systemImage: "doc.on.doc") }
                             if !item.isDir {
                                 Button {
-                                    sharePath = item.path
-                                    showShare = true
+                                    // v4.3.41：直接弹系统分享页（内部已等菜单 dismiss）
+                                    SharePresenter.present([URL(fileURLWithPath: item.path)])
                                 } label: { Label("分享", systemImage: "square.and.arrow.up") }
                             }
                             Button(role: .destructive) { confirmDelete = item } label: { Label("删除", systemImage: "trash") }
@@ -238,27 +234,7 @@ struct WorkspaceBrowserView: View {
             }
             Button("取消", role: .cancel) { newFolderName = "" }
         }
-        // 自定义分享 ActionSheet（侧载环境下 UIActivityViewController 会闪退）
-        .confirmationDialog("分享文件", isPresented: $showShare, titleVisibility: .visible) {
-            Button("复制文件路径") {
-                UIPasteboard.general.string = sharePath
-                toast = "已复制路径"
-            }
-            Button("用其他 App 打开") {
-                // 用 UIDocumentInteractionController 代替 UIActivityViewController（侧载更稳定）
-                let url = URL(fileURLWithPath: sharePath)
-                documentController = UIDocumentInteractionController(url: url)
-                if let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first?.windows.first,
-                   let rootVC = window.rootViewController {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                        documentController?.presentOpenInMenu(from: CGRect(x: rootVC.view.bounds.midX, y: rootVC.view.bounds.midY, width: 0, height: 0), in: rootVC.view, animated: true)
-                    }
-                }
-            }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("选择分享方式")
-        }
+        // v4.3.41：文件分享统一走系统分享页（SharePresenter.present）
         .overlay(alignment: .bottom) {
             if let toast = toast {
                 Text(toast)

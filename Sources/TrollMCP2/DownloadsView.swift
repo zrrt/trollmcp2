@@ -12,8 +12,6 @@ struct DownloadsView: View {
     @State private var showConfirm = false
     @State private var confirmMessage = ""
     @State private var refreshTick = false
-    @State private var showShare = false
-    @State private var sharePath = ""
     @State private var toast: String?
 
     struct DownloadItem: Identifiable {
@@ -79,27 +77,7 @@ struct DownloadsView: View {
                 secondaryButton: .cancel()
             )
         }
-        // 自定义分享 ActionSheet（侧载环境下 UIActivityViewController 会闪退）
-        .confirmationDialog("分享文件", isPresented: $showShare, titleVisibility: .visible) {
-            Button("复制文件路径") {
-                UIPasteboard.general.string = sharePath
-                toast = "已复制路径"
-            }
-            Button("用其他 App 打开") {
-                // v3.1.23: 统一用 UIDocumentInteractionController（侧载更稳定）
-                let url = URL(fileURLWithPath: sharePath)
-                let controller = UIDocumentInteractionController(url: url)
-                if let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first?.windows.first,
-                   let rootVC = window.rootViewController {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                        controller.presentOpenInMenu(from: CGRect(x: rootVC.view.bounds.midX, y: rootVC.view.bounds.midY, width: 0, height: 0), in: rootVC.view, animated: true)
-                    }
-                }
-            }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("选择分享方式")
-        }
+        // v4.3.41：文件分享统一走系统分享页（SharePresenter.present）
         .overlay(alignment: .bottom) {
             if let toast = toast {
                 Text(toast)
@@ -178,8 +156,8 @@ struct DownloadsView: View {
         .contextMenu {
             Button(action: {
                 if !item.isDir {
-                    sharePath = item.path
-                    showShare = true
+                    // v4.3.41：直接弹系统分享页
+                    SharePresenter.present([URL(fileURLWithPath: item.path)])
                 }
             }) {
                 Label("分享", systemImage: "square.and.arrow.up")
