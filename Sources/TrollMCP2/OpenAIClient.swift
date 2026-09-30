@@ -69,6 +69,9 @@ final class OpenAIClient {
     private var usedHalfOpenPermit = false
     /// v2.9.299：当前请求是否已因"模型非视觉"剥离图片 (防止无限重试）
     private var imagesStrippedForVLM = false
+    /// v4.3.36：思考自动升档标志——低/中档请求成功但响应无任何思考痕迹时，自动以 high 重试一次。
+    /// 破甲站等中转 gpt-5.5 实测 low/medium 不触发思考 (reasoning_tokens=0)，只有 high 出思考。
+    private var didAutoEscalateReasoning = false
     /// v2.9.87：多级降级总预算——全链串行最坏 7 分钟+，用户感知"一直请求中"。
     /// v2.9.96：试探级 (L0-L4）超时已压到 25s，预算放宽到 220s 给 L5 流式留足时间。
     private var overallDeadline = Date.distantFuture
@@ -92,6 +95,8 @@ final class OpenAIClient {
         cancelled = false
         requestStart = Date()
         overallDeadline = Date().addingTimeInterval(overallBudget)
+        // v4.3.36：每轮请求重置思考自动升档标志 (防止跨请求残留）
+        didAutoEscalateReasoning = false
         // v2.9.107：熔断检查 (对齐 cc-switch circuit_breaker）——供应商连续failed过多时直接拒绝，
         // 不再傻等超时 (用户痛点"一直请求中"）
         let gate = ModelStore.shared.breaker(for: config.id).allowRequest()
@@ -280,6 +285,24 @@ final class OpenAIClient {
                let json = try? JSONSerialization.jsonObject(with: data ?? Data()) as? [String: Any],
                let choices = json["choices"] as? [[String: Any]],
                let firstChoice = choices.first {
+                // v4.3.36：思考自动升档——低/中档 (currentReasoningLevel 0/1）请求成功但响应
+                // 无任何思考痕迹 (无 reasoning_content 且 completion_tokens_details.reasoning_tokens==0）时，
+                // 自动以 high 重试一次。破甲站等中转 gpt-5.5 实测 low/medium 不触发思考，低中档形同关闭。
+                let msgDict = firstChoice["message"] as? [String: Any]
+                let hasReasoningText = (msgDict?["reasoning_content"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                let ctd = (json["usage"] as? [String: Any])?["completion_tokens_details"] as? [String: Any]
+                let reasoningTokens = ctd?["reasoning_tokens"] as? Int ?? 0
+                let lowMid = (self.currentReasoningLevel == 0 || self.currentReasoningLevel == 1)
+                if !hasReasoningText, reasoningTokens <= 0, lowMid, !self.didAutoEscalateReasoning {
+                    self.didAutoEscalateReasoning = true
+                    let saved = self.currentReasoningLevel
+                    self.currentReasoningLevel = 2
+                    NetworkLog.shared.log("\(self.config.name): 低/中档响应无思考痕迹 (reasoning_tokens=\(reasoningTokens))，自动升为 high 重试")
+                    onStatus?("该中转低/中档未触发思考，已自动升为最高档重试…")
+                    self.attempt(level: level, isFirst: false, messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking, avoidL5: avoidL5, completion: completion)
+                    self.currentReasoningLevel = saved
+                    return
+                }
                 if level != self.config.compatLevel {
                     let el = Int(Date().timeIntervalSince(self.requestStart) * 1000)
                     NetworkLog.shared.log("\(self.config.name) 级别 \(level) (\(self.levelName(level)))请求OK (\(el)ms)，已记忆该级别")
@@ -1272,6 +1295,22 @@ final class OpenAIClient {
                             if let tt = c["text"] as? String { text += tt }
                         }
                     }
+                }
+                // v4.3.36：思考自动升档 (Responses 流式)——低/中档且输出无 reasoning 项
+                // (reasoning_tokens==0）时，切非流式以 high 重试一次。破甲站等中转 low/medium 不出思考。
+                let hasReasoningItem = output.contains { ($0["type"] as? String) == "reasoning" }
+                let outDetails = (resp["usage"] as? [String: Any])?["output_tokens_details"] as? [String: Any]
+                let respReasoningTokens = outDetails?["reasoning_tokens"] as? Int ?? 0
+                let lowMidResp = (self.currentReasoningLevel == 0 || self.currentReasoningLevel == 1)
+                if !hasReasoningItem, respReasoningTokens <= 0, lowMidResp, !self.didAutoEscalateReasoning {
+                    self.didAutoEscalateReasoning = true
+                    let saved = self.currentReasoningLevel
+                    self.currentReasoningLevel = 2
+                    NetworkLog.shared.log("\(self.config.name): Responses 流式低/中档无思考 (reasoning_tokens=\(respReasoningTokens))，切非流式以 high 重试")
+                    onStatus?("该中转低/中档未触发思考，已自动升为最高档重试…")
+                    self.performResponses(messages: messages, tools: tools, onStatus: onStatus, onThinking: onThinking, completion: guardedCompletion)
+                    self.currentReasoningLevel = saved
+                    return
                 }
                 // v2.9.297：L5 空响应 (output 无文本无工具调用）判为failed——中转站可能不支持 Responses API
                 if calls.isEmpty && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && thinking.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
