@@ -1073,3 +1073,17 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 6. 版本 4.3.34。静态括号检查全过；编译由 GitHub Actions 实测。
 
 **注意**：ai_analyze 曾是 app 内"VIP/去广告/绕过检测"自动分析入口——删除后相关自动化能力不再可用（用户明确要求）；基础分析仍可用 inject binary_symbols / 自主 web+knowledge 搜索。
+
+### v4.3.35（2026-09-30）修复"检测更新只下载不自动安装"
+
+**用户反馈**：更新功能只会下载、不会自动安装。
+
+**根因**：UpdateManager.installIPA 用的是 SharePresenter.present([url])——只弹系统分享菜单让用户手动"用 TrollStore 打开"，不是自动安装。
+
+**修复**（UpdateManager.swift + SettingsView.swift）：
+- installIPA 改为优先 trollstorehelper 静默安装：`trollstorehelper install installd force <ipa>`（与 app install / inject_package 同一通道，AppCatalog 找 com.opa334.TrollStore 或 /var/usr/bin/trollstorehelper；退出码 0/184(子二进制加密)/182(developer mode) 视为成功）。
+- 成功：updateAvailable=false、installMessage="已自动安装 vX"（设置页副标题显示）。
+- 静默安装失败或无 trollstorehelper → 降级弹分享菜单兜底。
+- 新增 @Published installMessage，设置页 updateSubtitle 显示。
+
+**组合工具盘点（本轮）**：app ai_analyze 已删(v4.3.34)；剩余"多步封装"候选（非分析类，操作流水线）：app inject_package(改包名+注入+打包+安装)、cleanup(scan+execute)、rescue(scan+recover_all+cleanup)、diagnose(startup+crash)、network.capture/vpn.capture(start→requests→analyze)、automation/macro(用户自建流程) —— 待用户确认是否进一步处理。

@@ -439,6 +439,9 @@ struct SettingsView: View {
         if m.updateAvailable, let v = m.latestVersion {
             return "发现新版本 v\(v) · 点此一键更新安装"
         }
+        if let s = m.installMessage, !s.isEmpty {
+            return s
+        }
         if let e = m.errorMessage, !e.isEmpty {
             return e
         }

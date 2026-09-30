@@ -15,6 +15,8 @@ final class UpdateManager: ObservableObject {
     @Published var updateAvailable = false
     @Published var errorMessage: String?
     @Published var downloadedIPAURL: URL?
+    /// v4.3.35：自动安装成功提示（副标题/状态行显示"已自动安装"）
+    @Published var installMessage: String?
     /// v4.3.30：本次检查命中的源（GitHub / jsDelivr / 镜像），副标题可显示
     @Published var lastSource: String?
 
@@ -396,8 +398,39 @@ final class UpdateManager: ObservableObject {
         }
     }
 
-    /// 调起 TrollStore 安装（OpenInMenu 直接"用 TrollStore 打开"）
+    /// v4.3.35: 自动安装——优先 trollstorehelper 静默安装(同 app install/inject_package 通道)，
+    /// 不再只弹系统分享菜单让用户手动"用 TrollStore 打开"。
     func installIPA(at url: URL) {
+        // 1) 找 trollstorehelper
+        var helper = "/var/usr/bin/trollstorehelper"
+        let tsPath = AppCatalog.list().first { $0.bundleId == "com.opa334.TrollStore" }?.path ?? ""
+        if !tsPath.isEmpty {
+            let candidates = [tsPath + "/trollstorehelper", tsPath + "/TrollStore.app/trollstorehelper",
+                              (tsPath as NSString).deletingLastPathComponent + "/trollstorehelper"]
+            helper = candidates.first { FileManager.default.fileExists(atPath: $0) } ?? helper
+        }
+        if FileManager.default.fileExists(atPath: helper) {
+            let (code, out) = InjectionManager.shared.spawnRoot(helper, args: ["install", "installd", "force", url.path], timeout: 240)
+            // v4.3.24: 184=app has additional encrypted binaries (子 framework 加密由系统解密, 非致命) 182=developer mode
+            if code == 0 || code == 184 || code == 182 {
+                isDownloading = false
+                downloadedIPAURL = nil
+                updateAvailable = false
+                var suffix = ""
+                if code == 184 { suffix = " (子二进制加密, 非致命)" }
+                else if code == 182 { suffix = " (developer mode)" }
+                installMessage = "已自动安装 v\(latestVersion ?? "")\(suffix)"
+                return
+            }
+            // 2) 静默安装失败 → 降级分享菜单(用户手动选 TrollStore 打开)
+            SharePresenter.present([url]) { [weak self] completed, error in
+                if let error = error {
+                    self?.errorMessage = "静默安装失败(exit \(code)), 分享调起也失败: \(error.localizedDescription)"
+                }
+            }
+            return
+        }
+        // 3) 无 trollstorehelper → 分享菜单兜底
         SharePresenter.present([url]) { [weak self] completed, error in
             if let error = error {
                 self?.errorMessage = "安装调起失败: \(error.localizedDescription)"
