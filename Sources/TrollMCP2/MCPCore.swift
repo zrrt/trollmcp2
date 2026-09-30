@@ -236,6 +236,12 @@ public final class ToolRegistry: ObservableObject {
 
     // v3.0.90：工具结果缓存——5 分钟内同样的调用直接返回缓存，省时间
     private var resultCache: [String: (result: [String: Any], time: Date)] = [:]
+    // v4.3.26：缓存命中计数——同一调用连续第 2 次命中缓存时强制重取（防"同内容反复返回"，
+    // 典型场景：浏览器页面已变化但 text/snapshot 因参数没变一直喂旧缓存）。
+    private var cacheHitCounts: [String: Int] = [:]
+    // v4.3.26：缓存绕过工具——有状态工具（浏览器页面内容随时可变）绝不能喂缓存。
+    // browser.* 全部绕过：URL 变了 params 不变，旧缓存必错 (BUG-1/BUG-2 根因)。
+    private var cacheBypassPrefixes: [String] = ["browser", "control", "device.fake", "injection.mem"]
     private let defaultCacheWindow: TimeInterval = 300.0  // 默认 5 分钟缓存窗口
     private let longCacheWindow: TimeInterval = 1800.0  // 30 分钟缓存窗口 (静态数据）
 
@@ -738,14 +744,35 @@ public final class ToolRegistry: ObservableObject {
                 WorkflowManager.shared.addStep(name: originalName, tool: originalName)
 
                 // v3.0.90：结果缓存——5 分钟内同样的调用直接返回缓存
-                if let cached = getCachedResult(name: originalName, params: params) {
+                // v4.3.26：有状态工具 (browser./control./device.fake/injection.mem）绕过缓存；
+                // 其余工具连续第 2 次命中缓存也强制重取 (命中计数归零后真实执行)。
+                let cacheKey = callKey(name: originalName, params: params)
+                let bypassCache = cacheBypassPrefixes.contains { originalName.hasPrefix($0) }
+                var cached: [String: Any]? = nil
+                if !bypassCache {
+                    cached = getCachedResult(name: originalName, params: params)
+                    if cached != nil {
+                        let hits = (cacheHitCounts[cacheKey] ?? 0) + 1
+                        if hits >= 2 {
+                            // 连续第 2 次命中 → 强制重取：删缓存、清计数、真实执行
+                            resultCache.removeValue(forKey: cacheKey)
+                            cacheHitCounts[cacheKey] = 0
+                            cached = nil
+                        } else {
+                            cacheHitCounts[cacheKey] = hits
+                        }
+                    }
+                }
+                if let cached = cached {
                     WorkflowManager.shared.updateStep(tool: originalName, detail: "cached", success: true)
                     var cachedData = Self.compactResult(cached)
                     cachedData.removeValue(forKey: "message")
                     cachedData["_call_count"] = callCount
                     cachedData["_cached"] = true
+                    cachedData["_cache_hits"] = cacheHitCounts[cacheKey] ?? 1
                     return ["ok": true, "data": cachedData]
                 }
+                cacheHitCounts[cacheKey] = 0   // 真实执行前清零命中计数
 
                 // v3.0.90：工具执行超时保护——15 秒没返回就报错，防止一直卡着
                 var timedOut = false

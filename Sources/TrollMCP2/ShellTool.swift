@@ -36,7 +36,7 @@ enum ShellDiag {
 final class ShellExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "shell.exec",
-        summary: "Run a shell command (terminal/command line). FIRST: for app-analysis use `app ai_analyze` (one-step analyze), for binary analysis use `binary.symbols`, for SQLite use `db`, for unpacking deb/ipa use `package` — prefer these dedicated tools over manually chaining shell commands. Use shell.exec only for file ops / system info / raw commands. 环境：系统按命令类型自动路由——装包/解包/完整工具链/复杂脚本(python、git、apk、tar、unzip、zip、file、sh -c、heredoc等开头)自动走 Alpine Linux(真工具链)；纯文件操作/系统信息/网络默认 iOS 原生。v4.1.0: Alpine 自动 bind：工作区(/var/mobile/Documents/Workspace→/ios_workspace)、/var/containers(→/ios_containers)、/System(→/ios_system 只读)；读 App 数据容器用 bind_app(→/ios_data_<app>)或原生工具。绝不绑整棵 /var/mobile(自引用崩溃源)。Alpine 命令引用这些 iOS 路径时自动挂载并改写，直接读写(无 2MB 限制)；DNS 自动配置；缺工具自动 apk add。iOS 原生模式：36 个原生命令直通真实 iOS——ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/base64/curl/plutil/sqlite3/strings/nm + df/free/uname/uptime/hostname/ps/top/kill + ifconfig/netstat/nslookup。支持管道/分号/重定向/&&/||，支持 VAR=赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat/base64。iOS 原生不支持 for/while/case/heredoc/多行脚本。二进制分析用原生 strings/nm(直读大文件无上限)。SQLite 用内置 sqlite3：`sqlite3 <db> \".tables\"`。注意：不要输入 `ta <tool>`/`ta list`/`ta help`——`ta` 是 CLI/脚本用的原生 offload 命令名，不是给 AI 的 MCP 工具；要调用能力直接调用对应 MCP 工具(inject/db/package/app/device...)。Use for: file ops, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*). v4.3.13: ①`base64 -d <b64file> > outfile` 现直接解码写二进制目标(不再写 .decoded)；②`plutil -p` 支持二进制 plist 全类型打印(Data/Date/Bool)、`plutil -convert xml1 [-o out.xml]`；③`find` 支持 `-type f|d`；④`cp -f` 可覆盖已存在目标、目标为目录时复制到 dst/原名；⑤默认超时收紧到 20s——iSH 是 x86 模拟器 CPU 开销极高，超长 Alpine 命令/死循环约 13s CPU 即触发系统 watchdog 导致手机重启/闪退，故长任务请拆小步、指定合理 timeout。",
+        summary: "Run a shell command (terminal/command line). FIRST: for app-analysis use `app ai_analyze` (one-step analyze), for binary analysis use `binary.symbols`, for SQLite use `db`, for unpacking deb/ipa use `package` — prefer these dedicated tools over manually chaining shell commands. Use shell.exec only for file ops / system info / raw commands. 环境：系统按命令类型自动路由——装包/解包/完整工具链/复杂脚本(python、git、apk、tar、unzip、zip、file、sh -c、heredoc等开头)自动走 Alpine Linux(真工具链)；纯文件操作/系统信息/网络默认 iOS 原生。v4.1.0: Alpine 自动 bind：工作区(/var/mobile/Documents/Workspace→/ios_workspace)、/var/containers(→/ios_containers)、/System(→/ios_system 只读)；读 App 数据容器用 bind_app(→/ios_data_<app>)或原生工具。绝不绑整棵 /var/mobile(自引用崩溃源)。Alpine 命令引用这些 iOS 路径时自动挂载并改写，直接读写(无 2MB 限制)；DNS 自动配置；缺工具自动 apk add。iOS 原生模式：36 个原生命令直通真实 iOS——ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/md5sum/diff/hexdump/base64/curl/plutil/sqlite3/strings/nm + df/free/uname/uptime/hostname/ps/top/kill + ifconfig/netstat/nslookup。支持管道/分号/重定向/&&/||，支持 VAR=赋值与 $VAR 展开；过滤器白名单：head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/rev/echo/cat/base64。iOS 原生不支持 for/while/case/heredoc/多行脚本。二进制分析用原生 strings/nm(直读大文件无上限)。SQLite 用内置 sqlite3：`sqlite3 <db> \".tables\"`。注意：不要输入 `ta <tool>`/`ta list`/`ta help`——`ta` 是 CLI/脚本用的原生 offload 命令名，不是给 AI 的 MCP 工具；要调用能力直接调用对应 MCP 工具(inject/db/package/app/device...)。Use for: file ops, system info, network, text processing. Don't use for: UI taps/swipes (use control.*), app control (use app.*), injection (use injection.*). v4.3.13: ①`base64 -d <b64file> > outfile` 现直接解码写二进制目标(不再写 .decoded)；②`plutil -p` 支持二进制 plist 全类型打印(Data/Date/Bool)、`plutil -convert xml1 [-o out.xml]`；③`find` 支持 `-type f|d`；④`cp -f` 可覆盖已存在目标、目标为目录时复制到 dst/原名；⑤默认超时收紧到 20s——iSH 是 x86 模拟器 CPU 开销极高，超长 Alpine 命令/死循环约 13s CPU 即触发系统 watchdog 导致手机重启/闪退，故长任务请拆小步、指定合理 timeout。原生 curl 用法(v4.3.26)：下载用 `curl -O <url>`、指定路径 `curl -o <path> <url>`、直接抓正文用 `curl -sL <url>`（URL 与参数带引号会自动剥除，不再误报 Invalid URL；抓 JS 动态渲染页会返回 needs_render=true，此时改用内置浏览器 browser.navigate+browser.text 读渲染后正文）。",
         parameters: [
             "command": "Shell command to execute (required)",
             "timeout": "Timeout seconds (default 30, max 120)",
@@ -2548,37 +2548,103 @@ final class ShellExecTool: MCPTool {
         }
     }
     
-    /// v3.1.32: iOS 原生 curl 命令——下载文件 (同步）
+    /// v3.1.32: iOS 原生 curl 命令——下载文件 / 抓取页面 (同步）
+    /// v4.3.26: ①URL/参数引号自动剥除 (修复带引号 URL 误报 Invalid URL)；②无 -O/-o 时
+    /// 抓取到 stdout (JS 渲染页检测 needs_render)；③解析失败报具体原因而非笼统 Invalid URL。
     private static func runIOSDownload(_ command: String) -> [String: Any] {
-        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-        
-        guard parts.count >= 2 else {
-            return ["command": command, "exit_code": 1, "stdout": "Usage: curl -O <url> 或 wget <url>", "ios_native": true]
+        let rawParts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+
+        guard rawParts.count >= 2 else {
+            return ["command": command, "exit_code": 1, "stdout": "Usage: curl -O <url> / curl -sL <url> / curl -o <path> <url>", "ios_native": true]
         }
-        
+
+        func stripQuotes(_ s: String) -> String {
+            var t = s
+            while t.hasPrefix("\"") || t.hasPrefix("'") { t.removeFirst() }
+            while t.hasSuffix("\"") || t.hasSuffix("'") { t.removeLast() }
+            return t
+        }
+
         var urlString = ""
         var outputPath = ""
-        
-        for i in 1..<parts.count {
-            if parts[i] == "-O", i + 1 < parts.count {
-                urlString = parts[i+1]
-            } else if parts[i].hasPrefix("http") {
-                urlString = parts[i]
-            } else if parts[i] == "-o", i + 1 < parts.count {
-                outputPath = parts[i+1]
+        var sawFlagO = false
+        var userAgent: String? = nil
+        var i = 1
+        while i < rawParts.count {
+            let p = rawParts[i]
+            let pn = stripQuotes(p)
+            if p == "-O" {
+                sawFlagO = true
+                if i + 1 < rawParts.count { urlString = stripQuotes(rawParts[i + 1]); i += 1 }
+            } else if p == "-o" {
+                if i + 1 < rawParts.count { outputPath = stripQuotes(rawParts[i + 1]); i += 1 }
+            } else if p == "-A" {
+                if i + 1 < rawParts.count { userAgent = stripQuotes(rawParts[i + 1]); i += 1 }
+            } else if pn.hasPrefix("http://") || pn.hasPrefix("https://") {
+                urlString = pn
             }
+            i += 1
         }
-        
-        guard !urlString.isEmpty, let url = URL(string: urlString) else {
-            return ["command": command, "exit_code": 1, "stdout": "Invalid URL", "ios_native": true]
+
+        guard !urlString.isEmpty else {
+            return ["command": command, "exit_code": 1,
+                    "stdout": "curl: 原生模式在命令里没解析到 http(s):// URL。注意 URL 若带引号会自动剥除；下载用 -O <url>，抓取正文用 -sL <url>。",
+                    "ios_native": true]
         }
-        
-        // 默认下载到 workspace/downloads/
+        guard let url = URL(string: urlString) else {
+            return ["command": command, "exit_code": 1,
+                    "stdout": "curl: Invalid URL '\(urlString)' (iOS 原生模式，检查 URL 格式/转义)",
+                    "ios_native": true]
+        }
+
+        // 抓取到 stdout 模式（无 -O 且无 -o）
+        if !sawFlagO && outputPath.isEmpty {
+            var req = URLRequest(url: url)
+            req.timeoutInterval = 30
+            req.setValue(userAgent ?? "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15",
+                         forHTTPHeaderField: "User-Agent")
+            let sem = DispatchSemaphore(value: 0)
+            var data: Data? = nil
+            var fetchErr: Error? = nil
+            URLSession.shared.dataTask(with: req) { d, _, e in
+                data = d; fetchErr = e; sem.signal()
+            }.resume()
+            _ = sem.wait(timeout: .now() + 35)
+            if let e = fetchErr {
+                return ["command": command, "exit_code": 1, "stdout": "curl: fetch failed: \(e.localizedDescription)", "ios_native": true]
+            }
+            guard let d = data else {
+                return ["command": command, "exit_code": 1, "stdout": "curl: fetch timed out after 35s for \(urlString)", "ios_native": true]
+            }
+            guard !d.isEmpty else {
+                return ["command": command, "exit_code": 1, "stdout": "curl: fetch returned empty body for \(urlString)", "ios_native": true]
+            }
+            var body = String(data: d, encoding: .utf8) ?? "(non-UTF8 body, \(d.count) bytes)"
+            var out: [String: Any] = ["command": command, "exit_code": 0, "ios_native": true, "bytes": d.count]
+            // v4.3.26: 动态渲染页检测——HTML 里 ≥3 个 <script> 但可见正文极少 → needs_render 提示
+            let lower = body.lowercased()
+            if lower.contains("<html") || lower.contains("<script") {
+                let scriptCount = lower.components(separatedBy: "<script").count - 1
+                let visible = body.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+                                  .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                                  .trimmingCharacters(in: .whitespacesAndNewlines)
+                if scriptCount >= 3 && visible.count < 100 {
+                    out["needs_render"] = true
+                    out["hint"] = "该页面由 JS 动态渲染，curl 只能拿到原始 HTML，拿不到渲染后正文。请改用内置浏览器：browser.navigate 打开 + browser.text 读正文。"
+                }
+            }
+            if body.count > 200_000 {
+                body = String(body.prefix(200_000)) + "\n... [body truncated to 200000 chars]"
+            }
+            out["stdout"] = body
+            return out
+        }
+
+        // 下载模式
         if outputPath.isEmpty {
             let filename = url.lastPathComponent
-            outputPath = NSHomeDirectory() + "/Documents/downloads/" + filename
+            outputPath = NSHomeDirectory() + "/Documents/downloads/" + (filename.isEmpty ? "download.bin" : filename)
         }
-        
         do {
             let data = try Data(contentsOf: url)
             try data.write(to: URL(fileURLWithPath: outputPath))
@@ -2589,7 +2655,7 @@ final class ShellExecTool: MCPTool {
                 "ios_native": true
             ]
         } catch {
-            return ["command": command, "exit_code": 1, "stdout": "Download failed: \(error.localizedDescription)", "ios_native": true]
+            return ["command": command, "exit_code": 1, "stdout": "curl: download failed: \(error.localizedDescription)", "ios_native": true]
         }
     }
     

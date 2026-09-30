@@ -133,12 +133,58 @@ final class WebSearchTool: MCPTool {
         let bingResults = fetchBing(query: q, limit: limit)
         if !bingResults.isEmpty {
             AuditLog.shared.log("web.search", detail: "\(query) → Bing \(bingResults.count) 条")
-            return ["query": query, "engine": "Bing", "count": bingResults.count, "results": bingResults]
+            let officialCount = bingResults.filter { $0["source_type"] == "official" }.count
+            return ["query": query, "engine": "Bing", "count": bingResults.count, "results": bingResults,
+                    "official_count": officialCount, "source_note": Self.sourceNote]
         }
         // 2) DuckDuckGo 免 key fallback
         let ddgResults = fetchDuckDuckGo(query: q, limit: limit)
         AuditLog.shared.log("web.search", detail: "\(query) → DuckDuckGo \(ddgResults.count) 条 (Bing 无结果时回退)")
-        return ["query": query, "engine": ddgResults.isEmpty ? "none" : "DuckDuckGo", "count": ddgResults.count, "results": ddgResults]
+        let officialCount = ddgResults.filter { $0["source_type"] == "official" }.count
+        return ["query": query, "engine": ddgResults.isEmpty ? "none" : "DuckDuckGo", "count": ddgResults.count, "results": ddgResults,
+                "official_count": officialCount, "source_note": Self.sourceNote]
+    }
+
+    /// v4.3.26：来源分级说明——AI 看到 unknown 小站应交叉验证，不直接采信
+    private static let sourceNote = "source_type 分级：official=官方/权威站点（优先采信）；third_party=媒体/知名社区/百科（可参考，但与官方文档冲突时以官方为准）；unknown=未知名小站/个人页（可信度低，勿直接采信，需交叉验证）。"
+
+    /// v4.3.26：按域名分级搜索结果来源——official / third_party / unknown
+    private static func sourceType(for urlString: String) -> String {
+        let host = (URL(string: urlString)?.host ?? "").lowercased()
+        let bare = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+        if bare.isEmpty { return "unknown" }
+        // 官方权威域名：政府/教育/官方文档子域
+        if bare.hasSuffix(".gov") || bare.hasSuffix(".gov.cn") || bare.hasSuffix(".edu") ||
+           bare.hasSuffix(".edu.cn") || bare.hasSuffix(".ac.cn") || bare.hasSuffix(".mil") { return "official" }
+        if bare.contains("official") { return "official" }
+        // 官方产品/公司域名
+        let officialDomains: Set<String> = [
+            "apple.com", "google.com", "microsoft.com", "openai.com", "anthropic.com", "meta.com",
+            "amazon.com", "tencent.com", "qq.com", "alibaba.com", "taobao.com", "tmall.com",
+            "bytedance.com", "douyin.com", "xiaomi.com", "huawei.com", "baidu.com", "aliyun.com",
+            "jd.com", "weibo.com", "github.com", "gitlab.com", "gitee.com", "linux.org", "python.org",
+            "developer.apple.com", "learn.microsoft.com", "cloud.google.com", "aws.amazon.com",
+            "x.com", "twitter.com", "youtube.com", "netflix.com", "spotify.com", "telegram.org",
+            "whatsapp.com", "paypal.com", "stripe.com", "binance.com", "coinbase.com",
+            "nytimes.com", "wsj.com", "reuters.com", "bloomberg.com", "cnn.com", "bbc.com",
+            "ft.com", "theguardian.com", "economist.com", "forbes.com", "time.com", "cctv.com",
+            "people.com.cn", "xinhuanet.com", "gov.cn", "china.com.cn", "cas.cn", "cuhk.edu.hk"
+        ]
+        if officialDomains.contains(bare) { return "official" }
+        // 媒体 / 知名社区 / 百科（可参考但非官方）
+        let thirdPartyDomains: Set<String> = [
+            "wikipedia.org", "zhihu.com", "zhuanlan.zhihu.com", "xiaohongshu.com", "xhs.cn",
+            "bilibili.com", "douban.com", "quora.com", "reddit.com", "stackoverflow.com",
+            "stackexchange.com", "medium.com", "csdn.net", "cnblogs.com", "juejin.cn",
+            "segmentfault.com", "36kr.com", "ithome.com", "sina.com.cn", "sohu.com", "163.com",
+            "toutiao.com", "sspai.com", "v2ex.com", "huxiu.com", "pingwest.com", "leiphone.com",
+            "ifanr.com", "engadget.com", "theverge.com", "techcrunch.com", "wired.com",
+            "arstechnica.com", "news.ycombinator.com", "baike.baidu.com", "zh.wikipedia.org",
+            "wikiwand.com", "gitbooks.io", "readthedocs.io", "mdn.mozilla.org", "freecodecamp.org",
+            "geekpark.net", "jiqizhixin.com", "qbitai.com", "wanqu.co", "solidot.org", "cnbeta.com"
+        ]
+        if thirdPartyDomains.contains(bare) { return "third_party" }
+        return "unknown"
     }
 
     private func fetchBing(query: String, limit: Int) -> [[String: String]] {
@@ -204,7 +250,7 @@ final class WebSearchTool: MCPTool {
             if let caps = head, caps.count == 2 {
                 let title = caps[1].stripHTMLTags()
                 if !title.isEmpty {
-                    out.append(["title": title, "url": caps[0], "snippet": snippet])
+                    out.append(["title": title, "url": caps[0], "snippet": snippet, "source_type": Self.sourceType(for: caps[0])])
                 }
             }
             if out.count >= limit { break }
@@ -223,7 +269,7 @@ final class WebSearchTool: MCPTool {
             let url = ns.substring(with: m.range(at: 1))
             let title = ns.substring(with: m.range(at: 2)).stripHTMLTags()
             guard !title.isEmpty, !url.hasPrefix("javascript:"), seen.insert(url).inserted else { continue }
-            out.append(["title": title, "url": url, "snippet": ""])
+            out.append(["title": title, "url": url, "snippet": "", "source_type": Self.sourceType(for: url)])
             if out.count >= limit { break }
         }
         return out
@@ -243,7 +289,7 @@ final class WebSearchTool: MCPTool {
             let snipBlock = ns.substring(with: snipRange)
             let snippet = snipBlock.firstCapture(pattern: "class=\"result__snippet\"[^>]*>(.*?)</a>")?.stripHTMLTags() ?? ""
             if !title.isEmpty {
-                out.append(["title": title, "url": url, "snippet": snippet])
+                out.append(["title": title, "url": url, "snippet": snippet, "source_type": Self.sourceType(for: url)])
             }
             if out.count >= limit { break }
         }

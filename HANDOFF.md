@@ -946,3 +946,21 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 **校验**：三文件括号配对 + 字符串/raw-string/注释感知 tokenizer 全过；未改变 AiAnalyzeTool 签名与调用方；版本 4.3.25（Info.plist）。
 
 **说明（边界）**：本版只修通用执行链路健壮性（参数透传/慢调用标记/空回复兜底），不涉及任何目标 App 的 hook 方案生成或绕过逻辑本身。
+
+### v4.3.26（2026-09-30）修 5 个内置工具缺陷（浏览器缓存/curl 解析/动态页检测/来源分级）
+
+**BUG-1/2 browser.text 缓存失效问题（最高优先级，调查失败主因）**
+- 根因：结果缓存 key 只含 `工具名+参数`，不含当前页面 URL；browser.text 参数（max_chars/query）不变时 URL 变了也命中旧缓存 → 返回上一页文本（BUG-1）、3 个不同关键词搜索页返回完全相同文本（BUG-2）。
+- 修复（MCPCore.swift）：①新增 `cacheBypassPrefixes`（browser/control/device.fake/injection.mem 全绕过缓存——有状态工具绝不喂缓存）；②其余工具新增连续命中计数 `cacheHitCounts`，同一调用连续第 2 次命中缓存强制重取（"同内容连续返回 ≥2 次应强制重取"）；③browser.text 结果新增 `current_url` 字段，AI 可校验读的是不是 navigate 后的目标页。
+
+**BUG-3 shell.exec 原生 curl 误报 Invalid URL**
+- 根因：原生 curl 用空格朴素分词，URL/UA 带引号时 `"https://…"` 不以 `http` 开头 → urlString 空 → 笼统报 Invalid URL；且原生只支持 -O 下载，不支持抓取到 stdout。
+- 修复（ShellTool.swift runIOSDownload 重写）：①URL/参数引号自动剥除（stripQuotes）；②新增抓取模式——无 -O/-o 时 `curl -sL <url>` 抓正文到 stdout（30s 超时、UA 默认 iPhone Safari）；③解析失败报具体原因（无 URL / Invalid URL 带原串 / 超时 / 空 body）；④shell.exec 描述补充原生 curl 格式文档。
+
+**BUG-4 动态渲染页面抓取为空**
+- 修复：抓取模式下检测"HTML 含 ≥3 个 `<script>` 且可见正文 <100 字符" → 返回 `needs_render=true` + 提示改用 browser.navigate/browser.text。
+
+**BUG-5 搜索结果无来源可信度标记**
+- 修复（MissingTools.swift）：`sourceType(for:)` 按域名分三级——official（政府/教育/官方产品域名）/ third_party（媒体/百科/知名社区）/ unknown（小站/个人页）；每条结果带 `source_type`，顶层带 `official_count` + `source_note`（unknown 小站勿直接采信、需交叉验证）。
+
+**校验**：4 文件括号配对/字符串/raw-string tokenizer 全过；Python 模拟 sourceType 9/10（gov.cn 真实代码走官方域名集，模拟集漏列）、curl 引号解析 5/5；版本 4.3.26。真实编译需 GitHub Actions。

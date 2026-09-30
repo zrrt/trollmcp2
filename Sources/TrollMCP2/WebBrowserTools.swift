@@ -62,7 +62,10 @@ struct BrowserTextTool: MCPTool {
         let query = params["query"] as? String
         let text = BrowserManager.shared.getText(maxChars: maxChars, query: query)
         AuditLog.shared.log("browser.text", detail: "len=\(text.count)")
-        return ["ok": !text.hasPrefix("ERR:"), "text": text, "length": text.count]
+        // v4.3.26：返回当前页面 URL——AI 校验"读的是不是 navigate 后的目标页"，
+        // 若 URL 不是期望页则说明页面没跳转/读错页，不再被旧页文本误导。
+        let curURL = BrowserManager.shared.currentURL
+        return ["ok": !text.hasPrefix("ERR:"), "text": text, "length": text.count, "current_url": curURL]
     }
 }
 
