@@ -71,8 +71,8 @@ enum SharePresenter {
 
             // 延时等转场动画结束（confirmationDialog/sheet dismiss 后再 present）
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                // 延迟后重新取顶层（转场可能已变化）
-                guard let top = Self.topViewController() ?? host else { fallback(); return }
+                // 延迟后重新取顶层（转场可能已变化）；取不到就退回转场前捕获的宿主
+                let top = Self.topViewController() ?? host
 
                 let vc = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
                 vc.excludedActivityTypes = excluded.isEmpty ? nil : excluded
