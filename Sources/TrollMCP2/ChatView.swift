@@ -1701,8 +1701,16 @@ struct FileCardRow: View {
         .buttonStyle(PlainButtonStyle())
         .contextMenu {
             SharePresenter.menuShare(url: url)
-            Button(action: { openInTrollStore() }) {
-                Label("用 TrollStore 安装", systemImage: "shippingbox")
+            // v4.3.43：iOS16+ 用 ShareLink（侧载稳定，系统在正确 scene 呈现分享页），
+            // iOS15 兜底命令式 present（已带防重入+转场等待）
+            if #available(iOS 16, *) {
+                ShareLink(item: url) {
+                    Label("用 TrollStore 安装", systemImage: "shippingbox")
+                }
+            } else {
+                Button(action: { openInTrollStore() }) {
+                    Label("用 TrollStore 安装", systemImage: "shippingbox")
+                }
             }
         }
         .sheet(isPresented: $showPreview) {

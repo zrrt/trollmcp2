@@ -11,12 +11,26 @@ import SwiftUI
 /// 兜底：拿不到窗口/控制器时，文件降级 UIDocumentInteractionController(OpenInMenu)，
 /// 纯文字降级复制到剪贴板。
 enum SharePresenter {
+    /// v4.3.43：防重入锁——同一时刻只允许一个分享页在弹。
+    /// 侧载环境下快速连点分享/多入口同时触发会并发 present 两个
+    /// UIActivityViewController → "presenting while already presenting" 闪退。
+    /// 锁持有期间的新调用直接忽略（记审计日志），避免堆叠。
+    private static var isPresenting = false
+
     static func present(
         _ items: [Any],
         excluded: [UIActivity.ActivityType] = [],
         completion: ((Bool, Error?) -> Void)? = nil
     ) {
         DispatchQueue.main.async {
+            // 防重入：分享页已弹出时忽略新请求（快速连点 / 多入口同时触发）
+            if Self.isPresenting {
+                AuditLog.shared.log("share.busy", detail: "items=\(items.count)")
+                completion?(false, NSError(domain: "SharePresenter", code: -3,
+                                           userInfo: [NSLocalizedDescriptionKey: "分享页已打开"]))
+                return
+            }
+
             // 收集有效分享项：文件 URL 需真实存在；http(s) 链接、字符串、其他对象原样传入
             var activityItems: [Any] = []
             var fileURLs: [URL] = []
@@ -41,69 +55,134 @@ enum SharePresenter {
                 return
             }
 
-            // 降级路径：文件 → OpenInMenu；纯文字 → 剪贴板
-            func fallback() {
-                if let file = fileURLs.first, let top = Self.topViewController() {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        let dc = UIDocumentInteractionController(url: file)
-                        dc.presentOpenInMenu(
-                            from: CGRect(x: top.view.bounds.midX, y: top.view.bounds.midY, width: 0, height: 0),
-                            in: top.view, animated: true)
-                        AuditLog.shared.log("share.fallback_openin", detail: file.lastPathComponent)
-                        completion?(true, nil)
-                    }
-                } else {
-                    let texts = activityItems.compactMap { $0 as? String }
-                    if !texts.isEmpty {
-                        UIPasteboard.general.string = texts.joined(separator: "\n")
-                    }
-                    AuditLog.shared.log("share.fallback_clipboard", detail: "texts=\(texts.count)")
-                    completion?(false, NSError(domain: "SharePresenter", code: -1,
-                                               userInfo: [NSLocalizedDescriptionKey: "无法弹出分享页，文字内容已复制到剪贴板"]))
-                }
-            }
+            // v4.3.43：不再直接 present——先等转场结束（最多重试 3 次），
+            // 拿不到宿主或转场超时才走降级路径。
+            Self.presentAfterTransition(
+                items: activityItems,
+                fileURLs: fileURLs,
+                excluded: excluded,
+                retryForHost: true,
+                completion: completion
+            )
+        }
+    }
 
-            guard let host = Self.topViewController() else {
-                AuditLog.shared.log("share.present_no_vc", detail: "items=\(items.count)")
-                fallback()
+    // MARK: - 转场等待 + 有限重试
+
+    /// 等待宿主转场结束再 present；若仍处于转场中则最多重试 3 次（每次 0.25s）。
+    /// present 前额外检查宿主状态（isBeingPresented/isBeingDismissed/已释放），
+    /// 不满足则继续等待，避免 "Attempt to present ... while a presentation is in progress" 崩溃。
+    /// - Parameters:
+    ///   - fallbackHost: 上一轮捕获的宿主（转场期间可能变化）
+    ///   - retryForHost: 为 true 时，若拿不到顶层 VC 则先重试查找，最终仍失败再降级
+    private static func presentAfterTransition(
+        items: [Any],
+        fileURLs: [URL],
+        excluded: [UIActivity.ActivityType],
+        fallbackHost: UIViewController? = nil,
+        attempts: Int = 0,
+        retryForHost: Bool = false,
+        completion: ((Bool, Error?) -> Void)? = nil
+    ) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            guard !Self.isPresenting else { return }
+
+            // 延迟后重新取顶层（转场可能已变化）；取不到就退回上一轮捕获的宿主
+            let top = Self.topViewController() ?? fallbackHost
+
+            // 拿不到宿主：若允许则重试查找，超限后走降级路径
+            guard let top = top else {
+                if retryForHost, attempts < 3 {
+                    Self.presentAfterTransition(
+                        items: items, fileURLs: fileURLs, excluded: excluded,
+                        fallbackHost: nil, attempts: attempts + 1,
+                        retryForHost: true, completion: completion)
+                    return
+                }
+                AuditLog.shared.log("share.no_host_timeout", detail: "attempts=\(attempts)")
+                Self.fallback(fileURLs: fileURLs, items: items, completion: completion)
                 return
             }
 
-            // 延时等转场动画结束（confirmationDialog/sheet dismiss 后再 present）
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                // 延迟后重新取顶层（转场可能已变化）；取不到就退回转场前捕获的宿主
-                let top = Self.topViewController() ?? host
+            let transitioning = top.isBeingPresented || top.isBeingDismissed
+            let detached = top.view.window == nil
 
-                let vc = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
-                vc.excludedActivityTypes = excluded.isEmpty ? nil : excluded
-                vc.completionWithItemsHandler = { _, completed, _, error in
-                    AuditLog.shared.log("share.completed", detail: "ok=\(completed)")
-                    completion?(completed, error)
+            // 宿主正在转场或已被移除 → 等下一轮；最多 3 次
+            if transitioning || detached {
+                if attempts < 3 {
+                    Self.presentAfterTransition(
+                        items: items, fileURLs: fileURLs, excluded: excluded,
+                        fallbackHost: top, attempts: attempts + 1,
+                        retryForHost: retryForHost, completion: completion)
+                    return
                 }
-                // iPad：必须指定弹窗锚点，否则崩溃；iPhone 上该配置被忽略
-                if let pop = vc.popoverPresentationController {
-                    pop.sourceView = top.view
-                    pop.sourceRect = CGRect(x: top.view.bounds.midX,
-                                            y: top.view.bounds.maxY - 80,
-                                            width: 0, height: 0)
-                    pop.permittedArrowDirections = []
-                }
-                top.present(vc, animated: true) {
-                    AuditLog.shared.log("share.present",
-                                        detail: fileURLs.first?.lastPathComponent ?? "text/link")
-                }
+                AuditLog.shared.log("share.transition_timeout", detail: "attempts=\(attempts)")
+                completion?(false, NSError(domain: "SharePresenter", code: -4,
+                                           userInfo: [NSLocalizedDescriptionKey: "界面转场未完成，请稍后再试"]))
+                return
+            }
+
+            Self.isPresenting = true
+            let vc = UIActivityViewController(activityItems: items, applicationActivities: nil)
+            vc.excludedActivityTypes = excluded.isEmpty ? nil : excluded
+            vc.completionWithItemsHandler = { _, completed, _, error in
+                Self.isPresenting = false
+                AuditLog.shared.log("share.completed", detail: "ok=\(completed)")
+                completion?(completed, error)
+            }
+            // iPad：必须指定弹窗锚点，否则崩溃；iPhone 上该配置被忽略
+            if let pop = vc.popoverPresentationController {
+                pop.sourceView = top.view
+                pop.sourceRect = CGRect(x: top.view.bounds.midX,
+                                        y: top.view.bounds.maxY - 80,
+                                        width: 0, height: 0)
+                pop.permittedArrowDirections = []
+            }
+            top.present(vc, animated: true) {
+                AuditLog.shared.log("share.present",
+                                    detail: fileURLs.first?.lastPathComponent ?? "text/link")
             }
         }
     }
 
+    // MARK: - 降级路径
+
+    /// 降级路径：文件 → OpenInMenu；纯文字 → 剪贴板（拿不到宿主 / 超时时兜底）。
+    private static func fallback(fileURLs: [URL], items: [Any], completion: ((Bool, Error?) -> Void)?) {
+        if let file = fileURLs.first, let top = Self.topViewController() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                let dc = UIDocumentInteractionController(url: file)
+                dc.presentOpenInMenu(
+                    from: CGRect(x: top.view.bounds.midX, y: top.view.bounds.midY, width: 0, height: 0),
+                    in: top.view, animated: true)
+                AuditLog.shared.log("share.fallback_openin", detail: file.lastPathComponent)
+                completion?(true, nil)
+            }
+        } else {
+            let texts = items.compactMap { $0 as? String }
+            if !texts.isEmpty {
+                UIPasteboard.general.string = texts.joined(separator: "\n")
+            }
+            AuditLog.shared.log("share.fallback_clipboard", detail: "texts=\(texts.count)")
+            completion?(false, NSError(domain: "SharePresenter", code: -1,
+                                       userInfo: [NSLocalizedDescriptionKey: "无法弹出分享页，文字内容已复制到剪贴板"]))
+        }
+    }
+
+    // MARK: - 顶层控制器查找
+
     /// 取 keyWindow 最顶层可 present 的控制器；沿 presented 链上溯，
-    /// 遇到 UIAlertController 停在其 presenting 控制器（alert 上不能再 present）。
+    /// 遇到 UIAlertController 停在其 presenting 控制器（alert 上不能再 present）；
+    /// 遇到正在转场的控制器返回 nil（交由调用方等待重试，避免在转场中 present 崩溃）。
     private static func topViewController() -> UIViewController? {
         guard let window = Self.topWindow(), var root = window.rootViewController else { return nil }
+        // 根控制器自身处于转场中 → 不稳定，返回 nil 触发等待
+        if root.isBeingPresented || root.isBeingDismissed { return nil }
         while let presented = root.presentedViewController {
+            // alert 上不能再 present，停在其 presenting 控制器
             if presented is UIAlertController { break }
-            // 正在转场中的控制器不作为宿主
-            if presented.isBeingPresented || presented.isBeingDismissed { break }
+            // 正在转场中的控制器：整个 presented 链不稳定，返回 nil 让调用方等待重试
+            if presented.isBeingPresented || presented.isBeingDismissed { return nil }
             root = presented
         }
         return root

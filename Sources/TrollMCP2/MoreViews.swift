@@ -9,6 +9,9 @@ struct AuditLogView: View {
     @State private var fileLogText = ""
     @State private var sortOrder: SortOrder = .newest
     @State private var sortBy: SortBy = .time
+    // v4.3.43：Alert 按钮里不再直接 present 分享页（Alert dismiss 转场中 present 会崩溃），
+    // 改为先记录待分享路径，等 Alert 完全消失后再由 onChange 触发。
+    @State private var pendingSharePath: String?
 
     enum SortBy { case time, status, elapsed, category }
     enum SortOrder { case newest, oldest }
@@ -57,18 +60,29 @@ struct AuditLogView: View {
         }
         .onAppear { loadFileLog() }
         .alert(isPresented: $showExportAlert) {
-            // v4.3.41：导出成功时提供"分享"按钮，直接弹系统分享页
+            // v4.3.43：Alert 按钮只记录待分享路径，等 Alert dismiss 完成后
+            // 由 onChange(showExportAlert) 触发分享——避免在 Alert dismiss 转场中
+            // present UIActivityViewController 导致崩溃。
             if let p = exportPath, p.hasPrefix("/") {
                 return Alert(title: Text(L10n.t("ui_45")),
                              message: Text(p),
                              primaryButton: .default(Text("分享")) {
-                                 SharePresenter.present([URL(fileURLWithPath: p)])
+                                 pendingSharePath = p
                              },
                              secondaryButton: .cancel(Text(L10n.t("ui_44"))))
             } else {
                 return Alert(title: Text(L10n.t("ui_45")),
                              message: Text(exportPath ?? ""),
                              dismissButton: .default(Text(L10n.t("ui_44"))))
+            }
+        }
+        // v4.3.43：Alert 完全消失后再弹分享页（转场安全）
+        .onChange(of: showExportAlert) { shown in
+            if !shown, let p = pendingSharePath {
+                pendingSharePath = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    SharePresenter.present([URL(fileURLWithPath: p)])
+                }
             }
         }
     }
