@@ -67,6 +67,9 @@ enum L10n {
             "relay_card_body": ["zh": "价格极低，作者本人就在用。这不是合作广告——通过链接注册会为作者增加 Token 额度，用于持续开发与更新更多功能。感谢支持！", "en": "Extremely low pricing, and it's the relay the author personally uses. This is not a sponsored ad — registering via the link adds tokens for the author to keep developing and shipping new features. Thanks for your support!"],
             "relay_card_copy": ["zh": "复制链接", "en": "Copy Link"],
             "relay_card_copied": ["zh": "已复制", "en": "Copied"],
+            // v4.3.27：推荐破甲站卡片（作者自用 · 可复制链接）
+            "armor_card_title": ["zh": "推荐破甲站 · 作者自用", "en": "Recommended ArmorBreak Station · Author's Pick"],
+            "armor_card_body": ["zh": "价格极低，作者本人就在用。通过链接注册会为作者增加 Token 额度，用于持续开发与更新更多功能。感谢支持！", "en": "Extremely low pricing, and it's the station the author personally uses. Registering via the link adds tokens for the author to keep developing and shipping new features. Thanks for your support!"],
             // v2.9.86：关于作者
             "about_title": ["zh": "关于作者", "en": "About Author"],
             "about_subtitle": ["zh": "ZeenAE · 独立开发者", "en": "ZeenAE · Independent Developer"],

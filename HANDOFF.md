@@ -964,3 +964,15 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 - 修复（MissingTools.swift）：`sourceType(for:)` 按域名分三级——official（政府/教育/官方产品域名）/ third_party（媒体/百科/知名社区）/ unknown（小站/个人页）；每条结果带 `source_type`，顶层带 `official_count` + `source_note`（unknown 小站勿直接采信、需交叉验证）。
 
 **校验**：4 文件括号配对/字符串/raw-string tokenizer 全过；Python 模拟 sourceType 9/10（gov.cn 真实代码走官方域名集，模拟集漏列）、curl 引号解析 5/5；版本 4.3.26。真实编译需 GitHub Actions。
+
+### v4.3.27（2026-09-30）模型 API 页推荐卡片改版（加破甲站 + 全宽直达外框）
+
+**用户要求**：模型 API 设置页①新增"推荐破甲站"卡片（https://caibaizz.xyz/register?aff=9MBDRSGSARN7）；②推荐中转站面板太小、有内框——去掉 insetGrouped 内框、卡片全宽直达外框；③顺序：推荐破甲站第一、推荐中转站第二。
+
+**改动（ModelsView.swift / Localization.swift）**：
+- 推荐卡片区从 List 移出到 `VStack` 顶部 `RecommendCardArea`，渐变背景全宽直达屏幕外框（不再有 insetGrouped 分组内框）。
+- 新增通用 `RecommendCard` 组件（icon/标题/正文/链接/渐变色），面板加大：headline 标题、subheadline 正文、更大留白、subheadline 复制按钮。
+- 新增本地化键 `armor_card_title` / `armor_card_body`；破甲站用紫→粉渐变（区别于中转站蓝），图标 shield.fill。
+- 顺序：破甲站（第一）→ 中转站（第二）。
+
+**校验**：ModelsView/Localization 括号配对 + tokenizer 全过；RelayRecommendCard 无残留引用；版本 4.3.27。真实编译走 GitHub Actions。

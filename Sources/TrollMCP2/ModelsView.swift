@@ -15,54 +15,55 @@ struct ModelsView: View {
     @State private var showImportMessage = false
 
     var body: some View {
-        List {
-            // v2.9.85：推荐中转站卡片（作者自用 · 可复制链接）
-            Section {
-                RelayRecommendCard()
-            }
+        VStack(spacing: 0) {
+            // v4.3.27：推荐卡片区——全宽直达外框（去掉 insetGrouped 内框），
+            // 顺序：推荐破甲站第一、推荐中转站第二（用户要求）；面板加大加宽。
+            RecommendCardArea()
 
-            if store.configs.isEmpty {
-                Section {
-                    HStack {
-                        Spacer()
-                        VStack(spacing: 8) {
-                            Image(systemName: "cpu")
-                                .font(.system(size: 40))
-                                .foregroundColor(.secondary)
-                            Text(L10n.t("ui_50"))
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
+            List {
+                if store.configs.isEmpty {
+                    Section {
+                        HStack {
+                            Spacer()
+                            VStack(spacing: 8) {
+                                Image(systemName: "cpu")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(.secondary)
+                                Text(L10n.t("ui_50"))
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.vertical, 40)
+                            Spacer()
                         }
-                        .padding(.vertical, 40)
-                        Spacer()
                     }
-                }
-            } else {
-                // v2.9.107：按分组展示（默认组优先，其余按字典序）
-                let groups = groupedKeys()
-                ForEach(groups, id: \.self) { g in
-                    Section(header: HStack {
-                        Text(g)
-                            .font(.subheadline.weight(.semibold))
-                        Spacer()
-                        Text(L10n.t("ui_155", count(in: g)))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }) {
-                        ForEach(configs(in: g)) { cfg in
-                            ModelRow(config: cfg)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    isNewModel = false
-                                    editing = cfg
-                                }
+                } else {
+                    // v2.9.107：按分组展示（默认组优先，其余按字典序）
+                    let groups = groupedKeys()
+                    ForEach(groups, id: \.self) { g in
+                        Section(header: HStack {
+                            Text(g)
+                                .font(.subheadline.weight(.semibold))
+                            Spacer()
+                            Text(L10n.t("ui_155", count(in: g)))
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }) {
+                            ForEach(configs(in: g)) { cfg in
+                                ModelRow(config: cfg)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        isNewModel = false
+                                        editing = cfg
+                                    }
+                            }
+                            .onDelete { offsets in delete(in: g, at: offsets) }
                         }
-                        .onDelete { offsets in delete(in: g, at: offsets) }
                     }
                 }
             }
+            .listStyle(.insetGrouped)
         }
-        .listStyle(.insetGrouped)
         .navigationTitle("模型 API")
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
@@ -347,30 +348,62 @@ struct ModelRow: View {
     }
 }
 
-// MARK: - v2.9.85 推荐中转站卡片（作者自用 · 链接可复制）
+// MARK: - v4.3.27 推荐卡片区（全宽直达外框；破甲站第一、中转站第二）
+// 说明：v4.3.27 起卡片移出 List 的 insetGrouped 内框，渐变背景直达屏幕外框；
+// 面板加大加宽（headline 标题 / subheadline 正文 / 更大留白）。
 
-struct RelayRecommendCard: View {
+struct RecommendCardArea: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            // 推荐破甲站（第一张）
+            RecommendCard(
+                icon: "shield.fill",
+                title: L10n.t("armor_card_title"),
+                body: L10n.t("armor_card_body"),
+                link: "https://caibaizz.xyz/register?aff=9MBDRSGSARN7",
+                colors: [Color(red: 0.55, green: 0.28, blue: 0.85),
+                         Color(red: 0.86, green: 0.30, blue: 0.55)])
+            // 推荐中转站（第二张）
+            RecommendCard(
+                icon: "sparkles",
+                title: L10n.t("relay_card_title"),
+                body: L10n.t("relay_card_body"),
+                link: "https://china.botcf.com/register?aff=bJMk",
+                colors: [Color(red: 0.16, green: 0.44, blue: 0.92),
+                         Color(red: 0.0, green: 0.74, blue: 0.95)])
+        }
+        .padding(.top, 8)
+        .padding(.bottom, 4)
+    }
+}
+
+/// 通用推荐卡片：全宽渐变背景直达外框，标题+正文+可复制链接
+struct RecommendCard: View {
+    let icon: String
+    let title: String
+    let body: String
+    let link: String
+    let colors: [Color]
     @State private var copied = false
-    private let link = "https://china.botcf.com/register?aff=bJMk"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 14, weight: .semibold))
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.white)
-                Text(L10n.t("relay_card_title"))
-                    .font(.subheadline.weight(.semibold))
+                Text(title)
+                    .font(.headline.weight(.semibold))
                     .foregroundColor(.white)
             }
-            Text(L10n.t("relay_card_body"))
-                .font(.caption)
+            Text(body)
+                .font(.subheadline)
                 .foregroundColor(.white.opacity(0.92))
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
                 Text(link)
-                    .font(.system(.caption, design: .monospaced))
+                    .font(.system(.subheadline, design: .monospaced))
                     .foregroundColor(.white)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
@@ -382,18 +415,19 @@ struct RelayRecommendCard: View {
                 }) {
                     Label(copied ? L10n.t("relay_card_copied") : L10n.t("relay_card_copy"),
                           systemImage: copied ? "checkmark" : "doc.on.doc")
-                        .font(.caption.weight(.medium))
+                        .font(.subheadline.weight(.medium))
                         .foregroundColor(copied ? .white : Color(red: 0.82, green: 0.95, blue: 1.0))
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(14)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            LinearGradient(colors: [Color(red: 0.16, green: 0.44, blue: 0.92), Color(red: 0.0, green: 0.74, blue: 0.95)],
+            LinearGradient(colors: colors,
                            startPoint: .topLeading, endPoint: .bottomTrailing)
         )
-        .cornerRadius(14)
     }
 }
 
