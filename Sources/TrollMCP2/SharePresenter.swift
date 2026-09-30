@@ -15,20 +15,20 @@ import QuickLook
 ///    呈现分享面板，不经过手写 keyWindow/顶层VC 查找（TrollFools 源码 PlugInCell.swift /
 ///    EjectListView.swift 实测同款）；
 /// 2. **iOS 16.4 以下**：**QuickLook 预览中间层**——命令式路径一律先弹 QLPreviewController
-///    （.quickLookPreview），用户在预览页点系统自带的分享按钮，由系统在自己安全上下文里
-///    弹分享面板，彻底绕开手写 UIActivityViewController 枚举分享扩展的崩溃路径。
-///    （TrollFools：`quickLookExport = url` + `.quickLookPreview($quickLookExport)`）
+///    （由 ShareCenter 显式 fullScreenCover 呈现，导航栏自带系统分享按钮），用户在预览页
+///    点系统分享按钮，由系统在自己安全上下文里弹分享面板，彻底绕开手写 UIActivityViewController
+///    枚举分享扩展的崩溃路径。（TrollFools：`quickLookExport = url` + `.quickLookPreview`）
 ///
-/// 纯文字（无文件可预览）兜底：复制到剪贴板。
+/// 纯文字（无文件可预览）兜底：复制到剪贴板 + 提示。
 enum SharePresenter {
     /// 防重入锁（保留 v4.3.43 语义）：同一时刻只允许一个分享页在弹。
     private static var isPresenting = false
 
     /// v4.3.44：命令式分享入口——侧载环境安全路径。
     ///
-    /// - 分享项含**文件 URL** → QuickLook 中间层（ShareCenter.quickLookURL 驱动 .quickLookPreview），
+    /// - 分享项含**文件 URL** → QuickLook 中间层（ShareCenter 显式 fullScreenCover 呈现），
     ///   由系统在预览页呈现分享面板，**不再手写 present UIActivityViewController**；
-    /// - 纯**文字/链接** → 复制到剪贴板（无文件可预览时的安全降级）；
+    /// - 纯**文字/链接** → 复制到剪贴板并提示（无文件可预览时的安全降级）；
     /// - 无法分享 → 返回错误。
     ///
     /// 兼容性：UpdateManager（非 View 上下文）、Alert 回调等命令式调用点统一走此入口。
@@ -68,19 +68,17 @@ enum SharePresenter {
             if let file = fileURLs.first {
                 AuditLog.shared.log("share.quicklook", detail: file.lastPathComponent)
                 Self.isPresenting = true
-                ShareCenter.shared.presentQuickLook(url: file)
-                // QuickLook 关闭后释放锁：监听预览完成由 RootView 的 .quickLookPreview 生命周期
-                // 统一管理；此处保留锁 2s 防连点（预览弹出前的窗口期）
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                ShareCenter.shared.presentQuickLook(url: file, delay: 0.3)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                     Self.isPresenting = false
                 }
                 completion?(true, nil)
                 return
             }
 
-            // 纯文字/链接 → 剪贴板兜底
+            // 纯文字/链接 → 剪贴板兜底 + 提示
             if !texts.isEmpty {
-                UIPasteboard.general.string = texts.joined(separator: "\n")
+                ShareCenter.shared.fallbackClipboard(texts.joined(separator: "\n"))
                 AuditLog.shared.log("share.fallback_clipboard", detail: "texts=\(texts.count)")
                 completion?(false, NSError(domain: "SharePresenter", code: -1,
                                            userInfo: [NSLocalizedDescriptionKey: "侧载环境分享面板不可用，文字已复制到剪贴板"]))
@@ -115,7 +113,7 @@ extension SharePresenter {
         if #available(iOS 16.4, *) {
             ShareLink(item: url) { Label(label, systemImage: systemImage) }
         } else {
-            Button { ShareCenter.shared.presentQuickLook(url: url) } label: {
+            Button { ShareCenter.shared.presentQuickLook(url: url, delay: 0.35) } label: {
                 Label(label, systemImage: systemImage)
             }
         }
@@ -128,7 +126,7 @@ extension SharePresenter {
         if #available(iOS 16.4, *) {
             ShareLink(item: text) { Label(label, systemImage: systemImage) }
         } else {
-            Button { UIPasteboard.general.string = text } label: {
+            Button { ShareCenter.shared.fallbackClipboard(text) } label: {
                 Label(label, systemImage: systemImage)
             }
         }
@@ -142,7 +140,7 @@ extension SharePresenter {
                 Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
             }
         } else {
-            Button { UIPasteboard.general.string = text } label: {
+            Button { ShareCenter.shared.fallbackClipboard(text) } label: {
                 Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
             }
         }
@@ -156,7 +154,7 @@ extension SharePresenter {
                 Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
             }
         } else {
-            Button { ShareCenter.shared.presentQuickLook(url: url) } label: {
+            Button { ShareCenter.shared.presentQuickLook(url: url, delay: 0.2) } label: {
                 Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
             }
         }
