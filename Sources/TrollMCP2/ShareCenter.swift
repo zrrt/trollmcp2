@@ -5,18 +5,17 @@ import UIKit
 ///
 /// 崩溃铁证（两次真机崩溃栈地址逐字节相同，sig_1790791863 / sig_1790797823）：
 /// ShareSheet → SharingUI → UIKitCore → **MobileIcons(LICreateIconForImages/LICreateIconForImage)
-/// → CoreImage → Segmentation fault: 11**。崩溃发生在 iOS 系统分享框架内部——
-/// **枚举"支持当前分享内容类型的所有分享扩展"并生成扩展图标**时。
-/// 任何触达系统分享面板的路径（手写 UIActivityViewController / QLPreviewController 系统分享按钮 /
-/// SwiftUI ShareLink / .quickLookPreview 预览页分享按钮）都在同一地址崩溃，与呈现方式无关。
+/// → CoreImage → Segmentation fault: 11**。
 ///
-/// 对照（用户设备实测）：
-/// - TrollFools 分享 .dylib 插件文件 → 第三方 App 分享扩展均不支持该类型 → 分享面板只枚举
-///   系统扩展（存储到文件/拷贝/隔空投送）→ 图标生成量极小 → **不崩**；
-/// - TrollMCP2 分享 .txt / 普通文件 → 所有第三方分享扩展都支持 → ShareSheet 枚举几十个
-///   扩展图标 → 命中 MobileIcons 系统级 bug → **必崩**。
+/// **最终根因（v4.3.47 确认）**：TrollMCP2 的 Info.plist 曾声明 `CFBundleDocumentTypes =
+/// All Files（public.item，支持所有文件类型）`。系统分享面板枚举"支持当前内容类型的所有
+/// App/扩展"时，**把 TrollMCP2 自己列入**并让 MobileIcons 为它生成图标 —— 侧载环境下
+/// TrollMCP2 的图标注册异常 → MobileIcons/CoreImage SIGSEGV。
+/// 对照：TrollFools 只声明 mach-o/zip/deb 三种类型，分享 ipa/txt 时面板里**没有它自己** → 不崩。
+/// **修复**：删除 All Files 声明（v4.3.47），分享面板不再为 TrollMCP2 生成图标。
 ///
-/// 结论：本设备侧载环境下**任何系统分享面板都不可用**。
+/// 兜底：自建分享菜单（拷贝 / 存储到文件 / 用其他 App 打开）绕开 ShareSheet，
+/// 任何情况下都可用。
 /// 根治方案：**自建分享菜单，彻底绕开 ShareSheet**：
 ///   1. **拷贝**（UIPasteboard，文字/路径）
 ///   2. **存储到文件**（UIDocumentPickerViewController(forExporting:) —— Files 保存界面，
