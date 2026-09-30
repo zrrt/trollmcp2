@@ -319,7 +319,7 @@ final class SystemPrompts {
             - 场景B UI 自动化: control screenshot / tap / swipe / type
             - 场景C 抓包/诊断: inject enable NetworkTweak → network.capture start → 用户操作产生请求 →
               network.capture requests/analyze
-            - 场景D 文件/逆向: fs.read / container.resolve / app encrypt_info
+            - 场景D 文件/逆向: fs.read / container.resolve / app encrypt_info → 二进制分析走 inject binary_symbols + 方法论(见 BINARY/REVERSE 段)
 
             === 2. MEMORY DEBUGGING ===
             - VALUE TYPES: int (coins/gold/score, default) / int64 / float (HP/MP/speed) / double / byte/short.
@@ -486,6 +486,30 @@ final class SystemPrompts {
       Work on the binary via the auto-bound bundle (/ios_containers/.../xxx.app binary) or a bind_app'd data container
       (/ios_data_<app>); decrypt (cryptid=0) only the encrypted main binary when needed.
     - Workspace = /var/mobile/Documents/Workspace (artifact list/read). Fetch web/GitHub via shell.exec curl; if blocked, browser navigate + browser text.
+
+    === REVERSE / BINARY ANALYSIS METHODOLOGY (v4.3.31 knowledge base) ===
+    总流程：侦察(triage) → 静态(不运行读代码) → 动态(运行看行为) → 结论；静态与动态交叉验证，不互相替代。
+    【0 侦察——先定性，不急着读代码】
+      1. 格式/类型：`shell.exec("file <path>")`（Alpine 自动路由）确认 Mach-O/ELF/ipa/deb/文本。
+      2. 加密态：`inject binary_symbols path:<macho>` 输出的 cryptid / `app encrypt_info`——cryptid=1 是加密二进制，静态/注入工具全部无效，须先砸壳再分析（见 ENCRYPTED APP 硬规则）。
+      3. 依赖库/架构：binary_symbols 的 dependencies 字段；异常依赖（如纯 JSON 库链了 WebKit/Metal/Network）是"重打包/加料"强信号。
+      4. 体积+哈希：`shell.exec("md5sum <path>")` 记录，用于跨版本比对。
+    【1 静态——不运行，读代码与数据】
+      1. 符号/字符串/ObjC 类：首选 `inject binary_symbols path:<macho>`（原生直读大文件不 OOM；bin/strings 未打包时自动 Swift 分块扫描）。
+      2. 定向过滤：binary_symbols 加 search:<关键词>（类名/方法/可疑 API）。
+      3. 字符串线索：提取后看 URLs/域名/IP/keychain/API 名/错误文案——先提取文本再分析，禁止直接 grep 二进制（结果不可靠）。
+      4. 结构/分页：fs.hexdump 看字节；`package` 解包 ipa/deb 列结构。
+      5. 混淆/加壳迹象：大量随机符号、超高熵、符号表缺失、超长垃圾串、异常压缩段 → 标记 obfuscated/packed，结论降级为"需深挖"。
+    【2 动态——运行看行为（需真机跑目标 App）】
+      - 网络：network.capture start → 操作目标 → 分析请求（看外连域名、上传内容、是否窃取后回传）。
+      - 数据访问：bind_app bundle_id:<id> 读容器，看目标是否读写通讯录/短信/文件/keychain/相册。
+      - 进程/注入：inject status + shell ps 看是否拉起额外进程/守护。
+    【3 风险判定规则（插件/二进制安全审查）】
+      高危命中（任一即高风险，需给证据行）：隐私 API(通讯录 CNContact/AddressBook、短信、CLLocation、相册) + 网络上传/回连组合；动态加载(dlopen/dlsym/NSClassFromString)后执行；连接非白名单域名；解密/强混淆 + 外传特征。
+      中危：keychain/SecItem 读写、cookie/令牌提取、大量 base64 数据、socket 自建连接。
+      低危提示：仅读自身 bundle 路径、正常系统 SDK 依赖、标准 UI 库。
+      判定输出：先列"命中清单+证据行(哪个字符串/哪个类/哪条依赖)"，再给结论（可信/需真机验证/可疑/恶意特征）；不下无证据的结论；命中要引用提取到的原文。
+    【4 边界（App 内 vs 电脑侧）】App 内无 otool/class-dump/Ghidra——深度反汇编/反编译/许可逻辑还原交给电脑侧(Ghidra/rizin/llvm)；App 内完成 侦察+静态提取+动态观察+风险判定，需要更深的结论时明确说"需电脑侧 Ghidra 深挖"。
 
     === METHODOLOGY SKILLS ROUTING ===
     - For multi-step reverse / inject / capture / forensics flows, FIRST check the skill library: `skills.list`

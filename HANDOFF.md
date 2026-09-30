@@ -1030,3 +1030,18 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 **注意**：这些是"电脑沙箱"工具，不是 App（iOS 真机）内置工具——App 内分析二进制仍用 binary.symbols / inject binary_symbols / fs.hexdump / 原生 strings/nm。
 
 **快速分析套路**：file 确认格式 → llvm-objdump --private-headers 看依赖/加密 → llvm-nm 看符号 → strings 抓域名/敏感 API → lief 程序化统计 → 需要反编译时 Ghidra headless。
+
+### v4.3.31（2026-09-30）App 内置"逆向分析方法论知识库"（SystemPrompts）
+
+**用户诉求**：不是新增工具，而是让 App 里的 AI 学会"怎么分析二进制"——知道流程、自己用现有工具逐步分析。
+
+**改动（SystemPrompts.swift）**：BINARY/REVERSE 段扩展为方法论知识库：
+- 总流程：侦察(triage)→静态→动态→结论，静态动态交叉验证。
+- 侦察：file 格式 → cryptid 加密态 → 依赖库（异常依赖=重打包强信号）→ 哈希。
+- 静态：inject binary_symbols 提取符号/字符串/ObjC类 → search 定向 → 字符串线索(URL/API) → fs.hexdump/package → 混淆迹象标记。
+- 动态：network.capture 看回连、bind_app 看数据访问、inject status 看额外进程。
+- 风险判定：高危(隐私API+外传/动态加载执行/非白名单域名/强混淆) / 中危(keychain/cookie/socket/base64) / 低危；先列命中清单+证据行再给结论。
+- 边界：深度反编译需电脑侧 Ghidra；App 内完成侦察+静态+动态观察+风险判定。
+- 场景D 入口同步补 binary_symbols 提示。
+
+**校验**：SystemPrompts 括号配对全过；版本 4.3.31。真实编译走 GitHub Actions。
