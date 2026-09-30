@@ -258,7 +258,7 @@ struct ModelRow: View {
                 .buttonStyle(.plain)
             } else {
                 Button(action: {
-                    ShareCenter.shared.presentText(makeDeepLink())
+                    ShareCenter.shared.presentShareMenuText(makeDeepLink())
                 }) {
                     Image(systemName: "link")
                         .font(.system(size: 14, weight: .medium))

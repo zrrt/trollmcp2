@@ -1,58 +1,132 @@
 import SwiftUI
 import UIKit
 
-/// v4.3.44：分享中转站——TrollStore 侧载环境的"分享面板闪退"根治方案。
+/// v4.3.46：分享中转站——TrollStore 侧载环境"分享面板闪退"的最终方案。
 ///
-/// 背景（崩溃栈实证）：TrollMCP2 在侧载环境直接手写 present UIActivityViewController 时，
-/// ShareSheet 枚举分享扩展并生成目标图标（MobileIcons/LICreateIconForImages → CoreImage）会
-/// 触发系统级 SIGSEGV（Segmentation fault: 11），App 进程被系统杀死。
+/// 崩溃铁证（两次真机崩溃栈地址逐字节相同，sig_1790791863 / sig_1790797823）：
+/// ShareSheet → SharingUI → UIKitCore → **MobileIcons(LICreateIconForImages/LICreateIconForImage)
+/// → CoreImage → Segmentation fault: 11**。崩溃发生在 iOS 系统分享框架内部——
+/// **枚举"支持当前分享内容类型的所有分享扩展"并生成扩展图标**时。
+/// 任何触达系统分享面板的路径（手写 UIActivityViewController / QLPreviewController 系统分享按钮 /
+/// SwiftUI ShareLink / .quickLookPreview 预览页分享按钮）都在同一地址崩溃，与呈现方式无关。
 ///
-/// 解法（100% 照抄 TrollStore 生态 App **TrollFools**，其在本用户设备实测分享不崩）：
-/// - iOS 16.4+：SwiftUI 原生 `ShareLink`；
-/// - iOS 16.4 以下：**SwiftUI 原生 `.quickLookPreview($url)`**，挂在分享触发视图自身
-///   （TrollFools：EjectListView `@State var quickLookExport: URL?` + `.quickLookPreview($quickLookExport)`，
-///   PlugInCell contextMenu 按钮 `quickLookExport = plugIn.url`）。QLPreviewController 在主窗口
-///   正常呈现上下文弹出，预览页导航栏自带系统分享按钮，由系统自身上下文弹分享面板——不崩。
+/// 对照（用户设备实测）：
+/// - TrollFools 分享 .dylib 插件文件 → 第三方 App 分享扩展均不支持该类型 → 分享面板只枚举
+///   系统扩展（存储到文件/拷贝/隔空投送）→ 图标生成量极小 → **不崩**；
+/// - TrollMCP2 分享 .txt / 普通文件 → 所有第三方分享扩展都支持 → ShareSheet 枚举几十个
+///   扩展图标 → 命中 MobileIcons 系统级 bug → **必崩**。
 ///
-/// 呈现方式迭代记录（均被真机证伪）：
-/// 1. `.quickLookPreview` 挂在 RootView（层级过深/被 fullScreenCover 干扰）→ contextMenu 触发被吞；
-/// 2. 显式 fullScreenCover 呈现 → SwiftUI 呈现队列在 contextMenu dismiss 期间仍不可靠；
-/// 3. 独立 UIWindow(alert+1) → 预览能弹，但 QLPreviewController 分享按钮弹分享面板时
-///    在异常呈现上下文触发 MobileIcons/CoreImage SIGSEGV（用户实测闪退）。
-/// → 最终：照抄 TrollFools，`.quickLookPreview` 挂分享触发视图自身（主窗口正常上下文）。
+/// 结论：本设备侧载环境下**任何系统分享面板都不可用**。
+/// 根治方案：**自建分享菜单，彻底绕开 ShareSheet**：
+///   1. **拷贝**（UIPasteboard，文字/路径）
+///   2. **存储到文件**（UIDocumentPickerViewController(forExporting:) —— Files 保存界面，
+///      不枚举分享扩展，安全）
+///   3. **用其他 App 打开**（UIDocumentInteractionController.presentOpenInMenu —— 打开方式
+///      菜单，Launch Services 列表，不经过 ShareSheet）
 final class ShareCenter: ObservableObject {
     static let shared = ShareCenter()
 
-    /// 剪贴板/写入提示文案（nil = 无提示）
+    /// 提示文案（nil = 无提示）
     @Published var clipboardNotice: String?
-
-    /// 命令式调用（非 View 上下文：UpdateManager/后台）的 QuickLook 兜底 URL。
-    /// RootView 上挂 `.quickLookPreview($shareCenter.quickLookURL)` 承接。
-    @Published var quickLookURL: URL?
 
     private init() {}
 
-    /// 命令式分享（非 View 上下文）兜底：设置全局 QuickLook URL，
-    /// 由 RootView 的 .quickLookPreview 呈现（非 contextMenu 触发，呈现不被吞）。
-    func presentQuickLook(url: URL) {
-        DispatchQueue.main.async {
-            self.quickLookURL = url
-            AuditLog.shared.log("share.quicklook_center", detail: url.lastPathComponent)
+    // MARK: - 文件分享：自建菜单（UIKit ActionSheet，绕开 ShareSheet）
+
+    /// 文件分享菜单：存储到文件 / 用其他 App 打开 / 取消
+    func presentShareMenuFile(_ url: URL) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+            guard FileManager.default.fileExists(atPath: url.path) else {
+                self.showNotice("文件不存在，无法分享")
+                return
+            }
+            let alert = UIAlertController(title: "分享 \(url.lastPathComponent)",
+                                          message: nil, preferredStyle: .actionSheet)
+            alert.addAction(UIAlertAction(title: "存储到文件", style: .default) { _ in
+                self.saveToFiles(url)
+            })
+            alert.addAction(UIAlertAction(title: "用其他 App 打开", style: .default) { _ in
+                self.openIn(url)
+            })
+            alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+            Self.anchor(alert)
+            Self.topViewController()?.present(alert, animated: true)
         }
     }
 
-    /// 关闭命令式 QuickLook（RootView onDismiss 调用）
-    func dismissQuickLook() {
-        DispatchQueue.main.async {
-            self.quickLookURL = nil
+    /// 文字分享菜单：拷贝 / 存储到文件（写临时 txt）/ 取消
+    func presentShareMenuText(_ text: String) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else {
+                self.showNotice("没有可分享的内容")
+                return
+            }
+            let alert = UIAlertController(title: "分享", message: nil, preferredStyle: .actionSheet)
+            alert.addAction(UIAlertAction(title: "拷贝", style: .default) { _ in
+                self.fallbackClipboard(trimmed)
+            })
+            alert.addAction(UIAlertAction(title: "存储到文件", style: .default) { _ in
+                if let url = Self.writeTextToTemp(trimmed) {
+                    self.saveToFiles(url)
+                } else {
+                    self.fallbackClipboard(trimmed)
+                }
+            })
+            alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+            Self.anchor(alert)
+            Self.topViewController()?.present(alert, animated: true)
         }
     }
+
+    // MARK: - 存储到文件（UIDocumentPicker，安全路径）
+
+    /// 存储到文件：UIDocumentPickerViewController(forExporting:) 弹出 Files 保存界面。
+    /// 不经过 ShareSheet，不枚举分享扩展，侧载环境安全。
+    func saveToFiles(_ url: URL) {
+        DispatchQueue.main.async {
+            guard FileManager.default.fileExists(atPath: url.path) else {
+                self.showNotice("文件不存在，无法保存")
+                return
+            }
+            guard let top = Self.topViewController() else { return }
+            let picker = UIDocumentPickerViewController(forExporting: [url])
+            picker.modalPresentationStyle = .fullScreen
+            top.present(picker, animated: true)
+            AuditLog.shared.log("share.save_to_files", detail: url.lastPathComponent)
+        }
+    }
+
+    // MARK: - 用其他 App 打开（UIDocumentInteractionController，安全路径）
+
+    /// 打开方式：UIDocumentInteractionController.presentOpenInMenu。
+    /// Launch Services 的 App 列表（不走 ShareSheet）。
+    /// 注意：presentOpenInMenu 的宿主视图若被提前释放会不显示，故把交互控制器
+    /// 用 associatedObject 挂到宿主 VC 上保持存活。
+    func openIn(_ url: URL) {
+        DispatchQueue.main.async {
+            guard FileManager.default.fileExists(atPath: url.path) else {
+                self.showNotice("文件不存在")
+                return
+            }
+            guard let top = Self.topViewController() else { return }
+            let doc = UIDocumentInteractionController(url: url)
+            objc_setAssociatedObject(top, &Self.docControllerKey, doc, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+            doc.delegate = DocInteractionDelegate.shared
+            guard let view = top.view else { return }
+            let rect = view.bounds
+            let ok = doc.presentOpenInMenu(from: rect, in: view, animated: true)
+            if !ok {
+                self.showNotice("没有 App 能打开此文件")
+            }
+            AuditLog.shared.log("share.open_in", detail: url.lastPathComponent)
+        }
+    }
+    private static var docControllerKey = "ShareCenterDocControllerKey"
 
     // MARK: - 文字 → 临时 txt
 
     /// 把文字写入临时 txt 文件，返回 URL；失败返回 nil。
-    /// 用于 SwiftUI 入口（menuShare/toolbarShare）低版本分支：写 txt 后设置视图 @State
-    /// quickLookExport，走 .quickLookPreview（文字也能进系统分享面板，不再降级复制）。
     static func writeTextToTemp(_ text: String) -> URL? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
@@ -69,16 +143,7 @@ final class ShareCenter: ObservableObject {
         }
     }
 
-    /// 命令式文字分享（非 View 上下文）：写 txt → 全局 QuickLook；写失败 → 剪贴板兜底
-    func presentText(_ text: String) {
-        if let url = Self.writeTextToTemp(text) {
-            presentQuickLook(url: url)
-            AuditLog.shared.log("share.text_to_file", detail: url.lastPathComponent)
-        } else {
-            fallbackClipboard(text)
-            AuditLog.shared.log("share.text_fallback_clipboard", detail: "write_failed")
-        }
-    }
+    // MARK: - 拷贝兜底
 
     /// 纯文字/链接复制兜底
     func fallbackClipboard(_ text: String) {
@@ -94,5 +159,36 @@ final class ShareCenter: ObservableObject {
                 self.clipboardNotice = nil
             }
         }
+    }
+
+    /// iPad 兼容：actionSheet 需要 popover 锚点
+    static func anchor(_ alert: UIAlertController) {
+        guard let vc = topViewController(), let view = vc.view else { return }
+        alert.popoverPresentationController?.sourceView = view
+        alert.popoverPresentationController?.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.maxY, width: 1, height: 1)
+        alert.popoverPresentationController?.permittedArrowDirections = []
+    }
+
+    /// 找到当前最顶层 UIViewController（绕开 SwiftUI 层级，直接往 key window 上 present）
+    static func topViewController() -> UIViewController? {
+        var vc: UIViewController?
+        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = scene.windows.first(where: { $0.isKeyWindow }) {
+            vc = window.rootViewController
+        } else if let window = UIApplication.shared.windows.first(where: { $0.isKeyWindow }) {
+            vc = window.rootViewController
+        }
+        while let presented = vc?.presentedViewController {
+            vc = presented
+        }
+        return vc
+    }
+}
+
+/// UIDocumentInteractionController 代理（分享菜单点开后需要保留 delegate 存活）
+private final class DocInteractionDelegate: NSObject, UIDocumentInteractionControllerDelegate {
+    static let shared = DocInteractionDelegate()
+    func documentInteractionControllerViewControllerForPreview(_ controller: UIDocumentInteractionController) -> UIViewController? {
+        ShareCenter.topViewController()
     }
 }

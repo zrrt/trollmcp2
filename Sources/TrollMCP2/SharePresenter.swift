@@ -1,54 +1,34 @@
 import SwiftUI
 import UIKit
-import QuickLook
 
-/// v4.3.41：统一分享器——优先弹出 iOS 系统完整分享页 UIActivityViewController
-/// （微信/短信/隔空投送/存储到文件/用 TrollStore 打开/复制 等全部活动项）。
+/// v4.3.46：统一分享器——TrollStore 侧载环境"分享面板闪退"最终方案。
 ///
-/// ⚠️ v4.3.44 重大变更：TrollStore(巨魔)侧载环境下**手写 present UIActivityViewController
-/// 会触发系统级 SIGSEGV 崩溃**（崩溃栈实证：ShareSheet → MobileIcons/LICreateIconForImages →
-/// CoreImage → Segmentation fault: 11）。崩溃发生在系统框架内部（枚举分享扩展并生成目标图标时），
-/// 无论怎么调整 present 时机/防重入/转场等待都无法规避——v4.3.43 的加固已被真机证伪。
+/// 崩溃铁证（sig_1790791863 与 sig_1790797823，两次真机崩溃栈地址逐字节相同）：
+/// ShareSheet → SharingUI → UIKitCore → **MobileIcons(LICreateIconForImages) → CoreImage →
+/// Segmentation fault: 11**。崩溃发生在系统分享框架内部——枚举"支持当前内容类型的所有
+/// 分享扩展"并生成扩展图标时。任何触达系统分享面板的路径（手写 UIActivityViewController /
+/// SwiftUI ShareLink / QLPreviewController 系统分享按钮 / .quickLookPreview 预览页分享按钮）
+/// 都在同一地址崩溃，与呈现方式无关。
 ///
-/// 根治方案（照抄 TrollStore 生态 App **TrollFools** 的稳定做法，已获用户批准）：
-/// 1. **iOS 16.4+**：SwiftUI 原生 `ShareLink`——由系统在正确的 window scene 与宿主上下文
-///    呈现分享面板，不经过手写 keyWindow/顶层VC 查找（TrollFools 源码 PlugInCell.swift /
-///    EjectListView.swift 实测同款）；
-/// 2. **iOS 16.4 以下**：**QuickLook 预览中间层**——命令式路径一律先弹 QLPreviewController
-///    （由 ShareCenter 显式 fullScreenCover 呈现，导航栏自带系统分享按钮），用户在预览页
-///    点系统分享按钮，由系统在自己安全上下文里弹分享面板，彻底绕开手写 UIActivityViewController
-///    枚举分享扩展的崩溃路径。（TrollFools：`quickLookExport = url` + `.quickLookPreview`）
+/// 对照：TrollFools 分享 .dylib（第三方扩展均不支持）→ 面板只枚举系统扩展 → 不崩；
+/// 我们分享 .txt/普通文件 → ShareSheet 枚举全部第三方扩展图标 → 必崩。
+/// → 结论：本设备侧载环境下**任何系统分享面板都不可用**。
 ///
-/// 纯文字（无文件可预览）兜底：复制到剪贴板 + 提示。
+/// 最终方案：**自建分享菜单**（ShareCenter.presentShareMenuFile/Text），
+/// 选项：拷贝 / 存储到文件（UIDocumentPicker）/ 用其他 App 打开（UIDocumentInteractionController），
+/// 全部绕开 ShareSheet，侧载环境安全。
 enum SharePresenter {
-    /// 防重入锁（保留 v4.3.43 语义）：同一时刻只允许一个分享页在弹。
-    private static var isPresenting = false
 
-    /// v4.3.44：命令式分享入口——侧载环境安全路径。
-    ///
-    /// - 分享项含**文件 URL** → QuickLook 中间层（ShareCenter 显式 fullScreenCover 呈现），
-    ///   由系统在预览页呈现分享面板，**不再手写 present UIActivityViewController**；
-    /// - 纯**文字/链接** → 复制到剪贴板并提示（无文件可预览时的安全降级）；
-    /// - 无法分享 → 返回错误。
-    ///
-    /// 兼容性：UpdateManager（非 View 上下文）、Alert 回调等命令式调用点统一走此入口。
+    /// 命令式分享入口（兼容 UpdateManager / MoreViews Alert 等非 View 上下文调用点）。
+    /// 文件 → 自建文件分享菜单；纯文字 → 自建文字分享菜单；均不触达系统分享面板。
     static func present(
         _ items: [Any],
         excluded: [UIActivity.ActivityType] = [],
         completion: ((Bool, Error?) -> Void)? = nil
     ) {
         DispatchQueue.main.async {
-            if Self.isPresenting {
-                AuditLog.shared.log("share.busy", detail: "items=\(items.count)")
-                completion?(false, NSError(domain: "SharePresenter", code: -3,
-                                           userInfo: [NSLocalizedDescriptionKey: "分享页已打开"]))
-                return
-            }
-
-            // 收集有效分享项：文件 URL 需真实存在；文本、链接、其他对象分别归类
             var fileURLs: [URL] = []
             var texts: [String] = []
-            var otherCount = 0
 
             for item in items {
                 if let url = item as? URL, url.isFileURL {
@@ -59,34 +39,20 @@ enum SharePresenter {
                     }
                 } else if let s = item as? String {
                     texts.append(s)
-                } else {
-                    otherCount += 1
                 }
             }
 
-            // 文件 → QuickLook 中间层（侧载安全路径，独立 UIWindow 呈现，无需延迟）
             if let file = fileURLs.first {
-                AuditLog.shared.log("share.quicklook", detail: file.lastPathComponent)
-                Self.isPresenting = true
-                ShareCenter.shared.presentQuickLook(url: file)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    Self.isPresenting = false
-                }
+                AuditLog.shared.log("share.menu_file", detail: file.lastPathComponent)
+                ShareCenter.shared.presentShareMenuFile(file)
                 completion?(true, nil)
                 return
             }
 
-            // 纯文字/链接 → 写入临时 txt 走 QuickLook（升级：文字也能进系统分享面板）
             if !texts.isEmpty {
-                ShareCenter.shared.presentText(texts.joined(separator: "\n"))
+                AuditLog.shared.log("share.menu_text", detail: "texts=\(texts.count)")
+                ShareCenter.shared.presentShareMenuText(texts.joined(separator: "\n"))
                 completion?(true, nil)
-                return
-            }
-
-            if otherCount > 0 {
-                AuditLog.shared.log("share.other_items", detail: "count=\(otherCount)")
-                completion?(false, NSError(domain: "SharePresenter", code: -5,
-                                           userInfo: [NSLocalizedDescriptionKey: "无法分享该内容"]))
                 return
             }
 
@@ -97,81 +63,52 @@ enum SharePresenter {
     }
 }
 
-// MARK: - SwiftUI 系统分享入口（v4.3.44 收紧到 iOS 16.4）
+// MARK: - SwiftUI 分享入口（v4.3.46 最终方案：自建菜单，绕开 ShareSheet）
 //
-// 版本门槛对齐 TrollFools 的 `if #available(iOS 16.4, *)`：
-// 实测 iOS 16.0~16.3 的 ShareLink 在侧载环境仍可能触发 MobileIcons/CoreImage 崩溃；
-// 16.4 以下一律走 QuickLook 中间层（ShareCenter），确保任何 iOS 版本都不闪退。
+// 崩溃铁证：任何触达系统分享面板的路径（ShareLink / UIActivityViewController /
+// QLPreviewController 分享按钮）在本设备侧载环境都在 MobileIcons/CoreImage 同一地址
+// SIGSEGV（sig_1790791863 与 sig_1790797823 栈帧地址逐字节相同）。
+// 因此全部分享入口改为触发 ShareCenter 自建菜单（拷贝 / 存储到文件 / 用其他 App 打开），
+// 彻底不经过 ShareSheet。
 extension SharePresenter {
 
-    /// 上下文菜单里的"分享"项（文件 URL）
-    /// - iOS 16.4+：ShareLink（侧载稳定）
-    /// - 16.4 以下：设视图 @State quickLookExport → 视图自身 .quickLookPreview 呈现
-    ///   （照抄 TrollFools PlugInCell：`quickLookExport = plugIn.url`）
-    @ViewBuilder
-    static func menuShare(url: URL, quickLookExport: Binding<URL?>,
+    /// 上下文菜单里的"分享"项（文件 URL）→ 自建分享菜单
+    static func menuShare(url: URL,
                           label: String = "分享",
                           systemImage: String = "square.and.arrow.up") -> some View {
-        if #available(iOS 16.4, *) {
-            ShareLink(item: url) { Label(label, systemImage: systemImage) }
-        } else {
-            Button { quickLookExport.wrappedValue = url } label: {
-                Label(label, systemImage: systemImage)
-            }
+        Button {
+            ShareCenter.shared.presentShareMenuFile(url)
+        } label: {
+            Label(label, systemImage: systemImage)
         }
     }
 
-    /// 上下文菜单里的"分享"项（文本）——低版本写入 txt 走 QuickLook，文字也能进分享面板
-    @ViewBuilder
-    static func menuShare(text: String, quickLookExport: Binding<URL?>,
+    /// 上下文菜单里的"分享"项（文本）→ 自建分享菜单
+    static func menuShare(text: String,
                           label: String = "分享",
                           systemImage: String = "square.and.arrow.up") -> some View {
-        if #available(iOS 16.4, *) {
-            ShareLink(item: text) { Label(label, systemImage: systemImage) }
-        } else {
-            Button {
-                if let url = ShareCenter.writeTextToTemp(text) {
-                    quickLookExport.wrappedValue = url
-                } else {
-                    ShareCenter.shared.fallbackClipboard(text)
-                }
-            } label: {
-                Label(label, systemImage: systemImage)
-            }
+        Button {
+            ShareCenter.shared.presentShareMenuText(text)
+        } label: {
+            Label(label, systemImage: systemImage)
         }
     }
 
-    /// 工具栏里的"分享"图标按钮（文本）——低版本写入 txt 走 QuickLook
-    @ViewBuilder
-    static func toolbarShare(text: String, quickLookExport: Binding<URL?>) -> some View {
-        if #available(iOS 16.4, *) {
-            ShareLink(item: text) {
-                Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
-            }
-        } else {
-            Button {
-                if let url = ShareCenter.writeTextToTemp(text) {
-                    quickLookExport.wrappedValue = url
-                } else {
-                    ShareCenter.shared.fallbackClipboard(text)
-                }
-            } label: {
-                Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
-            }
+    /// 工具栏里的"分享"图标按钮（文本）→ 自建分享菜单
+    static func toolbarShare(text: String) -> some View {
+        Button {
+            ShareCenter.shared.presentShareMenuText(text)
+        } label: {
+            Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
         }
     }
 
-    /// 工具栏里的"分享"图标按钮（文件 URL）
-    @ViewBuilder
-    static func toolbarShare(url: URL, quickLookExport: Binding<URL?>) -> some View {
-        if #available(iOS 16.4, *) {
-            ShareLink(item: url) {
-                Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
-            }
-        } else {
-            Button { quickLookExport.wrappedValue = url } label: {
-                Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
-            }
+    /// 工具栏里的"分享"图标按钮（文件 URL）→ 自建分享菜单
+    static func toolbarShare(url: URL) -> some View {
+        Button {
+            ShareCenter.shared.presentShareMenuFile(url)
+        } label: {
+            Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
         }
     }
 }

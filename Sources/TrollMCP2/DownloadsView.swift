@@ -13,8 +13,6 @@ struct DownloadsView: View {
     @State private var confirmMessage = ""
     @State private var refreshTick = false
     @State private var toast: String?
-    // v4.3.44：QuickLook 分享中间层（照抄 TrollFools EjectListView 模式）
-    @State private var quickLookExport: URL?
 
     struct DownloadItem: Identifiable {
         let id = UUID()
@@ -97,9 +95,6 @@ struct DownloadsView: View {
             }
         }
         .onAppear { refresh() }
-        // v4.3.44：QuickLook 分享中间层（照抄 TrollFools）——contextMenu 文件分享
-        // 低版本设 quickLookExport 后由此呈现（主窗口正常上下文，侧载不崩）
-        .quickLookPreview($quickLookExport)
     }
 
     private var emptyState: some View {
@@ -161,7 +156,7 @@ struct DownloadsView: View {
         .contextMenu {
             // v4.3.44：文件分享走 QuickLook 中间层（menuShare 低版本分支设 binding）
             if !item.isDir {
-                SharePresenter.menuShare(url: URL(fileURLWithPath: item.path), quickLookExport: $quickLookExport)
+                SharePresenter.menuShare(url: URL(fileURLWithPath: item.path))
             }
             Button(action: { try? FileManager.default.removeItem(atPath: item.path); refresh() }) {
                 Label("删除", systemImage: "trash")

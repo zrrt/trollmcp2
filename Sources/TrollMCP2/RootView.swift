@@ -143,12 +143,6 @@ struct RootView: View {
                     .transition(.opacity)
             }
         }
-        // v4.3.44：QuickLook 分享中间层（命令式兜底）——ShareCenter.shared.quickLookURL 由
-        // UpdateManager/MoreViews Alert 等非 View 上下文设置，此处用 SwiftUI 原生
-        // .quickLookPreview 在主窗口正常上下文呈现（侧载环境分享面板不崩）。
-        // 注：视图内分享（ChatView/DownloadsView/WorkspaceBrowserView）各自持有
-        // @State quickLookExport 并挂 .quickLookPreview（照抄 TrollFools），不经过这里。
-        .quickLookPreview($shareCenter.quickLookURL)
     }
 
     private func drawerWidth(for geo: GeometryProxy) -> CGFloat {
