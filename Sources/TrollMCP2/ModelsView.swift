@@ -348,9 +348,9 @@ struct ModelRow: View {
     }
 }
 
-// MARK: - v4.3.27 推荐卡片区（全宽直达外框；破甲站第一、中转站第二）
-// 说明：v4.3.27 起卡片移出 List 的 insetGrouped 内框，渐变背景直达屏幕外框；
-// 面板加大加宽（headline 标题 / subheadline 正文 / 更大留白）。
+// MARK: - v4.3.28 推荐卡片区（圆角 + 距屏幕边缘留空隙；破甲站第一、中转站第二）
+// 说明：卡片保持移出 List 内框（无分组白框），但恢复圆角并左右留边距，
+// 渐变卡片距屏幕边缘约 16pt，视觉上不再贴边。
 
 struct RecommendCardArea: View {
     var body: some View {
@@ -372,12 +372,13 @@ struct RecommendCardArea: View {
                 colors: [Color(red: 0.16, green: 0.44, blue: 0.92),
                          Color(red: 0.0, green: 0.74, blue: 0.95)])
         }
+        .padding(.horizontal, 16)   // v4.3.28：左右距屏幕边缘留空隙
         .padding(.top, 8)
         .padding(.bottom, 4)
     }
 }
 
-/// 通用推荐卡片：全宽渐变背景直达外框，标题+正文+可复制链接
+/// 通用推荐卡片：圆角渐变背景 + 距边缘空隙，标题+正文+可复制链接
 /// 注意：正文属性命名 message——不能叫 body（与 View.body 计算属性重名，编译报
 /// "invalid redeclaration of 'body'"，CI 实测踩坑）。
 struct RecommendCard: View {
@@ -430,6 +431,7 @@ struct RecommendCard: View {
             LinearGradient(colors: colors,
                            startPoint: .topLeading, endPoint: .bottomTrailing)
         )
+        .cornerRadius(14)   // v4.3.28：卡片圆角（不再贴边直角）
     }
 }
 

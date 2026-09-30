@@ -976,3 +976,14 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 - 顺序：破甲站（第一）→ 中转站（第二）。
 
 **校验**：ModelsView/Localization 括号配对 + tokenizer 全过；RelayRecommendCard 无残留引用；版本 4.3.27。真实编译走 GitHub Actions。
+
+### v4.3.28（2026-09-30）推荐卡片圆角 + 距屏幕边缘留空隙
+
+**用户反馈**：v4.3.27 卡片全宽贴边直角不好看——要求圆角、左右离屏幕边缘留空隙。
+
+**改动（ModelsView.swift）**：
+- `RecommendCardArea` 加 `.padding(.horizontal, 16)`：两张卡片左右距屏幕边缘 16pt。
+- `RecommendCard` 背景渐变后加 `.cornerRadius(14)`：圆角卡片。
+- 其余不变（破甲站第一、中转站第二、加大面板、移出 List 内框）。
+
+**校验**：ModelsView 括号配对 tokenizer 全过；版本 4.3.28。真实编译走 GitHub Actions。
