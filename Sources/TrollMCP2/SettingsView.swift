@@ -30,6 +30,8 @@ struct SettingsView: View {
     @State private var jumpToModels = false
     // v3.3.2：抓包 VPN 开关失败提示
     @State private var vpnToggleError = ""
+    // v4.3.29：订阅更新管理器，副标题实时显示 检查中/下载进度/发现新版本
+    @ObservedObject private var updateManager = UpdateManager.shared
 
     var body: some View {
         // v2.9.247：GeometryReader 拿真实全屏尺寸——fullScreenCover+NavigationStack 组合下 List 高度被解析为内容高度(内容不满一屏时列表只占上半屏、下半空白),外层 frame 也无效;改用几何尺寸显式强制 List 与 NavigationStack 铺满全屏,所有机型一致
@@ -253,21 +255,14 @@ struct SettingsView: View {
                          subtitle: "\(CrashCatcher.list().count) 条闪退记录",
                          icon: "exclamationmark.triangle.fill", color: .red,
                          destination: AnyView(CrashLogView())),
+            // v4.3.29：一键更新——单行点击即 检查GitHub最新→下载→调起TrollStore安装
             SettingsItem(title: L10n.t("row_check_update"),
                          subtitle: updateSubtitle(),
                          icon: "arrow.triangle.2.circlepath.circle.fill", color: .green,
                          action: {
-                             UpdateManager.shared.checkForUpdate(currentVersion: ver)
+                             updateManager.updateNow(currentVersion: ver)
                          })
         ]
-        if UpdateManager.shared.updateAvailable, let latest = UpdateManager.shared.latestVersion {
-            aboutItems.append(SettingsItem(
-                title: "下载并安装 v\(latest)",
-                subtitle: "点击后调起 TrollStore 安装",
-                icon: "square.and.arrow.down.fill", color: .green,
-                action: { UpdateManager.shared.downloadAndInstall() }
-            ))
-        }
         groups.append(SettingsGroup(header: L10n.t("sec_about"), items: aboutItems))
 
         return groups
@@ -394,8 +389,23 @@ struct SettingsView: View {
         return host.isEmpty ? "未配置" : host
     }
 
+    // v4.3.29：副标题实时反映更新状态（检查中/下载进度/发现新版本/错误/已是最新）
     private func updateSubtitle() -> String {
-        UpdateManager.shared.updateAvailable ? "发现新版本" : "已是最新"
+        let m = updateManager
+        if m.isChecking {
+            return "正在检查 GitHub 最新构建…"
+        }
+        if m.isDownloading {
+            let pct = Int(m.downloadProgress * 100)
+            return "正在下载 v\(m.latestVersion ?? "")… \(pct)%"
+        }
+        if m.updateAvailable, let v = m.latestVersion {
+            return "发现新版本 v\(v) · 点此一键更新安装"
+        }
+        if let e = m.errorMessage, !e.isEmpty {
+            return e
+        }
+        return "已是最新"
     }
 
     // v3.3.2：抓包 VPN 开关副标题

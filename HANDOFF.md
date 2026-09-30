@@ -987,3 +987,17 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 - 其余不变（破甲站第一、中转站第二、加大面板、移出 List 内框）。
 
 **校验**：ModelsView 括号配对 tokenizer 全过；版本 4.3.28。真实编译走 GitHub Actions。
+
+### v4.3.29（2026-09-30）检查更新真检查 GitHub + 一键自动更新安装
+
+**用户诉求**：检查更新要检查 GitHub 最新构建；一点击就自动下载并调起 TrollStore 安装。
+
+**根因**：旧检查逻辑从 artifact 名提取版本号，而 CI artifact 名是 "TrollMCP2"（不含版本号）→ 提取失败 → 版本比较恒 false → 永远显示"已是最新"，更新功能实质失效。且下载的是 artifact zip 被当 .ipa 分享、下载时重新查 run 可能拿到别的 workflow。
+
+**改动（UpdateManager.swift + SettingsView.swift）**：
+- 检查：workflow_id 限定 build-trollmcp2.yml + status=success；版本号读取最新构建 commit 的 Support/Info.plist（raw.githubusercontent），失败回退 run 标题 vX.Y.Z。
+- 下载：用检查时记住的 run；artifact zip → ZipExtractor 解压 → 取 TrollMCP2.tipa → 安装（进度观察者保留）。
+- 一键更新 `updateNow(currentVersion:)`：检查→有新版自动下载→SharePresenter(OpenInMenu 直接"用 TrollStore 打开")；无新版提示"已是最新"。
+- 设置页：去掉"下载并安装 vX"第二行，单行"检查更新"一键完成；@ObservedObject 订阅 UpdateManager，副标题实时显示 检查中/下载进度%/发现新版本/错误/已是最新。
+
+**校验**：两文件括号配对全过；版本 4.3.29。真实编译走 GitHub Actions。
