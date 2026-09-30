@@ -1013,3 +1013,20 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 - CI：新增 "Publish rolling release" 步骤（gh CLI 删除重建 tag=latest 的 Release，附 TrollMCP2.tipa）；workflow 加 permissions: contents: write。
 
 **校验**：两文件括号配对全过；版本 4.3.30。真实编译+Release 发布走 GitHub Actions。
+
+### 环境工具清单（Linux 沙箱，2026-09-30 安装，分析 Mach-O/iOS 二进制用）
+
+**背景**：用户上传了 Mach-O dylib（"YYModel"，实为混淆+许可校验的重打包二进制），需要完整静态分析工具链。
+
+**已装工具与路径**：
+- llvm-14：/usr/bin/llvm-objdump-14 / llvm-nm-14 / llvm-readobj-14 / llvm-strings-14 / llvm-size-14（原生支持 Mach-O；GNU objdump/nm/readelf 不认 Mach-O）
+  - 常用：`llvm-objdump-14 --macho --private-headers <f>`（头/段/加密标记）、`--dylibs-used`（依赖）、`--section=__TEXT,__objc_classname`（ObjC 类名段）；`llvm-nm-14 <f>`（符号表）
+- rizin 0.9.1（静态版）：/usr/local/bin/rizin（交互反汇编/探索，`rizin -q -c 'i' <f>`）
+- Ghidra 12.1.4：/opt/tools/ghidra_12.1.4_PUBLIC（headless 反编译，需 JDK21）；JDK21：/opt/tools/jdk-21.0.12.1+1
+  - 用法：`JAVA_HOME=/opt/tools/jdk-21.0.12.1+1 /opt/tools/ghidra_12.1.4_PUBLIC/support/analyzeHeadless <workspace> <proj> -import <f> -postScript <script>`（重分析可加 -analysisTimeoutPerFile）
+- python：lief 1.0.0（程序化解析 Mach-O）、capstone 5.0.7（arm64 反汇编）、macholib 1.16.4
+- 基础：file / strings / xxd
+
+**注意**：这些是"电脑沙箱"工具，不是 App（iOS 真机）内置工具——App 内分析二进制仍用 binary.symbols / inject binary_symbols / fs.hexdump / 原生 strings/nm。
+
+**快速分析套路**：file 确认格式 → llvm-objdump --private-headers 看依赖/加密 → llvm-nm 看符号 → strings 抓域名/敏感 API → lief 程序化统计 → 需要反编译时 Ghidra headless。
