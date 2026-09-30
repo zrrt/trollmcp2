@@ -64,11 +64,11 @@ enum SharePresenter {
                 }
             }
 
-            // 文件 → QuickLook 中间层（侧载安全路径）
+            // 文件 → QuickLook 中间层（侧载安全路径，独立 UIWindow 呈现，无需延迟）
             if let file = fileURLs.first {
                 AuditLog.shared.log("share.quicklook", detail: file.lastPathComponent)
                 Self.isPresenting = true
-                ShareCenter.shared.presentQuickLook(url: file, delay: 0.3)
+                ShareCenter.shared.presentQuickLook(url: file)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                     Self.isPresenting = false
                 }
@@ -76,12 +76,10 @@ enum SharePresenter {
                 return
             }
 
-            // 纯文字/链接 → 剪贴板兜底 + 提示
+            // 纯文字/链接 → 写入临时 txt 走 QuickLook（升级：文字也能进系统分享面板）
             if !texts.isEmpty {
-                ShareCenter.shared.fallbackClipboard(texts.joined(separator: "\n"))
-                AuditLog.shared.log("share.fallback_clipboard", detail: "texts=\(texts.count)")
-                completion?(false, NSError(domain: "SharePresenter", code: -1,
-                                           userInfo: [NSLocalizedDescriptionKey: "侧载环境分享面板不可用，文字已复制到剪贴板"]))
+                ShareCenter.shared.presentText(texts.joined(separator: "\n"))
+                completion?(true, nil)
                 return
             }
 
@@ -113,26 +111,26 @@ extension SharePresenter {
         if #available(iOS 16.4, *) {
             ShareLink(item: url) { Label(label, systemImage: systemImage) }
         } else {
-            Button { ShareCenter.shared.presentQuickLook(url: url, delay: 0.35) } label: {
+            Button { ShareCenter.shared.presentQuickLook(url: url) } label: {
                 Label(label, systemImage: systemImage)
             }
         }
     }
 
-    /// 上下文菜单里的"分享"项（文本）
+    /// 上下文菜单里的"分享"项（文本）——低版本写入 txt 走 QuickLook，文字也能进分享面板
     @ViewBuilder
     static func menuShare(text: String, label: String = "分享",
                           systemImage: String = "square.and.arrow.up") -> some View {
         if #available(iOS 16.4, *) {
             ShareLink(item: text) { Label(label, systemImage: systemImage) }
         } else {
-            Button { ShareCenter.shared.fallbackClipboard(text) } label: {
+            Button { ShareCenter.shared.presentText(text) } label: {
                 Label(label, systemImage: systemImage)
             }
         }
     }
 
-    /// 工具栏里的"分享"图标按钮（文本）
+    /// 工具栏里的"分享"图标按钮（文本）——低版本写入 txt 走 QuickLook
     @ViewBuilder
     static func toolbarShare(text: String) -> some View {
         if #available(iOS 16.4, *) {
@@ -140,7 +138,7 @@ extension SharePresenter {
                 Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
             }
         } else {
-            Button { ShareCenter.shared.fallbackClipboard(text) } label: {
+            Button { ShareCenter.shared.presentText(text) } label: {
                 Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
             }
         }
@@ -154,7 +152,7 @@ extension SharePresenter {
                 Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
             }
         } else {
-            Button { ShareCenter.shared.presentQuickLook(url: url, delay: 0.2) } label: {
+            Button { ShareCenter.shared.presentQuickLook(url: url) } label: {
                 Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
             }
         }

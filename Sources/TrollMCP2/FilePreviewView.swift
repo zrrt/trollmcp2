@@ -32,34 +32,6 @@ struct QLFilePreview: UIViewControllerRepresentable {
     }
 }
 
-/// v4.3.44：分享中间层 QuickLook 预览（侧载环境分享安全路径）。
-///
-/// 为什么需要它：TrollStore 侧载环境下手写 present UIActivityViewController 会触发
-/// MobileIcons/CoreImage 系统级 SIGSEGV（分享面板枚举分享扩展并生成目标图标时崩溃）。
-/// 解法（同 TrollFools）：先弹 QuickLook 预览，预览页导航栏**自带系统分享按钮**，
-/// 用户在预览页点分享，由系统在自己安全上下文里呈现分享面板——完全绕开崩溃路径。
-///
-/// 呈现方式：由 ShareCenter.isQuickLookPresented 驱动 RootView 的 fullScreenCover 显式呈现
-/// （不用 SwiftUI .quickLookPreview 隐式绑定——其在 contextMenu 触发时呈现会被吞掉）。
-struct QLSharePreview: View {
-    let url: URL
-
-    var body: some View {
-        NavigationView {
-            QLFilePreview(urls: [url])
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("完成") {
-                            ShareCenter.shared.dismissQuickLook()
-                        }
-                    }
-                }
-        }
-        .navigationViewStyle(StackNavigationViewStyle())
-    }
-}
-
 /// v3.1.6: 从工具结果文本中提取文件路径
 /// 匹配常见路径格式：/var/mobile/... 或 ~/... 或 Workspace 下的相对路径
 enum FilePathExtractor {

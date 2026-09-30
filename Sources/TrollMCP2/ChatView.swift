@@ -1709,7 +1709,7 @@ struct FileCardRow: View {
                     Label("用 TrollStore 安装", systemImage: "shippingbox")
                 }
             } else {
-                Button(action: { ShareCenter.shared.presentQuickLook(url: url, delay: 0.35) }) {
+                Button(action: { ShareCenter.shared.presentQuickLook(url: url) }) {
                     Label("用 TrollStore 安装", systemImage: "shippingbox")
                 }
             }

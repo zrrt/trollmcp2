@@ -129,7 +129,7 @@ struct RootView: View {
                     .transition(.opacity)
             }
         }, alignment: .bottom)
-        // v4.3.44：剪贴板降级提示（纯文字/链接分享在侧载环境的安全兜底）
+        // v4.3.44：剪贴板/写入提示（分享降级或失败时的用户反馈）
         .overlay(alignment: .bottom) {
             if let notice = shareCenter.clipboardNotice {
                 Text(notice)
@@ -143,18 +143,10 @@ struct RootView: View {
                     .transition(.opacity)
             }
         }
-        // v4.3.44：QuickLook 分享中间层——TrollStore 侧载环境手写分享面板会触发
-        // MobileIcons/CoreImage 系统级 SIGSEGV（闪退）。照抄 TrollFools：文件分享先弹
-        // QuickLook 预览（显式 fullScreenCover，导航栏带系统分享按钮），由系统在
-        // 自身上下文呈现分享面板，规避崩溃路径。不用 .quickLookPreview 隐式绑定——
-        // 实测其在 contextMenu 触发时呈现会被 dismiss 动画吞掉（点击没反应）。
-        .fullScreenCover(isPresented: $shareCenter.isQuickLookPresented, onDismiss: {
-            shareCenter.dismissQuickLook()
-        }) {
-            if let url = shareCenter.quickLookURL {
-                QLSharePreview(url: url)
-            }
-        }
+        // v4.3.44：QuickLook 分享中间层——由 ShareCenter 用独立 UIWindow（windowLevel=alert+1）
+        // 直接呈现，不经过 SwiftUI 呈现队列，任何入口（contextMenu/工具栏/Alert/后台）都可靠弹出。
+        // 预览页导航栏自带系统分享按钮，系统自身上下文弹分享面板，规避 MobileIcons/CoreImage SIGSEGV。
+        // （此前 .quickLookPreview 隐式绑定与 fullScreenCover 在 contextMenu 触发时都会被吞掉。）
     }
 
     private func drawerWidth(for geo: GeometryProxy) -> CGFloat {

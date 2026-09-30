@@ -248,7 +248,7 @@ struct ModelRow: View {
             .buttonStyle(.plain)
             // v2.9.126：分享深链——trollagent://import?...，对方点链接即可导入
             // v4.3.44：iOS16.4+ 用 ShareLink 系统分享页（侧载稳定），16.4 以下
-            // 深链复制到剪贴板 + 提示（链接无文件可预览，剪贴板为安全兜底）
+            // 深链写入 txt 走 QuickLook 中间层（也能进系统分享面板）
             if #available(iOS 16.4, *) {
                 ShareLink(item: makeDeepLink()) {
                     Image(systemName: "link")
@@ -258,7 +258,7 @@ struct ModelRow: View {
                 .buttonStyle(.plain)
             } else {
                 Button(action: {
-                    ShareCenter.shared.fallbackClipboard(makeDeepLink())
+                    ShareCenter.shared.presentText(makeDeepLink())
                 }) {
                     Image(systemName: "link")
                         .font(.system(size: 14, weight: .medium))
