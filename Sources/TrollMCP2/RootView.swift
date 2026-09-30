@@ -143,10 +143,12 @@ struct RootView: View {
                     .transition(.opacity)
             }
         }
-        // v4.3.44：QuickLook 分享中间层——由 ShareCenter 用独立 UIWindow（windowLevel=alert+1）
-        // 直接呈现，不经过 SwiftUI 呈现队列，任何入口（contextMenu/工具栏/Alert/后台）都可靠弹出。
-        // 预览页导航栏自带系统分享按钮，系统自身上下文弹分享面板，规避 MobileIcons/CoreImage SIGSEGV。
-        // （此前 .quickLookPreview 隐式绑定与 fullScreenCover 在 contextMenu 触发时都会被吞掉。）
+        // v4.3.44：QuickLook 分享中间层（命令式兜底）——ShareCenter.shared.quickLookURL 由
+        // UpdateManager/MoreViews Alert 等非 View 上下文设置，此处用 SwiftUI 原生
+        // .quickLookPreview 在主窗口正常上下文呈现（侧载环境分享面板不崩）。
+        // 注：视图内分享（ChatView/DownloadsView/WorkspaceBrowserView）各自持有
+        // @State quickLookExport 并挂 .quickLookPreview（照抄 TrollFools），不经过这里。
+        .quickLookPreview($shareCenter.quickLookURL)
     }
 
     private func drawerWidth(for geo: GeometryProxy) -> CGFloat {

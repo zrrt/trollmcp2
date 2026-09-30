@@ -1,94 +1,61 @@
 import SwiftUI
 import UIKit
-import QuickLook
 
 /// v4.3.44：分享中转站——TrollStore 侧载环境的"分享面板闪退"根治方案。
 ///
 /// 背景（崩溃栈实证）：TrollMCP2 在侧载环境直接手写 present UIActivityViewController 时，
 /// ShareSheet 枚举分享扩展并生成目标图标（MobileIcons/LICreateIconForImages → CoreImage）会
-/// 触发系统级 SIGSEGV（Segmentation fault: 11），App 进程被系统杀死——无论怎么调整 present
-/// 时机/防重入都无法规避，因为崩溃发生在系统框架内部。
+/// 触发系统级 SIGSEGV（Segmentation fault: 11），App 进程被系统杀死。
 ///
-/// 解法（照抄 TrollStore 生态 App TrollFools 的稳定做法）：
-/// - iOS 16.4+：SwiftUI 原生 ShareLink，由系统在正确 window scene/宿主上下文呈现分享面板；
-/// - iOS 16.4 以下：不手写分享面板，改为先弹 QuickLook 预览，用户在预览页点系统自带的
-///   分享按钮，由系统在自己安全上下文里弹出分享面板——绕过手写 UIActivityViewController
-///   枚举分享扩展的崩溃路径。
+/// 解法（100% 照抄 TrollStore 生态 App **TrollFools**，其在本用户设备实测分享不崩）：
+/// - iOS 16.4+：SwiftUI 原生 `ShareLink`；
+/// - iOS 16.4 以下：**SwiftUI 原生 `.quickLookPreview($url)`**，挂在分享触发视图自身
+///   （TrollFools：EjectListView `@State var quickLookExport: URL?` + `.quickLookPreview($quickLookExport)`，
+///   PlugInCell contextMenu 按钮 `quickLookExport = plugIn.url`）。QLPreviewController 在主窗口
+///   正常呈现上下文弹出，预览页导航栏自带系统分享按钮，由系统自身上下文弹分享面板——不崩。
 ///
-/// v4.3.44 呈现方式迭代：
-/// 1. `.quickLookPreview($url)` 隐式绑定 → contextMenu 触发时被 dismiss 动画吞掉（没反应）；
-/// 2. fullScreenCover 显式呈现 → SwiftUI 呈现队列在 contextMenu dismiss 期间仍不可靠（没反应）；
-/// 3. **独立 UIWindow 直接呈现（当前版）**——在 UIKit 层面创建一个 windowLevel=alert+1 的
-///    独立窗口，rootViewController = UINavigationController(QLPreviewController)，完全不经过
-///    SwiftUI 呈现队列，任何入口（contextMenu/工具栏/Alert 回调/后台线程）触发都 100% 弹出。
-///    预览页导航栏自带系统分享按钮，用户在预览页点分享 → 系统自身上下文弹面板（不崩）。
+/// 呈现方式迭代记录（均被真机证伪）：
+/// 1. `.quickLookPreview` 挂在 RootView（层级过深/被 fullScreenCover 干扰）→ contextMenu 触发被吞；
+/// 2. 显式 fullScreenCover 呈现 → SwiftUI 呈现队列在 contextMenu dismiss 期间仍不可靠；
+/// 3. 独立 UIWindow(alert+1) → 预览能弹，但 QLPreviewController 分享按钮弹分享面板时
+///    在异常呈现上下文触发 MobileIcons/CoreImage SIGSEGV（用户实测闪退）。
+/// → 最终：照抄 TrollFools，`.quickLookPreview` 挂分享触发视图自身（主窗口正常上下文）。
 final class ShareCenter: ObservableObject {
     static let shared = ShareCenter()
 
     /// 剪贴板/写入提示文案（nil = 无提示）
     @Published var clipboardNotice: String?
 
-    /// 独立 QuickLook 窗口（强持有，防止释放）
-    private var quickLookWindow: UIWindow?
-    private let dataSource = SharePreviewDataSource()
+    /// 命令式调用（非 View 上下文：UpdateManager/后台）的 QuickLook 兜底 URL。
+    /// RootView 上挂 `.quickLookPreview($shareCenter.quickLookURL)` 承接。
+    @Published var quickLookURL: URL?
 
     private init() {}
 
-    // MARK: - 文件分享：QuickLook 中间层（核心）
-
-    /// 呈现指定文件的 QuickLook 预览（分享中间层）。
-    /// 任意线程安全；任何 UI 状态下（contextMenu/Alert/后台）都能可靠弹出。
+    /// 命令式分享（非 View 上下文）兜底：设置全局 QuickLook URL，
+    /// 由 RootView 的 .quickLookPreview 呈现（非 contextMenu 触发，呈现不被吞）。
     func presentQuickLook(url: URL) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            // 文件必须存在；不存在则提示（不静默失败）
-            guard FileManager.default.fileExists(atPath: url.path) else {
-                self.showNotice("文件不存在，无法分享")
-                return
-            }
-            // 取前台活跃 scene（无活跃则取第一个）
-            let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-            guard let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first else {
-                self.showNotice("无法获取窗口，请重试")
-                return
-            }
-
-            // 独立窗口，windowLevel 高于主窗口，确保盖在所有 UI 之上
-            let window = UIWindow(windowScene: scene)
-            window.windowLevel = .alert + 1
-            window.backgroundColor = .systemBackground
-
-            // QLPreviewController 导航栏自带系统分享按钮（系统上下文弹面板，规避崩溃）
-            self.dataSource.currentURL = url
-            let ql = QLPreviewController()
-            ql.dataSource = self.dataSource
-            ql.delegate = self.dataSource
-            ql.navigationItem.title = url.lastPathComponent
-
-            let nav = UINavigationController(rootViewController: ql)
-            nav.navigationBar.topItem?.leftBarButtonItem = UIBarButtonItem(
-                title: "完成", style: .done,
-                target: self, action: #selector(self.dismissQuickLookAction))
-            window.rootViewController = nav
-            window.makeKeyAndVisible()
-            self.quickLookWindow = window
-
-            AuditLog.shared.log("share.quicklook_window", detail: url.lastPathComponent)
+        DispatchQueue.main.async {
+            self.quickLookURL = url
+            AuditLog.shared.log("share.quicklook_center", detail: url.lastPathComponent)
         }
     }
 
-    // MARK: - 文字分享：写入临时 txt → QuickLook（让文字也能进系统分享面板）
-
-    /// 把文字写入临时 txt 文件再走 QuickLook 中间层。
-    /// 这样聊天内容/深链等文字也能进系统分享面板（微信/隔空投送/存储到文件），
-    /// 而不是只能降级复制。文件名带时间戳，多次分享不冲突。
-    func presentText(_ text: String) {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            showNotice("没有可分享的内容")
-            return
+    /// 关闭命令式 QuickLook（RootView onDismiss 调用）
+    func dismissQuickLook() {
+        DispatchQueue.main.async {
+            self.quickLookURL = nil
         }
-        // 文件名：前 12 字符（去非法字符）+ 时间戳
+    }
+
+    // MARK: - 文字 → 临时 txt
+
+    /// 把文字写入临时 txt 文件，返回 URL；失败返回 nil。
+    /// 用于 SwiftUI 入口（menuShare/toolbarShare）低版本分支：写 txt 后设置视图 @State
+    /// quickLookExport，走 .quickLookPreview（文字也能进系统分享面板，不再降级复制）。
+    static func writeTextToTemp(_ text: String) -> URL? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
         let prefix = String(trimmed.prefix(12))
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: ":", with: "_")
@@ -96,19 +63,24 @@ final class ShareCenter: ObservableObject {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
         do {
             try trimmed.data(using: .utf8)?.write(to: url)
-            presentQuickLook(url: url)
-            AuditLog.shared.log("share.text_to_file", detail: name)
+            return url
         } catch {
-            // 写文件失败 → 复制兜底
-            UIPasteboard.general.string = trimmed
-            showNotice("已复制到剪贴板")
-            AuditLog.shared.log("share.text_fallback_clipboard", detail: error.localizedDescription)
+            return nil
         }
     }
 
-    // MARK: - 降级与提示
+    /// 命令式文字分享（非 View 上下文）：写 txt → 全局 QuickLook；写失败 → 剪贴板兜底
+    func presentText(_ text: String) {
+        if let url = Self.writeTextToTemp(text) {
+            presentQuickLook(url: url)
+            AuditLog.shared.log("share.text_to_file", detail: url.lastPathComponent)
+        } else {
+            fallbackClipboard(text)
+            AuditLog.shared.log("share.text_fallback_clipboard", detail: "write_failed")
+        }
+    }
 
-    /// 纯文字/链接复制兜底（写文件失败或调用方明确要求复制时）
+    /// 纯文字/链接复制兜底
     func fallbackClipboard(_ text: String) {
         UIPasteboard.general.string = text
         showNotice("已复制到剪贴板")
@@ -122,29 +94,5 @@ final class ShareCenter: ObservableObject {
                 self.clipboardNotice = nil
             }
         }
-    }
-
-    // MARK: - 关闭
-
-    @objc func dismissQuickLookAction() {
-        DispatchQueue.main.async {
-            self.quickLookWindow?.isHidden = true
-            self.quickLookWindow = nil
-        }
-    }
-}
-
-// MARK: - QLPreviewController 数据源/代理
-
-/// QLPreviewController 的数据源与代理：持有一个 URL，导航栏分享按钮由系统提供。
-private final class SharePreviewDataSource: NSObject, QLPreviewControllerDataSource, QLPreviewControllerDelegate {
-    var currentURL: URL?
-
-    func numberOfPreviewItems(in controller: QLPreviewController) -> Int {
-        (currentURL != nil && FileManager.default.fileExists(atPath: currentURL!.path)) ? 1 : 0
-    }
-
-    func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
-        currentURL! as NSURL
     }
 }

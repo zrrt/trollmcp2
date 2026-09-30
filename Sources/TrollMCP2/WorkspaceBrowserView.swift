@@ -20,6 +20,8 @@ struct WorkspaceBrowserView: View {
     @State private var showNewFolder = false
     @State private var newFolderName = ""
     @State private var toast: String?
+    // v4.3.44：QuickLook 分享中间层（照抄 TrollFools EjectListView 模式）
+    @State private var quickLookExport: URL?
 
     struct FileItem: Identifiable, Hashable {
         let id = UUID()
@@ -172,8 +174,8 @@ struct WorkspaceBrowserView: View {
                         .contextMenu {
                             Button { copyPath(item.path) } label: { Label("复制路径", systemImage: "doc.on.doc") }
                             if !item.isDir {
-                                // v4.3.42：iOS16+ ShareLink 系统分享页（侧载稳定），iOS15 兜底命令式
-                                SharePresenter.menuShare(url: URL(fileURLWithPath: item.path))
+                                // v4.3.44：文件分享走 QuickLook 中间层（menuShare 低版本分支设 binding）
+                                SharePresenter.menuShare(url: URL(fileURLWithPath: item.path), quickLookExport: $quickLookExport)
                             }
                             Button(role: .destructive) { confirmDelete = item } label: { Label("删除", systemImage: "trash") }
                         }
@@ -251,6 +253,9 @@ struct WorkspaceBrowserView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: toast)
+        // v4.3.44：QuickLook 分享中间层（照抄 TrollFools）——contextMenu 文件分享
+        // 低版本设 quickLookExport 后由此呈现（主窗口正常上下文，侧载不崩）
+        .quickLookPreview($quickLookExport)
     }
 
     private var filtered: [FileItem] {

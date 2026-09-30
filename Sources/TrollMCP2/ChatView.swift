@@ -34,6 +34,9 @@ struct ChatView: View {
     @State private var selectedIds = Set<UUID>()
     @State private var showToast = false
     @State private var toastText = "已复制"
+    // v4.3.44：QuickLook 分享中间层（照抄 TrollFools）——@State 持有待预览 URL，
+    // body 挂 .quickLookPreview，由 SwiftUI 在主窗口正常上下文呈现（侧载环境分享不崩）
+    @State private var quickLookExport: URL?
 
     var body: some View {
         CompatNav {
@@ -97,7 +100,7 @@ struct ChatView: View {
                                     .font(.system(size: 18, weight: .semibold))
                             }
                             .disabled(selectedIds.isEmpty)
-                            SharePresenter.toolbarShare(text: exportText())
+                            SharePresenter.toolbarShare(text: exportText(), quickLookExport: $quickLookExport)
                                 .disabled(selectedIds.isEmpty)
                         }
                     } else {
@@ -284,7 +287,11 @@ struct ChatView: View {
                 showToast("已回到前台")
             }
         }
-        // v4.3.41：分享统一走系统分享页（SharePresenter.present），不再用自定义 ActionSheet
+        // v4.3.44：QuickLook 分享中间层（照抄 TrollFools）——@State quickLookExport 被
+        // menuShare/toolbarShare 低版本分支设置后，此处由 SwiftUI 在主窗口正常上下文
+        // 呈现 QLPreviewController（导航栏自带系统分享按钮），规避侧载环境分享面板
+        // 枚举分享扩展时的 MobileIcons/CoreImage SIGSEGV。必须挂视图自身（非 RootView）。
+        .quickLookPreview($quickLookExport)
     }
 
     private var emptyState: some View {
@@ -1016,17 +1023,18 @@ struct ChatView: View {
         presentShareSheet(text: exportText())
     }
 
-    // v4.3.41：直接弹出 iOS 系统完整分享页（TrollStore 侧载同样可用，见 SharePresenter）
+    // v4.3.44：文字分享 → 写临时 txt 走 QuickLook 中间层（视图自身 .quickLookPreview 呈现，
+    // 侧载环境分享面板不崩；文字也能进系统分享面板）。写失败才降级复制。
     private func presentShareSheet(text: String) {
         let content = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty else {
             showToast("没有可分享的内容")
             return
         }
-        SharePresenter.present([content]) { ok, error in
-            if !ok, let e = error {
-                showToast(e.localizedDescription)
-            }
+        if let url = ShareCenter.writeTextToTemp(content) {
+            quickLookExport = url
+        } else {
+            ShareCenter.shared.fallbackClipboard(content)
         }
     }
 
@@ -1256,6 +1264,9 @@ struct MessageBubble: View {
     // v3.5.4：用户反馈太慢 → 提速到 ~133 字/秒 (0.015s/tick × 2 字符），快但仍看得出打字感
     @State private var revealedCount = 0
     @State private var typeTimer: Timer?
+    // v4.3.44：QuickLook 分享中间层（照抄 TrollFools PlugInCell 模式）——消息长按分享
+    // 在低版本写入 txt 后设此 @State，由本视图 body 挂的 .quickLookPreview 呈现
+    @State private var quickLookExport: URL?
 
     // v3.5.4：自适应打字机（业界：平时 ~50 字/秒舒适，积压多自动提速追平网络，标点/换行稍停顿更自然）。
     // 不像固定 133 字/秒那样一快到底；也不像 25 字/秒那样拖沓。
@@ -1331,7 +1342,7 @@ struct MessageBubble: View {
             Button(action: { onCopy?() }) {
                 Label("复制", systemImage: "doc.on.doc")
             }
-            SharePresenter.menuShare(text: message.content)
+            SharePresenter.menuShare(text: message.content, quickLookExport: $quickLookExport)
         }
         // v3.4.5：打字机效果——内容增长即逐字显示，直到完整
         .onAppear {
@@ -1344,6 +1355,8 @@ struct MessageBubble: View {
         .onChange(of: message.content) { _ in
             if revealedCount < message.content.count { startTypeTimer() }
         }
+        // v4.3.44：QuickLook 分享中间层（消息文字分享——低版本写 txt 后由此呈现）
+        .quickLookPreview($quickLookExport)
     }
 
     private var selectionBadge: some View {
@@ -1640,6 +1653,8 @@ struct MessageBubble: View {
 struct FileCardRow: View {
     let url: URL
     @State private var showPreview = false
+    // v4.3.44：QuickLook 分享中间层（照抄 TrollFools PlugInCell 模式）
+    @State private var quickLookExport: URL?
 
     private var fileName: String { url.lastPathComponent }
     private var ext: String { (fileName as NSString).pathExtension.lowercased() }
@@ -1700,7 +1715,7 @@ struct FileCardRow: View {
         }
         .buttonStyle(PlainButtonStyle())
         .contextMenu {
-            SharePresenter.menuShare(url: url)
+            SharePresenter.menuShare(url: url, quickLookExport: $quickLookExport)
             // v4.3.44：iOS16.4+ 用 ShareLink（侧载稳定，系统在正确 scene 呈现分享页），
             // 16.4 以下先弹 QuickLook 预览，由系统在预览页呈现分享面板（规避侧载
             // 手写 present UIActivityViewController 的 MobileIcons/CoreImage SIGSEGV）
@@ -1709,11 +1724,13 @@ struct FileCardRow: View {
                     Label("用 TrollStore 安装", systemImage: "shippingbox")
                 }
             } else {
-                Button(action: { ShareCenter.shared.presentQuickLook(url: url) }) {
+                Button(action: { quickLookExport = url }) {
                     Label("用 TrollStore 安装", systemImage: "shippingbox")
                 }
             }
         }
+        // v4.3.44：QuickLook 分享中间层（文件分享——低版本设 quickLookExport 后由此呈现）
+        .quickLookPreview($quickLookExport)
         .sheet(isPresented: $showPreview) {
             QLFilePreview(urls: [url])
         }

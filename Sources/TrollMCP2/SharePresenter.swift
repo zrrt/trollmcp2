@@ -105,13 +105,17 @@ enum SharePresenter {
 extension SharePresenter {
 
     /// 上下文菜单里的"分享"项（文件 URL）
+    /// - iOS 16.4+：ShareLink（侧载稳定）
+    /// - 16.4 以下：设视图 @State quickLookExport → 视图自身 .quickLookPreview 呈现
+    ///   （照抄 TrollFools PlugInCell：`quickLookExport = plugIn.url`）
     @ViewBuilder
-    static func menuShare(url: URL, label: String = "分享",
+    static func menuShare(url: URL, quickLookExport: Binding<URL?>,
+                          label: String = "分享",
                           systemImage: String = "square.and.arrow.up") -> some View {
         if #available(iOS 16.4, *) {
             ShareLink(item: url) { Label(label, systemImage: systemImage) }
         } else {
-            Button { ShareCenter.shared.presentQuickLook(url: url) } label: {
+            Button { quickLookExport.wrappedValue = url } label: {
                 Label(label, systemImage: systemImage)
             }
         }
@@ -119,12 +123,19 @@ extension SharePresenter {
 
     /// 上下文菜单里的"分享"项（文本）——低版本写入 txt 走 QuickLook，文字也能进分享面板
     @ViewBuilder
-    static func menuShare(text: String, label: String = "分享",
+    static func menuShare(text: String, quickLookExport: Binding<URL?>,
+                          label: String = "分享",
                           systemImage: String = "square.and.arrow.up") -> some View {
         if #available(iOS 16.4, *) {
             ShareLink(item: text) { Label(label, systemImage: systemImage) }
         } else {
-            Button { ShareCenter.shared.presentText(text) } label: {
+            Button {
+                if let url = ShareCenter.writeTextToTemp(text) {
+                    quickLookExport.wrappedValue = url
+                } else {
+                    ShareCenter.shared.fallbackClipboard(text)
+                }
+            } label: {
                 Label(label, systemImage: systemImage)
             }
         }
@@ -132,13 +143,19 @@ extension SharePresenter {
 
     /// 工具栏里的"分享"图标按钮（文本）——低版本写入 txt 走 QuickLook
     @ViewBuilder
-    static func toolbarShare(text: String) -> some View {
+    static func toolbarShare(text: String, quickLookExport: Binding<URL?>) -> some View {
         if #available(iOS 16.4, *) {
             ShareLink(item: text) {
                 Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
             }
         } else {
-            Button { ShareCenter.shared.presentText(text) } label: {
+            Button {
+                if let url = ShareCenter.writeTextToTemp(text) {
+                    quickLookExport.wrappedValue = url
+                } else {
+                    ShareCenter.shared.fallbackClipboard(text)
+                }
+            } label: {
                 Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
             }
         }
@@ -146,13 +163,13 @@ extension SharePresenter {
 
     /// 工具栏里的"分享"图标按钮（文件 URL）
     @ViewBuilder
-    static func toolbarShare(url: URL) -> some View {
+    static func toolbarShare(url: URL, quickLookExport: Binding<URL?>) -> some View {
         if #available(iOS 16.4, *) {
             ShareLink(item: url) {
                 Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
             }
         } else {
-            Button { ShareCenter.shared.presentQuickLook(url: url) } label: {
+            Button { quickLookExport.wrappedValue = url } label: {
                 Image(systemName: "square.and.arrow.up").font(.system(size: 18, weight: .semibold))
             }
         }
