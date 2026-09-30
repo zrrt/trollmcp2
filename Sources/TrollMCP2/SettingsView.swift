@@ -32,6 +32,9 @@ struct SettingsView: View {
     @State private var vpnToggleError = ""
     // v4.3.29：订阅更新管理器，副标题实时显示 检查中/下载进度/发现新版本
     @ObservedObject private var updateManager = UpdateManager.shared
+    // v4.3.30：更新镜像源编辑器
+    @State private var showMirrorEditor = false
+    @State private var mirrorsText = ""
 
     var body: some View {
         // v2.9.247：GeometryReader 拿真实全屏尺寸——fullScreenCover+NavigationStack 组合下 List 高度被解析为内容高度(内容不满一屏时列表只占上半屏、下半空白),外层 frame 也无效;改用几何尺寸显式强制 List 与 NavigationStack 铺满全屏,所有机型一致
@@ -261,6 +264,14 @@ struct SettingsView: View {
                          icon: "arrow.triangle.2.circlepath.circle.fill", color: .green,
                          action: {
                              updateManager.updateNow(currentVersion: ver)
+                         }),
+            // v4.3.30：多源镜像配置——GitHub 被墙时备用通道
+            SettingsItem(title: "更新镜像源",
+                         subtitle: mirrorSubtitle(),
+                         icon: "arrow.triangle.branch", color: .orange,
+                         action: {
+                             mirrorsText = UpdateManager.shared.mirrorsText
+                             showMirrorEditor = true
                          })
         ]
         groups.append(SettingsGroup(header: L10n.t("sec_about"), items: aboutItems))
@@ -298,6 +309,31 @@ struct SettingsView: View {
             Button("好", role: .cancel) { vpnToggleError = "" }
         } message: {
             Text(vpnToggleError)
+        }
+        // v4.3.30：更新镜像源编辑（GitHub 被墙时的备用通道，每行一个前缀，逗号分隔）
+        .sheet(isPresented: $showMirrorEditor) {
+            NavigationView {
+                Form {
+                    Section(footer: Text("GitHub 被墙（国内常见）时，自动按顺序尝试这些镜像前缀来检查与下载更新。每行一个，用逗号分隔；留空恢复默认（ghfast.top、gh-proxy.com）。")) {
+                        TextEditor(text: $mirrorsText)
+                            .font(.system(.body, design: .monospaced))
+                            .frame(minHeight: 110)
+                    }
+                }
+                .navigationTitle("更新镜像源")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("取消") { showMirrorEditor = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("保存") {
+                            UpdateManager.shared.saveMirrors(mirrorsText)
+                            showMirrorEditor = false
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -390,6 +426,7 @@ struct SettingsView: View {
     }
 
     // v4.3.29：副标题实时反映更新状态（检查中/下载进度/发现新版本/错误/已是最新）
+    // v4.3.30：已是最新时附带检查源（GitHub / jsDelivr / 镜像）
     private func updateSubtitle() -> String {
         let m = updateManager
         if m.isChecking {
@@ -405,7 +442,19 @@ struct SettingsView: View {
         if let e = m.errorMessage, !e.isEmpty {
             return e
         }
+        if let s = m.lastSource {
+            return "已是最新 · 检查源: \(s)"
+        }
         return "已是最新"
+    }
+
+    // v4.3.30：镜像源副标题（显示当前生效的镜像，去协议前缀）
+    private func mirrorSubtitle() -> String {
+        let list = UpdateManager.shared.mirrors
+            .map { $0.replacingOccurrences(of: "https://", with: "")
+                      .replacingOccurrences(of: "http://", with: "")
+                      .replacingOccurrences(of: "/", with: "") }
+        return "GitHub 被墙时备用 · " + list.joined(separator: ", ")
     }
 
     // v3.3.2：抓包 VPN 开关副标题

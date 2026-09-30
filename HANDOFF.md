@@ -1001,3 +1001,15 @@ CI 33662966976 / 提交 39470ef + a6dc7b8 / 版本 2.9.21→2.9.22 / IPA artifac
 - 设置页：去掉"下载并安装 vX"第二行，单行"检查更新"一键完成；@ObservedObject 订阅 UpdateManager，副标题实时显示 检查中/下载进度%/发现新版本/错误/已是最新。
 
 **校验**：两文件括号配对全过；版本 4.3.29。真实编译走 GitHub Actions。
+
+### v4.3.30（2026-09-30）自动更新多源检测（GitHub 被墙自动切换备用源）
+
+**用户诉求**：自动更新不能只有 GitHub 一个源——被墙就废了。
+
+**改动**：
+- UpdateManager 检查源链：GitHub API(最新成功构建,最准) → jsDelivr CDN(主分支 plist,国内可直连) → 镜像代理(ghfast.top/gh-proxy.com 可配置)，任一不可达自动换下一个；副标题显示"检查源: GitHub/jsDelivr/镜像"。
+- 下载源链：GitHub artifact(直连) → 滚动 Release(latest 直连) → 各镜像前缀×(artifact/Release)，逐个试、失败换源；能识别 artifact zip(解压取 tipa) 与 Release tipa 本体(直接用)。
+- 镜像配置：设置页新增"更新镜像源"行（sheet 编辑，逗号分隔，留空恢复默认）。
+- CI：新增 "Publish rolling release" 步骤（gh CLI 删除重建 tag=latest 的 Release，附 TrollMCP2.tipa）；workflow 加 permissions: contents: write。
+
+**校验**：两文件括号配对全过；版本 4.3.30。真实编译+Release 发布走 GitHub Actions。

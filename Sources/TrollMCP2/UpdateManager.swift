@@ -2,9 +2,9 @@ import Foundation
 import UIKit
 
 // v2.9.68：自动更新管理器
-// 检查 GitHub CI 最新构建，下载 IPA，调起 TrollStore 安装
-// v4.3.29：修复"永远检查不到更新"根因（artifact 名不含版本号，旧逻辑版本比较恒为 false）；
-//   版本号改为读取最新成功构建 commit 的 Support/Info.plist；一键更新（检查→下载→调起安装）。
+// v4.3.30：多源检测——GitHub 被墙（国内常态）时自动切换备用源：
+//   检查源链：GitHub API(最新成功构建) → jsDelivr CDN(主分支 plist) → 镜像代理(ghfast/gh-proxy 等)
+//   下载源链：GitHub artifact → GitHub 滚动 Release(latest) → 各镜像前缀直连/代理
 final class UpdateManager: ObservableObject {
     static let shared = UpdateManager()
 
@@ -15,14 +15,17 @@ final class UpdateManager: ObservableObject {
     @Published var updateAvailable = false
     @Published var errorMessage: String?
     @Published var downloadedIPAURL: URL?
+    /// v4.3.30：本次检查命中的源（GitHub / jsDelivr / 镜像），副标题可显示
+    @Published var lastSource: String?
 
     /// v4.3.29：检查时记住最新成功构建 run，下载用同一个（旧逻辑下载时重新查 run，可能拿到别的 workflow）
     private var latestRunId: Int?
+    /// v4.3.29：检查时记住 artifact 下载 URL（下载链第一候选）
+    private var artifactDownloadURL: String?
     /// v4.3.29：保留下载进度观察者（不持有会被立即释放，进度不更新）
     private var progressObserver: NSKeyValueObservation?
 
-    // v2.9.108：仓库与工作流改为动态读取（对齐 GitHub 账号页配置），
-    // 不再硬编码旧私有仓库——自动更新曾因仓库指向错误导致检查/下载失败
+    // v2.9.108：仓库与工作流改为动态读取（对齐 GitHub 账号页配置）
     private var repo: String {
         let owner = UserDefaults.standard.string(forKey: "trollmcp2.github_repo_owner") ?? "zrrt"
         let name = UserDefaults.standard.string(forKey: "trollmcp2.github_repo_name") ?? "trollmcp2"
@@ -32,103 +35,241 @@ final class UpdateManager: ObservableObject {
         UserDefaults.standard.string(forKey: "trollmcp2.github_workflow_id") ?? "build-trollmcp2.yml"
     }
 
-    private init() {}
+    // MARK: - 镜像源配置（v4.3.30）
 
-    /// v2.9.87：仓库为私有，所有 GitHub API 请求必须带已登录账号的 token，
-    /// 否则 runs/artifacts 列表返回 401/404、artifact 下载返回 403。
-    private func githubToken() -> String? {
-        GitHubAccountStore.shared.activeToken
+    /// 默认镜像（国内可访问的 GitHub 代理，用于被墙时检查与下载；可在设置里改）
+    static let defaultMirrors = ["https://ghfast.top/", "https://gh-proxy.com/"]
+    var mirrors: [String] {
+        let raw = UserDefaults.standard.string(forKey: "trollmcp2.update_mirrors") ?? ""
+        let custom = raw.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && ($0.hasPrefix("http://") || $0.hasPrefix("https://")) }
+        return custom.isEmpty ? Self.defaultMirrors : custom
+    }
+    var mirrorsText: String { mirrors.joined(separator: ",") }
+    func saveMirrors(_ text: String) {
+        UserDefaults.standard.set(text.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "trollmcp2.update_mirrors")
     }
 
-    private func authorizedRequest(_ url: URL) -> URLRequest? {
+    private init() {}
+
+    /// 带 token（如已登录 GitHub 账号）的请求
+    private func authorizedRequest(_ url: URL) -> URLRequest {
         var request = URLRequest(url: url)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let t = githubToken() {
+        if let t = GitHubAccountStore.shared.activeToken {
             request.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization")
         }
         return request
     }
 
-    // MARK: - 检查更新（v4.3.29 重写）
+    /// 发起请求，回调 (data, httpStatus, error)
+    private func perform(_ url: URL, timeout: TimeInterval = 25,
+                         completion: @escaping (Data?, Int, Error?) -> Void) {
+        var request = authorizedRequest(url)
+        request.timeoutInterval = timeout
+        URLSession.shared.dataTask(with: request) { data, resp, error in
+            let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+            completion(data, status, error)
+        }.resume()
+    }
 
-    /// 检查更新：查 build-trollmcp2 workflow 最新成功构建 → 读该 commit 的 Support/Info.plist 版本号。
-    /// 完成回调传是否发现新版本（供一键更新链使用）。
+    // MARK: - 检查更新（v4.3.30 多源链）
+
+    /// 检查更新：源1 GitHub API → 源2 jsDelivr CDN → 源3 镜像代理。
+    /// 完成回调传是否发现新版本。
     func checkForUpdate(currentVersion: String, completion: ((Bool) -> Void)? = nil) {
         isChecking = true
         errorMessage = nil
+        lastSource = nil
+        checkViaGitHub(currentVersion: currentVersion, completion: completion)
+    }
 
-        // v4.3.29：workflow_id 限定主构建（旧逻辑不限定，可能拿 build-tweak 的 run 当版本源）
-        let url = URL(string: "https://api.github.com/repos/\(repo)/actions/runs?workflow_id=\(workflow)&status=success&per_page=5")!
-        guard let request = authorizedRequest(url) else {
-            isChecking = false
-            errorMessage = "请先在 GitHub 账号中登录（私有仓库需要 token 才能检查更新）"
-            completion?(false)
+    /// 源1：GitHub API（最准——只看最新成功构建）
+    private func checkViaGitHub(currentVersion: String, completion: ((Bool) -> Void)?) {
+        guard let url = URL(string: "https://api.github.com/repos/\(repo)/actions/runs?workflow_id=\(workflow)&status=success&per_page=5") else {
+            checkViaJsDelivr(currentVersion: currentVersion, completion: completion)
             return
         }
-
-        URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
+        perform(url) { [weak self] data, status, error in
             DispatchQueue.main.async {
                 guard let self = self else { return }
-                self.isChecking = false
-                if let error = error {
-                    self.errorMessage = "检查更新失败: \(error.localizedDescription)"
-                    completion?(false)
-                    return
-                }
-                guard let data = data,
+                guard error == nil, status == 200, let data = data,
                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                       let runs = json["workflow_runs"] as? [[String: Any]],
                       let latestRun = runs.first else {
-                    self.errorMessage = "未找到构建记录"
-                    completion?(false)
+                    // GitHub 不可达（被墙/限流/私有仓库未登录）→ 换源
+                    self.checkViaJsDelivr(currentVersion: currentVersion, completion: completion)
                     return
                 }
                 self.latestRunId = latestRun["id"] as? Int
                 let sha = (latestRun["head_sha"] as? String) ?? ""
                 let title = (latestRun["display_title"] as? String) ?? ""
-                self.fetchVersionAtSHA(sha, title: title, currentVersion: currentVersion, completion: completion)
+                // 顺手记下 artifact 下载 URL（下载链第一候选）
+                self.fetchArtifactDownloadURL(runId: self.latestRunId)
+                self.fetchVersionAtSHA(sha, title: title, currentVersion: currentVersion,
+                                       source: "GitHub", completion: completion)
             }
-        }.resume()
+        }
     }
 
-    /// v4.3.29：从最新构建 commit 的 Support/Info.plist 读版本号（artifact 名"TrollMCP2"不含版本号，
-    /// 旧 extractVersion 拿到 "TrollMCP2" → 版本比较恒 false → 永远"已是最新"。改为读真实 plist）。
-    /// 失败回退：从 run 标题（commit message）里提取 vX.Y.Z。
-    private func fetchVersionAtSHA(_ sha: String, title: String, currentVersion: String, completion: ((Bool) -> Void)?) {
-        let url = URL(string: "https://raw.githubusercontent.com/\(repo)/\(sha)/Support/Info.plist")!
-        guard let request = authorizedRequest(url) else {
-            isChecking = false
-            errorMessage = "请先在 GitHub 账号中登录"
-            completion?(false)
+    private func fetchArtifactDownloadURL(runId: Int?) {
+        guard let runId = runId,
+              let url = URL(string: "https://api.github.com/repos/\(repo)/actions/runs/\(runId)/artifacts") else { return }
+        perform(url, timeout: 15) { [weak self] data, status, _ in
+            DispatchQueue.main.async {
+                guard status == 200, let data = data,
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let artifacts = json["artifacts"] as? [[String: Any]],
+                      let first = artifacts.first,
+                      let dl = first["archive_download_url"] as? String else { return }
+                self?.artifactDownloadURL = dl
+            }
+        }
+    }
+
+    /// 源2：jsDelivr CDN（国内可直连，读主分支 Support/Info.plist 拿版本）
+    private func checkViaJsDelivr(currentVersion: String, completion: ((Bool) -> Void)?) {
+        let parts = repo.split(separator: "/")
+        guard parts.count == 2,
+              let url = URL(string: "https://cdn.jsdelivr.net/gh/\(parts[0])/\(parts[1])@main/Support/Info.plist") else {
+            checkViaMirror(currentVersion: currentVersion, completion: completion)
             return
         }
-        URLSession.shared.dataTask(with: request) { [weak self] data, _, _ in
+        perform(url) { [weak self] data, status, error in
             DispatchQueue.main.async {
                 guard let self = self else { return }
-                var version: String?
-                if let data = data,
-                   let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] {
-                    version = plist["CFBundleShortVersionString"] as? String
-                }
-                if version == nil {
-                    version = self.extractVersion(from: title)   // 回退：commit 标题 "v4.3.28: ..."
-                }
-                guard let v = version else {
-                    self.errorMessage = "无法解析最新版本号"
-                    completion?(false)
+                if error != nil || status != 200 || data == nil {
+                    self.checkViaMirror(currentVersion: currentVersion, completion: completion)
                     return
                 }
-                self.latestVersion = v
-                let newer = self.isVersionNewer(v, than: currentVersion)
-                self.updateAvailable = newer
-                completion?(newer)
+                if let v = self.parseVersion(from: data!) {
+                    self.latestRunId = nil
+                    self.artifactDownloadURL = nil
+                    self.applyVersion(v, currentVersion: currentVersion, source: "jsDelivr", completion: completion)
+                } else {
+                    self.checkViaMirror(currentVersion: currentVersion, completion: completion)
+                }
             }
-        }.resume()
+        }
+    }
+
+    /// 源3：镜像代理（把 GitHub API + raw 请求套上镜像前缀逐个试）
+    private func checkViaMirror(currentVersion: String, completion: ((Bool) -> Void)?) {
+        let parts = repo.split(separator: "/")
+        guard parts.count == 2 else {
+            finishCheckFail(completion: completion)
+            return
+        }
+        let mirrors = self.mirrors
+        guard !mirrors.isEmpty else {
+            finishCheckFail(completion: completion)
+            return
+        }
+        tryMirror(index: 0, mirrors: mirrors, parts: parts, currentVersion: currentVersion, completion: completion)
+    }
+
+    private func tryMirror(index: Int, mirrors: [String], parts: [Substring], currentVersion: String, completion: ((Bool) -> Void)?) {
+        guard index < mirrors.count else {
+            finishCheckFail(completion: completion)
+            return
+        }
+        let mirror = mirrors[index]
+        guard let runsURL = URL(string: "\(mirror)https://api.github.com/repos/\(repo)/actions/runs?workflow_id=\(workflow)&status=success&per_page=5") else {
+            tryMirror(index: index + 1, mirrors: mirrors, parts: parts, currentVersion: currentVersion, completion: completion)
+            return
+        }
+        perform(runsURL) { [weak self] data, status, error in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                guard error == nil, status == 200, let data = data,
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let runs = json["workflow_runs"] as? [[String: Any]],
+                      let latestRun = runs.first else {
+                    self.tryMirror(index: index + 1, mirrors: mirrors, parts: parts,
+                                   currentVersion: currentVersion, completion: completion)
+                    return
+                }
+                let runId = latestRun["id"] as? Int
+                let sha = (latestRun["head_sha"] as? String) ?? ""
+                let title = (latestRun["display_title"] as? String) ?? ""
+                self.latestRunId = runId
+                self.fetchArtifactDownloadURL(runId: runId)
+                // 经镜像读 raw plist
+                guard let plistURL = URL(string: "\(mirror)https://raw.githubusercontent.com/\(self.repo)/\(sha)/Support/Info.plist") else {
+                    self.tryMirror(index: index + 1, mirrors: mirrors, parts: parts,
+                                   currentVersion: currentVersion, completion: completion)
+                    return
+                }
+                self.perform(plistURL) { data2, status2, error2 in
+                    DispatchQueue.main.async {
+                        if error2 == nil, status2 == 200, let v = data2.flatMap({ self.parseVersion(from: $0) }) {
+                            self.applyVersion(v, currentVersion: currentVersion, source: "镜像", completion: completion)
+                        } else {
+                            // plist 读不到就用 run 标题里的 vX.Y.Z 回退
+                            let v = self.extractVersion(from: title)
+                            if v == title {
+                                self.tryMirror(index: index + 1, mirrors: mirrors, parts: parts,
+                                               currentVersion: currentVersion, completion: completion)
+                            } else {
+                                self.applyVersion(v, currentVersion: currentVersion, source: "镜像", completion: completion)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func finishCheckFail(completion: ((Bool) -> Void)?) {
+        isChecking = false
+        errorMessage = "检查更新失败：GitHub 与备用源均不可达（可能被墙）。可在「更新镜像源」里配置可用镜像。"
+        completion?(false)
+    }
+
+    /// 从 GitHub 最新构建 commit 的 Support/Info.plist 读版本号（v4.3.29 起；artifact 名无版本号）
+    private func fetchVersionAtSHA(_ sha: String, title: String, currentVersion: String,
+                                   source: String, completion: ((Bool) -> Void)?) {
+        guard !sha.isEmpty, let url = URL(string: "https://raw.githubusercontent.com/\(repo)/\(sha)/Support/Info.plist") else {
+            let v = extractVersion(from: title)
+            if v == title {
+                checkViaJsDelivr(currentVersion: currentVersion, completion: completion)
+            } else {
+                applyVersion(v, currentVersion: currentVersion, source: source, completion: completion)
+            }
+            return
+        }
+        perform(url) { [weak self] data, status, _ in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                if status == 200, let data = data, let v = self.parseVersion(from: data) {
+                    self.applyVersion(v, currentVersion: currentVersion, source: source, completion: completion)
+                } else {
+                    // raw 不可达 → 换源链继续
+                    self.checkViaJsDelivr(currentVersion: currentVersion, completion: completion)
+                }
+            }
+        }
+    }
+
+    private func parseVersion(from data: Data) -> String? {
+        if let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] {
+            return plist["CFBundleShortVersionString"] as? String
+        }
+        return nil
+    }
+
+    private func applyVersion(_ v: String, currentVersion: String, source: String, completion: ((Bool) -> Void)?) {
+        isChecking = false
+        lastSource = source
+        latestVersion = v
+        let newer = isVersionNewer(v, than: currentVersion)
+        updateAvailable = newer
+        completion?(newer)
     }
 
     private func extractVersion(from name: String) -> String {
-        // 从 TrollMCP2-v2.9.68 / TrollAgent-v2.9.68 / "v4.3.28: ..." 中提取 X.Y.Z
         let pattern = #"v?(\d+\.\d+\.\d+)"#
         if let regex = try? NSRegularExpression(pattern: pattern),
            let match = regex.firstMatch(in: name, range: NSRange(name.startIndex..., in: name)),
@@ -152,8 +293,7 @@ final class UpdateManager: ObservableObject {
 
     // MARK: - 一键更新（v4.3.29）
 
-    /// 一键更新：检查 GitHub 最新 → 有新版自动下载 → 调起 TrollStore 安装。
-    /// 已是最新则提示。
+    /// 一键更新：检查（多源）→ 有新版自动下载（多源）→ 调起 TrollStore 安装
     func updateNow(currentVersion: String) {
         checkForUpdate(currentVersion: currentVersion) { [weak self] newer in
             guard let self = self else { return }
@@ -165,11 +305,11 @@ final class UpdateManager: ObservableObject {
         }
     }
 
-    // MARK: - 下载 + 安装
+    // MARK: - 下载 + 安装（v4.3.30 多源链）
 
-    /// 下载最新 IPA（v4.3.29：用检查时记住的 run；artifact zip 解压出 .tipa 再调起 TrollStore）
+    /// 下载链：GitHub artifact(直连) → 滚动 Release(latest, 直连) → 各镜像前缀 × (artifact / Release)
     func downloadAndInstall() {
-        guard let runId = latestRunId else {
+        guard let version = latestVersion else {
             errorMessage = "请先检查更新"
             return
         }
@@ -177,98 +317,86 @@ final class UpdateManager: ObservableObject {
         downloadProgress = 0
         errorMessage = nil
 
-        let url = URL(string: "https://api.github.com/repos/\(repo)/actions/runs/\(runId)/artifacts")!
-        guard let request = authorizedRequest(url) else {
-            DispatchQueue.main.async {
-                self.isDownloading = false
-                self.errorMessage = "请先在 GitHub 账号中登录"
-            }
-            return
+        let releaseURL = "https://github.com/\(repo)/releases/download/latest/TrollMCP2.tipa"
+        var attempts: [(url: String, isArtifact: Bool)] = []
+        if let art = artifactDownloadURL { attempts.append((art, true)) }
+        attempts.append((releaseURL, false))
+        for m in mirrors {
+            if let art = artifactDownloadURL { attempts.append((m + art, true)) }
+            attempts.append((m + releaseURL, false))
         }
-
-        URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
-            guard let self = self else { return }
-            if let error = error {
-                DispatchQueue.main.async {
-                    self.isDownloading = false
-                    self.errorMessage = "获取产物失败: \(error.localizedDescription)"
-                }
-                return
-            }
-            guard let data = data,
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let artifacts = json["artifacts"] as? [[String: Any]],
-                  let downloadUrl = artifacts.first?["archive_download_url"] as? String else {
-                DispatchQueue.main.async {
-                    self.isDownloading = false
-                    self.errorMessage = "未找到下载链接"
-                }
-                return
-            }
-            self.downloadArtifactZip(urlString: downloadUrl)
-        }.resume()
+        attemptDownload(attempts, index: 0, version: version)
     }
 
-    /// v4.3.29：下载 artifact zip（带进度）→ ZipExtractor 解压 → 找到 TrollMCP2.tipa → 安装。
-    /// 旧逻辑直接把 zip 当 .ipa 分享，TrollStore 装不了。
-    private func downloadArtifactZip(urlString: String) {
-        guard let url = URL(string: urlString) else {
-            DispatchQueue.main.async {
-                self.isDownloading = false
-                self.errorMessage = "下载链接无效"
-            }
+    private func attemptDownload(_ attempts: [(url: String, isArtifact: Bool)], index: Int, version: String) {
+        guard index < attempts.count else {
+            isDownloading = false
+            errorMessage = "所有下载源都失败了（GitHub 可能被墙，可在「更新镜像源」配置可用镜像）"
             return
         }
-        let stamp = Int(Date().timeIntervalSince1970)
-        let destURL = FileManager.default.temporaryDirectory.appendingPathComponent("TrollAgent-artifact-\(stamp).zip")
-
-        let task = URLSession.shared.downloadTask(with: url) { [weak self] tempURL, response, error in
+        let attempt = attempts[index]
+        guard let url = URL(string: attempt.url) else {
+            attemptDownload(attempts, index: index + 1, version: version)
+            return
+        }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 30
+        let task = URLSession.shared.downloadTask(with: req) { [weak self] tempURL, resp, error in
             DispatchQueue.main.async {
                 guard let self = self else { return }
-                self.isDownloading = false
-                if let error = error {
-                    self.errorMessage = "下载失败: \(error.localizedDescription)"
+                let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+                if error != nil || status != 200 || tempURL == nil {
+                    self.attemptDownload(attempts, index: index + 1, version: version)
                     return
                 }
-                if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-                    self.errorMessage = "下载失败 (HTTP \(http.statusCode))：artifact 下载需已登录 GitHub 且该构建存在，请在 GitHub 账号中检查登录状态"
-                    return
-                }
-                guard let tempURL = tempURL else {
-                    self.errorMessage = "下载文件不存在"
-                    return
-                }
-                do {
-                    if FileManager.default.fileExists(atPath: destURL.path) {
-                        try FileManager.default.removeItem(at: destURL)
-                    }
-                    try FileManager.default.moveItem(at: tempURL, to: destURL)
-                    // artifact zip 内含 TrollMCP2.tipa → 解压出 tipa 再安装
-                    let unzipDir = FileManager.default.temporaryDirectory.appendingPathComponent("ta-update-\(stamp)")
-                    try ZipExtractor.unzip(destURL, to: unzipDir)
-                    try? FileManager.default.removeItem(at: destURL)
-                    let tipaURL = unzipDir.appendingPathComponent("TrollMCP2.tipa")
-                    guard FileManager.default.fileExists(atPath: tipaURL.path) else {
-                        self.errorMessage = "解压后未找到 TrollMCP2.tipa"
-                        return
-                    }
-                    self.downloadedIPAURL = tipaURL
-                    self.installIPA(at: tipaURL)
-                } catch {
-                    self.errorMessage = "保存/解压失败: \(error.localizedDescription)"
+                if !self.processDownloaded(tempURL!, isArtifact: attempt.isArtifact, version: version) {
+                    self.attemptDownload(attempts, index: index + 1, version: version)
                 }
             }
         }
-        // 进度观察（保留 observer 引用）
         progressObserver = task.progress.observe(\.fractionCompleted) { [weak self] p, _ in
-            DispatchQueue.main.async {
-                self?.downloadProgress = p.fractionCompleted
-            }
+            DispatchQueue.main.async { self?.downloadProgress = p.fractionCompleted }
         }
         task.resume()
     }
 
-    /// 调起 TrollStore 安装 IPA（OpenInMenu 直接显示"用 TrollStore 打开"，免分享面板枚举）
+    /// 处理下载结果：artifact zip → 解压出 TrollMCP2.tipa；Release 资产 → tipa 本体。
+    /// 返回是否成功（失败则由下载链换下一个源）。
+    private func processDownloaded(_ tempURL: URL, isArtifact: Bool, version: String) -> Bool {
+        do {
+            let data = try Data(contentsOf: tempURL)
+            let names = (try? ZipExtractor.entries(data).map { $0.name }) ?? []
+            var finalURL: URL?
+            if names.contains("TrollMCP2.tipa") {
+                // GitHub artifact zip（内含 tipa）
+                let zipPath = tempURL.appendingPathExtension("zip")
+                if FileManager.default.fileExists(atPath: zipPath.path) { try FileManager.default.removeItem(at: zipPath) }
+                try FileManager.default.moveItem(at: tempURL, to: zipPath)
+                let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ta-update-\(Int(Date().timeIntervalSince1970))")
+                try ZipExtractor.unzip(zipPath, to: dir)
+                try? FileManager.default.removeItem(at: zipPath)
+                finalURL = dir.appendingPathComponent("TrollMCP2.tipa")
+            } else if names.contains(where: { $0.hasPrefix("Payload/") }) || !isArtifact {
+                // tipa 本体（zip 含 Payload/）
+                let dest = FileManager.default.temporaryDirectory.appendingPathComponent("TrollMCP2-v\(version).tipa")
+                if FileManager.default.fileExists(atPath: dest.path) { try FileManager.default.removeItem(at: dest) }
+                try FileManager.default.moveItem(at: tempURL, to: dest)
+                finalURL = dest
+            } else {
+                // 既不是 artifact zip 也不是 tipa（镜像返回错误页等）→ 换源
+                return false
+            }
+            guard let f = finalURL, FileManager.default.fileExists(atPath: f.path) else { return false }
+            isDownloading = false
+            downloadedIPAURL = f
+            installIPA(at: f)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// 调起 TrollStore 安装（OpenInMenu 直接"用 TrollStore 打开"）
     func installIPA(at url: URL) {
         SharePresenter.present([url]) { [weak self] completed, error in
             if let error = error {

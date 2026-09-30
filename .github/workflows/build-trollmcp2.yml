@@ -2,6 +2,10 @@
 # 不再依赖单独 build-tweak workflow（其 runner 启动不稳定）；改 Tweak.x 后直接跑本 workflow 即全量更新。
 name: build-trollmcp2
 
+# v4.3.30：contents: write 供滚动 Release（多源更新：GitHub 被墙时 App 经 Releases/镜像下载 tipa）
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
   push:
@@ -158,3 +162,17 @@ jobs:
           name: TrollMCP2
           path: TrollMCP2.tipa
           if-no-files-found: error
+
+      # v4.3.30：发布滚动 Release（固定 tag "latest"）——多源更新用：
+      # App 下载链第二候选（GitHub 被墙时经 ghfast/gh-proxy 等镜像前缀即可下载）。
+      - name: Publish rolling release (multi-source update)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Support/Info.plist 2>/dev/null || echo "unknown")
+          echo "version=$VER"
+          gh release delete latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create latest TrollMCP2.tipa \
+            --title "TrollMCP2 latest (v${VER})" \
+            --notes "滚动构建（main 分支最新）。供 App 内多源自动更新使用：GitHub 被墙时经镜像前缀或 Releases 直链下载。下载地址：https://github.com/${GITHUB_REPOSITORY}/releases/download/latest/TrollMCP2.tipa" || \
+            { echo "RELEASE PUBLISH FAILED (non-fatal)"; exit 0; }
