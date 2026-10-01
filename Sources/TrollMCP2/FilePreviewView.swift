@@ -41,20 +41,22 @@ struct QLFilePreview: View {
                     ToolbarItem(placement: .navigationBarLeading) {
                         Button("完成") { dismiss() }
                     }
-                    if let url = url {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            HStack(spacing: 16) {
-                                Button {
-                                    ShareCenter.shared.saveToFiles(url)
-                                } label: {
-                                    Image(systemName: "folder")
-                                }
-                                Button {
-                                    ShareCenter.shared.openIn(url)
-                                } label: {
-                                    Image(systemName: "square.and.arrow.up")
-                                }
+                    // 注意：toolbar 内不可用 if 分支（buildIf 需 iOS 16+，项目最低 iOS 14），
+                    // 改为始终显示、无文件时禁用
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        HStack(spacing: 16) {
+                            Button {
+                                if let url = url { ShareCenter.shared.saveToFiles(url) }
+                            } label: {
+                                Image(systemName: "folder")
                             }
+                            .disabled(url == nil)
+                            Button {
+                                if let url = url { ShareCenter.shared.openIn(url) }
+                            } label: {
+                                Image(systemName: "square.and.arrow.up")
+                            }
+                            .disabled(url == nil)
                         }
                     }
                 }
