@@ -417,7 +417,8 @@ jobs:
           set -e
           mkdir -p wheels-out wheel-src
           # 宿主后端工具（mac wheel，避免 iOS venv 里 pip 源码装 ninja/cmake 失败）
-          pip install meson-python==0.19.* ninja cython
+          # fix3k: 显式装 wheel——meson-python 打包 wheel 依赖它
+          pip install meson-python==0.19.* ninja cython wheel
           # 解包 Python.xcframework（native-python job 产物）
           tar -xzf python-ios/python-*.tar.gz -C python-ios/
           XCF=$(find python-ios -type d -name "Python.xcframework" | head -1)
@@ -425,12 +426,12 @@ jobs:
           echo ">>> PYIOS=$PYIOS"
           # hack sysconfigdata：PEP 730 记录的是相对路径(Apple/iOS/Frameworks/arm64-iphoneos/...)
           # → 改成绝对路径，meson 才能找到 include/lib
-          # fix3i: macOS 是 BSD sed，-i 后必须带备份后缀（-i ""），否则把脚本当后缀、文件当命令
+          # fix3i: macOS 是 BSD sed，-i 后必须带备份后缀（-i ""）
           SC="$PYIOS/lib-arm64/python3.14/_sysconfigdata__ios_arm64-iphoneos.py"
           sed -i "" "s|'Apple/iOS/Frameworks/arm64-iphoneos|'$PYIOS|g" "$SC"
           grep -o "'INCLUDEPY': '[^']*'" "$SC" | head -1
-          # fix3j: sysconfigdata 文件名带连字符(-iphoneos)无法被 importlib 加载(Python 模块名
-          # 不能含连字符)→ pip 的 sysconfig 初始化 ModuleNotFoundError。复制下划线命名副本，
+          # fix3j: sysconfigdata 文件名带连字符(-iphoneos)无法 importlib import(Python 模块名
+          # 禁连字符)→ pip sysconfig 初始化 ModuleNotFoundError。复制下划线命名副本，
           # _PYTHON_SYSCONFIGDATA_NAME 指向它即可被 PYTHONPATH 正常 import。
           cp "$SC" "$PYIOS/lib-arm64/python3.14/_sysconfigdata__ios_arm64_iphoneos.py"
           # meson cross 文件（xcrun SDK 工具链，arm64 真机）
@@ -447,13 +448,24 @@ jobs:
           cpu = 'arm64'
           endian = 'little'
           INI
-          # 让宿主 python 加载 iOS 交叉 sysconfigdata（PEP 730 机制）
-          export _PYTHON_HOST_PLATFORM=ios-arm64
-          export _PYTHON_SYSCONFIGDATA_NAME=_sysconfigdata__ios_arm64_iphoneos
-          export PYTHONPATH="$PYIOS/lib-arm64/python3.14:$PYTHONPATH"
           # numpy sdist（meson 源码包）
           pip download --no-deps --no-binary :all: numpy==2.1.3 -d wheel-src
           tar -xzf wheel-src/numpy-2.1.3.tar.gz -C wheel-src
+          # fix3k: 环境变量只在 pip wheel 前生效(避免污染前面的 pip download/install)——
+          # _PYTHON_HOST_PLATFORM + _PYTHON_SYSCONFIGDATA_NAME + PYTHONPATH 加载 iOS 交叉
+          # sysconfigdata(PEP 730 机制)。先断言验证生效，失败立即暴露而非盲等 meson。
+          export _PYTHON_HOST_PLATFORM=ios-arm64
+          export _PYTHON_SYSCONFIGDATA_NAME=_sysconfigdata__ios_arm64_iphoneos
+          export PYTHONPATH="$PYIOS/lib-arm64/python3.14:$PYTHONPATH"
+          python3 -c "
+import sysconfig, sys
+ip = sysconfig.get_config_var('INCLUDEPY') or ''
+print('sysconfig INCLUDEPY =', ip)
+assert 'ios-arm64' in ip and ip.startswith('/'), 'sysconfigdata 未生效或路径未绝对化: ' + ip
+lp = sysconfig.get_config_var('LIBDIR') or ''
+print('sysconfig LIBDIR =', lp)
+assert 'ios-arm64' in lp, 'LIBDIR 未指向 ios-arm64: ' + lp
+"
           python -m pip wheel --no-deps --no-build-isolation \
             -Csetup-args=--cross-file=$PWD/ios-meson.ini \
             -Csetup-args=-Dallow-noblas=true \
