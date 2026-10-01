@@ -169,8 +169,20 @@ create_fakefs() {
 
     local ROOTFS_FILE="alpine-minirootfs-${ALPINE_VERSION}.${ALPINE_MINOR}-${ALPINE_ARCH}.tar.gz"
     local ROOTFS_PATH="$CACHE_DIR/$ROOTFS_FILE"
+    local PROVISIONED_PATH="$CACHE_DIR/${ROOTFS_FILE}.provisioned"
     local FAKEFSIFY="$ISH_DIR/build-native/tools/fakefsify"
     local OUTPUT_ROOTFS="$OUTPUT_DIR/alpine-rootfs"
+
+    # v4.3.74：构建时预装常用工具（python3/pip/binutils/git/sqlite3/tar/unzip/curl）——
+    # 手机端零网络零安装，AI 直接用；根治"运行时 apk 联网装工具老失败"。
+    # 任一步失败自动降级为原始 minirootfs（运行时 ISHEngine.apkAdd 仍兜底），CI 不红。
+    if [ -f "$ROOTFS_PATH" ] && [ ! -f "$PROVISIONED_PATH" ]; then
+        provision_rootfs_tar "$ROOTFS_PATH" "$PROVISIONED_PATH"
+    fi
+    if [ -f "$PROVISIONED_PATH" ]; then
+        ROOTFS_PATH="$PROVISIONED_PATH"
+        log_info "Using pre-provisioned rootfs (python3/pip/binutils/git/sqlite3/tar/unzip/curl preinstalled)"
+    fi
 
     # Remove existing rootfs
     if [ -d "$OUTPUT_ROOTFS" ]; then
@@ -189,6 +201,55 @@ create_fakefs() {
     fi
 
     log_success "Fakefs rootfs created"
+}
+
+# ============================================================================
+# v4.3.74: Pre-provision common tools into rootfs (build-time, zero network on device)
+# ============================================================================
+# macOS 宿主不能直接跑 aarch64 ELF，用 qemu-aarch64 跑 Alpine 官方静态 apk
+# (apk.static) 做交叉安装；--no-scripts 不执行 guest 包脚本（纯解包安装）。
+# 失败即降级（返回 0 用原始 minirootfs），保证 CI 不因预装失败而红。
+provision_rootfs_tar() {
+    local SRC_TAR="$1"
+    local OUT_TAR="$2"
+
+    command -v qemu-aarch64 >/dev/null 2>&1 || { log_warning "qemu-aarch64 缺失，跳过预装（运行时 apkAdd 兜底）"; return 0; }
+
+    local STAGE="$CACHE_DIR/rootfs-stage"
+    rm -rf "$STAGE"; mkdir -p "$STAGE"
+    tar -xzf "$SRC_TAR" -C "$STAGE" 2>/dev/null || { log_warning "rootfs 解包失败，跳过预装"; return 0; }
+
+    # 下载 Alpine aarch64 静态 apk（版本号从 APKINDEX 动态解析，失败回退已知版本）
+    local IDX="$CACHE_DIR/APKINDEX.tar.gz"
+    curl -sL -o "$IDX" "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/main/${ALPINE_ARCH}/APKINDEX.tar.gz" 2>/dev/null || true
+    local APKVER=""
+    if [ -s "$IDX" ]; then
+        APKVER=$(tar -xzO -f "$IDX" APKINDEX 2>/dev/null | grep -A2 '^P:apk-tools-static$' | grep '^V:' | head -1 | cut -d: -f2)
+    fi
+    [ -z "$APKVER" ] && APKVER="2.14.4-r0"
+    curl -sL -o "$CACHE_DIR/apk-tools-static.apk" \
+        "https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/main/${ALPINE_ARCH}/apk-tools-static-${APKVER}.apk" 2>/dev/null || true
+    if [ ! -s "$CACHE_DIR/apk-tools-static.apk" ]; then
+        log_warning "apk-tools-static 下载失败，跳过预装"
+        return 0
+    fi
+    tar -xzf "$CACHE_DIR/apk-tools-static.apk" -C "$CACHE_DIR" sbin/apk.static 2>/dev/null || true
+    chmod +x "$CACHE_DIR/sbin/apk.static" 2>/dev/null || true
+
+    # qemu 交叉装包：常用工具链一次到位（--no-scripts 跳过 guest post-install）
+    qemu-aarch64 "$CACHE_DIR/sbin/apk.static" add --root "$STAGE" --arch "$ALPINE_ARCH" --no-scripts \
+        --repository "https://mirrors.aliyun.com/alpine/v${ALPINE_VERSION}/main" \
+        --repository "https://mirrors.aliyun.com/alpine/v${ALPINE_VERSION}/community" \
+        python3 py3-pip binutils git file sqlite3 tar unzip curl ca-certificates \
+        > "$CACHE_DIR/provision.log" 2>&1
+    local RC=$?
+    if [ $RC -ne 0 ]; then
+        log_warning "预装失败(rc=$RC)，降级为原始 minirootfs；日志尾部: $(tail -1 "$CACHE_DIR/provision.log" 2>/dev/null)"
+        return 0
+    fi
+
+    tar -czf "$OUT_TAR" -C "$STAGE" . 2>/dev/null || { log_warning "预装后重打包失败，降级"; return 0; }
+    log_success "预装完成: python3/pip/binutils/git/sqlite3/tar/unzip/curl (size $(du -h "$OUT_TAR" 2>/dev/null | cut -f1))"
 }
 
 # ============================================================================

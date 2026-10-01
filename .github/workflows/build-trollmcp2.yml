@@ -117,7 +117,7 @@ jobs:
         # 缓存命中时跳过（构建产物一致；改 scripts/ish-build/*.sh 需 bump key）。
         if: steps.cache-ish.outputs.cache-hit != 'true'
         run: |
-          brew install meson ninja libarchive llvm lld >/dev/null 2>&1 || true
+          brew install meson ninja libarchive llvm lld qemu >/dev/null 2>&1 || true
           # lld 供 iSH VDSO 构建（-fuse-ld=lld）：macos 预装 llvm 不含 lld，单独 brew install lld
           export PATH="/opt/homebrew/opt/llvm/bin:/opt/homebrew/opt/lld/bin:$PATH"
           ln -sf "$(which lld)" /opt/homebrew/opt/lld/bin/ld.lld 2>/dev/null || true
