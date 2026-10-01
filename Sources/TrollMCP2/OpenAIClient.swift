@@ -782,6 +782,27 @@ final class OpenAIClient {
                     }
                 }
             }
+            // --- v4.3.66 兜底：预算循环只丢「最近 6 条之外」的消息，若最近 6 条内本身就有超大
+            // 单条（如刚 dump 的大文件/tool 结果），循环退出后仍可能超 MAX_CHARS → API 400。
+            // 对剩余中 content 最长的一条做头部截断（保留 2/3 + 提示），只压缩内容、不删消息、不丢语义锚点。
+            var guardPass = 0
+            while arr.reduce(0, { $0 + ($1.content.count) + ($1.thinking?.count ?? 0) }) > MAX_CHARS && guardPass < 8 {
+                guardPass += 1
+                var maxIdx = -1
+                var maxLen = 0
+                for (i, m) in arr.enumerated() {
+                    let l = m.content.count + (m.thinking?.count ?? 0)
+                    if l > maxLen { maxLen = l; maxIdx = i }
+                }
+                guard maxIdx >= 0, maxLen > 1000 else { break }
+                var m = arr[maxIdx]
+                let keep = max(1000, maxLen * 2 / 3)
+                let omitted = maxLen - keep
+                m.content = String(m.content.prefix(keep))
+                if m.thinking != nil { m.thinking = String((m.thinking ?? "").prefix(keep)) }
+                m.content += "\n\n[单条内容过长已截断: 省略约 \(omitted) 字符，如需完整内容请重新调用该工具获取]"
+                arr[maxIdx] = m
+            }
             if dropped > 0 && !arr.isEmpty {
                 // 把截断标记加在最后一条非空内容的消息上(避免加在空回复上不可见)
                 var anchor = arr.count - 1
