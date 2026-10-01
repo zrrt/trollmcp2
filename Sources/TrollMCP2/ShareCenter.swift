@@ -83,7 +83,8 @@ final class ShareCenter: ObservableObject {
     /// 存储到文件：UIDocumentPickerViewController(forExporting:) 弹出 Files 保存界面。
     /// 不经过 ShareSheet，不枚举分享扩展，侧载环境安全。
     func saveToFiles(_ url: URL) {
-        DispatchQueue.main.async {
+        // 延迟 0.45s：contextMenu 按钮点击后 dismiss 动画约 0.5s，立即 present 会被吞
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
             guard FileManager.default.fileExists(atPath: url.path) else {
                 self.showNotice("文件不存在，无法保存")
                 return
@@ -103,7 +104,8 @@ final class ShareCenter: ObservableObject {
     /// 注意：presentOpenInMenu 的宿主视图若被提前释放会不显示，故把交互控制器
     /// 用 associatedObject 挂到宿主 VC 上保持存活。
     func openIn(_ url: URL) {
-        DispatchQueue.main.async {
+        // 延迟 0.45s：contextMenu 按钮点击后 dismiss 动画约 0.5s，立即 present 会被吞
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
             guard FileManager.default.fileExists(atPath: url.path) else {
                 self.showNotice("文件不存在")
                 return

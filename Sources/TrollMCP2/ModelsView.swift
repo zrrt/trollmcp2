@@ -247,25 +247,16 @@ struct ModelRow: View {
             }
             .buttonStyle(.plain)
             // v2.9.126：分享深链——trollagent://import?...，对方点链接即可导入
-            // v4.3.44：iOS16.4+ 用 ShareLink 系统分享页（侧载稳定），16.4 以下
-            // 深链写入 txt 走 QuickLook 中间层（也能进系统分享面板）
-            if #available(iOS 16.4, *) {
-                ShareLink(item: makeDeepLink()) {
-                    Image(systemName: "link")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.teal)
-                }
-                .buttonStyle(.plain)
-            } else {
-                Button(action: {
-                    ShareCenter.shared.presentShareMenuText(makeDeepLink())
-                }) {
-                    Image(systemName: "link")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.teal)
-                }
-                .buttonStyle(.plain)
+            // v4.3.48：ShareLink 在本设备侧载环境触发 ShareSheet → MobileIcons/CoreImage
+            // SIGSEGV（崩溃栈实证），统一改自建分享菜单（拷贝/存储到文件）
+            Button(action: {
+                ShareCenter.shared.presentShareMenuText(makeDeepLink())
+            }) {
+                Image(systemName: "link")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.teal)
             }
+            .buttonStyle(.plain)
             if !config.isDefault {
                 Button(action: activate) {
                     Image(systemName: "checkmark.circle")
