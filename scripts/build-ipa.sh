@@ -114,6 +114,57 @@ if [ -d "Resources/bin" ]; then
     fi
 fi
 
+# v4.4.4: 原生 Python 集成（CPython 3.14 iOS, PEP 730）。
+# CI 由 native-python job 编译 Python.xcframework 并 upload artifact（tar.gz 包装）；
+# build job download 到 python-ios/。此处先解包再定位 ios-arm64 slice。
+# 本地构建无 artifact 时自动跳过（App 不内置原生 Python，AI 仍走 iSH python3）。
+# 目标：python3 默认路由原生（iPhone 芯片直跑，numpy/pandas 可用），根治 iSH 模拟器 import 段错误闪退。
+if ls python-ios/python-*.tar.gz >/dev/null 2>&1; then
+    mkdir -p python-ios/unpacked
+    tar -xzf python-ios/python-*.tar.gz -C python-ios/unpacked
+    # tar.gz 内顶层目录为 python-3.14.8-iOS-XCframework/
+    for d in python-ios/unpacked/*/; do [ -d "$d" ] && mv "$d" python-ios/unpacked/xcf 2>/dev/null && break; done
+fi
+if [ -d "python-ios/Python.xcframework" ] || [ -d "python-ios/unpacked/xcf/Python.xcframework" ]; then
+    if [ -d "python-ios/unpacked/xcf/Python.xcframework" ]; then
+        SLICE="python-ios/unpacked/xcf/Python.xcframework/ios-arm64"
+    else
+        SLICE="python-ios/Python.xcframework/ios-arm64"
+    fi
+    if [ -d "$SLICE" ]; then
+        echo ">>> integrating native Python (iOS arm64)..."
+        # 1. Python.framework → App/Frameworks（CLI 链接 libPython，rpath 指向 ../Frameworks）
+        mkdir -p "$APP/Frameworks"
+        cp -R "$SLICE/Python.framework" "$APP/Frameworks/"
+        # 2. stdlib（PYTHONHOME = App/python）+ lib-dynload 扩展模块
+        if [ -d "$SLICE/python" ]; then
+            cp -R "$SLICE/python" "$APP/python"
+            echo ">>> stdlib: $(du -sh "$APP/python" | cut -f1)"
+        else
+            echo "!!! Python.xcframework slice missing python/ (stdlib)" >&2
+        fi
+        # 3. 编译 python3 CLI（嵌入式入口：PyConfig + PYTHONHOME + -c/-m/script）
+        if [ -f "Sources/PythonCLI/main.c" ] && [ -f "$APP/Frameworks/Python.framework/Headers/Python.h" ]; then
+            xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" \
+                -I"$APP/Frameworks/Python.framework/Headers" \
+                -F"$APP/Frameworks" -framework Python \
+                -Wl,-rpath,@executable_path/../Frameworks \
+                -o "$APP/bin/python3" Sources/PythonCLI/main.c || \
+                { echo "!!! python3 CLI build FAILED (native Python skipped)" >&2; rm -f "$APP/bin/python3"; }
+            if [ -f "$APP/bin/python3" ]; then
+                chmod +x "$APP/bin/python3"
+                echo ">>> native python3 CLI built ($(du -h "$APP/bin/python3" | cut -f1))"
+            fi
+        else
+            echo "!!! PythonCLI/main.c or Python.h missing — native Python skipped" >&2
+        fi
+    else
+        echo "!!! python-ios/Python.xcframework/ios-arm64 missing — native Python skipped" >&2
+    fi
+else
+    echo ">>> python-ios xcframework not present — native Python skipped (iSH python3 stays default)"
+fi
+
 # 其他资源文件（开发者指令、配置模板、图标等）
 if [ -d "Resources" ]; then
     # 复制文件

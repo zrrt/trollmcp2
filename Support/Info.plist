@@ -88,6 +88,7 @@
 		<string>bin/install_name_tool</string>
 		<string>bin/optool</string>
 		<string>bin/opainject</string>
+		<string>bin/python3</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>

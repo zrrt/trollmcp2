@@ -156,6 +156,23 @@ jobs:
           bash scripts/build-ipa.sh
 
 
+      # v4.4.4: 集成原生 Python——下载 native-python job 编译的 xcframework 到 python-ios/。
+      # 并行首次跑时 native-python 可能未完成（artifact 不存在 → 跳过集成，App 无原生 python，
+      # AI 仍走 iSH）；后续 native-python 命中缓存快速完成，集成自动生效。
+      - name: Download native Python xcframework (if ready)
+        uses: actions/download-artifact@v4
+        with:
+          name: python-ios-xcframework
+          path: python-ios
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Build IPA (with native Python integration)
+        run: |
+          ls -la python-ios/ 2>/dev/null | head -5 || true
+          bash scripts/build-ipa.sh
+
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -193,7 +210,17 @@ jobs:
           path: cpython
           fetch-depth: 1
 
+      # v4.4.4: 缓存编译产物（tar.gz ~79MB）——CPython iOS 编译 60-90 分钟，
+      # 命中缓存后本 job 秒级完成，build job 才能稳定集成到 App。
+      # 必须在 checkout 之后 restore（checkout clean 会清掉 cache 恢复的目录）。
+      - uses: actions/cache@v4
+        id: pycache
+        with:
+          path: cpython/cross-build/dist
+          key: python-ios-dist-3.14.8-v1
+
       - name: Build Python.xcframework (iOS arm64, official Apple build script)
+        if: steps.pycache.outputs.cache-hit != 'true'
         run: |
           cd cpython
           python Apple build iOS

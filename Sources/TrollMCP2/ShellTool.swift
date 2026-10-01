@@ -75,12 +75,17 @@ final class ShellExecTool: MCPTool {
         // v4.4.2：iSH 模拟器段错误防护——import numpy/pandas/matplotlib 会加载 openblas，
         // OpenMinis arm64 模拟器执行其指令段错误闪退（实测崩溃栈 cpu_run_to_interrupt + task_run_current）。
         // 提前拦截给明确报错，避免 App 直接闪退（体验优于崩溃）。
-        if command.contains("import pandas") || command.contains("import numpy")
-            || command.contains("import matplotlib") {
+        // v4.4.4：原生 ARM64 Python 已集成（python3 首词 → 原生路由，能跑 numpy/openblas），
+        // 因此只拦 iSH 路径（sh -c 包装等），原生 python3 放行。
+        let cmdFirstWord = command.trimmingCharacters(in: .whitespaces)
+            .split(separator: " ").first.map(String.init) ?? ""
+        let nativePython = (cmdFirstWord == "python3" || cmdFirstWord == "python")
+        if !nativePython && (command.contains("import pandas") || command.contains("import numpy")
+            || command.contains("import matplotlib")) {
             return [
                 "error": "iSH numpy/pandas 段错误防护",
                 "command": command,
-                "hint": "iSH 模拟器运行 numpy/openblas 会段错误闪退（实测崩溃栈 cpu_run_to_interrupt），禁止在 iSH 内 import pandas/numpy/matplotlib。数据分析请用原生工具：sqlite3/jq/file/awk/文本处理；原生 ARM64 Python 版在规划中。"
+                "hint": "iSH 模拟器运行 numpy/openblas 会段错误闪退（实测崩溃栈 cpu_run_to_interrupt），禁止在 iSH 内 import pandas/numpy/matplotlib。数据分析请用原生 python3（App 内置，iPhone 芯片直跑）：python3 -c \"import pandas...\" 走原生路由即可。"
             ]
         }
         
@@ -735,7 +740,7 @@ final class ShellExecTool: MCPTool {
         "sha256sum", "diff", "hexdump", "curl", "wget", "plutil", "sqlite3",
         "unzip", "df", "free", "uname", "uptime", "hostname", "ps", "top",
         "kill", "ifconfig", "netstat", "nslookup", "tar", "gzip", "gunzip",
-        "ta", "base64", "strings", "nm", "kfd_diag"
+        "ta", "base64", "strings", "nm", "kfd_diag", "python3"
     ]
     
     /// v4.3.9: 反向路径翻译——iOS 原生命令收到 Alpine 挂载路径时翻译回 iOS 真实路径。
@@ -805,6 +810,7 @@ final class ShellExecTool: MCPTool {
         case "base64": return runIOSBase64(trimmed)
         case "strings": return runIOSStrings(iosCmd)
         case "nm": return runIOSNm(iosCmd)
+        case "python3": return runIOSPython3(iosCmd)
         case "kfd_diag": return runIOSKfdDiag(iosCmd)
         case "ta": return OffloadRouter.run(trimmed)
         default:
@@ -1622,6 +1628,47 @@ final class ShellExecTool: MCPTool {
     /// superblob → CodeDirectory），输出每个字段。用于真机诊断 TrollStore 重签后
     /// VpnTunnel 为何无法提取 cdhash。**纯只读、不注入、不 spawn 任何 helper**（绝对安全，不会触发 kfd/panic）。
     /// 语法: kfd_diag <path>
+    /// v4.4.4: 引号感知拆参（支持 -c "code with spaces" 等）
+    private static func shellSplitArgs(_ s: String) -> [String] {
+        var args: [String] = []
+        var cur = ""
+        var inS = false, inD = false
+        var i = s.startIndex
+        while i < s.endIndex {
+            let c = s[i]
+            if c == "'" && !inD { inS.toggle(); i = s.index(after: i); continue }
+            if c == "\"" && !inS { inD.toggle(); i = s.index(after: i); continue }
+            if !inS && !inD && c == " " {
+                if !cur.isEmpty { args.append(cur); cur = "" }
+            } else { cur.append(c) }
+            i = s.index(after: i)
+        }
+        if !cur.isEmpty { args.append(cur) }
+        return args
+    }
+
+    /// v4.4.4: 原生 Python CLI——App/bin/python3（iPhone 芯片直跑，PEP 730 CPython iOS）。
+    /// 未内置时给明确指引（不静默降级到 iSH，避免 AI 误以为原生可用）。
+    private static func runIOSPython3(_ command: String) -> [String: Any] {
+        let pythonPath = Bundle.main.bundlePath + "/bin/python3"
+        guard FileManager.default.isExecutableFile(atPath: pythonPath) else {
+            return ["command": command, "exit_code": 1,
+                    "stdout": "python3: 原生 Python 未内置（此构建未集成 Python.xcframework）— 请用 iSH 版：sh -c 'python3 ...'（注意 iSH 内不能 import numpy/pandas，会段错误闪退）",
+                    "ios_native": true]
+        }
+        let body = command.dropFirst("python3".count)
+        let args = shellSplitArgs(String(body))
+        let res = BuildRunner.shared.run(executable: pythonPath, args: args,
+                                         env: ["PYTHONIOENCODING": "utf-8"], timeout: 120)
+        var out = res.stdout
+        if res.timedOut { out += "\n[python3 执行超时 120s 被终止]" }
+        if let serr = res.spawnError, !serr.isEmpty {
+            out += "\n[spawn error: \(serr)]"
+        }
+        return ["command": command, "exit_code": res.exitCode, "stdout": out,
+                "stderr": res.stderr, "ios_native": true]
+    }
+
     private static func runIOSKfdDiag(_ command: String) -> [String: Any] {
         let fm = FileManager.default
         let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
