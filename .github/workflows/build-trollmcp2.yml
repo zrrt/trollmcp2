@@ -447,6 +447,11 @@ jobs:
           cpu_family = 'aarch64'
           cpu = 'arm64'
           endian = 'little'
+          [properties]
+          # fix3m: numpy/_core/meson.build:408 用 cc.run() 检测 long double 内存布局——
+          # cross 环境不能运行 iOS 测试程序。numpy 官方设计: meson.get_external_property
+          # 从 cross 文件读 longdouble_format。Apple arm64 的 long double = 64 位 double(小端)。
+          longdouble_format = 'IEEE_DOUBLE_LE'
           INI
           # numpy sdist（meson 源码包）
           pip download --no-deps --no-binary :all: numpy==2.1.3 -d wheel-src
