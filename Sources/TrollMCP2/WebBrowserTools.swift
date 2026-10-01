@@ -216,8 +216,10 @@ struct BrowserNavigateTool: MCPTool {
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         // v2.9.251: 兼容 url 参数——AI 常用 browser.navigate {url} 开网页,此前只认 action 导致"打开failed"
         if let url = params["url"] as? String, !url.isEmpty {
-            let msg = BrowserManager.shared.open(url)
-            AuditLog.shared.log("browser.navigate", detail: "url=\(url)")
+            // v4.3.65：支持 fresh=true 忽略缓存强制拉新（抓包/验证最新页面）
+            let fresh = params["fresh"] as? Bool ?? (params["fresh"] as? String).flatMap({ Bool($0.lowercased()) }) ?? false
+            let msg = BrowserManager.shared.open(url, fresh: fresh)
+            AuditLog.shared.log("browser.navigate", detail: "url=\(url) fresh=\(fresh)")
             return ["ok": !msg.hasPrefix("ERR"), "message": msg, "used": "open"]
         }
         guard let action = params["action"] as? String else {
@@ -240,10 +242,13 @@ struct BrowserNavigateTool: MCPTool {
 final class BrowserExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "browser",
-        summary: "Control built-in browser (navigate/screenshot/snapshot/click/type/scroll/wait). Use subcommand to specify action. Use for: open web pages, click buttons, fill forms. Don't use for: read app container files (use shell.exec). Example: navigate → browser navigate url:https://xxx.com; click → browser click idx:5. Subcommands: status / navigate / screenshot / snapshot / text / click / type / form_fields / fill_form / submit / scroll / wait / wait_for.",
+        summary: "Control built-in browser (navigate/screenshot/snapshot/click/type/scroll/wait). Use subcommand to specify action. Use for: open web pages, click buttons, fill forms. Don't use for: read app container files (use shell.exec). Example: navigate → browser navigate url:https://xxx.com; click → browser click idx:5. Subcommands: status / navigate / screenshot / snapshot / text / click / type / form_fields / fill_form / submit / scroll / wait / wait_for / adblock / clear.",
         parameters: [
-            "command": "Subcommand: status / navigate / screenshot / snapshot / text / click / type / form_fields / fill_form / submit / scroll / wait / wait_for",
+            "command": "Subcommand: status / navigate / screenshot / snapshot / text / click / type / form_fields / fill_form / submit / scroll / wait / wait_for / adblock / clear",
             "url": "URL (for navigate)",
+            "fresh": "true=忽略缓存强制拉新 (for navigate, optional)",
+            "enabled": "true/false (for adblock)",
+            "kinds": "cache,cookies,storage 或 all (for clear)",
             "idx": "Element index (for click/type)",
             "text": "Text to input (for type)",
             "selector": "CSS selector (for wait_for)"
@@ -311,9 +316,31 @@ final class BrowserExecTool: MCPTool {
                 throw MCPError.invalidParams("selector required")
             }
             return try BrowserWaitForTool().invoke(["selector": selector])
-            
+
+        // v4.3.65：广告/追踪拦截开关（参考 reynard-browser 内容拦截）+ 浏览数据清理
+        case "adblock":
+            var enabled: Bool?
+            if let b = params["enabled"] as? Bool {
+                enabled = b
+            } else if let s = (params["enabled"] as? String)?.lowercased() {
+                switch s {
+                case "true", "on", "1", "yes": enabled = true
+                case "false", "off", "0", "no": enabled = false
+                default: enabled = nil
+                }
+            }
+            if let e = enabled {
+                return BrowserManager.shared.setContentBlocking(e)
+            }
+            return ["ok": true, "adblock_enabled": BrowserManager.shared.adblockEnabled]
+
+        case "clear":
+            let raw = (params["kinds"] as? String) ?? "all"
+            let kinds = Set(raw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() })
+            return BrowserManager.shared.clearWebsiteData(kinds)
+
         default:
-            throw MCPError.invalidParams("Unknown command: \(command). Available: status/navigate/screenshot/snapshot/text/click/type/form_fields/fill_form/submit/scroll/wait/wait_for")
+            throw MCPError.invalidParams("Unknown command: \(command). Available: status/navigate/screenshot/snapshot/text/click/type/form_fields/fill_form/submit/scroll/wait/wait_for/adblock/clear")
         }
     }
 }

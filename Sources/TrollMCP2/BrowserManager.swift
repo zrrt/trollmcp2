@@ -10,6 +10,88 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
 
     static let shared = BrowserManager()
 
+    // v4.3.65：共享渲染进程池——BrowserView 预览 / Coruna 注入页等多 WKWebView 共用，降低内存占用
+    static let sharedProcessPool = WKProcessPool()
+
+    // v4.3.65：广告/追踪内容拦截（WKContentRuleList，对应 reynard-browser 的 ContentBlockingController 思路）
+    // 只拦已知第三方广告/追踪域，默认开启（提速 + 隐私）；抓包/自动化需要完整流量时用 browser adblock off 关闭
+    @Published var adblockEnabled: Bool = true
+    private var adblockRuleList: WKContentRuleList?
+    private static let adblockRulesJSON = """
+    [
+      {"trigger":{"url-filter":"doubleclick"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"google-analytics"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"googletagmanager"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"googleadservices"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"googlesyndication"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"googletagservices"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"2mdn"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"adservice.google"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"facebook.com/tr"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"facebook.net"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"fbcdn"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"hm.baidu.com"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"cpro.baidu.com"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"pos.baidu.com"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"crs.baidu.com"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"umeng.com"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"cnzz.com"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"talkingdata"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"growingio"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"sensorsdata"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"appsflyer"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"adjust.com"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"branch.io"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"mixpanel"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"amplitude.com"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"hotjar.com"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"fullstory.com"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"matomo"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"segment.io"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"scorecardresearch"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"moatads"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"taboola"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"outbrain"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"criteo"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"rubiconproject"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"pubmatic"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"openx.net"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"adnxs"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"adsrvr"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"adroll"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"quantserve"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"chartbeat"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"newrelic.com"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"demdex"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"bluekai"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"krxd"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"rlcdn"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"adsafemedia"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"adform"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"adzerk"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"admob"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"applovin"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"unityads"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"vungle"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"inmobi.com"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"mopub"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"smartadserver"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"teads"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"indexexchange"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"bidswitch"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"sovrn"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"yieldmo"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"gumgum"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"mgid.com"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"media.net"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"propellerads"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"adsterra"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"exoclick"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"popads"},"action":{"type":"block"}},
+      {"trigger":{"url-filter":"trafficjunky"},"action":{"type":"block"}}
+    ]
+    """
+
     @Published var currentURL: String = "about:blank"
     @Published var pageTitle: String = ""
     @Published var highlighted = true          // 蓝框高亮开关
@@ -60,7 +142,11 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
 
     private func createWebView() {
         let config = WKWebViewConfiguration()
+        config.processPool = BrowserManager.sharedProcessPool
         config.websiteDataStore = .default()
+        // v4.3.65：媒体渲染优化（参考 reynard-browser）——视频内联播放，自动化点击/填表不被全屏打断
+        config.allowsInlineMediaPlayback = true
+        config.allowsPictureInPictureMediaPlayback = true
         let wv = WKWebView(frame: .zero, configuration: config)
         wv.navigationDelegate = self
         wv.allowsBackForwardNavigationGestures = true
@@ -74,6 +160,90 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
             ucc.addUserScript(script)
         }
         webView = wv
+        // v4.3.65：编译并注入广告/追踪拦截规则（异步，编译完成后自动 add）
+        ensureAdblockRules()
+    }
+
+    // v4.3.65：编译广告/追踪拦截规则（WKContentRuleList），完成后注入当前 WebView
+    private func ensureAdblockRules() {
+        guard adblockRuleList == nil else {
+            if adblockEnabled, let list = adblockRuleList {
+                webView?.configuration.userContentController.add(list)
+            }
+            return
+        }
+        WKContentRuleListStore.default().compileContentRuleList(
+            forIdentifier: "trollmcp.adblock",
+            encodedContentRuleList: Self.adblockRulesJSON
+        ) { [weak self] list, error in
+            guard let self = self else { return }
+            if let list = list {
+                self.adblockRuleList = list
+                if self.adblockEnabled {
+                    self.webView?.configuration.userContentController.add(list)
+                }
+            } else {
+                print("[TA] adblock rule compile failed: \(error?.localizedDescription ?? "unknown")")
+            }
+        }
+    }
+
+    /// v4.3.65：开关广告/追踪拦截（browser adblock on/off/status）
+    /// 抓包 / 需要完整第三方流量时请关闭；默认开启（提速 + 隐私）
+    @discardableResult
+    func setContentBlocking(_ enabled: Bool) -> [String: Any] {
+        adblockEnabled = enabled
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, let wv = self.webView else { return }
+            let ucc = wv.configuration.userContentController
+            if enabled {
+                if let list = self.adblockRuleList {
+                    ucc.add(list)
+                } else {
+                    self.ensureAdblockRules()
+                }
+            } else {
+                if let list = self.adblockRuleList {
+                    ucc.remove(list)
+                } else {
+                    ucc.removeAllContentRuleLists()
+                }
+            }
+        }
+        return ["ok": true, "adblock_enabled": adblockEnabled,
+                "hint": "拦截已知第三方广告/追踪域；抓包需要完整流量时请 browser adblock off"]
+    }
+
+    /// v4.3.65：清理浏览数据（对应 reynard-browser 的存储/隐私控制）
+    /// kinds: cache / cookies / storage / all（可组合）
+    func clearWebsiteData(_ kinds: Set<String>) -> [String: Any] {
+        let store = WKWebsiteDataStore.default()
+        var types = Set<String>()
+        let has = { (k: String) -> Bool in kinds.contains("all") || kinds.contains(k) }
+        if has("cache") {
+            types.insert(WKWebsiteDataTypeDiskCache)
+            types.insert(WKWebsiteDataTypeMemoryCache)
+            types.insert(WKWebsiteDataTypeOfflineWebApplicationCache)
+            types.insert(WKWebsiteDataTypeServiceWorkerRegistrations)
+        }
+        if has("cookies") {
+            types.insert(WKWebsiteDataTypeCookies)
+        }
+        if has("storage") {
+            types.insert(WKWebsiteDataTypeLocalStorage)
+            types.insert(WKWebsiteDataTypeIndexedDBDatabases)
+            types.insert(WKWebsiteDataTypeWebSQLDatabases)
+            types.insert(WKWebsiteDataTypeSessionStorage)
+        }
+        guard !types.isEmpty else { return ["ok": false, "error": "kinds 需包含 cache/cookies/storage 之一或 all"] }
+        var done = false
+        let sem = DispatchSemaphore(value: 0)
+        store.removeData(ofTypes: types, modifiedSince: .distantPast) { _ in
+            done = true
+            sem.signal()
+        }
+        _ = sem.wait(timeout: .now() + 15)
+        return ["ok": done, "cleared": Array(types).sorted(), "hint": "清理完成，刷新页面后生效"]
     }
 
     // v2.9.251: ensureWebView 超时/失败的统一错误返回（String 返回型工具）
@@ -100,7 +270,8 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
     // MARK: - 导航
 
     /// 打开网页（v2.9.81：URL 规范化 + 明确报错 + hasLoadedAny 标记，修自动 Bing 覆盖用户输入的竞态）
-    func open(_ urlString: String) -> String {
+    /// v4.3.65：缓存策略可选——默认走系统缓存（提速），fresh=true 时忽略本地缓存强制拉新（抓包/验证最新页面用）
+    func open(_ urlString: String, fresh: Bool = false) -> String {
         guard ensureWebView() else { return errInit() }
         // v2.9.39：AI 打开网页时自动浮现悬浮窗，用户实时看到操作
         FloatingBrowser.shared.show()
@@ -138,7 +309,9 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
         DispatchQueue.main.async {
             self.isLoading = true
             self.lastError = ""
-            let req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
+            let req = URLRequest(url: url,
+                                 cachePolicy: fresh ? .reloadIgnoringLocalCacheData : .useProtocolCachePolicy,
+                                 timeoutInterval: 30)
             wv.load(req)
         }
         currentURL = url.absoluteString
@@ -662,6 +835,9 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
             r["canGoBack"] = wv.canGoBack
             r["canGoForward"] = wv.canGoForward
         }
+        // v4.3.65：暴露拦截状态与缓存提示（对应 reynard-browser 的内容拦截/存储控制）
+        r["adblock_enabled"] = adblockEnabled
+        r["clear_hint"] = "browser clear kinds:cache,cookies,storage 清理浏览数据"
         return r
     }
 

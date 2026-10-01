@@ -164,12 +164,15 @@ fi
 # v3.0.41：ios_system 已删除，不再需要 @executable_path rpath 与 shellhelper 独立进程
 
 # v3.3.0: MITM VPN appex —— 编译 VpnTunnel target + 组装 PlugIns/VpnTunnel.appex + 签名
-# v4.3.50：已禁用。根因实证：PlugIns/VpnTunnel.appex（networkextension 扩展、无图标文件）
+# v4.3.50：曾禁用。根因实证：PlugIns/VpnTunnel.appex（networkextension 扩展、无图标文件）
 # 在 TrollStore 侧载环境注册异常，分享面板打开时 MobileIcons 枚举扩展图标 → CoreImage SIGSEGV
 # （崩溃栈固定：ShareSheet → SharingUI → MobileIcons LICreateIconForImages → CoreImage）。
 # 只有 TrollMCP2 崩、TrollFools/系统 App 不崩 = 只有它带异常 appex。
 # VPN 抓包功能降级为 local proxy 模式（VpnTools.swift 已支持 appex 缺失自动降级）。
-if [ -d "openssl-stage/lib" ] && [ -f "openssl-stage/lib/libssl.a" ] && false; then
+# v4.3.65：恢复（用户要求）。崩溃触发面已在 v4.3.46 定版彻底绕开：
+# 全部分享入口走 ShareCenter 自建菜单（UIDocumentPicker/拷贝），不再打开系统分享面板，
+# MobileIcons 枚举扩展图标路径不再可达，appex 可安全回归；分享 Debug 入口 v4.3.64 已移除。
+if [ -d "openssl-stage/lib" ] && [ -f "openssl-stage/lib/libssl.a" ]; then
     echo ">>> swift build VpnTunnel appex (openssl-stage present)"
     if swift build -c release --product VpnTunnel \
         -Xswiftc -sdk -Xswiftc "$SDK" \

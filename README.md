@@ -28,6 +28,7 @@
 - `browser.open/navigate/snapshot/click/type/submit/scroll/eval/wait` + 元素绝对 xpath
 - `browser.form_fields/fill_form`：整表自动填充（React/Vue 兼容 value setter + 事件）
 - `browser.wait_for`：元素/正文关键词轮询等待
+- `browser.adblock/clear`：广告/追踪拦截（WKContentRuleList，参考 reynard-browser 内容拦截）+ 缓存/Cookie 清理（对应其存储控制）；navigate 支持 `fresh=true` 忽略缓存强制拉新
 
 ### 🎮 设备伪装（绿盾式）
 - `device.fake/restore`：内存注入 FakeDevice.dylib 改 UIDevice 机型（零残留，重启还原）
