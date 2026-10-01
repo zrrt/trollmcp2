@@ -7,12 +7,12 @@ import UIKit
 /// ShareSheet → SharingUI → UIKitCore → **MobileIcons(LICreateIconForImages/LICreateIconForImage)
 /// → CoreImage → Segmentation fault: 11**。
 ///
-/// **最终根因（v4.3.47 确认）**：TrollMCP2 的 Info.plist 曾声明 `CFBundleDocumentTypes =
+/// **最终根因（v4.3.47 确认）**：TrollAgent 的 Info.plist 曾声明 `CFBundleDocumentTypes =
 /// All Files（public.item，支持所有文件类型）`。系统分享面板枚举"支持当前内容类型的所有
-/// App/扩展"时，**把 TrollMCP2 自己列入**并让 MobileIcons 为它生成图标 —— 侧载环境下
-/// TrollMCP2 的图标注册异常 → MobileIcons/CoreImage SIGSEGV。
+/// App/扩展"时，**把 TrollAgent 自己列入**并让 MobileIcons 为它生成图标 —— 侧载环境下
+/// TrollAgent 的图标注册异常 → MobileIcons/CoreImage SIGSEGV。
 /// 对照：TrollFools 只声明 mach-o/zip/deb 三种类型，分享 ipa/txt 时面板里**没有它自己** → 不崩。
-/// **修复**：删除 All Files 声明（v4.3.47），分享面板不再为 TrollMCP2 生成图标。
+/// **修复**：删除 All Files 声明（v4.3.47），分享面板不再为 TrollAgent 生成图标。
 ///
 /// 兜底：自建分享菜单（拷贝 / 存储到文件 / 用其他 App 打开）绕开 ShareSheet，
 /// 任何情况下都可用。

@@ -1,12 +1,12 @@
 .build/
 *.ipa
 Payload/
-TrollMCP2.app/
+TrollAgent.app/
 .DS_Store
 __MACOSX/
 dl_*
 artifacts
 
 CISH/include/
-TrollMCP2.tipa
-TrollMCP2.zip
+TrollAgent.tipa
+TrollAgent.zip

@@ -1,6 +1,6 @@
 #!/bin/bash
-# TrollMCP2 骨架 IPA 构建脚本（macOS runner / 本地 Mac 均可）
-# 产物：ldid ad-hoc 签名 + 特权 entitlements 注入的 TrollMCP2.ipa —— TrollStore 安装时直接继承
+# TrollAgent 骨架 IPA 构建脚本（macOS runner / 本地 Mac 均可）
+# 产物：ldid ad-hoc 签名 + 特权 entitlements 注入的 TrollAgent.ipa —— TrollStore 安装时直接继承
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -24,7 +24,7 @@ fi
 echo ">>> OpenSSL: $(du -sh openssl-stage/lib | cut -f1)"
 
 # v2.9.249: 部署目标 16→15 治本——按 ios16 编译会引用 iOS16+ 符号(URLRequest.httpMethod/timeoutInterval 等 availability 标注错误的 Swift setter),iOS 15.6 dyld 启动崩;降到 ios14 后编译器自动避免 iOS16+ API
-# v4.3.54: 双架构（arm64 + arm64e）——TrollMCP2 纯 arm64 在 A12+(arm64e 芯片)
+# v4.3.54: 双架构（arm64 + arm64e）——TrollAgent 纯 arm64 在 A12+(arm64e 芯片)
 # 设备上以兼容模式运行，MobileIcons/CoreImage 在 compat 模式下处理图标异常 →
 # 分享面板 LICreateIconForImages SIGSEGV（与 TrollFools 双架构原生运行对比）。
 echo ">>> swift build (arm64-apple-ios15.0, release)"
@@ -34,9 +34,9 @@ swift build -c release \
     -Xcc -isysroot -Xcc "$SDK" \
     -Xcc -target -Xcc arm64-apple-ios15.0
 
-BIN=".build/release/TrollMCP2"
+BIN=".build/release/TrollAgent"
 test -f "$BIN"
-cp "$BIN" /tmp/TrollMCP2-arm64 2>/dev/null || cp "$BIN" "$BIN.arm64"
+cp "$BIN" /tmp/TrollAgent-arm64 2>/dev/null || cp "$BIN" "$BIN.arm64"
 echo ">>> binary: $(du -h "$BIN" | cut -f1)"
 
 echo ">>> swift build (arm64e-apple-ios15.0, release)"
@@ -46,21 +46,21 @@ swift build -c release --scratch-path .build-arm64e \
     -Xcc -isysroot -Xcc "$SDK" \
     -Xcc -target -Xcc arm64e-apple-ios15.0 || echo "!!! arm64e build failed"
 
-BIN64E=".build-arm64e/release/TrollMCP2"
+BIN64E=".build-arm64e/release/TrollAgent"
 if [ -f "$BIN64E" ] && lipo -info "$BIN64E" 2>/dev/null | grep -q "arm64e"; then
     echo ">>> lipo -create (arm64 + arm64e)"
-    lipo -create /tmp/TrollMCP2-arm64 "$BIN64E" -output "$BIN" 2>/dev/null || lipo -create "$BIN.arm64" "$BIN64E" -output "$BIN"
+    lipo -create /tmp/TrollAgent-arm64 "$BIN64E" -output "$BIN" 2>/dev/null || lipo -create "$BIN.arm64" "$BIN64E" -output "$BIN"
 else
     echo ">>> arm64e unavailable -> fallback arm64 only"
 fi
 lipo -info "$BIN" | head -1
 
-APP="TrollMCP2.app"
-IPA="TrollMCP2.ipa"
+APP="TrollAgent.app"
+IPA="TrollAgent.ipa"
 rm -rf "$APP" Payload "$IPA"
 mkdir -p "$APP"
 
-cp "$BIN" "$APP/TrollMCP2"
+cp "$BIN" "$APP/TrollAgent"
 cp Support/Info.plist "$APP/Info.plist"
 
 # v2.9.133: 版本注入——CI 传 RELEASE_VERSION 时覆盖产物版本，
@@ -167,7 +167,7 @@ fi
 # v4.3.50：曾禁用。根因实证：PlugIns/VpnTunnel.appex（networkextension 扩展、无图标文件）
 # 在 TrollStore 侧载环境注册异常，分享面板打开时 MobileIcons 枚举扩展图标 → CoreImage SIGSEGV
 # （崩溃栈固定：ShareSheet → SharingUI → MobileIcons LICreateIconForImages → CoreImage）。
-# 只有 TrollMCP2 崩、TrollFools/系统 App 不崩 = 只有它带异常 appex。
+# 只有 TrollAgent 崩、TrollFools/系统 App 不崩 = 只有它带异常 appex。
 # VPN 抓包功能降级为 local proxy 模式（VpnTools.swift 已支持 appex 缺失自动降级）。
 # v4.3.65：恢复构建（用户要求）。崩溃触发面已在 v4.3.46 定版绕开（分享全走 ShareCenter 自建菜单），
 # 分享 Debug 入口 v4.3.64 已移除。
@@ -209,7 +209,7 @@ fi
 
 # 把特权 entitlements 签入主二进制，TrollStore 安装时才能继承 no-sandbox/no-container/task_for_pid 等权限
 # v2.9.64：强制用 ldid 签名（TrollStore 官方明确要求 ldid -S 格式；codesign ad-hoc 签名格式不同，可能导致 entitlements 不被保留）
-if [ -f "Support/TrollMCP2.entitlements" ]; then
+if [ -f "Support/TrollAgent.entitlements" ]; then
     echo ">>> ldid sign main binary with entitlements"
     # CI 已 brew install ldid；优先用 macOS 原生 ldid（xerub ldid 对 iOS arm64e 兼容最好）
     LDID="$(command -v ldid || true)"
@@ -217,10 +217,10 @@ if [ -f "Support/TrollMCP2.entitlements" ]; then
         echo "!!! ldid not available; cannot inject entitlements" >&2
         exit 1
     fi
-    "$LDID" -S"Support/TrollMCP2.entitlements" "$APP/TrollMCP2"
+    "$LDID" -S"Support/TrollAgent.entitlements" "$APP/TrollAgent"
     echo ">>> signed main binary with ldid"
 else
-    echo "!!! Support/TrollMCP2.entitlements missing" >&2
+    echo "!!! Support/TrollAgent.entitlements missing" >&2
     exit 1
 fi
 
@@ -232,5 +232,5 @@ echo ">>> built: $IPA ($(du -h "$IPA" | cut -f1))"
 
 # v2.9.206: 同时输出 TrollStore 原生 .tipa（TrollDecrypt/TrollFools 同款格式，
 # TrollStore 对自家格式签名/entitlements 处理最完整）。tipa 即 zip（内含 Payload）。
-cp "$IPA" TrollMCP2.tipa
-echo ">>> built: TrollMCP2.tipa ($(du -h "TrollMCP2.tipa" | cut -f1))"
+cp "$IPA" TrollAgent.tipa
+echo ">>> built: TrollAgent.tipa ($(du -h "TrollAgent.tipa" | cut -f1))"

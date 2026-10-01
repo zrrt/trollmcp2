@@ -3,7 +3,7 @@ import zipfile, plistlib, os, shutil
 OUT = r'C:\Users\q3711\WorkBuddy\2026-08-16-16-09-55\artifacts\v2.9.90'
 ART = os.path.join(OUT, 'TrollAgent-v2.9.90-20260907.ipa')
 
-# 第1层：artifact zip → TrollMCP2.ipa
+# 第1层：artifact zip → TrollAgent.ipa
 with zipfile.ZipFile(ART) as z:
     inner = z.namelist()[0]
     data = z.read(inner)
@@ -11,7 +11,7 @@ tmp_ipa = os.path.join(OUT, 'inner.ipa')
 with open(tmp_ipa, 'wb') as f:
     f.write(data)
 
-# 第2层：TrollMCP2.ipa → Payload/TrollMCP2.app
+# 第2层：TrollAgent.ipa → Payload/TrollAgent.app
 extract_dir = os.path.join(OUT, 'payload_check')
 if os.path.exists(extract_dir):
     shutil.rmtree(extract_dir)
@@ -19,7 +19,7 @@ os.makedirs(extract_dir)
 with zipfile.ZipFile(tmp_ipa) as z:
     z.extractall(extract_dir)
 
-app = os.path.join(extract_dir, 'Payload', 'TrollMCP2.app')
+app = os.path.join(extract_dir, 'Payload', 'TrollAgent.app')
 print('app exists:', os.path.isdir(app))
 
 checks = [
@@ -34,7 +34,7 @@ checks = [
     ('whiteIcon-1024x1024.png', None),
     ('outsetIcon-1024x1024.png', None),
     ('originalIcon-1024x1024.png', None),
-    ('TrollMCP2', None),
+    ('TrollAgent', None),
     ('TrollMCPDeveloperInstructions.md', None),
 ]
 for rel, minsize in checks:

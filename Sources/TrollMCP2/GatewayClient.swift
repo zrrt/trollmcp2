@@ -91,7 +91,7 @@ final class GatewayClient: ObservableObject {
         // 发送 hello (携带 token 做配对）
         let hello: [String: Any] = [
             "type": "hello",
-            "client": "TrollMCP2",
+            "client": "TrollAgent",
             "version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0",
             "token": pairedToken ?? ""
         ]

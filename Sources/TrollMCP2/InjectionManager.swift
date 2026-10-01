@@ -416,7 +416,7 @@ final class InjectionManager {
             advice = "目标 App 有反调试/反注入保护 (如聚安全/安全 SDK)，或进程已崩溃。换无防护 App 测试。"
         } else if diag.contains("EBADARCH") || diag.contains("spawnRoot failed (85)") {
             reason = "opainject 架构不兼容"
-            advice = "opainject 二进制与 TrollMCP2 主二进制架构不匹配。检查 Resources/bin/opainject 架构。"
+            advice = "opainject 二进制与 TrollAgent 主二进制架构不匹配。检查 Resources/bin/opainject 架构。"
         } else if diag.contains("spawnRoot failed (2)") {
             reason = "/usr/bin/codesign 不存在 (预期)"
             advice = "TrollStore 环境没有 codesign，正常。ct_bypass 应该能替代。"

@@ -1457,7 +1457,7 @@ struct WebhooksView: View {
         var req = URLRequest(url: target, timeoutInterval: 15)
         setHTTPMethod("POST", on: &req)
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let payload = ["event": "test", "timestamp": ISO8601DateFormatter().string(from: Date()), "app": "TrollMCP2"] as [String: Any]
+        let payload = ["event": "test", "timestamp": ISO8601DateFormatter().string(from: Date()), "app": "TrollAgent"] as [String: Any]
         req.httpBody = try? JSONSerialization.data(withJSONObject: payload)
         URLSession.shared.dataTask(with: req) { _, response, error in
             DispatchQueue.main.async {

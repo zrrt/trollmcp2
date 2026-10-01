@@ -3,7 +3,7 @@ import UIKit
 
 // MARK: - v2.9.3 本机编译 / 构建能力
 //
-// 在 TrollMCP2 内原生实现"设备端编译桥" (此前是独立injected dylib 的 TMBuildAgent 方案）。
+// 在 TrollAgent 内原生实现"设备端编译桥" (此前是独立injected dylib 的 TMBuildAgent 方案）。
 // 工具链约定 (用户手动放置到工作区，符合"编译依赖可手动下载/删除"）：
 //   Documents/Workspace/toolchain/
 //     bin/clang, bin/ld, bin/make, bin/perl, bin/ldid

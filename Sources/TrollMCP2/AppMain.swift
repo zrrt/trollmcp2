@@ -2,7 +2,7 @@ import UIKit
 import SwiftUI
 
 @main
-struct TrollMCP2App {
+struct TrollAgentApp {
     static func main() {
         UIApplicationMain(
             CommandLine.argc,

@@ -16,7 +16,7 @@ public enum JSONRPC {
             return encode(response(id: id, result: [
                 "protocolVersion": "2024-11-05",
                 "capabilities": ["tools": [:]] as [String: Any],
-                "serverInfo": ["name": "TrollMCP2", "version": "2.0.0-m1"],
+                "serverInfo": ["name": "TrollAgent", "version": "2.0.0-m1"],
             ]))
         case "tools/list":
             let list: [[String: Any]] = registry.definitions.map { def in

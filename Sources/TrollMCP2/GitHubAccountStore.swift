@@ -51,7 +51,7 @@ final class GitHubAccountStore: ObservableObject {
     @Published var branch: String
 
     // Device Flow 用 OAuth App client_id。
-    // 默认值 = 内置共享 Client ID (origina47487lhe-droid 注册的 "TrollMCP2 线上编译" OAuth App，
+    // 默认值 = 内置共享 Client ID (origina47487lhe-droid 注册的 "TrollAgent 线上编译" OAuth App，
     // Device Flow 已启用）。任意 GitHub 用户都可借此授权，各自拿自己的 token——新手零配置。
     // 高级用户可在「仓库设置」覆盖为自己的 OAuth App。
     @Published var clientID: String
@@ -69,7 +69,7 @@ final class GitHubAccountStore: ObservableObject {
     private let branchKey = "trollmcp2.github_branch"
     private let clientIDKey = "trollmcp2.github_client_id"
 
-    /// 内置默认 OAuth App Client ID (origina47487lhe-droid 注册的 "TrollMCP2 线上编译"，Device Flow 实测有效）
+    /// 内置默认 OAuth App Client ID (origina47487lhe-droid 注册的 "TrollAgent 线上编译"，Device Flow 实测有效）
     static let defaultClientID = "Ov23li890n3hM15edlcw"
 
     private let apiBase = "https://api.github.com"

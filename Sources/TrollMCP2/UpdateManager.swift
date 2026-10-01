@@ -325,7 +325,7 @@ final class UpdateManager: ObservableObject {
         downloadProgress = 0
         errorMessage = nil
 
-        let releaseURL = "https://github.com/\(repo)/releases/download/latest/TrollMCP2.tipa"
+        let releaseURL = "https://github.com/\(repo)/releases/download/latest/TrollAgent.tipa"
         var attempts: [(url: String, isArtifact: Bool)] = []
         if let art = artifactDownloadURL { attempts.append((art, true)) }
         attempts.append((releaseURL, false))
@@ -375,14 +375,14 @@ final class UpdateManager: ObservableObject {
         task.resume()
     }
 
-    /// 处理下载结果：artifact zip → 解压出 TrollMCP2.tipa；Release 资产 → tipa 本体。
+    /// 处理下载结果：artifact zip → 解压出 TrollAgent.tipa；Release 资产 → tipa 本体。
     /// 返回是否成功（失败则由下载链换下一个源）。
     private func processDownloaded(_ tempURL: URL, isArtifact: Bool, version: String) -> Bool {
         do {
             let data = try Data(contentsOf: tempURL)
             let names = (try? ZipExtractor.entries(data).map { $0.name }) ?? []
             var finalURL: URL?
-            if names.contains("TrollMCP2.tipa") {
+            if names.contains("TrollAgent.tipa") {
                 // GitHub artifact zip（内含 tipa）
                 let zipPath = tempURL.appendingPathExtension("zip")
                 if FileManager.default.fileExists(atPath: zipPath.path) { try FileManager.default.removeItem(at: zipPath) }
@@ -390,10 +390,10 @@ final class UpdateManager: ObservableObject {
                 let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ta-update-\(Int(Date().timeIntervalSince1970))")
                 try ZipExtractor.unzip(zipPath, to: dir)
                 try? FileManager.default.removeItem(at: zipPath)
-                finalURL = dir.appendingPathComponent("TrollMCP2.tipa")
+                finalURL = dir.appendingPathComponent("TrollAgent.tipa")
             } else if names.contains(where: { $0.hasPrefix("Payload/") }) || !isArtifact {
                 // tipa 本体（zip 含 Payload/）
-                let dest = FileManager.default.temporaryDirectory.appendingPathComponent("TrollMCP2-v\(version).tipa")
+                let dest = FileManager.default.temporaryDirectory.appendingPathComponent("TrollAgent-v\(version).tipa")
                 if FileManager.default.fileExists(atPath: dest.path) { try FileManager.default.removeItem(at: dest) }
                 try FileManager.default.moveItem(at: tempURL, to: dest)
                 finalURL = dest

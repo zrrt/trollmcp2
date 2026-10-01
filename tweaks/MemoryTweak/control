@@ -3,7 +3,7 @@ Name: MemoryTweak
 Version: 1.0
 Architecture: iphoneos-arm64
 Description: H5gg-style memory tweak dylib with HTTP API
-Maintainer: TrollMCP2
-Author: TrollMCP2
+Maintainer: TrollAgent
+Author: TrollAgent
 Section: Tweaks
 Priority: optional

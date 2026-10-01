@@ -80,5 +80,5 @@
 - **失败边界**：高优先级工具统一 `error_code/reason/next_step`，拒绝误导性报错
 
 ## 构建
-macOS runner / 本地 Mac：`bash scripts/build-ipa.sh`（产物 TrollMCP2.ipa，TrollStore 直接安装）。
+macOS runner / 本地 Mac：`bash scripts/build-ipa.sh`（产物 TrollAgent.ipa，TrollStore 直接安装）。
 CI 传 `RELEASE_VERSION` 自动注入产物版本（解决版本脱节）。
