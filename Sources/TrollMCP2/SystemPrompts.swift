@@ -471,14 +471,28 @@ final class SystemPrompts {
       to the built-in browser automatically.
 
     === SHELL & ENVIRONMENT (authoritative) ===
-    - shell.exec has built-in iOS native commands on the REAL iOS FS (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/
-      sed/pwd/touch/wc/df/free/uname/uptime/hostname/ps/top/kill/ifconfig/netstat/nslookup/curl/plutil/sqlite3/unzip).
+    - shell.exec has built-in iOS native commands on the REAL iOS FS (v4.4.x native toolchain, run directly on the
+      iPhone chip): ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/df/free/uname/uptime/hostname/ps/
+      top/kill/ifconfig/netstat/nslookup/curl/plutil/sqlite3/unzip/tar/gzip/md5sum/sha256sum/diff/hexdump/base64/
+      strings/nm/kfd_diag + python3 + objdump + class-dump.
       Pipes/semicolons/redirection/&&/|| are supported.
+    - NATIVE PYTHON (v4.4.x): `python3` is the App-bundled ARM64 CPython 3.14 (PEP 730, iPhone chip, NOT the iSH
+      simulator). Usage: `python3 -c "code"`, `python3 script.py`, `python3 -m module`. It CAN import numpy/pandas/
+      matplotlib (C extensions run natively). The iSH/Alpine python3 is different: `import numpy` there segfaults the
+      app (openblas unsupported by the simulator) — the guard blocks it. To force the Alpine python3 use `sh -c 'python3 ...'`.
+    - NATIVE REVERSE TOOLS (v4.4.x, in-process, no external binary): `objdump <mach-o>` prints header/load commands/
+      sections/symbols, `objdump -d <mach-o>` adds ARM64 disassembly; `class-dump <mach-o>` prints Objective-C classes
+      and methods (__objc_classname/__objc_methname); `nm [-a] <mach-o>` symbols; `strings <mach-o>` strings. These read
+      huge files directly with no 2MB limit.
+    - BUNDLED NATIVE BINARIES (v4.4.x): lua / node / r2 (radare2) are App-bundled arm64 iOS binaries. Call
+      `tool.install name:lua` (or node/r2) — it binds the App-bundled binary (no network install), then call them like
+      builtin tools: `lua script.lua`, `node script.js`, `r2 -A <mach-o>`. r2 covers rizin functionality.
     - NATIVE SHELL LIMITS: absolute paths only — no glob expansion, no `cd`-then-relative (cd is ignored), don't wrap
       paths in quotes (quotes become part of the path).
     - ENVIRONMENT ROUTING (auto, no choice): default is iOS native. The system auto-routes to Alpine only when a
-      command needs tools native lacks (apk add/tar/dpkg/python/full scripts). Never pass `env` to switch (ignored);
-      never write `env:alpine`/`env:ios` prefixes (cause "not found").
+      command needs tools native lacks (apk add/tar/dpkg/git/sh -c/full scripts). python3 now defaults to the App-bundled
+      NATIVE CPython (numpy/pandas OK); force the iSH/Alpine one with `sh -c 'python3 ...'`. Never pass `env` to switch
+      (ignored); never write `env:alpine`/`env:ios` prefixes (cause "not found").
     - iOS↔Alpine AUTO-BIND (v4.1.0): an Alpine command may reference iOS paths under the app's own WORKSPACE
       (/var/mobile/Documents/Workspace → /ios_workspace) or /var/containers (→ /ios_containers) or /System (→ /ios_system,
       read-only); the system auto-mounts those and rewrites the paths — Alpine reads/writes those iOS files directly,
@@ -501,18 +515,18 @@ final class SystemPrompts {
       diagnosis hint (network / timeout / package-not-in-repo) — read it and either re-run once (packages usually cached
       after the first partial install) or tell the user the real cause; don't blindly retry many times or invent
       workarounds. PROVISION LIMIT: only Linux ANALYSIS tools are installable
-      (strings/file/sqlite3/python/objdump...). The on-device iOS BUILD toolchain (Theos+clang+llvm) is NOT installable
+      (strings/file/sqlite3/...). objdump/python3 now exist NATIVELY (no Alpine needed); `tool.install name:lua|node|r2`
+      binds App-bundled arm64 binaries (no network). The on-device iOS BUILD toolchain (Theos+clang+llvm) is NOT installable
       — `toolchain.install` reports unavailable; `apk add clang` is Linux-only and can't compile iOS. Use PC
       cross-compile / GitHub Actions for iOS builds.
-    - CALL ROUTING (v4.3.76): builtin native bin (Resources/bin) > already-installed Alpine tool > auto-provision
-      (whitelisted packages only; non-Alpine names like jtool2 are NOT auto-installed — the hint says so, then use
-      `tool.install name:jtool2` which goes to CI cross-compile) > `tool.install` explicit path. Single commands NOT in
-      the iOS-native whitelist are auto-routed to Alpine WITH the same call algorithm as builtin tools: iOS paths are
-      auto-bound (e.g. `objdump -x /var/mobile/x` → Alpine sees /ios_mobile/x, reads the file directly) and a missing
-      whitelisted tool auto-installs + reruns once. So a tool installed via tool.install is called exactly like a builtin:
-      `name <args> /var/mobile/...` just works. If you need the FULL Alpine implementation of a command that also has an
-      iOS-native shortcut (xxd/sqlite3/tar/unzip/curl), prefix with `sh -c '...'` to force Alpine. Don't install something
-      that's already available (`which` first is wasteful — just run it).
+    - CALL ROUTING (v4.3.76; v4.4.x 更新): builtin native bin (Resources/bin + App 内置原生工具) > iOS-native command >
+      already-installed Alpine tool > auto-provision (whitelisted packages only) > `tool.install` explicit path. Single
+      commands NOT in the iOS-native whitelist are auto-routed to Alpine WITH the same call algorithm as builtin tools:
+      iOS paths are auto-bound (e.g. `jq . /var/mobile/x.json` → Alpine sees /ios_mobile/x.json, reads the file directly)
+      and a missing whitelisted tool auto-installs + reruns once. So a tool installed via tool.install is called exactly
+      like a builtin: `name <args> /var/mobile/...` just works. If you need the FULL Alpine implementation of a command
+      that also has an iOS-native shortcut (python3/sqlite3/tar/unzip/curl/objdump), prefix with `sh -c '...'` to force
+      Alpine. Don't install something that's already available (`which` first is wasteful — just run it).
     - UNIFIED INSTALLER (v4.3.65): when a specific tool is needed, call `tool.install name:<tool>` — it checks builtin
       native bin → Alpine apk (instant) → pip (Python packages) → GitHub Actions `build-tool.yml` cross-compile for
       native iOS binaries (jtool2/class-dump etc., best-effort; GitHub login required for CI path, then github
