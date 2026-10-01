@@ -155,6 +155,22 @@ final class AppCatalog {
         return nil
     }
 
+    /// v4.3.64：懒查某个 App 的 Bundle 安装路径（不触发全量枚举）。
+    /// 用于 UpdateManager 找 trollstorehelper 等场景——对齐 TrollFools 干净枚举：
+    /// 单查 LSApplicationProxy，绝不遍历 allApplications。
+    static func lookupBundlePath(bundleId: String) -> String? {
+        guard let cls = NSClassFromString("LSApplicationProxy") as? NSObject.Type else { return nil }
+        let sel = NSSelectorFromString("applicationProxyForIdentifier:")
+        guard let m = class_getClassMethod(cls, sel) else { return nil }
+        typealias GetFn = @convention(c) (AnyClass, Selector, NSString) -> AnyObject?
+        let fn = unsafeBitCast(method_getImplementation(m), to: GetFn.self)
+        guard let proxy = fn(cls, sel, bundleId as NSString) as? NSObject else { return nil }
+        if let url = safeValue(proxy, "bundleURL") as? URL {
+            return url.path
+        }
+        return nil
+    }
+
     static func cachedCount() -> Int {
         listLock.lock()
         defer { listLock.unlock() }

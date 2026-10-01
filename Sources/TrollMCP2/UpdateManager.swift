@@ -414,9 +414,9 @@ final class UpdateManager: ObservableObject {
     /// v4.3.35: 自动安装——优先 trollstorehelper 静默安装(同 app install/inject_package 通道)，
     /// 不再只弹系统分享菜单让用户手动"用 TrollStore 打开"。
     func installIPA(at url: URL) {
-        // 1) 找 trollstorehelper
+        // 1) 找 trollstorehelper（v4.3.64：懒查单 App 路径，不再全量枚举——对齐 TrollFools 干净枚举）
         var helper = "/var/usr/bin/trollstorehelper"
-        let tsPath = AppCatalog.list().first { $0.bundleId == "com.opa334.TrollStore" }?.path ?? ""
+        let tsPath = AppCatalog.lookupBundlePath(bundleId: "com.opa334.TrollStore") ?? ""
         if !tsPath.isEmpty {
             let candidates = [tsPath + "/trollstorehelper", tsPath + "/TrollStore.app/trollstorehelper",
                               (tsPath as NSString).deletingLastPathComponent + "/trollstorehelper"]
