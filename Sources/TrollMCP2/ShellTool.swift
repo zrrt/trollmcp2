@@ -1782,19 +1782,20 @@ final class ShellExecTool: MCPTool {
             out.append("symbols (__text defined): \(count > 60 ? "60+" : "\(count)")")
         }
 
-        // -d 反汇编 __text
+        // -d 反汇编 __text（sections 元组: 0=节名, 1=addr(UInt64), 2=fileoff(Int), 3=size(Int)）
         if disasm, let textSec = sections.first(where: { $0.0 == "__text" }) {
             var asm: [String] = []
-            let startOff = textSec.3
+            let startOff = textSec.2
+            let textSize = textSec.3
             let maxInsns = 200
             for i in 0..<maxInsns {
                 let o = startOff + i*4
-                if o + 4 > b.count || i*4 >= textSec.4 { break }
+                if o + 4 > b.count || i*4 >= textSize { break }
                 let ins = u32(o)
-                let addr = textSec.2 + UInt64(i*4)
+                let addr = textSec.1 + UInt64(i*4)
                 asm.append(String(format: "%016llx: %08x  %@", addr, ins, decodeA64(ins)))
             }
-            out.append("— __text disassembly (first \(asm.count)/\(textSec.4/4) insns) —")
+            out.append("— __text disassembly (first \(asm.count)/\(textSize/4) insns) —")
             out.append(contentsOf: asm)
         }
 
