@@ -145,6 +145,11 @@ final class OpenAIClient {
                     completion(.failure(NSError(domain: "OpenAIClient", code: -999, userInfo: [NSLocalizedDescriptionKey: "请求已取消"])))
                     return
                 }
+                // v4.3.72：摘要期间用户点了停止 → 不再发主请求
+                if self.cancelled {
+                    completion(.failure(NSError(domain: "OpenAIClient", code: -999, userInfo: [NSLocalizedDescriptionKey: "请求已取消"])))
+                    return
+                }
                 var msgs = messages
                 if let s = summary, !s.isEmpty,
                    let idx = msgs.firstIndex(where: { $0.role == "system" && $0.content.hasPrefix("[系统] 已省略") }) {

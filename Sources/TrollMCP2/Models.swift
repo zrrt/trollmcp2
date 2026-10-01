@@ -578,7 +578,7 @@ final class ConversationStore: ObservableObject {
     @Published var isLoading = false
     /// v2.8.5：当前请求的实时状态文案 (等待响应/降级重试中），展示在输入指示器旁
     @Published var statusText: String?
-    /// v2.9.34：请求过程可视化——当前第几轮 (对齐老 MCP 的"正在请求模型 (第 N/60 轮）"）
+    /// v2.9.34：请求过程可视化——当前第几轮 (v4.3.71 起无轮次上限)
     @Published var requestRound = 0
     /// v4.3.71：0 = 无轮次上限（已移除 60 轮机制），UI 只显示"第 N 轮"
     @Published var requestRounds = 0
@@ -939,9 +939,13 @@ final class ConversationStore: ObservableObject {
 
         client.send(messages: history, compactSource: prepared.compactSource, tools: effectiveTools, onStatus: { status in
             DispatchQueue.main.async {
-                // v2.9.34：带轮次前缀，展示"正在请求模型 (第 N/60 轮）…"
+                // v2.9.34：带轮次前缀；v4.3.71 无上限 (requestRounds==0) 时不显示 "/0"
                 if self.requestRound > 0 && !status.contains("第 ") {
-                    self.statusText = "正在请求模型 (第 \(self.requestRound)/\(self.requestRounds) 轮)· \(status)"
+                    if self.requestRounds > 0 {
+                        self.statusText = "正在请求模型 (第 \(self.requestRound)/\(self.requestRounds) 轮)· \(status)"
+                    } else {
+                        self.statusText = "正在请求模型 (第 \(self.requestRound) 轮)· \(status)"
+                    }
                 } else {
                     self.statusText = status
                 }

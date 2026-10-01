@@ -153,9 +153,16 @@ final class ShellExecTool: MCPTool {
             let (output, exitCode, timedOut) = ISHEngine.exec(boundCmd, timeout: timeout)            // P3 按需补给：Alpine 输出显示缺工具(command not found)且命中白名单 → 自动 apk add 并重跑一次，
             // 免 agent 反复探测缺什么、也避免"先探测→再装→再跑"的多轮试探。
             var finalOut = output, finalExit = exitCode, finalTimed = timedOut
+            var provisionNote = ""
             if let pkg = ISHEngine.missingToolPkg(output) {
                 ShellDiag.log("provision auto: apk add \(pkg) (missing in Alpine)")
-                _ = ISHEngine.apkAdd([pkg], timeout: 180)   // v4.3.69: 走镜像源+CA 的统一入口
+                // v4.3.72：补给超时与命令 timeout 联动（至少 60s 给装包，最多 240s）——
+                // 修复"命令说 20s 超时、装包却闷头跑 180s、UI 一直显示执行中"的体验问题。
+                let provisionTimeout = min(max(timeout, 60), 240)
+                let provisionStart = Date()
+                _ = ISHEngine.apkAdd([pkg], timeout: provisionTimeout)
+                let provisionElapsed = Int(Date().timeIntervalSince(provisionStart))
+                provisionNote = "首次运行已自动安装缺失工具 \(pkg)（耗时 \(provisionElapsed)s）。"
                 let (rout, rexit, rtimed) = ISHEngine.exec(boundCmd, timeout: timeout)
                 finalOut = rout; finalExit = rexit; finalTimed = rtimed
             }
@@ -170,7 +177,7 @@ final class ShellExecTool: MCPTool {
                 "stdout": stdout,
                 "cwd": ISHEngine.cwd,
                 "ios_native": false,
-                "hint": "Alpine Linux environment (auto-routed: needs full toolchain). 缺工具时系统已自动 apk add 安装并重试一次。"
+                "hint": (provisionNote.isEmpty ? "" : provisionNote) + "Alpine Linux environment (auto-routed: needs full toolchain). 缺工具时系统已自动 apk add 安装并重试一次。"
             ]
             if finalTimed { result["timed_out"] = true }
             AuditLog.shared.log("shell.exec (alpine auto)", detail: String(trimmed.prefix(100)))
