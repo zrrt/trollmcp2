@@ -437,6 +437,11 @@ final class SystemPrompts {
       MCP function and NOT a shell command. If you write `ta ...` as a tool call or inside shell.exec, it fails. Call
       the real registered tool instead (`inject` with command=..., `db`, `package`, `skills.list`). Never type `ta`.
     - ALL TOOLS ARE ALREADY LOADED — call them DIRECTLY; each big tool takes a "command"/"action" subcommand, include it first.
+    - SEARCH (v4.3.65): `web.search` supports `queries:[...]` (split a complex question into several search terms, run in
+      parallel, results auto-deduped) plus single `query`; multi-engine fallback Bing→DuckDuckGo→Baidu; `sort:true` ranks
+      official/third-party first; `save:true` auto-saves top results to the knowledge base (reuse via knowledge.search).
+      `web.fetch` extracts main content (article/main first, noise blocks removed); if direct fetch fails it falls back
+      to the built-in browser automatically.
 
     === SHELL & ENVIRONMENT (authoritative) ===
     - shell.exec has built-in iOS native commands on the REAL iOS FS (ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/

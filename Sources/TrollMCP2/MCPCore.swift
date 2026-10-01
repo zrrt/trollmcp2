@@ -374,7 +374,9 @@ public final class ToolRegistry: ObservableObject {
         // 无法用原生 sqlite3 直读 App 数据容器、无法解包分析；vpn.capture 随 VPN 抓包恢复一并默认启用；
         // skills.* 让技能系统真正按需加载生效
         "file", "db", "package", "vpn.capture",
-        "skills.list", "skills.read", "skills.set_enabled"
+        "skills.list", "skills.read", "skills.set_enabled",
+        // v4.3.65：恢复注册的联网检索工具（多引擎回退 + 多 query 并行 + 正文抽取）
+        "web.search", "web.fetch"
     ]
 
     /// v2.9.31：常驻核心工具名集合 (UI 用只读访问）
@@ -1266,6 +1268,10 @@ public final class ToolRegistry: ObservableObject {
         // v4.3.65：统一工具安装（AI 自动装工具/依赖闭环）——tool.install / env.setup_re
         register(ToolInstallTool())
         register(EnvSetupRETool())
+        // v4.3.65：恢复注册 web.search / web.fetch（v3.1.54 曾删，现升级回归：
+        // 多 query 并行、多引擎回退 Bing→DuckDuckGo→Baidu、去重/来源分级、正文抽取、可沉淀知识库）
+        register(WebSearchTool())
+        register(WebFetchTool())
         // v3.7.7c: 移除 ish.bind 注册——bind mount 已由 autoBind 全自动（命令引用 iOS 路径自动挂载+改写），
         // 手动 bind 工具对 AI 是误导（会以为要手动挂载）。类定义保留供开发者调试/真机验证。
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")

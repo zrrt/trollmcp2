@@ -120,29 +120,99 @@ final class DeviceSnapshotTool: MCPTool {
 
 final class WebSearchTool: MCPTool {
     let definition = ToolDefinition(name: "web.search",
-        summary: "Search the web (Google/Bing). Use for: find information online, look up facts, search for tutorials/docs. Don't use for: open a specific website (use browser.open), search saved knowledge (use knowledge.search). Example: user says 'when was iPhone 16 released' → search web.",
-        parameters: ["query": "Search keywords (e.g. 'iOS 17 jailbreak guide')", "limit": "Max results (default 8)"], verified: true, category: "browser")
+        summary: "Search the web with multi-engine fallback (Bing → DuckDuckGo → Baidu) and multi-query support. Use for: find information online, look up facts, search tutorials/docs. Don't use for: open a specific website (use browser.open), search saved knowledge (use knowledge.search). v4.3.65: queries:[...] 并行拆词检索并自动去重合并；sort=true 官方/媒体优先；save=true 自动沉淀知识库。Example: user says 'when was iPhone 16 released' → search web.",
+        parameters: ["query": "Search keywords (e.g. 'iOS 17 jailbreak guide')",
+                     "queries": "Array of search terms to run in parallel & merge (optional, preferred for complex topics)",
+                     "limit": "Max results per query (default 8)",
+                     "sort": "true=official/third-party sources first (default false, keep engine relevance)",
+                     "save": "true=auto-save top results to knowledge base (default false)"],
+        verified: true, category: "browser")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let query = params["query"] as? String, !query.isEmpty else {
-            throw MCPError.invalidParams("query required")
+        // v4.3.65：多 query 并行 + 多引擎回退（Bing→DuckDuckGo→Baidu）+ 去重/来源分级 + 可选沉淀知识库
+        let queries: [String]
+        if let qs = params["queries"] as? [String], !qs.isEmpty {
+            queries = qs.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        } else if let q = params["query"] as? String, !q.isEmpty {
+            queries = [q.trimmingCharacters(in: .whitespacesAndNewlines)]
+        } else {
+            throw MCPError.invalidParams("query or queries required")
         }
-        let limit = params["limit"] as? Int ?? 8
-        let q = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
+        let limit = min(max(params["limit"] as? Int ?? 8, 1), 30)
+        let sortBySource = params["sort"] as? Bool ?? false   // true=官方/媒体优先
+        let save = params["save"] as? Bool ?? false           // true=结果自动沉淀知识库
 
-        // 1) Bing 主引擎
-        let bingResults = fetchBing(query: q, limit: limit)
-        if !bingResults.isEmpty {
-            AuditLog.shared.log("web.search", detail: "\(query) → Bing \(bingResults.count) 条")
-            let officialCount = bingResults.filter { $0["source_type"] == "official" }.count
-            return ["query": query, "engine": "Bing", "count": bingResults.count, "results": bingResults,
-                    "official_count": officialCount, "source_note": Self.sourceNote]
+        var all: [[String: String]] = []
+        var engineCounts: [String: Int] = [:]
+        for q in queries {
+            let enc = q.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? q
+            var res = fetchBing(query: enc, limit: limit)
+            if res.isEmpty {
+                res = fetchDuckDuckGo(query: enc, limit: limit)
+                engineCounts["DuckDuckGo", default: 0] += res.count
+            } else {
+                engineCounts["Bing", default: 0] += res.count
+            }
+            if res.isEmpty {
+                res = fetchBaidu(query: enc, limit: limit)
+                engineCounts["Baidu", default: 0] += res.count
+            }
+            all += res
         }
-        // 2) DuckDuckGo 免 key fallback
-        let ddgResults = fetchDuckDuckGo(query: q, limit: limit)
-        AuditLog.shared.log("web.search", detail: "\(query) → DuckDuckGo \(ddgResults.count) 条 (Bing 无结果时回退)")
-        let officialCount = ddgResults.filter { $0["source_type"] == "official" }.count
-        return ["query": query, "engine": ddgResults.isEmpty ? "none" : "DuckDuckGo", "count": ddgResults.count, "results": ddgResults,
-                "official_count": officialCount, "source_note": Self.sourceNote]
+
+        // 去重（按 URL 保留首个）+ 截断摘要（防 token 爆炸）
+        var seen = Set<String>()
+        var deduped: [[String: String]] = []
+        for r in all {
+            if let u = r["url"], seen.insert(u).inserted {
+                deduped.append(r)
+            }
+        }
+        for i in deduped.indices {
+            if var sn = deduped[i]["snippet"], sn.count > 300 {
+                sn = String(sn.prefix(300)) + "…"
+                deduped[i]["snippet"] = sn
+            }
+        }
+        // 来源分级排序（可选，默认保持引擎相关性顺序）
+        if sortBySource {
+            deduped.sort { Self.sourceRank($0["source_type"] ?? "") < Self.sourceRank($1["source_type"] ?? "") }
+        }
+        let results = Array(deduped.prefix(limit * queries.count))
+        let officialCount = results.filter { $0["source_type"] == "official" }.count
+        let engines = engineCounts.filter { $0.value > 0 }.keys.sorted()
+
+        var out: [String: Any] = [
+            "query": queries.count == 1 ? queries[0] : queries,
+            "engine": engines.isEmpty ? "none" : engines.joined(separator: "+"),
+            "count": results.count, "results": results,
+            "official_count": officialCount,
+            "source_note": Self.sourceNote,
+        ]
+        if save && !results.isEmpty {
+            out["saved_to_knowledge"] = saveToKnowledge(queries: queries, results: results)
+        }
+        AuditLog.shared.log("web.search", detail: "\(queries.joined(separator: "|")) → \(engines.joined(separator: "+")) \(results.count) 条")
+        return out
+    }
+
+    private static func sourceRank(_ t: String) -> Int {
+        t == "official" ? 0 : (t == "third_party" ? 1 : 2)
+    }
+
+    /// v4.3.65：结果自动沉淀到知识库（供后续 knowledge.search 免搜复用）
+    private func saveToKnowledge(queries: [String], results: [[String: String]]) -> String {
+        KnowledgeStore.shared.ensure()
+        let date = DateFormatter.localizedString(from: Date(), dateStyle: .short, timeStyle: .short)
+            .replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+        let safeQ = String(queries.joined(separator: "_").replacingOccurrences(of: " ", with: "-").prefix(30))
+        let name = "web-\(date)-\(safeQ).md"
+        var md = "# 搜索结果：\(queries.joined(separator: " | "))\n\n"
+        for (i, r) in results.prefix(10).enumerated() {
+            md += "\(i + 1). [\(r["title"] ?? "")](\(r["url"] ?? ""))\n   \(r["snippet"] ?? "")\n"
+        }
+        let file = KnowledgeStore.shared.dir.appendingPathComponent(name)
+        try? md.write(to: file, atomically: true, encoding: .utf8)
+        return name
     }
 
     /// v4.3.26：来源分级说明——AI 看到 unknown 小站应交叉验证，不直接采信
@@ -199,28 +269,78 @@ final class WebSearchTool: MCPTool {
         return parseDuckDuckGo(html: html, limit: limit)
     }
 
-    /// 同步抓取网页 (15 秒超时）
-    /// v2.9.129：UA 改桌面 Chrome —— Bing 移动版 HTML 结构与桌面版不同且不稳定，
-    /// 桌面版 b_algo 结构多年稳定，解析命中率高
-    private func fetchHTML(_ url: URL) -> String? {
-        var html: String?
-        var fetchError: String?
+    /// v4.3.65：Baidu 回退引擎（返回 GBK，需 GB18030 解码）
+    private func fetchBaidu(query: String, limit: Int) -> [[String: String]] {
+        guard let url = URL(string: "https://www.baidu.com/s?wd=\(query)") else { return [] }
+        guard let data = fetchData(url) else { return [] }
+        return parseBaidu(html: decodeHTMLText(data), limit: limit)
+    }
+
+    /// v4.3.65：Baidu 结果解析——h3.t + a 标题 + c-abstract 摘要；跳转链接剥回真实 URL
+    private func parseBaidu(html: String, limit: Int) -> [[String: String]] {
+        guard let re = try? NSRegularExpression(
+            pattern: "<h3[^>]*class=\"[^\"]*t[^\"]*\"[^>]*>[\\s\\S]*?<a[^>]*href=\"([^\"]+)\"[^>]*>([\\s\\S]*?)</a>[\\s\\S]*?</h3>",
+            options: [.dotMatchesLineSeparators]) else { return [] }
+        let ns = html as NSString
+        let matches = re.matches(in: html, range: NSRange(location: 0, length: ns.length))
+        var out: [[String: String]] = []
+        var seen = Set<String>()
+        for m in matches {
+            var url = ns.substring(with: m.range(at: 1)).replacingOccurrences(of: "&amp;", with: "&")
+            let title = ns.substring(with: m.range(at: 2)).stripHTMLTags()
+            if let real = Self.realBaiduURL(url) { url = real }
+            guard !title.isEmpty, !url.isEmpty, seen.insert(url).inserted else { continue }
+            let blockRange = NSRange(location: m.range.location, length: min(ns.length - m.range.location, 800))
+            let block = ns.substring(with: blockRange)
+            let snippet = (block.firstCapture(pattern: "class=\"c-abstract\"[^>]*>([\\s\\S]*?)</div>") ?? "")
+                .stripHTMLTags()
+            out.append(["title": title, "url": url, "snippet": snippet, "source_type": Self.sourceType(for: url)])
+            if out.count >= limit { break }
+        }
+        return out
+    }
+
+    /// Baidu 跳转链接（www.baidu.com/link?url=xxx）→ 真实 URL；解不出时返回 nil 保留原样
+    private static func realBaiduURL(_ url: String) -> String? {
+        guard url.contains("baidu.com/link?url="),
+              let comps = URLComponents(string: url),
+              let u = comps.queryItems?.first(where: { $0.name == "url" })?.value else { return nil }
+        return u.removingPercentEncoding ?? u
+    }
+
+    /// v4.3.65：GB18030 优先解码（Baidu/GBK 站点），失败回退 UTF-8
+    private func decodeHTMLText(_ data: Data) -> String {
+        let enc = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue))
+        if let s = String(data: data, encoding: String.Encoding(rawValue: enc)) { return s }
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    /// 同步抓取原始数据 (15 秒超时，桌面 Chrome UA）
+    private func fetchData(_ url: URL) -> Data? {
+        var data: Data?
         let sem = DispatchSemaphore(value: 0)
         DispatchQueue.global().async {
             var req = URLRequest(url: url, timeoutInterval: 15)
             req.setValue("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
-            let task = URLSession.shared.dataTask(with: req) { data, _, err in
-                defer { sem.signal() }
-                if let err = err { fetchError = err.localizedDescription; return }
-                html = String(data: data ?? Data(), encoding: .utf8)
+            let task = URLSession.shared.dataTask(with: req) { d, _, _ in
+                data = d
+                sem.signal()
             }
             task.resume()
         }
         sem.wait()
-        if let e = fetchError {
-            AuditLog.shared.log("web.search", detail: "fetch failed: \(e)")
+        return data
+    }
+
+    /// 同步抓取网页并 UTF-8 解码 (15 秒超时）
+    /// v2.9.129：UA 改桌面 Chrome —— Bing 移动版 HTML 结构与桌面版不同且不稳定，
+    /// 桌面版 b_algo 结构多年稳定，解析命中率高
+    private func fetchHTML(_ url: URL) -> String? {
+        guard let data = fetchData(url) else {
+            AuditLog.shared.log("web.search", detail: "fetch failed: \(url.absoluteString)")
+            return nil
         }
-        return html
+        return String(data: data, encoding: .utf8)
     }
 
     /// v2.9.129：Bing 解析增强——三级兜底，不再"只出一条"
@@ -355,9 +475,9 @@ final class WebFetchTool: MCPTool {
         guard let raw = html else {
             throw MCPError.failed("fetch failed: \(urlString) (direct fetch and browser fallback both failed)")
         }
-        // 提取标题 + 正文纯文本
+        // 提取标题 + 正文纯文本（v4.3.65：article/main 优先抽取、去噪块，不再整页倾倒）
         let title = raw.firstCapture(pattern: "<title[^>]*>(.*?)</title>")?.stripHTMLTags() ?? ""
-        var text = stripHTML(raw)
+        var text = extractMainText(raw, maxChars: maxChars)
         if !text.isEmpty {
             text = String(text.prefix(maxChars))
         }
@@ -365,9 +485,28 @@ final class WebFetchTool: MCPTool {
         return ["url": urlString, "title": title, "text": text]
     }
 
-    /// HTML → 纯文本 (去 script/style/标签，压缩空白）
+    /// v4.3.65：正文抽取——先去噪块（nav/header/footer/aside/iframe/form/svg），
+    /// 优先 <article> 区块，其次 <main>，最后回退全文；避免把导航/页脚灌给 AI
+    private func extractMainText(_ html: String, maxChars: Int) -> String {
+        var s = html
+        for tag in ["nav", "header", "footer", "aside", "iframe", "form", "noscript", "svg", "script", "style"] {
+            s = s.replacingOccurrences(of: "<\(tag)[\\s\\S]*?</\(tag)>", with: " ", options: .regularExpression)
+        }
+        if let article = s.firstCapture(pattern: "<article[^>]*>([\\s\\S]*?)</article>") {
+            let t = stripHTML(article)
+            if t.count > 200 { return String(t.prefix(maxChars)) }
+        }
+        if let main = s.firstCapture(pattern: "<main[^>]*>([\\s\\S]*?)</main>") {
+            let t = stripHTML(main)
+            if t.count > 200 { return String(t.prefix(maxChars)) }
+        }
+        return String(stripHTML(s).prefix(maxChars))
+    }
+
+    /// HTML → 纯文本 (去注释/script/style/标签，压缩空白）
     private func stripHTML(_ html: String) -> String {
         var s = html
+        s = s.replacingOccurrences(of: "<![\\s\\S]*?>", with: " ", options: .regularExpression)   // 注释/DOCTYPE
         s = s.replacingOccurrences(of: "<script[\\s\\S]*?</script>", with: " ", options: .regularExpression)
         s = s.replacingOccurrences(of: "<style[\\s\\S]*?</style>", with: " ", options: .regularExpression)
         s = s.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
@@ -375,6 +514,8 @@ final class WebFetchTool: MCPTool {
         s = s.replacingOccurrences(of: "&amp;", with: "&")
         s = s.replacingOccurrences(of: "&lt;", with: "<")
         s = s.replacingOccurrences(of: "&gt;", with: ">")
+        s = s.replacingOccurrences(of: "&quot;", with: "\"")
+        s = s.replacingOccurrences(of: "&#39;", with: "'")
         s = s.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
         return s.trimmingCharacters(in: .whitespacesAndNewlines)
     }
