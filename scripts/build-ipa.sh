@@ -144,6 +144,12 @@ fi
 # v3.0.41：ios_system 已删除，不再需要 @executable_path rpath 与 shellhelper 独立进程
 
 # v3.3.0: MITM VPN appex —— 编译 VpnTunnel target + 组装 PlugIns/VpnTunnel.appex + 签名
+# v4.3.50：已禁用。根因实证：PlugIns/VpnTunnel.appex（networkextension 扩展、无图标文件）
+# 在 TrollStore 侧载环境注册异常，分享面板打开时 MobileIcons 枚举扩展图标 → CoreImage SIGSEGV
+# （崩溃栈固定：ShareSheet → SharingUI → MobileIcons LICreateIconForImages → CoreImage）。
+# 只有 TrollMCP2 崩、TrollFools/系统 App 不崩 = 只有它带异常 appex。
+# VPN 抓包功能降级为 local proxy 模式（VpnTools.swift 已支持 appex 缺失自动降级）。
+if false; then
 if [ -d "openssl-stage/lib" ] && [ -f "openssl-stage/lib/libssl.a" ]; then
     echo ">>> swift build VpnTunnel appex (openssl-stage present)"
     if swift build -c release --product VpnTunnel \
