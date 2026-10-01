@@ -12,6 +12,19 @@
 	<string>TrollAgent</string>
 	<key>CFBundleExecutable</key>
 	<string>TrollMCP2</string>
+	<key>CFBundleIcons</key>
+	<dict>
+		<key>CFBundlePrimaryIcon</key>
+		<dict>
+			<key>CFBundleIconFiles</key>
+			<array>
+				<string>AppIcon60x60</string>
+				<string>AppIcon1024x1024</string>
+			</array>
+			<key>CFBundleIconName</key>
+			<string>AppIcon</string>
+		</dict>
+	</dict>
 	<key>CFBundleIdentifier</key>
 	<string>com.trollagent.app</string>
 	<key>CFBundleInfoDictionaryVersion</key>
@@ -21,7 +34,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>4.3.61</string>
+	<string>4.3.62</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
