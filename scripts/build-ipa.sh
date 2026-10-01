@@ -24,6 +24,9 @@ fi
 echo ">>> OpenSSL: $(du -sh openssl-stage/lib | cut -f1)"
 
 # v2.9.249: 部署目标 16→15 治本——按 ios16 编译会引用 iOS16+ 符号(URLRequest.httpMethod/timeoutInterval 等 availability 标注错误的 Swift setter),iOS 15.6 dyld 启动崩;降到 ios14 后编译器自动避免 iOS16+ API
+# v4.3.54: 双架构（arm64 + arm64e）——TrollMCP2 纯 arm64 在 A12+(arm64e 芯片)
+# 设备上以兼容模式运行，MobileIcons/CoreImage 在 compat 模式下处理图标异常 →
+# 分享面板 LICreateIconForImages SIGSEGV（与 TrollFools 双架构原生运行对比）。
 echo ">>> swift build (arm64-apple-ios15.0, release)"
 swift build -c release \
     -Xswiftc -sdk -Xswiftc "$SDK" \
@@ -33,7 +36,24 @@ swift build -c release \
 
 BIN=".build/release/TrollMCP2"
 test -f "$BIN"
+cp "$BIN" /tmp/TrollMCP2-arm64 2>/dev/null || cp "$BIN" "$BIN.arm64"
 echo ">>> binary: $(du -h "$BIN" | cut -f1)"
+
+echo ">>> swift build (arm64e-apple-ios15.0, release)"
+swift build -c release --scratch-path .build-arm64e \
+    -Xswiftc -sdk -Xswiftc "$SDK" \
+    -Xswiftc -target -Xswiftc arm64e-apple-ios15.0 \
+    -Xcc -isysroot -Xcc "$SDK" \
+    -Xcc -target -Xcc arm64e-apple-ios15.0 || echo "!!! arm64e build failed"
+
+BIN64E=".build-arm64e/release/TrollMCP2"
+if [ -f "$BIN64E" ] && lipo -info "$BIN64E" 2>/dev/null | grep -q "arm64e"; then
+    echo ">>> lipo -create (arm64 + arm64e)"
+    lipo -create /tmp/TrollMCP2-arm64 "$BIN64E" -output "$BIN" 2>/dev/null || lipo -create "$BIN.arm64" "$BIN64E" -output "$BIN"
+else
+    echo ">>> arm64e unavailable -> fallback arm64 only"
+fi
+lipo -info "$BIN" | head -1
 
 APP="TrollMCP2.app"
 IPA="TrollMCP2.ipa"
