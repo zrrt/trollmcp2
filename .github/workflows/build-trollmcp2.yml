@@ -25,7 +25,9 @@ jobs:
         with:
           path: native-tools-out
           # v3: 修复 lua(system() iOS 不可用)/r2(缺 capstone) 后强制重构建（v2 缓存只含 node）
+          # fix3g: save-always:false——构建失败不写缓存，防空产物毒化
           key: native-tools-v3
+          save-always: false
 
       - name: Build lua 5.4 (iOS arm64)
         if: steps.tools-cache.outputs.cache-hit != 'true'
@@ -358,7 +360,9 @@ jobs:
         id: pycache
         with:
           path: cpython/cross-build/dist
+          # fix3g: save-always:false——编译失败不写缓存，防空产物毒化
           key: python-ios-dist-3.14.8-v1
+          save-always: false
 
       - name: Build Python.xcframework (iOS arm64, official Apple build script)
         if: steps.pycache.outputs.cache-hit != 'true'
@@ -391,27 +395,38 @@ jobs:
         id: wheels-cache
         with:
           path: wheels-out
-          # fix3f: v1→v2——v1 被 fix3d 的"假成功"污染（cibuildwheel | tail 吞错→空 wheels-out
-          # 仍被 cache save→fix3e 命中空缓存→构建被跳过→upload error→job fail）。升 key 强制重建。
-          key: ios-wheels-numpy-pandas-cp314-v2
+          # fix3g: key v3 + save-always:false——v2 又被 fix3f 失败 run 的空 wheels-out 污染
+          # (actions/cache 的 post save 在 job 失败时也会执行)。save-always:false = 构建失败
+          # 绝不写缓存，根治"空缓存毒化→命中跳过→永远假成功"死循环。
+          key: ios-wheels-numpy-pandas-cp314-v3
+          save-always: false
 
       - name: Build numpy iOS wheel (cp314 arm64 iphoneos)
         if: steps.wheels-cache.outputs.cache-hit != 'true'
         run: |
-          mkdir -p wheels-out
+          set -e
+          mkdir -p wheels-out wheel-src
           pip install cibuildwheel==4.*
-          # fix3e: 去掉 tail 吞错误——cibuildwheel 失败必须让 job fail（此前 | tail -20
-          # 掩盖失败 → job 假 success 且无 artifact → build 拿不到 wheel 还不知情）
+          # fix3g: cibuildwheel 只认本地源码目录，不认 PyPI 包名（此前报
+          # "Could not find any of {setup.py, setup.cfg, pyproject.toml}"）
+          pip download --no-deps --no-binary :all: numpy==2.1.3 -d wheel-src
+          tar -xzf wheel-src/numpy-2.1.3.tar.gz -C wheel-src
           CIBW_PLATFORM=ios CIBW_ARCHS=arm64_iphoneos CIBW_BUILD="cp314-*" \
             CIBW_BEFORE_BUILD="pip install cython" \
-            python -m cibuildwheel numpy --output-dir wheels-out
+            python -m cibuildwheel wheel-src/numpy-2.1.3 --output-dir wheels-out
           ls -la wheels-out/
 
       - name: Build pandas iOS wheel (cp314 arm64 iphoneos)
         if: steps.wheels-cache.outputs.cache-hit != 'true'
         run: |
+          set -e
+          pip download --no-deps --no-binary :all: pandas==2.2.3 -d wheel-src
+          tar -xzf wheel-src/pandas-2.2.3.tar.gz -C wheel-src
+          # fix3g: pandas 构建只需 numpy 头文件(平台无关)——before-build 装 macOS numpy 提供
+          # import numpy.get_include()，源码编 iOS target。装 iOS wheel 反而 import 不了(cross-compile 标准做法)
           CIBW_PLATFORM=ios CIBW_ARCHS=arm64_iphoneos CIBW_BUILD="cp314-*" \
-            python -m cibuildwheel pandas --output-dir wheels-out
+            CIBW_BEFORE_BUILD="pip install cython numpy" \
+            python -m cibuildwheel wheel-src/pandas-2.2.3 --output-dir wheels-out
           ls -la wheels-out/
 
       - name: Upload native wheels
