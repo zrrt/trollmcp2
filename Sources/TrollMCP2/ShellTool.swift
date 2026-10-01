@@ -155,7 +155,7 @@ final class ShellExecTool: MCPTool {
             var finalOut = output, finalExit = exitCode, finalTimed = timedOut
             if let pkg = ISHEngine.missingToolPkg(output) {
                 ShellDiag.log("provision auto: apk add \(pkg) (missing in Alpine)")
-                _ = ISHEngine.exec("apk add --no-cache \(pkg)", timeout: 120)
+                _ = ISHEngine.apkAdd([pkg], timeout: 180)   // v4.3.69: 走镜像源+CA 的统一入口
                 let (rout, rexit, rtimed) = ISHEngine.exec(boundCmd, timeout: timeout)
                 finalOut = rout; finalExit = rexit; finalTimed = rtimed
             }
@@ -838,7 +838,7 @@ final class ShellExecTool: MCPTool {
                         // P3 按需补给：缺工具自动 apk add 并重跑一次
                         if let pkg = ISHEngine.missingToolPkg(output) {
                             ShellDiag.log("provision auto: apk add \(pkg) (missing in Alpine)")
-                            _ = ISHEngine.exec("apk add --no-cache \(pkg)", timeout: 120)
+                            _ = ISHEngine.apkAdd([pkg], timeout: 180)   // v4.3.69: 镜像源+CA 统一入口
                             let (rout, rexit, rtimed) = ISHEngine.exec(body, timeout: 30)
                             output = rout; outputExit = rexit; timedOut = rtimed
                         }

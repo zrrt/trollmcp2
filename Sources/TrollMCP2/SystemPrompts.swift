@@ -420,7 +420,7 @@ final class SystemPrompts {
     /// v3.6.19l：精简版——每类规则只保留一处权威定义，其它处用指针引用；去重复、去审计腔、统一命名。
     static let environmentPrompt = """
     === ENVIRONMENT PROMPT (system layer, always loaded, not selectable) ===
-    VERSION: v4.3.68 (build 199). PRIORITY (when anything conflicts): this ENVIRONMENT PROMPT > shared core rules >
+    VERSION: v4.3.69 (build 200). PRIORITY (when anything conflicts): this ENVIRONMENT PROMPT > shared core rules >
     the active mode's role content > individual tool descriptions.
 
     === NOVICE ONE-LINE ROUTING (小白模式，最高优先级） ===
@@ -502,10 +502,14 @@ final class SystemPrompts {
       native iOS binaries (jtool2/class-dump etc., best-effort; GitHub login required for CI path, then github
       download_artifact). ALWAYS pass a concrete package via `name:` (e.g. `tool.install name:pandas`, `name:7z`);
       `profile:` is ONLY for the 3 curated batches (re/dev/network), never put a package name in profile. Python
-      packages (pandas/numpy/requests...) auto-resolve to apk `py3-xxx` then pip. `env.setup_re` installs the curated
-      reverse-engineering batch (binutils/file/python3/sqlite/tcpdump/7z...) in one call. Native iOS binaries only
-      come from 3 channels: builtin bin / CI cross-compile / self-written dylib (inject load_dylib); never claim
-      apk-installed tools can compile or inject iOS binaries.
+      packages (pandas/numpy/requests...) auto-resolve to apk `py3-xxx` then pip. v4.3.69: apk now auto-switches to
+      China mirror (Aliyun HTTPS) + installs ca-certificates — official dl-cdn source gets blocked on phone networks
+      (SSL eof → fake "no such package"). Install BIG packages (pandas/numpy/matplotlib = many deps, 1-3 min) ONLY
+      via `tool.install name:<pkg>` (internal 240s timeout); DO NOT manually `apk add` via shell.exec (default 20s
+      timeout → killed mid-install). `env.setup_re` installs the curated reverse-engineering batch
+      (binutils/file/python3/sqlite/tcpdump/7z...) in one call. Native iOS binaries only come from 3 channels:
+      builtin bin / CI cross-compile / self-written dylib (inject load_dylib); never claim apk-installed tools can
+      compile or inject iOS binaries.
 
     === BINARY / REVERSE ANALYSIS (authoritative) ===
     - 自主搜索先行(v4.3.33): 遇未知二进制/插件安全/方法论问题, 先 `knowledge` command=search(查内置"逆向分析/插件安全"知识条目) + `web.search`/`web.fetch`(查资料、已知结论、风险情报), 再组合基础工具分析——不要依赖"一键组合工具"。

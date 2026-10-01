@@ -273,10 +273,27 @@ nameserver 8.8.4.4
 EOF
 
     # Configure APK repositories
+    # v4.3.69: 预置国内镜像源（阿里云 HTTPS）——官方 dl-cdn.alpinelinux.org 在国内手机网络下
+    # HTTPS 常被断(SSL unexpected eof/Permission denied)，apk 索引拉不下会误报 "no such package"。
+    # 同时把宿主 CA 证书拷进 rootfs（minirootfs 无 ca-certificates，HTTPS 握手必失败）。
     cat > "$ROOTFS_DATA/etc/apk/repositories" << EOF
-https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/main
-https://dl-cdn.alpinelinux.org/alpine/v${ALPINE_VERSION}/community
+https://mirrors.aliyun.com/alpine/v${ALPINE_VERSION}/main
+https://mirrors.aliyun.com/alpine/v${ALPINE_VERSION}/community
 EOF
+
+    # CA 证书：优先拷宿主系统证书（macOS /etc/ssl/cert.pem、Linux /etc/ssl/certs/ca-certificates.crt），
+    # 否则留空由运行时 ISHEngine.apkAdd 自动补 ca-certificates 包。
+    if [ -f /etc/ssl/cert.pem ]; then
+        mkdir -p "$ROOTFS_DATA/etc/ssl"
+        cp /etc/ssl/cert.pem "$ROOTFS_DATA/etc/ssl/cert.pem"
+        log_success "Copied host CA bundle into rootfs (/etc/ssl/cert.pem)"
+    elif [ -f /etc/ssl/certs/ca-certificates.crt ]; then
+        mkdir -p "$ROOTFS_DATA/etc/ssl/certs"
+        cp /etc/ssl/certs/ca-certificates.crt "$ROOTFS_DATA/etc/ssl/certs/ca-certificates.crt"
+        log_success "Copied host CA bundle into rootfs (/etc/ssl/certs/ca-certificates.crt)"
+    else
+        log_warning "No host CA bundle found; runtime apkAdd will install ca-certificates package"
+    fi
 
     log_success "Rootfs configured"
 }

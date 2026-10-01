@@ -59,10 +59,12 @@ final class ToolInstallTool: MCPTool {
                     "hint": "Alpine 已有；命令引用 iOS 路径会自动 bind 直读（/ios_workspace、/ios_containers、/ios_system 只读）"]
         }
 
-        // 2. Alpine apk 安装：依次尝试候选包名（映射名 / 原名 / py3-xxx）
+        // 2. Alpine apk 安装：依次尝试候选包名（映射名 / 原名 / py3-xxx）。
+        //    v4.3.69：统一走 ISHEngine.apkAdd（自动切国内镜像源 + 补 ca-certificates，修官方源
+        //    在手机网络被断导致索引拉不下→误报 no such package；大包 240s 超时，避免 20s 被掐）
         var lastApkErr = ""
         for pkg in apkCandidates(for: name) {
-            let apk = ISHEngine.exec("apk add --no-cache \(pkg)", timeout: 240)
+            let apk = ISHEngine.apkAdd([pkg], timeout: 240)
             if apk.exitCode == 0 {
                 return ["ok": true, "tool": name, "status": "installed", "source": "alpine_apk", "package": pkg,
                         "hint": "已 apk add \(pkg)；Alpine 工具可 bind 直读 iOS 文件（无 2MB 限制）"]
@@ -74,7 +76,7 @@ final class ToolInstallTool: MCPTool {
 
         // 3. Python 包回退：确保 python3 + pip，再 pip install
         if Self.pythonHints.contains(name) || name.hasPrefix("py-") {
-            ISHEngine.exec("apk add --no-cache python3 py3-pip", timeout: 240)
+            ISHEngine.apkAdd(["python3", "py3-pip"], timeout: 240)
             let pipName = name.hasPrefix("py-") ? String(name.dropFirst(3)) : name
             let pip = ISHEngine.exec("pip install --break-system-packages --no-cache-dir \(pipName)", timeout: 300)
             if pip.exitCode == 0 {
@@ -130,7 +132,7 @@ final class ToolInstallTool: MCPTool {
         var results: [[String: Any]] = []
         var okCount = 0
         for pkg in pkgs {
-            let r = ISHEngine.exec("apk add --no-cache \(pkg)", timeout: 180)
+            let r = ISHEngine.apkAdd([pkg], timeout: 240)
             let ok = r.exitCode == 0
             if ok { okCount += 1 }
             let detail = r.output.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -144,7 +146,14 @@ final class ToolInstallTool: MCPTool {
 
     // MARK: - 查找内置原生 bin
 
+    /// v4.3.69：修复 pandas 等包被误判"内置已就绪"的 bug——实测 isExecutableFile 对【目录】
+    /// 也返回 true，会把 bin 目录误当内置二进制而短路安装流程。修复：①必须存在且非目录才命中；
+    /// ②Python 包（pythonHints / py3- 映射）根本不走内置检查（内置 bin 只有 iOS 原生工具，无 Python 包）。
     private func bundledBinPath(_ name: String) -> String? {
+        if Self.pythonHints.contains(name)
+            || Self.alpineNameMap[name]?.hasPrefix("py3-") == true {
+            return nil
+        }
         let roots = [
             Bundle.main.bundlePath + "/Resources/bin",
             Bundle.main.bundlePath + "/bin"
@@ -155,7 +164,11 @@ final class ToolInstallTool: MCPTool {
                 root + "/" + name + "_ios",
                 root + "/" + name + "-ios"
             ]
-            for c in candidates where FileManager.default.isExecutableFile(atPath: c) {
+            for c in candidates {
+                var isDir: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: c, isDirectory: &isDir),
+                      !isDir.boolValue,
+                      FileManager.default.isExecutableFile(atPath: c) else { continue }
                 return c
             }
         }
