@@ -27,41 +27,14 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
         CrashCatcher.install()  // v2.9.145c：最先注册崩溃捕获，闪退自动落盘 crash/ 可查
         Workspace.ensure()
-        Workspace.ensureBundledTweaks()  // v2.9.62：把内置 dylib（MemoryTweak 等）复制到工作区，AI 可直接 artifact.find 定位
-        ConfigMigration.migrateIfNeeded()  // v2.9.126：配置 schema 迁移（防模块脱节：升级后旧配置结构自动搬运）
-        ToolRegistry.shared.registerBuiltinTools()
-        // v2.9.145：启动探测移到后台——DeviceProbe.run() 含 spawnRoot/文件遍历，
-        // 主线程同步跑会卡死启动被看门狗杀（表现为"装完打开就闪退"）
-        DispatchQueue.global(qos: .userInitiated).async {
-            _ = DeviceProbe.shared.run()
-        }
-        LocationProvider.shared.start()
-        // v2.9.10：网络与生命周期监控（切后台重连 / 网络恢复提示）
-        AppLifecycleMonitor.shared.start()
-        // v4.3.39：启动静默检查更新——后台跑，不打扰；发现新版点亮设置页"检查更新"红点
-        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 3) {
-            let ver = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? ""
-            UpdateManager.shared.checkForUpdate(currentVersion: ver)
-        }
-        // v2.9.66：启动时上报设备信息到统计后台（安装量/机型分布，需在设置中开启并配置服务器地址）
-        DeviceReporter.shared.reportIfNeeded()
-        // v2.9.180：远程诊断——启动即开始轮询云端指令；上报安装信息 + 上次崩溃未上报的日志。
-        // 只读白名单执行，无危险操作；配置在 设置 → 远程诊断。
-        RemoteAgent.shared.start()
-        RemoteAgent.shared.reportInstallIfNeeded()
-        RemoteAgent.shared.reportPendingCrashes()
+        // v4.3.63 骨架测试版：禁用全部启动初始化（DeviceProbe/Location/AppLifecycle/
+        // UpdateManager/DeviceReporter/RemoteAgent/KeepAlive/ConfigMigration/ToolRegistry），
+        // 只保留最小 UI + 分享入口——二分定位"运行时初始化污染 vs App 静态特性"。
+        // 若骨架版分享正常 → 初始化污染 → 逐个加回定位；若仍崩 → 静态特性（构建/签名/plist）。
 
         window = UIWindow(frame: UIScreen.main.bounds)
         window?.rootViewController = UIHostingController(rootView: RootView())
         window?.makeKeyAndVisible()
-
-        // v2.9.136：全局后台常驻开关（设置页「后台常驻」）——开启后 App 启动即启动静音保活引擎，
-        // 与远程控制的临时保活互补，长任务/后台等待 AI 结果时不挂起。
-        if UserDefaults.standard.bool(forKey: "trollagent.keepalive_global") {
-            BackgroundKeepAlive.shared.start()
-        }
-        // v2.9.136：BGTask 周期唤醒（双保险，系统调度允许时后台刷新）
-        BackgroundKeepAlive.registerBGTask()
 
         return true
     }
