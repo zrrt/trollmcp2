@@ -278,17 +278,12 @@ jobs:
         run: |
           bash scripts/build-openssl.sh
 
-      - name: Build unsigned IPA
-        # v3.0.33: 不再覆盖 RELEASE_VERSION（此前用 v<run>.<sha> 导致装上看不清版本，
-        # 且 v3.0.32 时误下旧 artifact，手机显示 3.0.31）。版本直接读 Support/Info.plist，
-        # 每次发版在 plist 里递增，构建产物版本一目了然。
-        run: |
-          bash scripts/build-ipa.sh
-
+      # v4.4.5-fix3e: 删除历史 "Build unsigned IPA" 步骤——它先跑 build-ipa.sh，
+      # 而 Download 步骤排在其后 → download 永远赶不上（fix3d 失败根因：build-ipa.sh 的
+      # python 段 find python-ios 找不到 → set -e 杀脚本 → job fail）。
+      # 现在顺序 = 全部 download 前置 → 唯一一次 build-ipa.sh 集成 python/wheels/工具链。
 
       # v4.4.4: 集成原生 Python——下载 native-python job 编译的 xcframework 到 python-ios/。
-      # 并行首次跑时 native-python 可能未完成（artifact 不存在 → 跳过集成，App 无原生 python，
-      # AI 仍走 iSH）；后续 native-python 命中缓存快速完成，集成自动生效。
       # v4.4.5: 集成原生工具链（lua）——native-tools job 产物（build needs native-tools，必在）。
       - name: Download native tools (lua)
         uses: actions/download-artifact@v4
@@ -403,16 +398,18 @@ jobs:
         run: |
           mkdir -p wheels-out
           pip install cibuildwheel==4.*
+          # fix3e: 去掉 tail 吞错误——cibuildwheel 失败必须让 job fail（此前 | tail -20
+          # 掩盖失败 → job 假 success 且无 artifact → build 拿不到 wheel 还不知情）
           CIBW_PLATFORM=ios CIBW_ARCHS=arm64_iphoneos CIBW_BUILD="cp314-*" \
             CIBW_BEFORE_BUILD="pip install cython" \
-            python -m cibuildwheel numpy --output-dir wheels-out 2>&1 | tail -20
+            python -m cibuildwheel numpy --output-dir wheels-out
           ls -la wheels-out/
 
       - name: Build pandas iOS wheel (cp314 arm64 iphoneos)
         if: steps.wheels-cache.outputs.cache-hit != 'true'
         run: |
           CIBW_PLATFORM=ios CIBW_ARCHS=arm64_iphoneos CIBW_BUILD="cp314-*" \
-            python -m cibuildwheel pandas --output-dir wheels-out 2>&1 | tail -20
+            python -m cibuildwheel pandas --output-dir wheels-out
           ls -la wheels-out/
 
       - name: Upload native wheels
@@ -420,4 +417,4 @@ jobs:
         with:
           name: native-wheels
           path: wheels-out/*.whl
-          if-no-files-found: warn
+          if-no-files-found: error

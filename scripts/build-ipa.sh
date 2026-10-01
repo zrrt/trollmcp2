@@ -139,8 +139,9 @@ if ls python-ios/python-*.tar.gz >/dev/null 2>&1; then
     tar -xzf python-ios/python-*.tar.gz -C python-ios/unpacked
 fi
 # 定位 Python.xcframework：不猜 tar 顶层目录名（官方产物可能是 python-3.14.8-iOS-XCframework/
-# 包一层，也可能直接散落），find 一次命中
-XCF_DIR=$(find python-ios -type d -name "Python.xcframework" 2>/dev/null | head -1)
+# 包一层，也可能直接散落），find 一次命中。|| true：download 未就位/缺失时不得触发
+# set -euo pipefail 杀死整个打包（fix3d 曾因此静默失败——find 找不到目录 exit 1）
+XCF_DIR=$(find python-ios -type d -name "Python.xcframework" 2>/dev/null | head -1 || true)
 if [ -n "$XCF_DIR" ]; then
     SLICE="$XCF_DIR/ios-arm64"
     if [ -d "$SLICE" ]; then
