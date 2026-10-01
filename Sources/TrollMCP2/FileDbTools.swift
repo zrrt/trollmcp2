@@ -6,7 +6,7 @@ import Foundation
 final class FileExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "file",
-        summary: "High-level cross-environment file inspection (uses automatic iOS bind — Alpine reads iOS files directly). inspect → native metadata (size, magic type, sqlite/zip/macho detection). analyze → Alpine `file` + `strings` on the iOS file. Use for: quickly identify what a file is, extract strings from a decrypted binary/db. Don't use for: edit files (shell), network. Example: file inspect path:/var/mobile/.../x.db; file analyze path:/var/mobile/.../binary. Subcommands: inspect / analyze. REQUIRED: path (iOS absolute path).",
+        summary: "High-level cross-environment file inspection (uses automatic iOS bind — Alpine reads iOS files directly). inspect → native metadata (size, magic type, sqlite/zip/macho detection; for Mach-O also returns arch/filetype detail: fat/thin, arm64/x86_64, executable/dylib). analyze → Alpine `file` + `strings` on the iOS file. Use for: quickly identify what a file is, extract strings from a decrypted binary/db. Don't use for: edit files (shell), network. Example: file inspect path:/var/mobile/.../x.db; file analyze path:/var/mobile/.../binary. Subcommands: inspect / analyze. REQUIRED: path (iOS absolute path).",
         parameters: [
             "command": "Subcommand (required): inspect / analyze",
             "path": "iOS absolute file path (required)"
@@ -27,11 +27,18 @@ final class FileExecTool: MCPTool {
             guard let size = (try? fm.attributesOfItem(atPath: norm)[.size]) as? Int else {
                 throw MCPError.failed("file: cannot stat \(norm)")
             }
-            var type = "unknown"
+            var result: [String: Any] = ["path": norm, "size_bytes": size]
             if let data = try? Data(contentsOf: URL(fileURLWithPath: norm), options: .mappedIfSafe) {
-                type = FileExecTool.detectType([UInt8](data.prefix(16)))
+                let head = [UInt8](data.prefix(128))
+                let type = FileExecTool.detectType(head)
+                result["type"] = type
+                // v4.3.70: Mach-O 附带架构/类型细分（FAT/thin、arm64/x86_64、executable/dylib），
+                // 一次给全，AI 不再需要另猜/换工具。
+                if type == "macho-binary", let m = FileExecTool.machoInfo(head) {
+                    result["macho"] = m
+                }
             }
-            return ["path": norm, "size_bytes": size, "type": type]
+            return result
         case "analyze":
             guard fm.fileExists(atPath: norm) else { throw MCPError.failed("file: no such file \(norm)") }
             // v3.7.7: 先 autoBind 改写为 Alpine 可见路径(/ios_*)，再 base64 传路径。
@@ -59,6 +66,68 @@ final class FileExecTool: MCPTool {
         if magic.hasPrefix("fTyp") { return "font" }
         if head.count > 0, head.allSatisfy({ $0 == 10 || $0 == 13 || $0 == 9 || ($0 >= 32 && $0 < 127) }) { return "text" }
         return "binary"
+    }
+
+    /// v4.3.70: 解析 Mach-O 头，返回架构/类型细分（FAT/thin、arm64/x86_64、executable/dylib）。
+    /// 修复实测痛点：旧版只给 "macho-binary"，AI 无法判断架构/是 App 还是 dylib，只能瞎猜。
+    static func machoInfo(_ head: [UInt8]) -> [String: Any]? {
+        guard head.count >= 32 else { return nil }
+        let u32be = { (i: Int) -> UInt32 in
+            UInt32(head[i]) << 24 | UInt32(head[i+1]) << 16 | UInt32(head[i+2]) << 8 | UInt32(head[i+3])
+        }
+        let u32le = { (i: Int) -> UInt32 in
+            UInt32(head[i]) | UInt32(head[i+1]) << 8 | UInt32(head[i+2]) << 16 | UInt32(head[i+3]) << 24
+        }
+        let magic = Array(head.prefix(4))
+        // FAT / universal：CA FE BA BE（大端）或 BE BA FE CA（字节序翻转）
+        if magic == [0xCA, 0xFE, 0xBA, 0xBE] || magic == [0xBE, 0xBA, 0xFE, 0xCA] {
+            let n = Int(u32be(4))
+            guard head.count >= 8 + n * 20 else { return ["fat": true, "archs": [], "filetype": "universal"] }
+            var archs: [String] = []
+            for i in 0..<min(n, 16) {
+                archs.append(cpuName(u32be(8 + i * 20)))
+            }
+            return ["fat": true, "archs": archs, "filetype": "universal (fat binary)"]
+        }
+        // thin：host 序（FE ED FA CE/CF）或翻转序（CE FA ED FE/CF FA ED FE）
+        let beMagic = magic == [0xFE, 0xED, 0xFA, 0xCE] || magic == [0xFE, 0xED, 0xFA, 0xCF]
+        let leMagic = magic == [0xCE, 0xFA, 0xED, 0xFE] || magic == [0xCF, 0xFA, 0xED, 0xFE]
+        guard beMagic || leMagic else { return nil }
+        let is64 = magic == [0xFE, 0xED, 0xFA, 0xCF] || magic == [0xCF, 0xFA, 0xED, 0xFE]
+        let read = beMagic ? u32be : u32le
+        let cputype = read(4)
+        let filetype = read(12)
+        return ["fat": false, "archs": [cpuName(cputype)], "bits": is64 ? 64 : 32,
+                "filetype": filetypeName(filetype), "filetype_raw": filetype]
+    }
+
+    /// CPU type → 可读名（arm64_32=0x0200000C 需特判；去掉 ABI64/ABI64_32 高位再映射基本名）
+    private static func cpuName(_ cputype: UInt32) -> String {
+        if cputype == 0x0200_000C { return "arm64_32" }
+        let abi64 = cputype & 0x0100_0000
+        let base = cputype & 0x00FF_FFFF
+        switch base {
+        case 7:  return abi64 != 0 ? "x86_64" : "i386"
+        case 12: return abi64 != 0 ? "arm64" : "arm"
+        case 18: return "ppc"
+        case 0x0100_0012: return "ppc64"   // 不会被走到（abi 位已剥离），保留兜底
+        default: return String(format: "cpu_0x%X", cputype)
+        }
+    }
+
+    /// Mach-O filetype → 可读名
+    private static func filetypeName(_ t: UInt32) -> String {
+        switch t {
+        case 0x1: return "object (.o)"
+        case 0x2: return "executable (app main binary)"
+        case 0x6: return "dylib (dynamic library)"
+        case 0x8: return "bundle"
+        case 0x9: return "dylib stub"
+        case 0xA: return "dSYM (debug symbols)"
+        case 0xB: return "kext bundle"
+        case 0xE: return "fileset"
+        default: return String(format: "mh_0x%X", t)
+        }
     }
 }
 
