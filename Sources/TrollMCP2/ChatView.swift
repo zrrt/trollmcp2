@@ -1506,38 +1506,17 @@ struct MessageBubble: View {
                         // v3.5.7：工具状态徽章（对齐 shadcn React AI Tool）——机制级：由真实执行结果渲染，
                         // 不是模型说的话。v3.5.10：running 态显示"执行中…"转圈，完成=✓绿 / 出错=✗红。
                         if message.isRunning {
-                            // v4.3.75：有活动安装任务 → 实时进度条（阶段+包数+最近行），不再只有"执行中…"
-                            if let prog = installRegistry.active, prog.ok == nil {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    ProgressView(value: prog.fraction)
-                                        .progressViewStyle(.linear)
-                                        .frame(width: 120)
-                                    Text(prog.progressText)
-                                        .font(.caption2.bold())
-                                        .foregroundColor(.blue)
-                                    if !prog.lastLine.isEmpty {
-                                        Text(prog.lastLine)
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                            .lineLimit(1)
-                                            .frame(width: 150, alignment: .leading)
-                                    }
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.blue.opacity(0.08))
-                                .cornerRadius(6)
-                            } else {
-                                HStack(spacing: 4) {
-                                    ProgressView().scaleEffect(0.7)
-                                    Text("执行中…").font(.caption2.bold())
-                                }
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.blue.opacity(0.15))
-                                .foregroundColor(.blue)
-                                .cornerRadius(6)
+                            // v4.4.1：徽章只显示"执行中…"转圈——进度条只在工具结果迷你气泡内渲染，
+                            // 同一安装任务不再两处重复显示（此前 v4.3.75 双渲染导致"两个进度条"）。
+                            HStack(spacing: 4) {
+                                ProgressView().scaleEffect(0.7)
+                                Text("执行中…").font(.caption2.bold())
                             }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.blue.opacity(0.15))
+                            .foregroundColor(.blue)
+                            .cornerRadius(6)
                         } else {
                             Text(message.isError ? "✗ 出错" : "✓ 完成")
                                 .font(.caption2.bold())
