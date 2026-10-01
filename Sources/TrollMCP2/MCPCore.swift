@@ -369,7 +369,12 @@ public final class ToolRegistry: ObservableObject {
         "inject", "automation", "network.capture", "server", "project", "browser",
         "shell.exec", "reminder", "rescue",
         // v4.3.65：统一工具安装闭环
-        "tool.install", "env.setup_re"
+        "tool.install", "env.setup_re",
+        // v4.3.65：补齐"已注册但漏在白名单外"的分析工具——否则 AI 看不到 db/file/package，
+        // 无法用原生 sqlite3 直读 App 数据容器、无法解包分析；vpn.capture 随 VPN 抓包恢复一并默认启用；
+        // skills.* 让技能系统真正按需加载生效
+        "file", "db", "package", "vpn.capture",
+        "skills.list", "skills.read", "skills.set_enabled"
     ]
 
     /// v2.9.31：常驻核心工具名集合 (UI 用只读访问）
