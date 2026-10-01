@@ -24,7 +24,8 @@ jobs:
         id: tools-cache
         with:
           path: native-tools-out
-          key: native-tools-v2
+          # v3: 修复 lua(system() iOS 不可用)/r2(缺 capstone) 后强制重构建（v2 缓存只含 node）
+          key: native-tools-v3
 
       - name: Build lua 5.4 (iOS arm64)
         if: steps.tools-cache.outputs.cache-hit != 'true'
@@ -34,6 +35,9 @@ jobs:
           tar -xzf /tmp/lua.tar.gz -C /tmp
           cd /tmp/lua-5.4.7
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          # iOS 无 system()（loslib.c os_execute 报 'system' unavailable）：
+          # 编译前打补丁，os.execute 直接返回失败（iOS 本就不支持 shell 命令）
+          sed -i.bak 's/stat = system(cmd);/stat = -1; (void)cmd;/' src/loslib.c
           make generic CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK -DLUA_USE_POSIX" || \
             make generic CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK" || true
           if [ -f src/lua ]; then
@@ -79,11 +83,14 @@ jobs:
           echo '#include <r_main.h>' > /tmp/r2main.c
           echo 'int main(int argc, char **argv) { return r_main_r2(argc, argv); }' >> /tmp/r2main.c
           LIBS="$(ls $LIB/libr_*.a 2>/dev/null | tr '\n' ' ')"
+          # capstone: r2ios-sdk 若自带则加链（libr_core 依赖），先探测
+          CAP=""
+          if ls $LIB/libcapstone.a >/dev/null 2>&1; then CAP="-lcapstone"; fi
           xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" \
             -I"$INC" /tmp/r2main.c \
-            -Wl,-start-group $LIBS -Wl,-end-group \
+            -Wl,-start-group $LIBS -Wl,-end-group $CAP \
             -o "$GITHUB_WORKSPACE/native-tools-out/r2" \
-            -lz -liconv -lresolv -framework Foundation 2>&1 | tail -3 || true
+            -lz -liconv -lresolv -framework Foundation 2>&1 | tail -15 || true
           if [ -f "$GITHUB_WORKSPACE/native-tools-out/r2" ]; then
             chmod +x "$GITHUB_WORKSPACE/native-tools-out/r2"
             file "$GITHUB_WORKSPACE/native-tools-out/r2"

@@ -131,15 +131,12 @@ fi
 if ls python-ios/python-*.tar.gz >/dev/null 2>&1; then
     mkdir -p python-ios/unpacked
     tar -xzf python-ios/python-*.tar.gz -C python-ios/unpacked
-    # tar.gz 内顶层目录为 python-3.14.8-iOS-XCframework/
-    for d in python-ios/unpacked/*/; do [ -d "$d" ] && mv "$d" python-ios/unpacked/xcf 2>/dev/null && break; done
 fi
-if [ -d "python-ios/Python.xcframework" ] || [ -d "python-ios/unpacked/xcf/Python.xcframework" ]; then
-    if [ -d "python-ios/unpacked/xcf/Python.xcframework" ]; then
-        SLICE="python-ios/unpacked/xcf/Python.xcframework/ios-arm64"
-    else
-        SLICE="python-ios/Python.xcframework/ios-arm64"
-    fi
+# 定位 Python.xcframework：不猜 tar 顶层目录名（官方产物可能是 python-3.14.8-iOS-XCframework/
+# 包一层，也可能直接散落），find 一次命中 ios-arm64 slice
+XCF_DIR=$(find python-ios -type d -name "Python.xcframework" 2>/dev/null | head -1)
+if [ -n "$XCF_DIR" ]; then
+    SLICE="$XCF_DIR/ios-arm64"
     if [ -d "$SLICE" ]; then
         echo ">>> integrating native Python (iOS arm64)..."
         # 1. Python.framework → App/Frameworks（CLI 链接 libPython，rpath 指向 ../Frameworks）
@@ -168,7 +165,7 @@ if [ -d "python-ios/Python.xcframework" ] || [ -d "python-ios/unpacked/xcf/Pytho
             echo "!!! PythonCLI/main.c or Python.h missing — native Python skipped" >&2
         fi
     else
-        echo "!!! python-ios/Python.xcframework/ios-arm64 missing — native Python skipped" >&2
+        echo "!!! ios-arm64 slice missing in $XCF_DIR — native Python skipped" >&2
     fi
 else
     echo ">>> python-ios xcframework not present — native Python skipped (iSH python3 stays default)"
