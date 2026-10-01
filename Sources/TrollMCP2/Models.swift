@@ -630,7 +630,7 @@ final class ConversationStore: ObservableObject {
     private var activeConvId: UUID?
     /// v3.5.16：用户点了「停止」——设 true 后 runLoop 每轮开头检查，若已停止则不再继续递归
     /// (修复"点了暂停/停止还在继续发消息"：此前进度只取消当前 client，递归会新建 client 接着跑)。
-    private var stopRequested = false
+    private(set) var stopRequested = false  // v4.3.77：工具批量循环需读（停止后跳出，不再装剩余包）
 
     private let key = "trollmcp2.conversations"
 
@@ -707,6 +707,8 @@ final class ConversationStore: ObservableObject {
     /// v2.9.13：取消当前进行中的请求 (ChatView 停止按钮）
     func cancelCurrent() {
         stopRequested = true          // v3.5.16：设停止标志，runLoop 递归到下一轮即停
+        // v4.3.77：立即中断正在跑的 Alpine 命令/安装（否则 apkAdd 会闷头跑到 240s 且占着串行锁）
+        ISHEngine.interruptCurrent()
         cancelNetworkRetry()
         currentClient?.cancel()
         currentClient = nil

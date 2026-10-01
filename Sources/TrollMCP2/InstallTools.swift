@@ -152,9 +152,17 @@ final class ToolInstallTool: MCPTool {
         var results: [[String: Any]] = []
         var okCount = 0
         for pkg in pkgs {
-            let r = ISHEngine.apkAdd([pkg], timeout: 240)
+            // v4.3.77：用户已停止 → 跳出，不再装剩余包
+            if ConversationStore.shared.stopRequested { break }
+            // v4.3.77：批量安装也走进度条（每包独立进度），不再静默
+            InstallationRegistry.shared.start(key: pkg)
+            let r = ISHEngine.apkAdd([pkg], timeout: 240) { line in
+                InstallationRegistry.shared.appendLine(line)
+            }
             let ok = r.exitCode == 0
             if ok { okCount += 1 }
+            InstallationRegistry.shared.finish(ok: ok,
+                summary: ok ? "已装 \(pkg)" : ISHEngine.installDiagnose(r.output, timedOut: r.timedOut, exitCode: r.exitCode))
             let detail = r.output.trimmingCharacters(in: .whitespacesAndNewlines)
                 .split(separator: "\n").suffix(2).joined(separator: "\n")
             results.append(["package": pkg, "ok": ok, "detail": detail])
@@ -200,7 +208,7 @@ final class ToolInstallTool: MCPTool {
     /// 常用工具名 → Alpine 包名映射（nm/strings 等常见名在 Alpine 里归属 binutils）
     private static let alpineNameMap: [String: String] = [
         "nm": "binutils", "strings": "binutils", "objdump": "binutils", "readelf": "binutils",
-        "python": "python3", "sqlite3": "sqlite", "7z": "p7zip",
+        "python": "python3", "sqlite3": "sqlite", "7z": "7zip",  // v4.3.77: Alpine 包名 7zip
         "node": "nodejs", "make": "make", "cmake": "cmake",
         "nc": "netcat-openbsd", "dig": "bind-tools", "nslookup": "bind-tools",
         "tcpdump": "tcpdump", "nmap": "nmap", "wget": "wget",
@@ -227,7 +235,7 @@ final class ToolInstallTool: MCPTool {
     /// 逆向/开发/网络 三档 curated 批量（Alpine 包）
     private static let profiles: [String: [String]] = [
         "re": ["binutils", "file", "python3", "sqlite", "openssl", "curl", "git", "jq",
-               "zip", "unzip", "xz", "p7zip", "tree", "gawk", "coreutils", "findutils", "vim",
+               "zip", "unzip", "xz", "7zip", "tree", "gawk", "coreutils", "findutils", "vim",
                "tcpdump", "netcat-openbsd"],
         "dev": ["build-base", "git", "python3", "vim", "curl", "jq", "cmake", "nodejs"],
         "network": ["curl", "wget", "jq", "openssl", "ca-certificates", "bind-tools", "tcpdump"]

@@ -148,7 +148,7 @@ final class ShellExecTool: MCPTool {
             if let guardMsg = ShellExecTool.alpineIOSPathGuard(boundCmd) {
                 return ["command": trimmed, "exit_code": 1, "ios_native": false,
                         "stdout": guardMsg,
-                        "hint": "该命令会被路由到 Alpine，但 Alpine 读不到 iOS 大文件/不存在路径。改用原生 shell 直接访问(该工具原生支持 strings/nm/hexdump 直读大文件)，或对二进制用 binary.symbols 分析。"]
+                        "hint": "该命令会被路由到 Alpine，但 Alpine 读不到该 iOS 路径（非 Workspace/Containers 绑定目录，或文件>2MB）。三种解法：①先 cp 到 Workspace：`cp <file> /var/mobile/Documents/Workspace/`，再走 Alpine /ios_workspace 直读分析；②用原生 shell 工具（strings/nm/hexdump 直读大文件）；③对二进制用 binary.symbols / file analyze。"]
             }
             let (output, exitCode, timedOut) = ISHEngine.exec(boundCmd, timeout: timeout)            // P3 按需补给：Alpine 输出显示缺工具(command not found)且命中白名单 → 自动 apk add 并重跑一次，
             // 免 agent 反复探测缺什么、也避免"先探测→再装→再跑"的多轮试探。

@@ -31,6 +31,21 @@ enum ISHEngine {
 
     /// iSH 会话 cwd（guest 路径，与旧 ios_system 的 iOS 沙箱路径隔离）
     private static var guestCwd = "/root"
+    /// v4.3.77：当前正在执行的 guest pid（spawn 后登记、exec 结束清空）
+    private static var currentPid: Int32 = -1
+
+    /// v4.3.77：用户点停止时立即中断当前命令/安装（不再让 apkAdd 闷头跑到 timeout、
+    /// 也释放串行锁让后续命令能立刻执行）。在主线程调用。
+    static func interruptCurrent() {
+        // 注意：此处不能用 lock——exec 正持锁阻塞，加锁即主线程死锁。
+        // Int32 读写天然原子，直接读；最坏读到旧值，kill 无效 pid 无害。
+        let p = currentPid
+        guard p > 0 else { return }
+        ShellDiag.log("user stop: interrupt pid \(p)")
+        cish_killpg(p, Int32(SIGTERM))
+        Thread.sleep(forTimeInterval: 0.5)
+        cish_killpg(p, Int32(SIGKILL))
+    }
 
     private static var rootfsDir: String {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -169,6 +184,10 @@ enum ISHEngine {
         ]
         let fm = FileManager.default
         var result = command
+        // v4.3.77：先规整 /private/var（iOS 上 /var 是 /private/var 的软链）。
+        // 否则 /private/var/mobile/Documents/Workspace/x 会被替换成 /private/ios_workspace/x
+        // （Alpine 里不存在 /private/ios_workspace），文件读不到。
+        result = result.replacingOccurrences(of: "/private/var", with: "/var")
         for (iosRoot, mount, readOnly) in roots {
             // 命令里是否引用该 iOS 根目录
             let hasRef = result.contains(iosRoot)
@@ -414,6 +433,8 @@ enum ISHEngine {
 
         // 父进程关写端（guest 已 dup）
         close(outFds[1]); close(errFds[1]); close(notifyFds[1])
+        // v4.3.77：登记当前 pid——用户点停止时 interruptCurrent() 可立即中断（不必等 timeout）
+        Self.currentPid = pid
 
         if pid <= 0 {
             close(outFds[0]); close(errFds[0]); close(notifyFds[0])
@@ -540,6 +561,7 @@ enum ISHEngine {
         }
 
         ShellDiag.log("ISH exec end elapsed=\(Int(Date().timeIntervalSince(tStart) * 1000))ms exit=\(exitCode) timedOut=\(timedOut) out=\(stdout.prefix(80))")
+        Self.currentPid = -1
         return (stdout, exitCode, timedOut)
     }
 
@@ -626,12 +648,10 @@ enum ISHEngine {
             ("xxd", "xxd"), ("jq", "jq"), ("gdb", "gdb"),
             ("git", "git"), ("wget", "wget"), ("make", "make"), ("cmake", "cmake"),
             ("gcc", "build-base"), ("clang", "clang"), ("openssl", "openssl"),
-            ("unzip", "unzip"), ("sqlite3", "sqlite3"),
+            ("unzip", "unzip"), ("sqlite3", "sqlite"),  // v4.3.77: Alpine 包名是 sqlite（命令名 sqlite3）
         ]
         for (cmd, pkg) in map {
-            if output.contains("\(cmd): not found")
-                || output.contains("\(cmd): command not found")
-                || output.contains("command not found: \(cmd)") {
+            if hasNotFound(output, cmd) {
                 return pkg
             }
         }
@@ -653,12 +673,10 @@ enum ISHEngine {
             ("xxd", "xxd"), ("jq", "jq"), ("gdb", "gdb"),
             ("git", "git"), ("wget", "wget"), ("make", "make"), ("cmake", "cmake"),
             ("gcc", "build-base"), ("clang", "clang"), ("openssl", "openssl"),
-            ("unzip", "unzip"), ("sqlite3", "sqlite3"),
+            ("unzip", "unzip"), ("sqlite3", "sqlite"),  // v4.3.77: Alpine 包名是 sqlite（命令名 sqlite3）
         ]
         for (cmd, pkg) in map {
-            if output.contains("\(cmd): not found")
-                || output.contains("\(cmd): command not found")
-                || output.contains("command not found: \(cmd)") {
+            if hasNotFound(output, cmd) {
                 return (pkg, true)
             }
         }
@@ -667,10 +685,21 @@ enum ISHEngine {
     }
 
     /// 从 "not found" 输出推断缺失工具的命令名（白名单兜底）。
+    /// v4.3.77：not found 行首匹配（标准 shell 报错格式），避免命令输出文本误判。
+    private static func hasNotFound(_ output: String, _ cmd: String) -> Bool {
+        let forms = ["\(cmd): not found", "\(cmd): command not found", "command not found: \(cmd)"]
+        for f in forms {
+            if output.hasPrefix(f) || output.contains("\n" + f) { return true }
+        }
+        return false
+    }
+
     private static func inferPkgFromNotFound(_ output: String) -> String? {
+        // v4.3.77：收紧为行首匹配——只有输出里独立成行的标准 "sh: <cmd>: not found" 才算，
+        // 避免命令输出文本（如 grep 搜到 "xxx: not found" 内容）被误判成缺工具而触发安装。
         let patterns = [
-            "(?:sh|/bin/sh|bash)?[\\s:]*([a-z0-9][a-z0-9._+-]*): (?:command )?not found",
-            "command not found: ([a-z0-9][a-z0-9._+-]*)",
+            "(?:^|\\n)\\s*(?:sh: /bin/sh: bash: busybox: )?([a-z0-9][a-z0-9._+-]*): (?:command )?not found",
+            "(?:^|\\n)\\s*command not found: ([a-z0-9][a-z0-9._+-]*)",
         ]
         for p in patterns {
             guard let re = try? NSRegularExpression(pattern: p, options: [.caseInsensitive]) else { continue }
