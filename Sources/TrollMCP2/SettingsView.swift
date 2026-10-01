@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - 设置项数据（列表/卡片双视图共用，永不脱节）
 
@@ -285,8 +286,48 @@ struct SettingsView: View {
 
     // MARK: - 列表模式
 
+    // v4.3.52：Debug——真实触发系统分享面板（UIActivityViewController）。
+    // 复现崩溃栈路径：ShareSheet → MobileIcons → CoreImage。若不崩 → 修复生效。
+    private func testShareSheet() {
+        guard let scene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene }).first,
+              let rootVC = scene.keyWindow?.rootViewController ?? scene.windows.first?.rootViewController else {
+            return
+        }
+        var top = rootVC
+        while let presented = top.presentedViewController {
+            top = presented
+        }
+        let ac = UIActivityViewController(
+            activityItems: ["TrollMCP2 Debug 分享测试"],
+            applicationActivities: nil)
+        if let pop = ac.popoverPresentationController {
+            pop.sourceView = top.view
+            pop.sourceRect = CGRect(x: top.view.bounds.midX, y: top.view.bounds.midY, width: 1, height: 1)
+        }
+        top.present(ac, animated: true, completion: nil)
+    }
+
     private var listBody: some View {
         List {
+            // v4.3.52：Debug——测试系统分享面板是否恢复。
+            // 崩溃根因假设：CFBundlePrimaryIcon 非标准声明（带 @2x 后缀）导致
+            // MobileIcons 渲染 TrollMCP2 图标时 CoreImage SIGSEGV（第一版起就崩）。
+            // v4.3.51 已改标准写法；此按钮真实触发 UIActivityViewController，
+            // 若不崩 → 图标修复生效，可恢复真分享面板。
+            Section(header: SettingSectionHeader(title: "开发者调试")) {
+                Button {
+                    testShareSheet()
+                } label: {
+                    HStack {
+                        Text("测试系统分享面板（Debug）")
+                        Spacer()
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
             ForEach(makeGroups(), id: \.header) { group in
                 Section(header: SettingSectionHeader(title: group.header)) {
                     ForEach(group.items) { item in
