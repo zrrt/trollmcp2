@@ -48,28 +48,6 @@ final class CalendarCreateEventTool: MCPTool {
     }
 }
 
-// MARK: - 提醒：定时提醒 (真实本地通知）
-
-final class ReminderScheduleTool: MCPTool {
-    let definition = ToolDefinition(name: "reminder.schedule",
-        summary: "Schedule a one-time local notification reminder. Use for: get reminded after a delay, alert user when task completes. Don't use for: recurring reminder (use reminder.repeating), create calendar event (use calendar.create_event). Example: user says 'remind me to drink water in 10 minutes' → schedule reminder.",
-        parameters: ["title": "Notification title", "body": "Notification message", "delay_seconds": "Delay before notification (seconds)"],
-        verified: true, category: "system")
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let title = params["title"] as? String else { throw MCPError.invalidParams("title required") }
-        let delay = max(params["delay_seconds"] as? Int ?? 60, 1)
-        let content = UNMutableNotificationContent()
-        content.title = title
-        content.body = params["body"] as? String ?? ""
-        content.sound = .default
-        let id = UUID().uuidString
-        let req = UNNotificationRequest(identifier: id,
-            content: content, trigger: UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(delay), repeats: false))
-        UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
-        AuditLog.shared.log("reminder.schedule", detail: "\(title) +\(delay)s")
-        return ["scheduled": true, "id": id, "fire_in_seconds": delay]
-    }
-}
 
 final class ReminderScheduleRecurringTool: MCPTool {
     let definition = ToolDefinition(name: "reminder.schedule_recurring",
@@ -837,68 +815,6 @@ final class KnowledgeDeleteTool: MCPTool {
     }
 }
 
-// MARK: - 电话
-
-final class PhoneCallTool: MCPTool {
-    let definition = ToolDefinition(name: "phone.call", summary: "Open the phone dialer with a number pre-filled. Use for: initiate a phone call (opens dialer, user taps call). Don't use for: search contacts (use contacts.search), send message. Example: user says 'call Zhang San' → open dialer with his number.",
-        parameters: ["number": "Phone number to dial (e.g. 13800138000)"])
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let number = params["number"] as? String, !number.isEmpty else { throw MCPError.invalidParams("number required") }
-        // v3.0.42：修复号码被清空 bug——之前 components(separatedBy: 数字字符集) 把数字全当分隔符删了，
-        // 返回空号码导致拨号器无反应。改为 filter 只保留数字和 +。
-        let cleaned = String(number.filter { "+0123456789".contains($0) })
-        guard !cleaned.isEmpty else { throw MCPError.invalidParams("number has no valid digits: \(number)") }
-        // 用 telprompt:// 弹确认框，兼容性更好
-        guard let url = URL(string: "telprompt://" + cleaned) else {
-            throw MCPError.failed("URL construction failed: \(number)")
-        }
-        var result: [String: Any] = ["number": cleaned]
-        let sem = DispatchSemaphore(value: 0)
-        DispatchQueue.main.async {
-            UIApplication.shared.open(url, options: [:]) { ok in
-                result["opened"] = ok
-                if !ok {
-                    // 回退到 tel://
-                    if let telURL = URL(string: "tel://" + cleaned) {
-                        UIApplication.shared.open(telURL, options: [:]) { ok2 in
-                            result["opened"] = ok2
-                            result["fallback"] = "tel://"
-                            sem.signal()
-                        }
-                    } else {
-                        sem.signal()
-                    }
-                } else {
-                    sem.signal()
-                }
-            }
-        }
-        _ = sem.wait(timeout: .now() + 5)
-        AuditLog.shared.log("phone.call", detail: number)
-        return result
-    }
-}
-
-final class PhoneScheduleCallTool: MCPTool {
-    let definition = ToolDefinition(name: "phone.schedule_call",
-        summary: "Schedule a timed phone call reminder. Use for: get reminded to call someone after delay. Don't use for: actually make a call (not supported), create reminder (use reminder.schedule). Example: user says 'remind me to call the client in 5 minutes' → schedule call reminder.",
-        parameters: ["number": "Phone number to call", "display_name": "Contact name (optional)", "delay_seconds": "Delay before reminder (seconds)"], verified: true, category: "system")
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let number = params["number"] as? String, !number.isEmpty else { throw MCPError.invalidParams("number required") }
-        let delay = max(params["delay_seconds"] as? Int ?? 60, 1)
-        let name = params["display_name"] as? String ?? number
-        let content = UNMutableNotificationContent()
-        content.title = "拨号提醒"
-        content.body = "呼叫 \(name) (\(number))"
-        content.sound = .default
-        let id = UUID().uuidString
-        let req = UNNotificationRequest(identifier: id,
-            content: content, trigger: UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(delay), repeats: false))
-        UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
-        AuditLog.shared.log("phone.schedule_call", detail: "\(name) +\(delay)s")
-        return ["scheduled": true, "id": id, "number": number, "requiresUserTap": true]
-    }
-}
 
 // MARK: - 技能开关
 

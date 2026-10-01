@@ -207,31 +207,6 @@ final class ContainerDeleteTool: MCPTool {
 // MARK: - 原版缺失工具：automation.*
 
 
-final class AutomationHistoryTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.history", summary: "Show history of past automation task runs. Use for: see what tasks ran before, review execution logs. Don't use for: list current tasks (use automation.list), run task now (use automation.run_now). Example: user says 'what tasks ran before' → show automation history.")
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let entries = AutomationStore.shared.history.prefix(50)
-        return [
-            "count": entries.count,
-            "history": entries.map { ["time": ISO8601DateFormatter().string(from: $0.timestamp), "category": $0.category, "detail": $0.detail] }
-        ]
-    }
-}
-
-final class AutomationSetEnabledTool: MCPTool {
-    let definition = ToolDefinition(name: "automation.set_enabled", summary: "Enable or disable a scheduled task (keep it but turn it off). Use for: temporarily pause a task without deleting it. Don't use for: delete task permanently (use automation.cancel), run task now (use automation.run_now). Example: user says 'pause that scheduled task' → disable it.",
-        parameters: ["name": "Task name", "enabled": "true (enable) or false (disable)"], verified: true)
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let name = params["name"] as? String,
-              let task = AutomationStore.shared.tasks.first(where: { $0.name == name }) else {
-            throw MCPError.invalidParams("unknown task name")
-        }
-        let enabled = params["enabled"] as? Bool ?? true
-        AutomationStore.shared.setEnabled(task, enabled: enabled)
-        return ["name": name, "enabled": enabled]
-    }
-}
-
 // MARK: - 原版缺失工具：model.*
 
 final class ModelAuthenticationTool: MCPTool {

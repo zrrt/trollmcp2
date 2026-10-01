@@ -376,7 +376,12 @@ public final class ToolRegistry: ObservableObject {
         "file", "db", "package", "vpn.capture",
         "skills.list", "skills.read", "skills.set_enabled",
         // v4.3.65：恢复注册的联网检索工具（多引擎回退 + 多 query 并行 + 正文抽取）
-        "web.search", "web.fetch"
+        "web.search", "web.fetch",
+        // v4.3.66：按需绑定 App 数据容器（bind_app 只读安全，bind_app_write 可写先备份，
+        // app_write_file 原生直写先备份）——否则"小白一句话分析/改 App 数据"时 AI 看不到这些工具
+        "bind_app", "bind_app_write", "app_write_file",
+        // v4.3.66：GitHub CI 工具（tool.install 触发 CI 后的查进度/取产物闭环）
+        "github"
     ]
 
     /// v2.9.31：常驻核心工具名集合 (UI 用只读访问）
@@ -1272,6 +1277,9 @@ public final class ToolRegistry: ObservableObject {
         // 多 query 并行、多引擎回退 Bing→DuckDuckGo→Baidu、去重/来源分级、正文抽取、可沉淀知识库）
         register(WebSearchTool())
         register(WebFetchTool())
+        // v4.3.66：注册 github 大工具（CI 触发/查进度/下载产物）——tool.install 触发 CI 后，
+        // AI 需按提示调 github.fetch_runs / github.download_artifact 取产物；此前该工具漏注册导致后续断链
+        register(GitHubExecTool())
         // v3.7.7c: 移除 ish.bind 注册——bind mount 已由 autoBind 全自动（命令引用 iOS 路径自动挂载+改写），
         // 手动 bind 工具对 AI 是误导（会以为要手动挂载）。类定义保留供开发者调试/真机验证。
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")

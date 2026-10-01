@@ -270,29 +270,6 @@ final class ControlInjectTool: MCPTool {
     }
 }
 
-final class ControlStatusTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "control.status",
-        summary: "Check if ControlAgent is running in the target app. Use for: verify injection worked, see if UI control is available. Don't use for: inject ControlAgent (use control.inject), take screenshot (use control.screenshot). Example: user says 'did 小红书 injection succeed' → check control status.",
-        parameters: [:],
-        verified: true, category: "ui_control")
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        return ControlAgentTools.shared.status()
-    }
-}
-
-final class ControlUITreeTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "control.ui_tree",
-        summary: "PREREQUISITE: call control.inject first. Dump the app's UI element tree (all buttons, text fields, frames). Use for: find exact UI elements to tap, understand app layout. Don't use for: just take screenshot (use control.screenshot, simpler), tap by text (use control.tap_text). Example: user says 'what buttons are on the 小红书 page' → dump UI tree.",
-        parameters: [:],
-        verified: true, category: "ui_control")
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        AuditLog.shared.log("control.ui_tree", detail: "dump")
-        return ControlAgentTools.shared.uiTree()
-    }
-}
-
 final class ControlScreenshotTool: MCPTool {
     let definition = ToolDefinition(
         name: "control.screenshot",
@@ -302,75 +279,6 @@ final class ControlScreenshotTool: MCPTool {
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         AuditLog.shared.log("control.screenshot", detail: "capture")
         return ControlAgentTools.shared.screenshot()
-    }
-}
-
-final class ControlTapTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "control.tap",
-        summary: "PREREQUISITE: call control.inject first. Tap on target app screen by coordinates. Use for: tap a specific (x,y) position. Don't use for: tap by text label (use control.tap_text), swipe gesture (use control.swipe).",
-        parameters: [
-            "x": "Tap X coordinate (required, number)",
-            "y": "Tap Y coordinate (required, number)"
-        ],
-        verified: true)
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let x = params["x"] as? Double, let y = params["y"] as? Double else {
-            throw MCPError.invalidParams("x and y required (numbers)")
-        }
-        AuditLog.shared.log("control.tap", detail: "(\(x),\(y))")
-        return ControlAgentTools.shared.tap(x: x, y: y)
-    }
-}
-
-final class ControlSwipeTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "control.swipe",
-        summary: "PREREQUISITE: call control.inject first. Swipe gesture on target app screen. Use for: scroll up/down/left/right, swipe between pages. Don't use for: single tap (use control.tap), tap by text (use control.tap_text).",
-        parameters: [
-            "x1": "Start X (required)", "y1": "Start Y (required)",
-            "x2": "End X (required)", "y2": "End Y (required)",
-            "duration": "Swipe duration seconds (default 0.3)"
-        ],
-        verified: true)
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let x1 = params["x1"] as? Double, let y1 = params["y1"] as? Double,
-              let x2 = params["x2"] as? Double, let y2 = params["y2"] as? Double else {
-            throw MCPError.invalidParams("x1,y1,x2,y2 required")
-        }
-        let duration = params["duration"] as? Double ?? 0.3
-        AuditLog.shared.log("control.swipe", detail: "(\(x1),\(y1))→(\(x2),\(y2))")
-        return ControlAgentTools.shared.swipe(x1: x1, y1: y1, x2: x2, y2: y2, duration: duration)
-    }
-}
-
-final class ControlTypeTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "control.type",
-        summary: "PREREQUISITE: call control.inject first. Type text into the currently focused input field. Use for: type into already focused field. Don't use for: find field by label and type (use control.type_text), tap button (use control.tap). Example: user says 'type this text' → type into focused field.",
-        parameters: ["text": "Text to type into the input field (required)"],
-        verified: true)
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let text = params["text"] as? String else {
-            throw MCPError.invalidParams("text required")
-        }
-        AuditLog.shared.log("control.type", detail: text)
-        return ControlAgentTools.shared.type(text: text)
-    }
-}
-
-final class ControlKeyTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "control.key",
-        summary: "PREREQUISITE: call control.inject first. Simulate hardware button press (home/back/enter). Use for: go back to home screen, press back button, press enter. Don't use for: tap on screen (use control.tap), swipe gesture (use control.swipe). Example: user says 'press home to go back' → press home key.",
-        parameters: ["key": "Which key to press: home / back / enter (required)"],
-        verified: true)
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let key = params["key"] as? String else {
-            throw MCPError.invalidParams("key required")
-        }
-        AuditLog.shared.log("control.key", detail: key)
-        return ControlAgentTools.shared.key(key)
     }
 }
 

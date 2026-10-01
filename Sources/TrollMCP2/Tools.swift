@@ -163,38 +163,6 @@ final class MemoryTweakTool: MCPTool {
 }
 
 
-// MARK: - v2.9.108 剪贴板工具 (借鉴 ios-mcp 能力）
-// AI 读取/写入系统剪贴板：读验证码/链接/token、把结果复制给用户粘贴
-
-final class ClipboardReadTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "clipboard.read",
-        summary: "Read what's currently in the clipboard. Use for: get the last copied text, read verification code from clipboard. Don't use for: copy text to clipboard (use clipboard.write), save text to file (use artifact.write_text). Example: user says 'what is copied in clipboard' → read clipboard.",
-        parameters: [:],
-        verified: true, category: "system")
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let text = UIThreadBridge.readClipboard()
-        if text.isEmpty {
-            return ["text": "", "empty": true, "hint": "clipboard is empty (no readable text)"]
-        }
-        return ["text": text, "empty": false, "length": text.count]
-    }
-}
-
-final class ClipboardWriteTool: MCPTool {
-    let definition = ToolDefinition(
-        name: "clipboard.write",
-        summary: "Copy text to the clipboard. Use for: put text on clipboard so user can paste it elsewhere. Don't use for: read clipboard (use clipboard.read), save text to file (use artifact.write_text). Example: user says 'copy this text' → write to clipboard.",
-        parameters: ["text": "Text to copy to clipboard (required)"],
-    verified: true, category: "system")
-    func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        guard let text = params["text"] as? String, !text.isEmpty else {
-            throw MCPError.invalidParams("text required")
-        }
-        UIThreadBridge.paste(text)
-        return ["ok": true, "length": text.count]
-    }
-}
 
 // MARK: - v3.1.39: artifact 大工具 + 子命令 (合并 3 个 artifact.* 工具）
 
@@ -683,9 +651,10 @@ final class KnowledgeExecTool: MCPTool {
         parameters: [
             "command": "Subcommand: import_text / import_file / search / delete / clear",
             "text": "Text to import (for import_text)",
+            "name": "Entry name (optional for import_text, required for delete)",
             "path": "File path (for import_file)",
             "query": "Search query (for search)",
-            "id": "Knowledge ID (for delete)"
+            "id": "Knowledge entry name (alias for name, for delete)"
         ],
         verified: true, category: "knowledge")
     
@@ -701,7 +670,9 @@ final class KnowledgeExecTool: MCPTool {
             guard let text = params["text"] as? String else {
                 throw MCPError.invalidParams("text required")
             }
-            return try KnowledgeImportTextTool().invoke(["text": text])
+            // v4.3.66：子工具要求 name+content（此前只传 text 必崩）；name 缺省自动生成
+            let name = params["name"] as? String ?? "笔记-\(Int(Date().timeIntervalSince1970))"
+            return try KnowledgeImportTextTool().invoke(["name": name, "content": text])
             
         case "import_file":
             guard let path = params["path"] as? String else {
@@ -716,10 +687,11 @@ final class KnowledgeExecTool: MCPTool {
             return try KnowledgeSearchTool().invoke(["query": query])
             
         case "delete":
-            guard let id = params["id"] as? String else {
-                throw MCPError.invalidParams("id required")
+            // v4.3.66：子工具要求 name（此前传 id 必崩）；兼容 name/id 两种入参
+            guard let name = params["name"] as? String ?? params["id"] as? String else {
+                throw MCPError.invalidParams("name required")
             }
-            return try KnowledgeDeleteTool().invoke(["id": id])
+            return try KnowledgeDeleteTool().invoke(["name": name])
 
         case "clear":
             let removed = KnowledgeStore.shared.clearAll()
