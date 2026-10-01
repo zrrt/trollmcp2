@@ -178,10 +178,8 @@ struct SettingsView: View {
                              icon: "bell.badge.fill", color: .blue,
                              isOn: { TaskNotify.shared.enabled },
                              onToggle: { TaskNotify.shared.enabled = $0 }),
-                SettingsItem(title: L10n.t("row_icon_theme"),
-                             subtitle: "巨魔蓝 · 蓝紫 · 浅白 · 深青",
-                             icon: "app.badge.fill", color: .purple,
-                             destination: AnyView(IconThemeView())),
+                // v4.3.53：图标主题功能彻底移除（含 Resources 残留图标文件）。
+                // 侧载环境下动态图标注册可能干扰 MobileIcons 图标缓存（分享面板崩溃嫌疑项）。
                 SettingsItem(title: L10n.t("row_device_fake"),
                              subtitle: "伪装机型 · 注入生效",
                              icon: "iphone.gen3.radiowaves.left.and.right", color: .pink,
