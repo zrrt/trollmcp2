@@ -82,6 +82,15 @@ if [ -d "Resources/bin" ]; then
     cp -R "Resources/bin" "$APP/bin"
     chmod +x "$APP/bin/"* 2>/dev/null || true
     echo ">>> bundled bin: $(ls "$APP/bin" | wc -l | tr -d ' ') files"
+    # v4.4.5: 原生工具（CI native-tools job 交叉编译/预编译提取的 arm64 iOS 二进制：
+    # lua=源码编译, node=nodejs-mobile iOS 预编译, r2=radare2 r2ios-sdk 预编译；均随 tool.install 绑定）
+    for t in lua node r2; do
+        if [ -f "native-tools-out/$t" ]; then
+            cp "native-tools-out/$t" "$APP/bin/$t"
+            chmod +x "$APP/bin/$t"
+            echo ">>> native $t bundled ($(du -h "$APP/bin/$t" | cut -f1))"
+        fi
+    done
     # v2.9.38: 给注入工具签 no-sandbox entitlements
     # iOS 沙箱按每次 exec 的新二进制签名计算：工具不签 no-sandbox 则即使被 root spawn 也仍套普通沙箱，
     # 写其他 App bundle（/private/var/containers/Bundle/Application/...）会 Permission denied。

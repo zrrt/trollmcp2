@@ -740,7 +740,7 @@ final class ShellExecTool: MCPTool {
         "sha256sum", "diff", "hexdump", "curl", "wget", "plutil", "sqlite3",
         "unzip", "df", "free", "uname", "uptime", "hostname", "ps", "top",
         "kill", "ifconfig", "netstat", "nslookup", "tar", "gzip", "gunzip",
-        "ta", "base64", "strings", "nm", "kfd_diag", "python3"
+        "ta", "base64", "strings", "nm", "kfd_diag", "python3", "objdump", "class-dump"
     ]
     
     /// v4.3.9: 反向路径翻译——iOS 原生命令收到 Alpine 挂载路径时翻译回 iOS 真实路径。
@@ -810,6 +810,8 @@ final class ShellExecTool: MCPTool {
         case "base64": return runIOSBase64(trimmed)
         case "strings": return runIOSStrings(iosCmd)
         case "nm": return runIOSNm(iosCmd)
+        case "objdump": return runIOSObjdump(iosCmd)
+        case "class-dump": return runIOSClassDump(iosCmd)
         case "python3": return runIOSPython3(iosCmd)
         case "kfd_diag": return runIOSKfdDiag(iosCmd)
         case "ta": return OffloadRouter.run(trimmed)
@@ -1622,6 +1624,348 @@ final class ShellExecTool: MCPTool {
         }
         return ["command": command, "exit_code": 0, "stdout": truncated, "ios_native": true,
                 "hint": "原生 nm 直读 Mach-O 符号表。默认输出 __text 段函数符号（地址+名字），-a 输出全部段符号。可配合 strings <path> 提取字符串。"]
+    }
+
+    /// v4.4.5: 原生 objdump —— App 进程内直读 Mach-O：文件头 + load commands + 段节表 + 符号摘要，
+    /// `-d` 追加基础 ARM64 反汇编（常见指令）。纯只读解析，不 spawn 外部二进制。
+    /// 与 nm/kfd_diag 同路线（jtool2 官方仅 macOS 二进制，LLVM 全套交叉编译太重，自研最稳最快）。
+    /// 语法: objdump [-d] <path>
+    private static func runIOSObjdump(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        var disasm = false
+        var pathArg: String?
+        for a in parts.dropFirst() {
+            if a == "-d" { disasm = true }
+            else if !a.hasPrefix("-") { pathArg = a; break }
+        }
+        guard let raw = pathArg else {
+            return ["command": command, "exit_code": 1,
+                    "stdout": "usage: objdump [-d] <path> — 输出 Mach-O 头/load commands/段节/符号摘要；-d 追加 __text 基础 ARM64 反汇编。",
+                    "ios_native": true]
+        }
+        let path = ShellExecTool.normalizePath((raw as NSString).expandingTildeInPath)
+        guard fm.fileExists(atPath: path) else {
+            return ["command": command, "exit_code": 1, "stdout": "objdump: \(path): No such file or directory", "ios_native": true]
+        }
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
+            return ["command": command, "exit_code": 1, "stdout": "objdump: \(path): cannot read", "ios_native": true]
+        }
+        let b = [UInt8](data)
+        func u32(_ o: Int) -> UInt32 { guard o + 3 < b.count else { return 0 }; return UInt32(b[o]) | (UInt32(b[o+1])<<8) | (UInt32(b[o+2])<<16) | (UInt32(b[o+3])<<24) }
+        func b32(_ o: Int) -> UInt32 { guard o + 3 < b.count else { return 0 }; return (UInt32(b[o])<<24) | (UInt32(b[o+1])<<16) | (UInt32(b[o+2])<<8) | UInt32(b[o+3]) }
+        func u64(_ o: Int) -> UInt64 { var v: UInt64 = 0; for k in 0..<8 where o + k < b.count { v |= UInt64(b[o+k]) << (k*8) }; return v }
+
+        var out: [String] = []
+        // 定位 arm64 slice（fat/thin）
+        var base = 0
+        var isFat = false
+        let magic = u32(0)
+        if magic == 0xbebafeca { // FAT_CIGAM
+            isFat = true
+            let n = Int(b32(4)); var found = false
+            for j in 0..<n {
+                let e = 8 + j*20
+                if b32(e) == 0x0100000c { base = Int(b32(e+8)); found = true; break }
+            }
+            if !found { out.append("objdump: no arm64 slice (fat)") }
+        } else if magic == 0xfeedfacf || magic == 0xcffaedfe { // MH_MAGIC_64 (LE/BE)
+            base = 0
+        } else {
+            out.append("objdump: not a Mach-O 64 (magic 0x\(String(format:"%08x", magic)))")
+            return ["command": command, "exit_code": 0, "stdout": out.joined(separator: "\n"), "ios_native": true]
+        }
+
+        let cputype = u32(base + 4)
+        let cpusub = u32(base + 8)
+        let filetype = u32(base + 12)
+        let ncmds = Int(u32(base + 16))
+        let sizeofcmds = u32(base + 20)
+        var cpuName = "arm64"
+        if cputype == 0x0100000c {
+            cpuName = (cpusub == 0x80000002) ? "arm64e" : "arm64"
+        } else if cputype == 0x01000007 { cpuName = "x86_64" }
+        let typeName: String
+        switch filetype {
+        case 0x1: typeName = "MH_OBJECT (.o)"
+        case 0x2: typeName = "MH_EXECUTE (app)"
+        case 0x4: typeName = "MH_DYLIB (dylib)"
+        case 0x6: typeName = "MH_DYLINKER"
+        case 0x8: typeName = "MH_BUNDLE (.bundle)"
+        case 0xb: typeName = "MH_DSYM"
+        default: typeName = "0x\(String(format:"%x", filetype))"
+        }
+        out.append("Mach-O \(isFat ? "(fat) " : "")\(cpuName) \(typeName)  \(b.count) bytes")
+        out.append("load commands: \(ncmds), sizeofcmds: \(sizeofcmds)")
+
+        // load commands 表 + __TEXT 段节表
+        var off = base + 32
+        var sections: [(String, UInt64, Int, Int)] = []  // (节名, addr, fileoff, size)
+        var lcIndex = 0
+        for _ in 0..<min(ncmds, 120) {
+            if off + 8 > b.count { break }
+            let c = u32(off); let sz = Int(u32(off+4))
+            let cmdName: String
+            switch c {
+            case 0x1: cmdName = "LC_SEGMENT"
+            case 0x19: cmdName = "LC_SEGMENT_64"
+            case 0x2: cmdName = "LC_SYMTAB"
+            case 0xb: cmdName = "LC_LOAD_DYLIB"
+            case 0xc: cmdName = "LC_ID_DYLIB"
+            case 0x1d: cmdName = "LC_CODE_SIGNATURE"
+            case 0x22: cmdName = "LC_MAIN"
+            case 0x24: cmdName = "LC_ENCRYPTION_INFO_64"
+            case 0x2c: cmdName = "LC_BUILD_VERSION"
+            case 0x32: cmdName = "LC_DYLD_EXPORTS_TRIE"
+            case 0x80000028: cmdName = "LC_FUNCTION_STARTS"
+            default: cmdName = String(format: "0x%x", c)
+            }
+            out.append(String(format: "  LC %d: %@ (size %d)", lcIndex, cmdName, sz))
+            if c == 0x19 && sz >= 72 { // LC_SEGMENT_64: segname@off+8
+                var sname = ""
+                for k in 0..<16 where off+8+k < b.count && b[off+8+k] != 0 { sname += String(UnicodeScalar(b[off+8+k])) }
+                let nsects = Int(u32(off+64))
+                out.append("     segment \(sname) nsects=\(nsects)")
+                var so = off + 72
+                var secIndex = 0
+                for _ in 0..<min(nsects, 40) {
+                    if so + 80 > b.count { break }
+                    var sec = ""
+                    for k in 0..<16 where so+k < b.count && b[so+k] != 0 { sec += String(UnicodeScalar(b[so+k])) }
+                    let saddr = u64(so + 32)
+                    let ssize = u64(so + 40)
+                    let soff = u32(so + 48)
+                    out.append(String(format: "       [%02d] %@  addr=0x%llx size=0x%llx fileoff=%d", secIndex, sec, saddr, ssize, soff))
+                    sections.append((sec, saddr, Int(soff), Int(ssize)))
+                    so += 80
+                    secIndex += 1
+                }
+            }
+            off += sz
+            lcIndex += 1
+        }
+
+        // 符号摘要（__text 定义符号）
+        var symLines: [String] = []
+        var stOff = 0
+        var nsyms = 0
+        var strOff = 0
+        off = base + 32
+        for _ in 0..<min(ncmds, 120) {
+            if off + 8 > b.count { break }
+            let c = u32(off); let sz = Int(u32(off+4))
+            if c == 0x2 && sz >= 24 { // LC_SYMTAB
+                stOff = Int(u32(off+8)); nsyms = Int(u32(off+12)); strOff = Int(u32(off+16))
+                break
+            }
+            off += sz
+        }
+        if nsyms > 0 {
+            var count = 0
+            for i in 0..<min(nsyms, 20000) {
+                let e = stOff + i*16
+                if e + 16 > b.count { break }
+                let nx = Int(u32(e))
+                let ntype = b[e+4]
+                if (ntype & 0x0e) == 0x0e {
+                    let nval = u64(e+8)
+                    var name = ""
+                    var k = strOff + nx
+                    while k < b.count && b[k] != 0 && name.count < 120 { name += String(UnicodeScalar(b[k])); k += 1 }
+                    if !name.isEmpty && !name.hasPrefix("$") {
+                        symLines.append(String(format: "%016llx  %@", nval, name))
+                        count += 1
+                        if count >= 60 { symLines.append("…(符号过多，仅显示前 60)"); break }
+                    }
+                }
+            }
+            out.append("symbols (__text defined): \(count > 60 ? "60+" : "\(count)")")
+        }
+
+        // -d 反汇编 __text
+        if disasm, let textSec = sections.first(where: { $0.0 == "__text" }) {
+            var asm: [String] = []
+            let startOff = textSec.3
+            let maxInsns = 200
+            for i in 0..<maxInsns {
+                let o = startOff + i*4
+                if o + 4 > b.count || i*4 >= textSec.4 { break }
+                let ins = u32(o)
+                let addr = textSec.2 + UInt64(i*4)
+                asm.append(String(format: "%016llx: %08x  %@", addr, ins, decodeA64(ins)))
+            }
+            out.append("— __text disassembly (first \(asm.count)/\(textSec.4/4) insns) —")
+            out.append(contentsOf: asm)
+        }
+
+        let joined = out.joined(separator: "\n")
+        let truncated: String = joined.count > 12000
+            ? String(joined.prefix(8000)) + "\n…[输出太长，已截断 total \(joined.count)]…" + String(joined.suffix(2000))
+            : joined
+        return ["command": command, "exit_code": 0, "stdout": truncated, "ios_native": true,
+                "hint": "原生 objdump 直读 Mach-O（头/load commands/段节/符号；-d 反汇编）。搭配 nm、strings 完成静态分析。"]
+    }
+
+    /// 基础 ARM64 指令解码（常见指令；未识别输出 dc=unrecognized）
+    private static func decodeA64(_ w: UInt32) -> String {
+        // RET / BR / BLR
+        if (w & 0xFFFFFC1F) == 0xD65F0000 { return "ret" }
+        if (w & 0xFFFFFC1F) == 0xD61F0000 { return "br" }
+        if (w & 0xFFFFFC1F) == 0xD63F0000 { return "blr" }
+        if w == 0xD503201F { return "nop" }
+        // B / BL (imm26)
+        if (w & 0xFC000000) == 0x14000000 {
+            let imm = Int32(bitPattern: (w & 0x03FFFFFF) << 6) >> 6
+            return (w & 0x80000000) != 0 ? "bl 0x\(String(format:"%llx", UInt64(bitPattern: Int64(imm))*4 + 0))" : "b  0x\(String(format:"%llx", UInt64(bitPattern: Int64(imm))*4))"
+        }
+        // CBZ/CBNZ (imm19)
+        if (w & 0x7E000000) == 0x34000000 || (w & 0x7E000000) == 0x35000000 {
+            let imm = Int32(bitPattern: (w & 0x00FFFFE0) << 8) >> 11
+            return ((w & 0x7E000000) == 0x34000000 ? "cbz" : "cbnz") + " w\( (w >> 5) & 0x1F), 0x\(String(format:"%llx", UInt64(bitPattern: Int64(imm))*4))"
+        }
+        // ADRP (immhi:immlo)
+        if (w & 0x9F000000) == 0x90000000 {
+            return "adrp x\((w >> 5) & 0x1F)"
+        }
+        // ADD/SUB immediate
+        if (w & 0x9F000000) == 0x91000000 { return "add x\((w >> 5) & 0x1F), x\(w & 0x1F), #\((w >> 10) & 0xFFF)" }
+        if (w & 0x9F000000) == 0xD1000000 { return "sub x\((w >> 5) & 0x1F), x\(w & 0x1F), #\((w >> 10) & 0xFFF)" }
+        // LDR/STR unsigned imm
+        if (w & 0xFFC00000) == 0xF9400000 { return "ldr x\((w >> 5) & 0x1F), [x\(w & 0x1F), #\((w >> 10) & 0xFFF)]" }
+        if (w & 0xFFC00000) == 0xF9000000 { return "str x\((w >> 5) & 0x1F), [x\(w & 0x1F), #\((w >> 10) & 0xFFF)]" }
+        if (w & 0xFFC00000) == 0xB9400000 { return "ldr w\((w >> 5) & 0x1F), [x\(w & 0x1F), #\((w >> 10) & 0xFFF)]" }
+        if (w & 0xFFC00000) == 0xB9000000 { return "str w\((w >> 5) & 0x1F), [x\(w & 0x1F), #\((w >> 10) & 0xFFF)]" }
+        // MOVZ/MOVK/MOVN
+        if (w & 0xFF800000) == 0xD2800000 { return "movz x\((w >> 5) & 0x1F), #\((w >> 5) & 0xFFFF)" }
+        if (w & 0xFF800000) == 0xF2800000 { return "movk x\((w >> 5) & 0x1F), #\((w >> 5) & 0xFFFF)" }
+        // STP/LDP
+        if (w & 0xFFC00000) == 0xA9000000 { return "stp x\((w >> 10) & 0x1F), x\((w >> 5) & 0x1F), [x\(w & 0x1F)]" }
+        if (w & 0xFFC00000) == 0xA9400000 { return "ldp x\((w >> 10) & 0x1F), x\((w >> 5) & 0x1F), [x\(w & 0x1F)]" }
+        // 未识别
+        return "dc\t\(String(format:"0x%08x", w))"
+    }
+
+    /// v4.4.5: 原生 class-dump —— 直读 __TEXT,__objc_classname / __objc_methname，输出 OC 类与方法。
+    /// 对砸壳/未砸壳二进制均可用（字符串明文存在于 Mach-O）。纯只读。
+    /// 语法: class-dump [-l 限制条数] <path>
+    private static func runIOSClassDump(_ command: String) -> [String: Any] {
+        let fm = FileManager.default
+        let parts = command.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+        var limit = 80
+        var pathArg: String?
+        var i = 1
+        while i < parts.count {
+            let a = parts[i]
+            if a == "-l" && i + 1 < parts.count { limit = Int(parts[i+1]) ?? 80; i += 2; continue }
+            else if !a.hasPrefix("-") { pathArg = a; break }
+            i += 1
+        }
+        guard let raw = pathArg else {
+            return ["command": command, "exit_code": 1,
+                    "stdout": "usage: class-dump [-l N] <path> — 输出 Objective-C 类与方法（__objc_classname/__objc_methname）。",
+                    "ios_native": true]
+        }
+        let path = ShellExecTool.normalizePath((raw as NSString).expandingTildeInPath)
+        guard fm.fileExists(atPath: path) else {
+            return ["command": command, "exit_code": 1, "stdout": "class-dump: \(path): No such file or directory", "ios_native": true]
+        }
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
+            return ["command": command, "exit_code": 1, "stdout": "class-dump: \(path): cannot read", "ios_native": true]
+        }
+        let b = [UInt8](data)
+        func u32(_ o: Int) -> UInt32 { guard o + 3 < b.count else { return 0 }; return UInt32(b[o]) | (UInt32(b[o+1])<<8) | (UInt32(b[o+2])<<16) | (UInt32(b[o+3])<<24) }
+        func b32(_ o: Int) -> UInt32 { guard o + 3 < b.count else { return 0 }; return (UInt32(b[o])<<24) | (UInt32(b[o+1])<<16) | (UInt32(b[o+2])<<8) | UInt32(b[o+3]) }
+        func u64(_ o: Int) -> UInt64 { var v: UInt64 = 0; for k in 0..<8 where o + k < b.count { v |= UInt64(b[o+k]) << (k*8) }; return v }
+
+        // 定位 arm64 slice
+        var base = 0
+        let magic = u32(0)
+        if magic == 0xbebafeca {
+            let n = Int(b32(4)); var found = false
+            for j in 0..<n { let e = 8 + j*20; if b32(e) == 0x0100000c { base = Int(b32(e+8)); found = true; break } }
+            if !found { return ["command": command, "exit_code": 0, "stdout": "class-dump: no arm64 slice", "ios_native": true] }
+        } else if magic == 0xfeedfacf { base = 0 }
+        else { return ["command": command, "exit_code": 0, "stdout": "class-dump: not Mach-O 64 (magic 0x\(String(format:"%08x", magic)))", "ios_native": true] }
+
+        // 收集段
+        var sectOffsets: [String: (Int, Int)] = [:]  // 节名 -> (fileoff, size)
+        let ncmds = Int(u32(base + 16))
+        var off = base + 32
+        for _ in 0..<ncmds {
+            if off + 8 > b.count { break }
+            let c = u32(off); let sz = Int(u32(off+4))
+            if c == 0x19 && sz >= 72 {
+                let nsects = Int(u32(off+64))
+                var so = off + 72
+                for _ in 0..<min(nsects, 60) {
+                    if so + 80 > b.count { break }
+                    var sec = ""
+                    for k in 0..<16 where so+k < b.count && b[so+k] != 0 { sec += String(UnicodeScalar(b[so+k])) }
+                    let soff = Int(u32(so+48)); let ssize = Int(u32(so+52))
+                    sectOffsets[sec] = (soff, ssize)
+                    so += 80
+                }
+            }
+            off += sz
+        }
+
+        // 提取类名（__objc_classname 的 NUL 分隔 cstring）
+        var classNames: [String] = []
+        if let (co, cs) = sectOffsets["__objc_classname"] {
+            var k = co; let end = min(co + cs, b.count)
+            while k < end {
+                var s = ""
+                while k < end && b[k] != 0 { s += String(UnicodeScalar(b[k])); k += 1 }
+                if !s.isEmpty && s.count < 160 { classNames.append(s) }
+                k += 1
+            }
+        }
+        // 方法名（__objc_methname）
+        var selectors: [String] = []
+        if let (mo, ms) = sectOffsets["__objc_methname"] {
+            var k = mo; let end = min(mo + ms, b.count)
+            while k < end {
+                var s = ""
+                while k < end && b[k] != 0 { s += String(UnicodeScalar(b[k])); k += 1 }
+                if !s.isEmpty && s.count < 120 { selectors.append(s) }
+                k += 1
+            }
+        }
+        // 兜底：从任意段扫 _OBJC_CLASS_$_ 前缀字符串（未砸壳场景更常见）
+        if classNames.isEmpty {
+            var k = 0
+            while k < b.count - 20 {
+                var s = ""
+                var j = k
+                while j < b.count && b[j] != 0 && s.count < 200 { s += String(UnicodeScalar(b[j])); j += 1 }
+                if s.hasPrefix("_OBJC_CLASS_$_") || s.hasPrefix("OBJC_CLASS_$_") {
+                    let cn = s.replacingOccurrences(of: "_OBJC_CLASS_$_", with: "").replacingOccurrences(of: "OBJC_CLASS_$_", with: "")
+                    if !classNames.contains(cn) { classNames.append(cn) }
+                }
+                k = j + 1
+            }
+        }
+
+        var out: [String] = []
+        out.append("Objective-C classes: \(classNames.count), methods: \(selectors.count)")
+        let shown = min(classNames.count, limit)
+        if shown > 0 {
+            out.append("— classes —")
+            for cn in classNames.prefix(shown) { out.append("  \(cn)") }
+        }
+        if !selectors.isEmpty {
+            out.append("— methods (selectors) —")
+            for s in selectors.prefix(min(selectors.count, limit)) { out.append("  - \(s)") }
+        }
+        if classNames.isEmpty && selectors.isEmpty {
+            out.append("no ObjC metadata found — Swift-only binary 或已剥离 __objc_* 段（可用 nm/strings/objdump 交叉验证）")
+        }
+        let joined = out.joined(separator: "\n")
+        let truncated: String = joined.count > 12000
+            ? String(joined.prefix(8000)) + "\n…[输出太长，已截断 total \(joined.count)]…"
+            : joined
+        return ["command": command, "exit_code": 0, "stdout": truncated, "ios_native": true,
+                "hint": "原生 class-dump 直读 __objc_classname/__objc_methname。Swift 二进制或剥壳后段缺失时用 nm -a + strings 互补。"]
     }
 
     /// v3.6.19b: iOS 原生 kfd_diag —— 只读解析 Mach-O 的代码签名结构（LC_CODE_SIGNATURE →

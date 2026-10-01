@@ -12,7 +12,98 @@ on:
     branches: [main]
 
 jobs:
+  # v4.4.5: 原生工具链（lua arm64 iOS 交叉编译，产物缓存秒级）。
+  # build job needs 本 job，保证每次出包都带上原生工具（首次编译 <10min，之后缓存命中）。
+  native-tools:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        id: tools-cache
+        with:
+          path: native-tools-out
+          key: native-tools-v2
+
+      - name: Build lua 5.4 (iOS arm64)
+        if: steps.tools-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p native-tools-out
+          curl -sL -o /tmp/lua.tar.gz https://www.lua.org/ftp/lua-5.4.7.tar.gz
+          tar -xzf /tmp/lua.tar.gz -C /tmp
+          cd /tmp/lua-5.4.7
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          make generic CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK -DLUA_USE_POSIX" || \
+            make generic CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK" || true
+          if [ -f src/lua ]; then
+            cp src/lua "$GITHUB_WORKSPACE/native-tools-out/lua"
+            chmod +x "$GITHUB_WORKSPACE/native-tools-out/lua"
+          else
+            echo "!!! lua build failed" >&2
+          fi
+
+      # v4.4.5: nodejs（nodejs-mobile iOS 预编译）——提取 arm64 Mach-O 可执行
+      - name: Fetch nodejs (nodejs-mobile iOS prebuilt)
+        if: steps.tools-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /tmp/node-ios
+          curl -sL -o /tmp/node-ios.zip https://github.com/JaneaSystems/nodejs-mobile/releases/download/nodejs-mobile-v0.3.3/nodejs-mobile-v0.3.3-ios.zip
+          unzip -q -o /tmp/node-ios.zip -d /tmp/node-ios 2>/dev/null || true
+          # 找 arm64 Mach-O 可执行（node / NodeMobile 等）
+          found=""
+          for f in $(find /tmp/node-ios -type f \( -name "node" -o -name "NodeMobile" -o -name "nodejs-mobile" \) 2>/dev/null); do
+            if file "$f" 2>/dev/null | grep -q "Mach-O.*arm64"; then found="$f"; break; fi
+          done
+          if [ -z "$found" ]; then
+            found=$(find /tmp/node-ios -type f -exec file {} \; 2>/dev/null | grep "Mach-O.*arm64" | head -1 | cut -d: -f1)
+          fi
+          if [ -n "$found" ] && [ -f "$found" ]; then
+            cp "$found" "$GITHUB_WORKSPACE/native-tools-out/node"
+            chmod +x "$GITHUB_WORKSPACE/native-tools-out/node"
+            echo ">>> node: $(file "$found" | head -c 120)"
+          else
+            echo "!!! node iOS binary not found — skipped" >&2
+          fi
+
+      # v4.4.5: radare2 CLI（r2ios-sdk 是静态库 SDK，无现成 r2 可执行——写 main 链接 libr.a 全套）
+      - name: Build r2 CLI (r2ios-sdk static libs)
+        if: steps.tools-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /tmp/r2ios
+          curl -sL -o /tmp/r2ios.zip https://github.com/radareorg/radare2/releases/download/6.2.2/r2ios-sdk-6.2.2.zip
+          unzip -q -o /tmp/r2ios.zip -d /tmp/r2ios 2>/dev/null || true
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          INC=/tmp/r2ios/var/jb/usr/include/libr
+          LIB=/tmp/r2ios/var/jb/usr/lib
+          echo '#include <r_main.h>' > /tmp/r2main.c
+          echo 'int main(int argc, char **argv) { return r_main_r2(argc, argv); }' >> /tmp/r2main.c
+          LIBS="$(ls $LIB/libr_*.a 2>/dev/null | tr '\n' ' ')"
+          xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" \
+            -I"$INC" /tmp/r2main.c \
+            -Wl,-start-group $LIBS -Wl,-end-group \
+            -o "$GITHUB_WORKSPACE/native-tools-out/r2" \
+            -lz -liconv -lresolv -framework Foundation 2>&1 | tail -3 || true
+          if [ -f "$GITHUB_WORKSPACE/native-tools-out/r2" ]; then
+            chmod +x "$GITHUB_WORKSPACE/native-tools-out/r2"
+            file "$GITHUB_WORKSPACE/native-tools-out/r2"
+            echo ">>> r2 CLI built"
+          else
+            echo "!!! r2 link failed (libr.a 依赖可能缺 capstone 等) — skipped, 可用自研 objdump/nm/class-dump" >&2
+          fi
+
+      - name: List native tools
+        run: ls -la native-tools-out/
+
+      - name: Upload native tools
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-tools
+          path: native-tools-out
+          if-no-files-found: warn
+
   build:
+    needs: native-tools
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -159,6 +250,14 @@ jobs:
       # v4.4.4: 集成原生 Python——下载 native-python job 编译的 xcframework 到 python-ios/。
       # 并行首次跑时 native-python 可能未完成（artifact 不存在 → 跳过集成，App 无原生 python，
       # AI 仍走 iSH）；后续 native-python 命中缓存快速完成，集成自动生效。
+      # v4.4.5: 集成原生工具链（lua）——native-tools job 产物（build needs native-tools，必在）。
+      - name: Download native tools (lua)
+        uses: actions/download-artifact@v4
+        with:
+          name: native-tools
+          path: native-tools-out
+        continue-on-error: true
+
       - name: Download native Python xcframework (if ready)
         uses: actions/download-artifact@v4
         with:

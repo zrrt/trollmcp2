@@ -89,6 +89,9 @@
 		<string>bin/optool</string>
 		<string>bin/opainject</string>
 		<string>bin/python3</string>
+		<string>bin/lua</string>
+		<string>bin/node</string>
+		<string>bin/r2</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>
