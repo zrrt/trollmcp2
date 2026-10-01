@@ -457,6 +457,9 @@ jobs:
           export _PYTHON_HOST_PLATFORM=ios-arm64
           export _PYTHON_SYSCONFIGDATA_NAME=_sysconfigdata__ios_arm64_iphoneos
           export PYTHONPATH="$PYIOS/lib-arm64/python3.14:$PYTHONPATH"
+          # fix3l: meson-python 0.19 检测到 cross 会自动生成 cross-file 并用 PEP 730 官方编译器
+          # arm64-apple-ios-clang(在 XCFramework ios-arm64/bin/ 里)——必须加进 PATH
+          export PATH="$PYIOS/bin:$PATH"
           python3 -c "
           import sysconfig, sys
           ip = sysconfig.get_config_var('INCLUDEPY') or ''
