@@ -16,7 +16,8 @@ private enum GHStoreKeys {
 }
 
 /// 轻量读取 GitHub 账号配置 (不依赖 UI 层 ObservableObject，可在工具线程安全读取）
-private struct GHConfig {
+/// v4.3.66：由 private 改为 internal（InstallTools.swift 跨文件引用）
+struct GHConfig {
     static var repoOwner: String { UserDefaults.standard.string(forKey: GHStoreKeys.owner) ?? "zrrt" }
     static var repoName: String { UserDefaults.standard.string(forKey: GHStoreKeys.repo) ?? "trollmcp2" }
     static var workflowId: String { UserDefaults.standard.string(forKey: GHStoreKeys.workflow) ?? "build-trollmcp2.yml" }
@@ -37,7 +38,8 @@ private struct GHConfig {
 }
 
 /// GitHub 同步请求辅助：semaphore 桥接 URLSession
-private enum GHAPI {
+/// v4.3.66：由 private 改为 internal（InstallTools.swift 跨文件引用）
+enum GHAPI {
     static func get(_ urlString: String, token: String?) -> (Int, [String: Any]?, Data?) {
         var result: (Int, [String: Any]?, Data?) = (0, nil, nil)
         guard let url = URL(string: urlString) else { return (0, nil, nil) }

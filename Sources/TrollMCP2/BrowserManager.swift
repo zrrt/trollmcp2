@@ -238,7 +238,8 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
         guard !types.isEmpty else { return ["ok": false, "error": "kinds 需包含 cache/cookies/storage 之一或 all"] }
         var done = false
         let sem = DispatchSemaphore(value: 0)
-        store.removeData(ofTypes: types, modifiedSince: .distantPast) { _ in
+        // v4.3.66：completionHandler 为 () -> Void，不能写 { _ in }（原代码闭包参数数量错误）
+        store.removeData(ofTypes: types, modifiedSince: .distantPast) {
             done = true
             sem.signal()
         }
