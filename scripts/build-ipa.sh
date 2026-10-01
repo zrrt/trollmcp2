@@ -169,9 +169,11 @@ fi
 # （崩溃栈固定：ShareSheet → SharingUI → MobileIcons LICreateIconForImages → CoreImage）。
 # 只有 TrollMCP2 崩、TrollFools/系统 App 不崩 = 只有它带异常 appex。
 # VPN 抓包功能降级为 local proxy 模式（VpnTools.swift 已支持 appex 缺失自动降级）。
-# v4.3.65：恢复（用户要求）。崩溃触发面已在 v4.3.46 定版彻底绕开：
-# 全部分享入口走 ShareCenter 自建菜单（UIDocumentPicker/拷贝），不再打开系统分享面板，
-# MobileIcons 枚举扩展图标路径不再可达，appex 可安全回归；分享 Debug 入口 v4.3.64 已移除。
+# v4.3.65：恢复构建（用户要求）。崩溃触发面已在 v4.3.46 定版绕开（分享全走 ShareCenter 自建菜单），
+# 分享 Debug 入口 v4.3.64 已移除。
+# ⚠️ 注意：VPN 抓包仍是半成品、开发中——隧道为"系统代理模式"（不转发 packetFlow）：
+# 自建 socket 直连 App 在 VPN 下会断网、QUIC/HTTP3 不解密、TLS-pinned App 握手失败（已知边界）。
+# 实际可用路径以 local proxy（WiFi 手动代理 127.0.0.1:18180）为准；appex 恢复便于继续开发调试。
 if [ -d "openssl-stage/lib" ] && [ -f "openssl-stage/lib/libssl.a" ]; then
     echo ">>> swift build VpnTunnel appex (openssl-stage present)"
     if swift build -c release --product VpnTunnel \

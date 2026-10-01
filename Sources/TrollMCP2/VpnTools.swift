@@ -11,6 +11,7 @@ final class VpnTool: MCPTool {
             "command": "status / start / stop / cert / local_start / local_stop / logs"
         ],
         verified: false, category: "network", prerequisites: [
+            "⚠️ 半成品/开发中（v4.3.65）：VPN 模式为系统代理隧道（不转发 packetFlow）——自建 socket 直连 App 在 VPN 下会断网、QUIC/HTTP3 不解密、TLS-pinned App 握手失败；优先用 local_start（本地代理）验证抓包闭环",
             "run cert first: generates Workspace/certs/TrollAgentCA.mobileconfig — user must install it in Settings and enable Full Trust (Settings→General→About→Certificate Trust Settings)",
             "start = VPN mode (NEVPNManager + VpnTunnel appex). If appex not installed/loadable, fall back to local_start + WiFi manual proxy",
             "after start, user uses the target app normally; logs appear in Workspace/network_capture/mitm/",

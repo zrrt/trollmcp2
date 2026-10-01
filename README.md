@@ -54,6 +54,7 @@
 
 ### 📊 网络与诊断
 - `web.search/fetch`（Bing 桌面 UA 三级解析）、`network.capture` 抓包
+- `vpn.capture`（⚠️ 半成品/开发中）：系统代理模式隧道（不转发 packetFlow）——自建 socket 直连 App 会断网、QUIC 不解密、TLS-pinned 握手失败；实际可用路径以 local proxy（WiFi 手动代理 127.0.0.1:18180）为准
 - `log.collect`、崩溃日志解析、`diagnose.startup/crash`、`test.run` 一键测试编排
 
 ### 📚 知识库与系统能力
