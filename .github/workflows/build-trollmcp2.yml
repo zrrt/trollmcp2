@@ -477,6 +477,9 @@ jobs:
           python -m pip wheel --no-deps --no-build-isolation \
             -Csetup-args=--cross-file=$PWD/ios-meson.ini \
             -Csetup-args=-Dallow-noblas=true \
+            -Csetup-args=-Dc_args=-mios-version-min=15.0 \
+            -Csetup-args=-Dcpp_args=-mios-version-min=15.0 \
+            -Csetup-args=-Dcpu-dispatch=none \
             wheel-src/numpy-2.1.3 -w wheels-out
           ls -la wheels-out/
           # 验证 wheel tag
