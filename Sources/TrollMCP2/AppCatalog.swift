@@ -39,7 +39,7 @@ final class AppCatalog {
         listLock.lock()
         defer { listLock.unlock() }
         if let cached = cachedList, let at = cachedAt,
-           Date().timeIntervalSince(at) < 5 {
+           Date().timeIntervalSince(at) < 300 {
             return cached
         }
         let fresh = enumerate()
@@ -132,6 +132,15 @@ final class AppCatalog {
                 teamID: teamID
             )
         }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    /// v4.3.59：只读缓存数量（不触发 LSApplicationWorkspace 全量枚举）。
+    /// 启动探测/设备报告用——避免"启动即枚举 266 个 App"污染进程 LaunchServices 状态，
+    /// 导致后续分享面板（ShareSheet/OpenIn 也走 LS 枚举）空窗口/闪退。
+    static func cachedCount() -> Int {
+        listLock.lock()
+        defer { listLock.unlock() }
+        return cachedList?.count ?? -1
     }
 
     static func find(_ bundleId: String) -> AppEntry? {

@@ -133,7 +133,9 @@ final class DeviceProbe: ObservableObject {
         let storage = Self.storageInfo()
         let memoryTotal = Self.memoryTotal()
         let screenSize = "\(Int(UIScreen.main.bounds.width))×\(Int(UIScreen.main.bounds.height))"
-        let appCount = AppCatalog.list().count
+        // v4.3.59：只读缓存计数（-1=未枚举）——启动不再全量枚举 App 列表，
+        // 避免污染进程 LS 状态导致分享面板崩溃；报告 appCount 为 -1 时显示"未知"
+        let appCount = AppCatalog.cachedCount()
         let workspaceSize = Self.workspaceSize()
         let batteryLevel = UIDevice.current.isBatteryMonitoringEnabled ? "\(Int(UIDevice.current.batteryLevel * 100))%" : "未知"
         if !UIDevice.current.isBatteryMonitoringEnabled { UIDevice.current.isBatteryMonitoringEnabled = true }
