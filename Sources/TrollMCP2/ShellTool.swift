@@ -71,6 +71,18 @@ final class ShellExecTool: MCPTool {
                 ]
             }
         }
+
+        // v4.4.2：iSH 模拟器段错误防护——import numpy/pandas/matplotlib 会加载 openblas，
+        // OpenMinis arm64 模拟器执行其指令段错误闪退（实测崩溃栈 cpu_run_to_interrupt + task_run_current）。
+        // 提前拦截给明确报错，避免 App 直接闪退（体验优于崩溃）。
+        if command.contains("import pandas") || command.contains("import numpy")
+            || command.contains("import matplotlib") {
+            return [
+                "error": "iSH numpy/pandas 段错误防护",
+                "command": command,
+                "hint": "iSH 模拟器运行 numpy/openblas 会段错误闪退（实测崩溃栈 cpu_run_to_interrupt），禁止在 iSH 内 import pandas/numpy/matplotlib。数据分析请用原生工具：sqlite3/jq/file/awk/文本处理；原生 ARM64 Python 版在规划中。"
+            ]
+        }
         
         // 重置工作目录
         if params["reset_cwd"] as? Bool == true {

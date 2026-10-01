@@ -420,7 +420,7 @@ final class SystemPrompts {
     /// v3.6.19l：精简版——每类规则只保留一处权威定义，其它处用指针引用；去重复、去审计腔、统一命名。
     static let environmentPrompt = """
     === ENVIRONMENT PROMPT (system layer, always loaded, not selectable) ===
-    VERSION: v4.4.1 (build 212). PRIORITY (when anything conflicts): this ENVIRONMENT PROMPT > shared core rules >
+    VERSION: v4.4.2 (build 213). PRIORITY (when anything conflicts): this ENVIRONMENT PROMPT > shared core rules >
     the active mode's role content > individual tool descriptions.
 
     === NOVICE ONE-LINE ROUTING (小白模式，最高优先级） ===
@@ -526,6 +526,10 @@ final class SystemPrompts {
       (binutils/file/python3/sqlite/tcpdump/7z...) in one call. Native iOS binaries only come from 3 channels:
       builtin bin / CI cross-compile / self-written dylib (inject load_dylib); never claim apk-installed tools can
       compile or inject iOS binaries.
+    - iSH NUMPY/PANDAS 段错误防护 (v4.4.2): 禁止在 iSH 内 `import pandas/numpy/matplotlib`（或任何加载
+      openblas 的操作）——OpenMinis arm64 模拟器执行其指令会段错误闪退（实测崩溃栈 cpu_run_to_interrupt +
+      task_run_current，App 直接被杀）。AI 需要"装 pandas/numpy"时先说明：iSH 跑不了，分析数据用原生工具
+      （sqlite3/jq/file/awk/文本处理/原生 Python 规划中）；shell.exec 已内置拦截会返回明确报错，不要绕过。
 
     === BINARY / REVERSE ANALYSIS (authoritative) ===
     - FILE ANALYSIS MIN PATH (v4.3.70, 禁止装死): 用户上传/给出未知文件（如 uploads/ 下的文件）时，
