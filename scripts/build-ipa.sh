@@ -139,7 +139,7 @@ if ls python-ios/python-*.tar.gz >/dev/null 2>&1; then
     tar -xzf python-ios/python-*.tar.gz -C python-ios/unpacked
 fi
 # 定位 Python.xcframework：不猜 tar 顶层目录名（官方产物可能是 python-3.14.8-iOS-XCframework/
-# 包一层，也可能直接散落），find 一次命中 ios-arm64 slice
+# 包一层，也可能直接散落），find 一次命中
 XCF_DIR=$(find python-ios -type d -name "Python.xcframework" 2>/dev/null | head -1)
 if [ -n "$XCF_DIR" ]; then
     SLICE="$XCF_DIR/ios-arm64"
@@ -148,12 +148,22 @@ if [ -n "$XCF_DIR" ]; then
         # 1. Python.framework → App/Frameworks（CLI 链接 libPython，rpath 指向 ../Frameworks）
         mkdir -p "$APP/Frameworks"
         cp -R "$SLICE/Python.framework" "$APP/Frameworks/"
-        # 2. stdlib（PYTHONHOME = App/python）+ lib-dynload 扩展模块
-        if [ -d "$SLICE/python" ]; then
-            cp -R "$SLICE/python" "$APP/python"
+        # 2. stdlib（PYTHONHOME = App/python）：PEP 730 布局 = XCFramework 顶层共享
+        #    lib/python3.14/（纯 Python 模块 + ensurepip + site-packages）+
+        #    ios-arm64/lib-arm64/python3.14/lib-dynload/（平台 .so 扩展）
+        if [ -d "$XCF_DIR/lib/python3.14" ]; then
+            mkdir -p "$APP/python/lib"
+            cp -R "$XCF_DIR/lib/python3.14" "$APP/python/lib/"
             echo ">>> stdlib: $(du -sh "$APP/python" | cut -f1)"
         else
-            echo "!!! Python.xcframework slice missing python/ (stdlib)" >&2
+            echo "!!! XCFramework lib/python3.14 missing (shared stdlib)" >&2
+        fi
+        if [ -d "$SLICE/lib-arm64/python3.14/lib-dynload" ]; then
+            mkdir -p "$APP/python/lib/python3.14"
+            cp -R "$SLICE/lib-arm64/python3.14/lib-dynload" "$APP/python/lib/python3.14/"
+            echo ">>> lib-dynload merged: $(ls "$APP/python/lib/python3.14/lib-dynload" | wc -l | tr -d ' ') exts"
+        else
+            echo "!!! ios-arm64 lib-dynload missing (platform extensions)" >&2
         fi
         # 3. 编译 python3 CLI（嵌入式入口：PyConfig + PYTHONHOME + -c/-m/script）
         if [ -f "Sources/PythonCLI/main.c" ] && [ -f "$APP/Frameworks/Python.framework/Headers/Python.h" ]; then
