@@ -609,6 +609,32 @@ enum ISHEngine {
         return inferPkgFromNotFound(output)
     }
 
+    /// v4.3.73：自动装包决策——只对白名单内已知包自动 apk add；
+    /// 白名单外（如 jtool2 这类 iOS 逆向工具，Alpine 无此包）返回 unknown，
+    /// 调用方跳过自动装包并给 AI 明确提示，避免 apk 拉索引卡网络/假死。
+    static func autoProvision(_ output: String) -> (pkg: String?, known: Bool) {
+        let map: [(cmd: String, pkg: String)] = [
+            ("python3", "python3"), ("python", "python3"), ("pip", "py3-pip"),
+            ("tar", "tar"), ("dpkg", "dpkg"), ("strings", "binutils"), ("hexdump", "binutils"),
+            ("nm", "binutils"), ("objdump", "binutils"), ("readelf", "binutils"),
+            ("size", "binutils"), ("addr2line", "binutils"),
+            ("rabin2", "radare2"), ("r2", "radare2"), ("radare2", "radare2"),
+            ("xxd", "xxd"), ("jq", "jq"), ("gdb", "gdb"),
+            ("git", "git"), ("wget", "wget"), ("make", "make"), ("cmake", "cmake"),
+            ("gcc", "build-base"), ("clang", "clang"), ("openssl", "openssl"),
+            ("unzip", "unzip"), ("sqlite3", "sqlite3"),
+        ]
+        for (cmd, pkg) in map {
+            if output.contains("\(cmd): not found")
+                || output.contains("\(cmd): command not found")
+                || output.contains("command not found: \(cmd)") {
+                return (pkg, true)
+            }
+        }
+        let inferred = inferPkgFromNotFound(output)
+        return (inferred, false)
+    }
+
     /// 从 "not found" 输出推断缺失工具的命令名（白名单兜底）。
     private static func inferPkgFromNotFound(_ output: String) -> String? {
         let patterns = [

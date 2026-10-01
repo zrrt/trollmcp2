@@ -154,7 +154,9 @@ final class ShellExecTool: MCPTool {
             // 免 agent 反复探测缺什么、也避免"先探测→再装→再跑"的多轮试探。
             var finalOut = output, finalExit = exitCode, finalTimed = timedOut
             var provisionNote = ""
-            if let pkg = ISHEngine.missingToolPkg(output) {
+            // v4.3.73：只对白名单已知包自动装包；jtool2 这类非 Alpine 包不再触发 apk 拉索引卡网络
+            let prov = ISHEngine.autoProvision(output)
+            if let pkg = prov.pkg, prov.known {
                 ShellDiag.log("provision auto: apk add \(pkg) (missing in Alpine)")
                 // v4.3.72：补给超时与命令 timeout 联动（至少 60s 给装包，最多 240s）——
                 // 修复"命令说 20s 超时、装包却闷头跑 180s、UI 一直显示执行中"的体验问题。
@@ -165,6 +167,8 @@ final class ShellExecTool: MCPTool {
                 provisionNote = "首次运行已自动安装缺失工具 \(pkg)（耗时 \(provisionElapsed)s）。"
                 let (rout, rexit, rtimed) = ISHEngine.exec(boundCmd, timeout: timeout)
                 finalOut = rout; finalExit = rexit; finalTimed = rtimed
+            } else if let pkg = prov.pkg {
+                provisionNote = "工具 \(pkg) 不在自动装包白名单（可能不是 Alpine 包），已跳过自动安装；请确认工具名，或用 tool.install 指定 name/profile。"
             }
             var stdout = ShellExecTool.filterNoise(finalOut)
             if outLimit > 0 && stdout.count > outLimit {
@@ -190,7 +194,7 @@ final class ShellExecTool: MCPTool {
         // v3.1.71：先做变量展开 (P=/xxx 赋值 + $P 引用），否则 "$P" 被当字面路径报 No such file (AI 实测）
         let expanded = ShellExecTool.expandVars(trimmed)
         if ShellExecTool.containsShellSyntax(expanded) {
-            let result = ShellExecTool.runIOSPipeline(ShellExecTool.alpineToIOSPath(expanded), limit: outLimit, offset: offsetParam)
+            let result = ShellExecTool.runIOSPipeline(ShellExecTool.alpineToIOSPath(expanded), limit: outLimit, offset: offsetParam, timeout: timeout)
             AuditLog.shared.log("shell.exec (ios pipeline)", detail: String(expanded.prefix(100)))
             return result
         }
@@ -783,7 +787,7 @@ final class ShellExecTool: MCPTool {
     /// 主执行器：处理整条含 shell 语法的命令
     /// 结构：先按非管道分隔符 (; && ||）切分成"链"，每条链内按 | 分生产段+过滤段；
     /// 逐链执行：生产段输出 → 过滤段逐个过滤 → 追加到 stdoutChunks；&& / || 按上链 exit 短路。
-    static func runIOSPipeline(_ command: String, limit: Int = 4000, offset: Int = 0) -> [String: Any] {
+    static func runIOSPipeline(_ command: String, limit: Int = 4000, offset: Int = 0, timeout: TimeInterval = 30) -> [String: Any] {
         let segments = splitShellSegments(command)
         guard !segments.isEmpty else {
             return ["command": command, "exit_code": 1, "stdout": "空命令", "ios_native": true]
@@ -841,13 +845,21 @@ final class ShellExecTool: MCPTool {
                             result["ios_native"] = true
                         }
                     } else {
-                        var (output, outputExit, timedOut) = ISHEngine.exec(body, timeout: 30)
-                        // P3 按需补给：缺工具自动 apk add 并重跑一次
-                        if let pkg = ISHEngine.missingToolPkg(output) {
+                        var (output, outputExit, timedOut) = ISHEngine.exec(body, timeout: timeout)
+                        // P3 按需补给：缺工具自动 apk add 并重跑一次（v4.3.73：只装白名单已知包，
+                        // 超时与命令 timeout 联动，避免 jtool2 这类非 Alpine 包触发 apk 拉索引卡网络）
+                        var provNote = ""
+                        let prov = ISHEngine.autoProvision(output)
+                        if let pkg = prov.pkg, prov.known {
                             ShellDiag.log("provision auto: apk add \(pkg) (missing in Alpine)")
-                            _ = ISHEngine.apkAdd([pkg], timeout: 180)   // v4.3.69: 镜像源+CA 统一入口
-                            let (rout, rexit, rtimed) = ISHEngine.exec(body, timeout: 30)
+                            let provTimeout = min(max(timeout, 60), 240)
+                            let pStart = Date()
+                            _ = ISHEngine.apkAdd([pkg], timeout: provTimeout)
+                            provNote = "首次运行已自动安装缺失工具 \(pkg)（耗时 \(Int(Date().timeIntervalSince(pStart)))s）。"
+                            let (rout, rexit, rtimed) = ISHEngine.exec(body, timeout: timeout)
                             output = rout; outputExit = rexit; timedOut = rtimed
+                        } else if let pkg = prov.pkg {
+                            provNote = "工具 \(pkg) 不在自动装包白名单（可能不是 Alpine 包），已跳过自动安装；请确认工具名，或用 tool.install 指定 name/profile。"
                         }
                         var out = ShellExecTool.filterNoise(output)
                         if limit > 0 && out.count > limit {
@@ -857,7 +869,7 @@ final class ShellExecTool: MCPTool {
                         result = [
                             "command": body, "exit_code": Int(outputExit), "stdout": out,
                             "cwd": ISHEngine.cwd,
-                            "hint": "Alpine Linux environment (non-iOS segment of compound command): full command support; 缺工具已自动 apk add"
+                            "hint": provNote + "Alpine Linux environment (non-iOS segment of compound command): full command support; 缺工具已自动 apk add"
                         ]
                         if timedOut { result["timed_out"] = true }
                     }
