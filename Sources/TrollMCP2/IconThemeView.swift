@@ -110,20 +110,11 @@ struct IconThemeView: View {
     }
 
     private func apply(_ id: String) {
-        guard !switching else { return }
-        switching = true
-        appliedName = ""
-        applyError = ""
-        UIApplication.shared.setAlternateIconName(id == "blueIcon" ? nil : id) { error in
-            DispatchQueue.main.async {
-                switching = false
-                if let error = error {
-                    applyError = "切换失败：\(error.localizedDescription)"
-                } else {
-                    current = id
-                    appliedName = themes.first(where: { $0.id == id })?.name ?? id
-                }
-            }
-        }
+        // v4.3.49：侧载环境下动态图标切换（setAlternateIconName + CFBundleAlternateIcons）
+        // 会让 MobileIcons 注册多套图标异常，分享面板渲染图标时 CoreImage SIGSEGV
+        // （崩溃栈实证：ShareSheet → MobileIcons LICreateIconForImages → CoreImage）。
+        // 已移除 CFBundleAlternateIcons，此功能在侧载环境停用。
+        switching = false
+        applyError = "侧载环境已停用动态图标切换（修复分享闪退）；当前固定使用主图标"
     }
 }
