@@ -149,8 +149,7 @@ fi
 # （崩溃栈固定：ShareSheet → SharingUI → MobileIcons LICreateIconForImages → CoreImage）。
 # 只有 TrollMCP2 崩、TrollFools/系统 App 不崩 = 只有它带异常 appex。
 # VPN 抓包功能降级为 local proxy 模式（VpnTools.swift 已支持 appex 缺失自动降级）。
-if false; then
-if [ -d "openssl-stage/lib" ] && [ -f "openssl-stage/lib/libssl.a" ]; then
+if [ -d "openssl-stage/lib" ] && [ -f "openssl-stage/lib/libssl.a" ] && false; then
     echo ">>> swift build VpnTunnel appex (openssl-stage present)"
     if swift build -c release --product VpnTunnel \
         -Xswiftc -sdk -Xswiftc "$SDK" \
