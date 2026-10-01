@@ -421,12 +421,13 @@ jobs:
           # 解包 Python.xcframework（native-python job 产物）
           tar -xzf python-ios/python-*.tar.gz -C python-ios/
           XCF=$(find python-ios -type d -name "Python.xcframework" | head -1)
-          PYIOS="$XCF/ios-arm64"
+          PYIOS="$(pwd)/$XCF/ios-arm64"
           echo ">>> PYIOS=$PYIOS"
           # hack sysconfigdata：PEP 730 记录的是相对路径(Apple/iOS/Frameworks/arm64-iphoneos/...)
           # → 改成绝对路径，meson 才能找到 include/lib
+          # fix3i: macOS 是 BSD sed，-i 后必须带备份后缀（-i ""），否则把脚本当后缀、文件当命令
           SC="$PYIOS/lib-arm64/python3.14/_sysconfigdata__ios_arm64-iphoneos.py"
-          sed -i "s|'Apple/iOS/Frameworks/arm64-iphoneos|'$PYIOS|g" "$SC"
+          sed -i "" "s|'Apple/iOS/Frameworks/arm64-iphoneos|'$PYIOS|g" "$SC"
           grep -o "'INCLUDEPY': '[^']*'" "$SC" | head -1
           # meson cross 文件（xcrun SDK 工具链，arm64 真机）
           cat > ios-meson.ini <<INI
