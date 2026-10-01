@@ -43,6 +43,7 @@
 ### 🏗️ 构建与工程
 - `build.env/run`：theos tweak 编译、GitHub Actions 触发/产物下载（GitHub 多账号）
 - `project/task`：工作区项目管理；`artifact.find` 定位编译产物
+- `tool.install`：统一工具安装闭环——内置原生 bin → Alpine apk 即装即用 → CI 交叉编译原生 iOS 二进制（build-tool.yml，best-effort）；`env.setup_re`：一键逆向工具链（binutils/file/python3/sqlite/tcpdump/7z…）
 
 ### 🤖 AI 与模型
 - 多上游模型（OpenAI 兼容 API）、SSE 流式逐字输出、推理强度控制、智能搜索

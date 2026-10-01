@@ -1,0 +1,53 @@
+# v4.3.65：通用原生 iOS 工具交叉编译（由 tool.install 触发，best-effort）
+# 用法: AI 调用 tool.install name:<tool> source:<git 仓库 URL>
+#   → workflow_dispatch inputs: name / source
+#   → macOS runner 上设置 iphoneos SDK 环境后 make 交叉编译（arm64 iOS）
+#   → 产物打包为 artifact tool-<name>，github.download_artifact 可取回
+# 注意：Makefile 类 C 工程可直接交叉编译；依赖复杂或产物为空时，请改用 PC 交叉编译或自写 dylib（inject load_dylib）
+name: build-tool
+
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: 'Tool name（artifact 前缀 tool-<name>）'
+        required: true
+        default: jtool2
+      source:
+        description: 'Git 仓库 URL（含 Makefile）'
+        required: true
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout tool source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.inputs.source }}
+          path: src
+
+      - name: Prepare iOS SDK env
+        run: |
+          echo "SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)" >> "$GITHUB_ENV"
+          echo "CC=$(xcrun --sdk iphoneos --find clang)" >> "$GITHUB_ENV"
+          echo "CXX=$(xcrun --sdk iphoneos --find clang++)" >> "$GITHUB_ENV"
+
+      - name: Make (best-effort cross-compile arm64 iOS)
+        working-directory: src
+        run: |
+          make -j4 2>&1 | tail -80 || true
+
+      - name: Stage binaries
+        run: |
+          mkdir -p out
+          find src -maxdepth 4 -type f \( -perm -111 -o -name "*.dylib" -o -name "*.a" \) \
+            -not -path "*/.git/*" -exec cp {} out/ \; 2>/dev/null || true
+          ls -la out || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tool-${{ github.event.inputs.name }}
+          path: out
+          if-no-files-found: warn

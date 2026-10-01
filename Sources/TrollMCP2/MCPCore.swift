@@ -367,7 +367,9 @@ public final class ToolRegistry: ObservableObject {
         "artifact", "device", "memory", "assistant_memory", "verify", "container",
         "ssh", "diagnose", "knowledge", "location", "macro", "app", "control",
         "inject", "automation", "network.capture", "server", "project", "browser",
-        "shell.exec", "reminder", "rescue"
+        "shell.exec", "reminder", "rescue",
+        // v4.3.65：统一工具安装闭环
+        "tool.install", "env.setup_re"
     ]
 
     /// v2.9.31：常驻核心工具名集合 (UI 用只读访问）
@@ -1256,6 +1258,9 @@ public final class ToolRegistry: ObservableObject {
         // v3.6.12 P5 高层跨环境工具 (v3.7.7: 自动 bind 直读 iOS 文件)
         register(FileExecTool())
         register(DbExecTool())
+        // v4.3.65：统一工具安装（AI 自动装工具/依赖闭环）——tool.install / env.setup_re
+        register(ToolInstallTool())
+        register(EnvSetupRETool())
         // v3.7.7c: 移除 ish.bind 注册——bind mount 已由 autoBind 全自动（命令引用 iOS 路径自动挂载+改写），
         // 手动 bind 工具对 AI 是误导（会以为要手动挂载）。类定义保留供开发者调试/真机验证。
         AuditLog.shared.log("core", detail: "已注册 \(definitions.count) 个工具")
