@@ -628,7 +628,7 @@ final class ContainerWriteTextTool: MCPTool {
               let content = params["content"] as? String else {
             throw MCPError.invalidParams("bundle_id, path, content required")
         }
-        guard let app = AppCatalog.find(bid), let container = app.containerPath else {
+        guard let app = AppCatalog.find(bid), let container = AppCatalog.lookupContainer(bundleId: app.bundleId) else {
             throw MCPError.failed("container not accessible for \(bid)")
         }
         let url = URL(fileURLWithPath: container).appendingPathComponent(path)
@@ -657,10 +657,10 @@ final class ContainerResolveTool: MCPTool {
             "bundle_id": app.bundleId,
             "app_name": app.name,
             "install_path": app.path,
-            "data_container": app.containerPath ?? "",
+            "data_container": AppCatalog.lookupContainer(bundleId: app.bundleId) ?? "",
             "executable": app.execName,
             "version": app.version,
-            "hint": app.containerPath == nil ? "data container inaccessible (system App or restricted)" : "data container accessible via fs.read / container.write"
+            "hint": AppCatalog.lookupContainer(bundleId: app.bundleId) == nil ? "data container inaccessible (system App or restricted)" : "data container accessible via fs.read / container.write"
         ]
     }
 }

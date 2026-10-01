@@ -19,7 +19,7 @@ struct CleanupItem {
 final class CleanupScanner {
     static func scan(bundleId: String) -> [CleanupItem] {
         var items: [CleanupItem] = []
-        guard let app = AppCatalog.find(bundleId), let container = app.containerPath else {
+        guard let app = AppCatalog.find(bundleId), let container = AppCatalog.lookupContainer(bundleId: app.bundleId) else {
             return []   // 调用方处理"未找到/容器不可访问"
         }
 

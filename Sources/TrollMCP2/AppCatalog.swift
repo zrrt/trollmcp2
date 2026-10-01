@@ -125,7 +125,10 @@ final class AppCatalog {
                 bundleId: bid,
                 name: safeValue(p, "localizedName") as? String ?? bid,
                 path: path,
-                containerPath: (safeValue(p, "dataContainerURL") as? URL)?.path,
+                // v4.3.60：枚举不再读 dataContainerURL（私有属性，全量读取 266 个 App 的
+                // 容器路径会深层访问容器数据库，污染进程 LS 状态 → 分享面板/打开方式崩溃）。
+                // 容器路径改为 lookupContainer 按需懒查。
+                containerPath: nil,
                 version: plist?["CFBundleShortVersionString"] as? String ?? "",
                 execName: plist?["CFBundleExecutable"] as? String ?? "",
                 appType: appType,
@@ -137,6 +140,21 @@ final class AppCatalog {
     /// v4.3.59：只读缓存数量（不触发 LSApplicationWorkspace 全量枚举）。
     /// 启动探测/设备报告用——避免"启动即枚举 266 个 App"污染进程 LaunchServices 状态，
     /// 导致后续分享面板（ShareSheet/OpenIn 也走 LS 枚举）空窗口/闪退。
+    /// v4.3.60：按需查询单个 App 的数据容器路径（懒查，一次只查一个）。
+    /// 替代枚举期全量读取 dataContainerURL——避免污染进程 LaunchServices/容器状态。
+    static func lookupContainer(bundleId: String) -> String? {
+        guard let cls = NSClassFromString("LSApplicationProxy") as? NSObject.Type else { return nil }
+        let sel = NSSelectorFromString("applicationProxyForIdentifier:")
+        guard let m = class_getClassMethod(cls, sel) else { return nil }
+        typealias GetFn = @convention(c) (AnyClass, Selector, NSString) -> AnyObject?
+        let fn = unsafeBitCast(method_getImplementation(m), to: GetFn.self)
+        guard let proxy = fn(cls, sel, bundleId as NSString) as? NSObject else { return nil }
+        if let url = safeValue(proxy, "dataContainerURL") as? URL {
+            return url.path
+        }
+        return nil
+    }
+
     static func cachedCount() -> Int {
         listLock.lock()
         defer { listLock.unlock() }

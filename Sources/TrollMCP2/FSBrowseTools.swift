@@ -16,7 +16,7 @@ private enum FSPolicy {
     static func resolve(bundleId: String?, relative: String?, path: String?) -> String? {
         if let bid = bundleId, !bid.isEmpty {
             guard let app = AppCatalog.find(bid) else { return nil }
-            let base = app.containerPath ?? ""
+            let base = AppCatalog.lookupContainer(bundleId: app.bundleId) ?? ""
             let rel = (relative ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "/"))
             if rel.isEmpty { return base.isEmpty ? nil : base }
             return base + "/" + rel
@@ -80,8 +80,8 @@ private enum FSPolicy {
     }
 
     static func describe(_ raw: String) -> String {
-        if let app = AppCatalog.list().first(where: { $0.containerPath.map { raw.hasPrefix($0) } ?? false }) {
-            let rel = raw.dropFirst(app.containerPath!.count)
+        if let app = AppCatalog.list().first(where: { AppCatalog.lookupContainer(bundleId: $0.bundleId).map { raw.hasPrefix($0) } ?? false }) {
+            let rel = raw.dropFirst(AppCatalog.lookupContainer(bundleId: app.bundleId)!.count)
             return "\(app.bundleId) container\(rel)"
         }
         return raw

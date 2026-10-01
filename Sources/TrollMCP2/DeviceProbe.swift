@@ -272,7 +272,7 @@ final class DeviceProbe: ObservableObject {
 
     private func testContainerWrite() -> Bool {
         guard let other = AppCatalog.list().first(where: { $0.bundleId != Bundle.main.bundleIdentifier }),
-              let container = other.containerPath else { return false }
+              let container = AppCatalog.lookupContainer(bundleId: other.bundleId) else { return false }
         let probe = URL(fileURLWithPath: container).appendingPathComponent(".trollmcp_probe_\(UUID().uuidString)")
         do {
             try Data("ok".utf8).write(to: probe)

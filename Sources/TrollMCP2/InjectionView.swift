@@ -360,7 +360,7 @@ struct AppDetailView: View {
                     LabeledRow(label: "名称", value: app.name)
                     LabeledRow(label: "Bundle ID", value: app.bundleId)
                     LabeledRow(label: "路径", value: app.path)
-                    if let container = app.containerPath {
+                    if let container = AppCatalog.lookupContainer(bundleId: app.bundleId) {
                         LabeledRow(label: "容器", value: container)
                     }
                 }

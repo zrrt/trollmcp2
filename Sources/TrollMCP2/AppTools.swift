@@ -100,7 +100,7 @@ final class AppCacheInspectTool: MCPTool {
         let apps = target != nil ? AppCatalog.list().filter { $0.bundleId == target } : AppCatalog.list()
 
         for app in apps {
-            guard let container = app.containerPath else { continue }
+            guard let container = AppCatalog.lookupContainer(bundleId: app.bundleId) else { continue }
             let caches = URL(fileURLWithPath: container).appendingPathComponent("Library/Caches")
             let tmp = URL(fileURLWithPath: container).appendingPathComponent("tmp")
             let cachesSize = AppCacheScanner.directorySize(caches)
@@ -141,7 +141,7 @@ final class AppCacheClearTool: MCPTool {
         guard let bid = params["bundle_id"] as? String else {
             throw MCPError.invalidParams("bundle_id required")
         }
-        guard let app = AppCatalog.find(bid), let container = app.containerPath else {
+        guard let app = AppCatalog.find(bid), let container = AppCatalog.lookupContainer(bundleId: app.bundleId) else {
             throw MCPError.failed("container not accessible for \(bid)")
         }
         let dryRun = (params["dry_run"] as? Bool) ?? false

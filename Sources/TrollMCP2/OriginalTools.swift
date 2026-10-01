@@ -189,7 +189,7 @@ final class ContainerDeleteTool: MCPTool {
               let path = params["path"] as? String else {
             throw MCPError.invalidParams("bundle_id, path required")
         }
-        guard let app = AppCatalog.find(bid), let container = app.containerPath else {
+        guard let app = AppCatalog.find(bid), let container = AppCatalog.lookupContainer(bundleId: app.bundleId) else {
             throw MCPError.failed("container not accessible for \(bid)")
         }
         let url = URL(fileURLWithPath: container).appendingPathComponent(path)

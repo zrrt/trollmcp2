@@ -20,7 +20,7 @@ final class BackupCreateTool: MCPTool {
         guard let app = AppCatalog.find(bundleId) else {
             return ["ok": false, "error": "App not found: \(bundleId)"]
         }
-        guard let container = app.containerPath else {
+        guard let container = AppCatalog.lookupContainer(bundleId: app.bundleId) else {
             return ["ok": false, "error": "No data container (system App or no AppDataContainers permission)"]
         }
         

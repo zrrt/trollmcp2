@@ -43,7 +43,7 @@ enum SystemCleanupEngine {
 
     /// 所有用户 App 数据容器路径
     private static func allContainers() -> [String] {
-        AppCatalog.list().compactMap { $0.containerPath }
+        AppCatalog.list().compactMap { AppCatalog.lookupContainer(bundleId: $0.bundleId) }
     }
 
     /// 扫描一个目录的"内容"大小（返回目录内文件总和）

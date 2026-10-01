@@ -1477,7 +1477,7 @@ final class RefreshContainerTool: MCPTool {
         guard let app = AppCatalog.find(bundleId) else {
             return ["error": "app not found: \(bundleId)"]
         }
-        guard let container = app.containerPath, !container.isEmpty else {
+        guard let container = AppCatalog.lookupContainer(bundleId: app.bundleId), !container.isEmpty else {
             return ["error": "cannot locate data container", "hint": "LSApplicationProxy returned no dataContainerURL (may lack AppDataContainers entitlement)"]
         }
         let restore = (params["restore"] as? Bool) ?? false

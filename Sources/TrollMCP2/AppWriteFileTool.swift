@@ -37,7 +37,7 @@ final class AppWriteFileTool: MCPTool {
         }
         // 解析 App 数据容器
         guard let app = AppCatalog.list().first(where: { $0.bundleId == bundleId }),
-              let cp = app.containerPath, !cp.isEmpty else {
+              let cp = AppCatalog.lookupContainer(bundleId: app.bundleId), !cp.isEmpty else {
             throw MCPError.failed("app or data container not found: \(bundleId)")
         }
         // 铁律：绝不写自身容器（Documents/alpine-rootfs 是 rootfs，写坏即毁 AI 环境）
