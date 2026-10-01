@@ -1,14 +1,12 @@
 import Foundation
+import ZIPFoundation
+import CISH
 
-/// iSH-ARM64 引擎 —— v4.3.57 测试版：CISH（libish 静态库）已从主进程移除。
-///
-/// 背景：TrollMCP2 分享面板 SIGSEGV（MobileIcons LICreateIconForImages → CoreImage）
-/// 从早期版本起持续复现，与所有 App 内代码/声明改动无关。TrollFools（无 libish）
-/// 分享正常。libish 是 iSH-ARM64 模拟器静态库，其全局初始化可能在进程启动时
-/// 污染内存/信号/线程状态，干扰系统框架的图标生成。本桩版用于验证该假设：
-/// 若移除 CISH 后分享恢复正常 → 根因确认，随后将 ish 工具改造为独立进程方案。
-///
-/// 本桩保留全部公开 API 签名（调用方无需改动即可编译），所有操作返回"不可用"。
+/// iSH-ARM64 引擎（TrollAgent 版）
+/// - boot：首次调用时把 bundle 内 alpine-rootfs.zip 解压到 Documents，再 cish_boot 挂载 fakefs
+/// - exec：每次调用在 guest 内 fork 独立 /bin/sh -c，串行执行（全局锁）
+/// - 超时：cish_killpg 回收 guest 进程组，靠 exit_hook 通知管道收尾
+/// - 会话 cwd：命令前缀 `cd '<cwd>' &&`；纯 cd 命令额外跑 pwd 更新会话目录
 enum ISHEngine {
     enum BootState {
         case idle, booting, booted, failed(String)
@@ -17,46 +15,639 @@ enum ISHEngine {
     private static let lock = NSLock()
     private static var state: BootState = .idle
 
+    /// v4.0.4: 内核已根治污染——build_ish.sh 在编译期删掉 fakefs_bind_mount 写 meta.db 权限的两段
+    /// （symlink+bind 表已足够映射，meta.db 写入冗余有害），bind 不再污染后续 spawn（rc=-13 消失）。
+    /// 故恢复自动 bind（autoBindEnabled=true）重新启用 bind 大文件直读；autoBridge 仍作兜底处理未 bind 的 iOS 路径。
     static var autoBindEnabled = true
 
-    static var isBooted: Bool { false }
-    static var cwd: String { "/root" }
+    /// 已成功挂载的 bind 点集合（幂等保护）。bind 成功后才加入；autoBind 只对未挂载点 bind 一次，
+    /// 避免每次命令反复 bind 同一 iOS 顶层目录而污染 iSH 内核（v3.7.3 bindMountForCommand 验证过的做法）。
+    private static var mountedBindPoints: Set<String> = []
 
+    /// v4.0.0 内核自愈：连续 spawn 失败（rc=-13）达阈值时，自动重置 state→.idle 并下次重新 boot，
+    /// 清除 bind mount 污染造成的损坏内核态。计数器在 boot 成功后清零。
+    private static var spawnFailCount = 0
+    private static let spawnFailThreshold = 3
+
+    /// iSH 会话 cwd（guest 路径，与旧 ios_system 的 iOS 沙箱路径隔离）
+    private static var guestCwd = "/root"
+
+    private static var rootfsDir: String {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("alpine-rootfs").path
+    }
+    private static var dataPath: String { rootfsDir + "/data" }
+
+    static var isBooted: Bool {
+        if case .booted = state { return true }
+        return false
+    }
+
+    /// 当前 guest 会话目录（返回给 shell.exec 的 cwd 字段）
+    static var cwd: String { guestCwd }
+
+    /// v3.6.8: 重置会话目录到真实存在的 /root（Alpine 纯隔离，无 /workspace 桥接）
     static func resetCwd() {
         lock.lock()
         defer { lock.unlock() }
+        guestCwd = "/root"
     }
 
+    // MARK: - iOS 目录 bind mount（v3.7.0）
+    /// 把 iOS 真实目录挂进 Alpine。挂载点需为 "/ios_xxx" 形式。
+    /// @return C 错误码（0 成功）
     static func bindMount(_ linuxPath: String, _ hostPath: String, readOnly: Bool) -> Int32 {
-        return -1000
+        guard isBooted else { return -1000 }
+        return linuxPath.withCString { lp in
+            hostPath.withCString { hp in
+                cish_bind_mount(lp, hp, readOnly ? 1 : 0)
+            }
+        }
     }
 
+    /// 卸载一个 bind mount
+    @discardableResult
     static func bindUnmount(_ linuxPath: String) -> Int32 {
-        return -1000
+        guard isBooted else { return -1000 }
+        return linuxPath.withCString { lp in
+            cish_bind_unmount(lp)
+        }
     }
 
+    // MARK: - v4.1.0 按需选择性绑定 App 数据容器（替代整棵 /var/mobile 绑定）
+    /// 把指定 App 的数据容器（LSApplicationWorkspace 私有 API 解析 dataContainerURL）
+    /// 绑进 Alpine → /ios_data_<app>，让 Alpine 的 python3/sqlite3/strings 直接读该 App 的
+    /// Documents / Library（内购票据、购买状态等）。
+    /// 铁律：绝【不】绑自身容器（其 Documents/alpine-rootfs 是 rootfs → 自引用→内核污染崩溃），
+    /// 也绝【不】绑整棵 /var/mobile。只绑目标 App 的容器路径，无自引用 → 无污染 → 不崩。
+    /// 幂等：已绑过则直接返回 mount。返回 (ok, mountPath, hostPath, error)。
+    /// v4.2.0: readOnly=true 分析用(安全只读); readOnly=false 就地修改用, 且【先备份】到工作区。
     static func bindAppContainer(bundleId: String, readOnly: Bool = true)
         -> (ok: Bool, mountPath: String?, hostPath: String?, backupPath: String?, error: String?) {
-        return (false, nil, nil, nil, "ish 内核未编译（v4.3.57 测试版）")
+        guard autoBindEnabled else { return (false, nil, nil, nil, "autoBind disabled") }
+        guard let app = AppCatalog.list().first(where: { $0.bundleId == bundleId }),
+              let cp = AppCatalog.lookupContainer(bundleId: app.bundleId), !cp.isEmpty else {
+            return (false, nil, nil, nil, "app or data container not found: \(bundleId)")
+        }
+        // 真正的自引用源：目标容器里含本 App 的 rootfs (Documents/alpine-rootfs) 才拒绝。
+        // 不再用 NSHomeDirectory() 前缀判"自己容器"——它在 TrollStore/iSH 环境下返回异常，
+        // 会把所有 app 容器都误判为自身(实测微信/抖音/小红书全被拒, bind_app 完全不可用)。
+        // jinx 等普通 App 容器不含 alpine-rootfs → 允许绑定。
+        let fm = FileManager.default
+        if fm.fileExists(atPath: cp + "/Documents/alpine-rootfs") {
+            return (false, nil, nil, nil, "refusing to bind own rootfs host (contains Documents/alpine-rootfs): \(cp)")
+        }
+        let host = cp
+        let mount = "/ios_data_" + bindAppSanitize(bundleId)
+        guard fm.fileExists(atPath: host) else { return (false, nil, nil, nil, "container path missing: \(host)") }
+        // 可写绑定：必须先备份（就地修改可还原）
+        var backupPath: String? = nil
+        if !readOnly {
+            backupPath = backupAppContainer(host, app: app.bundleId)
+            if backupPath == nil {
+                return (false, nil, nil, nil, "backup failed before writable bind — abort to protect \(bundleId)")
+            }
+        }
+        // v4.3.1.1: 挂载前确保 iSH 内核已 boot(否则 bindMount 返回 -1000 = isBooted false)
+        if let bootErr = ensureBooted() {
+            return (false, nil, nil, nil, bootErr)
+        }
+        if !mountedBindPoints.contains(mount) {
+            let rc = bindMount(mount, host, readOnly: readOnly)
+            if rc != 0 { return (false, nil, nil, nil, "bind failed rc=\(rc)") }
+            mountedBindPoints.insert(mount)
+            ShellDiag.log("bindAppContainer: \(bundleId) \(host) → \(mount) ro=\(readOnly) rc=0 (按需容器绑定)\(backupPath.map{" backup="+$0} ?? "")")
+        }
+        return (true, mount, host, backupPath, nil)
     }
 
+    /// 可写绑定前，把 App 容器的 Documents + Library（不含 Caches/tmp）备份到工作区 backups/。
+    private static func backupAppContainer(_ host: String, app: String) -> String? {
+        let backupRoot = "/var/mobile/Documents/Workspace/backups"
+        let ts = Int(Date().timeIntervalSince1970)
+        let dest = "\(backupRoot)/\(bindAppSanitize(app))_\(ts)"
+        let fm = FileManager.default
+        guard (try? fm.createDirectory(atPath: dest, withIntermediateDirectories: true)) != nil else { return nil }
+        for sub in ["Documents", "Library"] {
+            let src = host + "/" + sub
+            var isDir: ObjCBool = false
+            if fm.fileExists(atPath: src, isDirectory: &isDir), isDir.boolValue {
+                do {
+                    try fm.copyItem(atPath: src, toPath: dest + "/" + sub)
+                } catch { /* 个别文件失败不致命, 尽力而为 */ }
+            }
+        }
+        return fm.fileExists(atPath: dest) ? dest : nil
+    }
+
+    /// 容器挂点名安全化：非字母数字 → '_'，小写。com.appstudio.Jinx → com_appstudio_jinx
+    private static func bindAppSanitize(_ s: String) -> String {
+        let alnum = CharacterSet.alphanumerics
+        return String(s.unicodeScalars.map { alnum.contains($0) ? Character($0) : "_" }).lowercased()
+    }
+
+    // MARK: - v3.7.7 自动 bind：Alpine 命令引用 iOS 路径时自动挂载并改写
+    /// 在 Alpine 命令执行前调用：识别命令中的 iOS 顶层目录（/var/mobile、/var/containers、
+    /// /System、/private/var/mobile），对存在且未挂载的顶层 bind 进 Alpine（/ios_xxx），
+    /// 并把命令里的 iOS 路径改写为 Alpine 可见路径（/var/mobile/X → /ios_mobile/X）。
+    /// 返回改写后的命令（未改动原命令时原样返回）。bind 保持挂载（进程生命周期内有效）。
+    /// 幂等：用 mountedBindPoints 集合记录已挂载点，已挂载的顶层跳过 bind（只 bind 一次），
+    /// 避免每次命令反复 bind 同一 iOS 顶层目录而污染 iSH 内核（v3.7.3 bindMountForCommand 验证）。
     static func autoBind(_ command: String) -> String {
-        return command
+        // 顶层目录 → Alpine 挂载点映射 + 是否只读。
+        // v4.1.0: 【不整棵绑 /var/mobile】。自身 rootfs(Documents/alpine-rootfs) 位于
+        // /var/mobile 内，整棵绑定会把自身 rootfs 暴露回 Alpine → 自引用成环 →
+        // 内核污染 → cpu_run_to_interrupt 段错误（4.0.6~4.0.9 守卫均未根治）。
+        // 根治：只绑工作区(=/var/mobile/Documents/Workspace，rootfs 的兄弟目录，非 rootfs 本身)
+        // + /var/containers(bundle 读，已验证不污染) + 只读 /System。
+        // jinx 等 App 的【数据容器】在 /var/mobile/Containers/Data，走原生 FS 工具(file/fs)读取，
+        // 不走 Alpine 绑定（避免再次暴露 /var/mobile）。
+        let roots: [(String, String, Bool)] = [
+            ("/var/mobile/Documents/Workspace", "/ios_workspace", false),
+            ("/var/containers", "/ios_containers", false),
+            ("/System", "/ios_system", true),
+        ]
+        let fm = FileManager.default
+        var result = command
+        for (iosRoot, mount, readOnly) in roots {
+            // 命令里是否引用该 iOS 根目录
+            let hasRef = result.contains(iosRoot)
+            guard hasRef else { continue }
+            // iOS 侧根目录存在才 bind
+            guard fm.fileExists(atPath: iosRoot) else { continue }
+            // v4.0.1 幂等：已成功挂载过则跳过 bind，只做路径改写（不重复 bind，防污染内核）。
+            // 注意：此处【不加锁】——autoBind 可能在 exec 持锁后被调用(NSLock 不可重入，加锁即死锁)；
+            // FileDbTools/ShellTool 独立调用时不持锁，至多轻微竞态(重复 bind 一次)，远优于死锁。
+            if !mountedBindPoints.contains(mount) {
+                let rc = bindMount(mount, iosRoot, readOnly: readOnly)
+                if rc == 0 {
+                    mountedBindPoints.insert(mount)
+                    ShellDiag.log("autoBind: \(iosRoot) → \(mount) ro=\(readOnly) rc=0 (首次挂载)")
+                } else {
+                    ShellDiag.log("autoBind: \(iosRoot) bind rc=\(rc) skip rewrite")
+                    continue
+                }
+            }
+            // 改写命令：iosRoot 前缀 → mount 前缀（已挂载也需改写，命令引用的是挂载后的 Alpine 路径）
+            result = result.replacingOccurrences(of: iosRoot, with: mount)
+        }
+        return result
     }
 
+    // MARK: - v3.7.5 启动自愈 DNS
+    /// iSH fakefs 不持久化 /etc/resolv.conf（rootfs 预置的 DNS 不会呈现给 guest，
+    /// 导致 Alpine 无网络 → apk add/python/git 全装不上，即"环境漂移"根因）。
+    /// boot 后调用，强制向 guest /etc/resolv.conf 写入国内可达公共 DNS。
+    /// 幂等、失败不致命（仅记录日志）；不复用 exec（避免在 ensureBooted 持锁时死锁），
+    /// 直接用 cish_spawn + read 循环执行写文件。
     static func ensureDNS() {
+        let cmd = "echo nameserver 223.5.5.5 > /etc/resolv.conf; echo nameserver 119.29.29.29 >> /etc/resolv.conf; echo nameserver 8.8.8.8 >> /etc/resolv.conf; cat /etc/resolv.conf"
+        var outFds: [Int32] = [-1, -1], errFds: [Int32] = [-1, -1], notifyFds: [Int32] = [-1, -1]
+        guard pipe(&outFds) == 0, pipe(&errFds) == 0, pipe(&notifyFds) == 0 else {
+            ShellDiag.log("ensureDNS: pipe fail")
+            return
+        }
+        let argvBuf = buildCStringArray(["/bin/sh", "-c", cmd])
+        let envpBuf = buildDefaultEnvp()
+        let pid = argvBuf.withCString { av in
+            envpBuf.withCString { ev in
+                cmd.withCString { _ in
+                    "/bin/sh".withCString { p in
+                        cish_spawn(p, av, ev, 3, -1, outFds[1], errFds[1], notifyFds[1])
+                    }
+                }
+            }
+        }
+        close(outFds[1]); close(errFds[1]); close(notifyFds[1])
+        if pid <= 0 {
+            close(outFds[0]); close(errFds[0]); close(notifyFds[0])
+            ShellDiag.log("ensureDNS: spawn fail pid=\(pid)")
+            return
+        }
+        // 后台读输出 + 等待退出
+        let done = DispatchSemaphore(value: 0)
+        var out = Data()
+        DispatchQueue.global(qos: .userInitiated).async {
+            var b = [UInt8](repeating: 0, count: 4096)
+            while true {
+                let n = read(outFds[0], &b, b.count)
+                if n <= 0 { break }
+                out.append(contentsOf: b[0..<n])
+            }
+            close(outFds[0]); close(errFds[0]); close(notifyFds[0])
+            done.signal()
+        }
+        _ = done.wait(timeout: .now() + 5)  // 最多等 5s，超时不致命
+        ShellDiag.log("ensureDNS: pid=\(pid) out=\(String(decoding: out, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n", with: "|"))")
     }
 
+    /// 确保内核已 boot（首次解压 rootfs + 挂载）。线程安全，重复调用幂等。
     static func ensureBooted() -> String? {
-        return "[ish 内核未编译（v4.3.57 测试版）]"
-    }
+        lock.lock()
+        defer { lock.unlock() }
+        switch state {
+        case .booted:
+            return nil
+        case .booting:
+            return "[ish] kernel initializing, try again later"
+        case .failed(let msg):
+            return "[ish] kernel init failed: \(msg)"
+        case .idle:
+            break
+        }
+        state = .booting
 
-    static func exec(_ command: String, timeout: TimeInterval)
-        -> (output: String, exitCode: Int32, timedOut: Bool) {
-        return ("[ish 内核未编译（v4.3.57 测试版）：此版本用于验证分享崩溃根因，Alpine 工具不可用]", -1, false)
-    }
+        // 1. rootfs 解压（首次）
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: dataPath) {
+            guard let zipURL = Bundle.main.url(forResource: "alpine-rootfs", withExtension: "zip") else {
+                state = .failed("alpine-rootfs.zip missing from bundle")
+                return "[ish] kernel init failed: alpine-rootfs.zip missing from bundle"
+            }
+            do {
+                let parent = URL(fileURLWithPath: rootfsDir).deletingLastPathComponent()
+                try fm.createDirectory(at: parent, withIntermediateDirectories: true)
+                try fm.unzipItem(at: zipURL, to: parent)
+            } catch {
+                state = .failed("rootfs extraction failed: \(error.localizedDescription)")
+                return "[ish] kernel init failed: rootfs extraction failed \(error.localizedDescription)"
+            }
+            if !fm.fileExists(atPath: dataPath) {
+                state = .failed("rootfs 解压后缺少 data 目录")
+                return "[ish] 内核初始化失败: rootfs 解压后缺少 data 目录"
+            }
+        }
 
-    static func missingToolPkg(_ output: String) -> String? {
+        // 2. cish_boot（v3.6.8: 实测确认 fakefs 挂载时不解析跨 iOS 路径的 symlink，
+        //    Alpine 为纯隔离 rootfs，不再预建 /workspace、/ios 桥接）
+        let rc = dataPath.withCString { cish_boot($0) }
+        if rc != 0 {
+            state = .failed("cish_boot rc=\(rc)")
+            return "[ish] 内核初始化失败: cish_boot rc=\(rc)"
+        }
+
+        // v3.7.1：bind mount 默认关闭（v3.7.0 在 cish_boot 自动挂载会污染 meta.db 权限
+        // 记录导致 Alpine spawn rc=-13）。需要时用 bindMount/bindUnmount 显式按需挂载。
+        ShellDiag.log("ISH boot ok data=\(dataPath) (bind-mount disabled by default; use bindMount on demand)")
+
+        spawnFailCount = 0  // v4.0.0: boot 成功即清零 spawn 失败计数
+        mountedBindPoints.removeAll()  // v4.0.1: reboot 后旧 bind 点失效, 清空使 autoBind 重新挂载
+        state = .booted
+
+        // v3.7.5: 启动自愈 DNS——iSH fakefs 不持久化 /etc/resolv.conf（guest 内无 DNS，
+        // apk add/python/git 全装不上 = 环境漂移根因）。boot 后强制写入，使 Alpine 网络即开即用。
+        ensureDNS()
+
+        // 3. 默认 cwd 为真实存在的 /root（避免名义 /workspace 误导）
+        guestCwd = "/root"
+
+        ShellDiag.log("ISH boot ok data=\(dataPath) (isolated rootfs, no file bridge)")
         return nil
+    }
+
+    /// 执行命令。返回 (输出, 退出码, 是否超时)。未 boot 时自动尝试 boot，失败返回错误串。
+    /// v3.7.7: 命令引用 iOS 路径时自动 bind 挂载顶层并改写为 /ios_*（见 autoBind），Alpine 直接读写；
+    /// 未 bind 的 iOS 路径由 autoBridge(字节拷贝) 兜底。
+    static func exec(_ command: String, timeout: TimeInterval) -> (output: String, exitCode: Int32, timedOut: Bool) {
+        if case .booted = state {} else {
+            if let e = ensureBooted() { return (e, -1, false) }
+        }
+        lock.lock()
+        defer { lock.unlock() }
+        guard case .booted = state else { return ("[ish] kernel not ready", -1, false) }
+
+        // v3.7.7: 自动 bind——命令引用 iOS 主流目录(/var/mobile、/var/containers、/System)时
+        // 自动挂载顶层并改写路径(/var/mobile/X → /ios_mobile/X)，Alpine 直接读写 iOS 文件。
+        // 优先于 autoBridge(字节拷贝)兜底。bind 后 autoBridge 只处理未 bind 的 iOS 路径。
+        // v4.0.1 修正: autoBind 已带 mountedBindPoints 幂等保护(只 bind 一次), 保留 bind 大文件直读能力。
+        let bound = autoBindEnabled ? autoBind(command) : command
+
+        // autoBridge（字节拷贝兜底）：处理 autoBind 未覆盖的 iOS 路径（非 /var/mobile、/var/containers、
+        // /System 顶层）。读 iOS 文件→stdin 管道喂字节→Alpine 写 /tmp/_bridge_N_name→替换路径。
+        let (bridged, bridgePrefix, bridgeStdin) = autoBridge(bound)
+        ShellDiag.log("ISH exec bridge: prefixEmpty=\(bridgePrefix.isEmpty) stdin=\(bridgeStdin.count)B execCmd=\(String(bridged.prefix(100)))")
+
+        let cwdRaw = guestCwd
+        // v4.0.0: cwd 若存的是 iOS 路径（如 Alpine 里 `cd /var/mobile/X` 后 guestCwd 记录为
+        // /var/mobile/X），但 Alpine guest 里该路径经 bind 只存在于 /ios_mobile/X——直接用它做
+        // `cd '...'` 前缀会在 Alpine 里失败(2>/dev/null 静默) 而掉回 /root，造成"文件夹乱跳/环境偏移"。
+        // 修复：构造前缀前也对 cwd 做 autoBind 改写，把 iOS 路径同步改写为 Alpine 可见挂载点。
+        // v4.0.1 修正: 构造 cwd 前缀前同样 autoBind 改写(幂等, 只 bind 一次), 避免 iOS 路径在 Alpine 里不可见。
+        let cwd = autoBindEnabled ? autoBind(cwdRaw) : cwdRaw
+        let tStart = Date()
+        ShellDiag.log("ISH exec start cmd=\(command.prefix(80)) timeout=\(timeout) cwdRaw=\(cwdRaw) cwd=\(cwd)")
+
+        // 纯 cd 命令：执行后额外取真实路径
+        let trimmed = bridged.trimmingCharacters(in: .whitespacesAndNewlines)
+        let isPureCd = trimmed.range(of: "^cd\\s+\\S+(\\s+.*)?$", options: .regularExpression) != nil
+            && !trimmed.contains("&&") && !trimmed.contains(";")
+
+        // cd 失败不阻断命令执行（cwd 为真实 /root，但容错）
+        var fullCommand = "cd '\(shellQuote(cwd))' 2>/dev/null; \(bridgePrefix)\(bridged)"
+        if isPureCd {
+            fullCommand += " && pwd"
+        }
+
+        var outFds: [Int32] = [-1, -1]
+        var errFds: [Int32] = [-1, -1]
+        var notifyFds: [Int32] = [-1, -1]
+        var stdinFds: [Int32] = [-1, -1]
+        guard pipe(&outFds) == 0, pipe(&errFds) == 0, pipe(&notifyFds) == 0 else {
+            ShellDiag.log("ISH exec pipe fail")
+            return ("[ish] pipe creation failed", -1, false)
+        }
+        // v3.6.14: 有桥文件时建 stdin 管道，guest stdin 接读端，host 写原始字节
+        if !bridgeStdin.isEmpty {
+            guard pipe(&stdinFds) == 0 else {
+                ShellDiag.log("ISH exec stdin pipe fail")
+                return ("[ish] stdin pipe creation failed", -1, false)
+            }
+        }
+
+        let argvBuf = buildCStringArray(["/bin/sh", "-c", fullCommand])
+        let envpBuf = buildDefaultEnvp()
+        let pid = argvBuf.withCString { av in
+            envpBuf.withCString { ev in
+                fullCommand.withCString { _ in
+                    "/bin/sh".withCString { p in
+                        cish_spawn(p, av, ev, 3, stdinFds[0], outFds[1], errFds[1], notifyFds[1])
+                    }
+                }
+            }
+        }
+
+        // 父进程关写端（guest 已 dup）
+        close(outFds[1]); close(errFds[1]); close(notifyFds[1])
+
+        if pid <= 0 {
+            close(outFds[0]); close(errFds[0]); close(notifyFds[0])
+            if stdinFds[0] >= 0 { close(stdinFds[0]); close(stdinFds[1]) }
+            ShellDiag.log("ISH exec spawn fail pid=\(pid)")
+
+            // v4.0.0 内核自愈：连续 spawn 失败(rc=-13，bind mount 污染/内核态损坏)达阈值，
+            // 重置 state→.idle 使下一次 exec 的 ensureBooted 重新 cish_boot，清除损坏内核态。
+            // 锁已持有(exec 顶部 lock.lock)，此处直接改 state 安全。boot 成功后 spawnFailCount 清零。
+            spawnFailCount += 1
+            if spawnFailCount >= spawnFailThreshold {
+                ShellDiag.log("ISH kernel degraded: \(spawnFailCount) consecutive spawn failures, scheduling re-boot (state→idle)")
+                state = .idle
+                spawnFailCount = 0
+                // guestCwd 保留 /root 默认值即可，reboot 后 /root 仍存在
+            }
+            return ("[ish] process creation failed rc=\(pid)", -1, false)
+        }
+        ShellDiag.log("ISH spawned pid=\(pid)")
+
+        // v3.6.14: host 侧把桥文件原始字节经 stdin 管道写进 guest（guest 侧 head -c N 消费）。
+        // guest 已从读端 dup fd0；host 关闭读端，保留写端写数据后关闭。
+        if !bridgeStdin.isEmpty, stdinFds[1] >= 0 {
+            close(stdinFds[0])
+            let expect = bridgeStdin.count
+            ShellDiag.log("ISH bridge stdin: pipe created, expect \(expect)B")
+            DispatchQueue.global(qos: .userInitiated).async {
+                let wfd = stdinFds[1]
+                var written = 0
+                bridgeStdin.withUnsafeBytes { buf in
+                    while written < buf.count {
+                        let n = write(wfd, buf.baseAddress!.advanced(by: written), buf.count - written)
+                        if n <= 0 { break }
+                        written += n
+                    }
+                }
+                close(wfd)
+                ShellDiag.log("ISH bridge stdin: wrote \(written)/\(expect)B")
+            }
+        }
+
+        // 后台读 stdout/stderr + 退出通知
+        let outBuf = NSMutableString()
+        let errBuf = NSMutableString()
+        let done = DispatchSemaphore(value: 0)
+        var exitCode: Int32 = -1
+        DispatchQueue.global(qos: .userInitiated).async {
+            var out = Data()
+            var b = [UInt8](repeating: 0, count: 16384)
+            while true {
+                let n = read(outFds[0], &b, b.count)
+                if n <= 0 { break }
+                out.append(contentsOf: b[0..<n])
+            }
+            close(outFds[0])
+            outBuf.append(String(decoding: out, as: UTF8.self))
+
+            var err = Data()
+            while true {
+                let n = read(errFds[0], &b, b.count)
+                if n <= 0 { break }
+                err.append(contentsOf: b[0..<n])
+            }
+            close(errFds[0])
+            errBuf.append(String(decoding: err, as: UTF8.self))
+
+            // 退出通知：8 字节 (pid, code)
+            var notify = Data()
+            while notify.count < 8 {
+                let n = read(notifyFds[0], &b, b.count)
+                if n <= 0 { break }
+                notify.append(contentsOf: b[0..<n])
+            }
+            close(notifyFds[0])
+            if notify.count >= 8 {
+                exitCode = notify.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: Int32.self) }
+            }
+            done.signal()
+        }
+
+        var timedOut = false
+        if done.wait(timeout: .now() + timeout) == .timedOut {
+            timedOut = true
+            // OpenMinis 语义：先 SIGTERM 让命令善后/落盘，1 秒后 SIGKILL 兜底
+            _ = cish_killpg(pid, Int32(SIGTERM))
+            _ = done.wait(timeout: .now() + 1)
+            _ = cish_killpg(pid, Int32(SIGKILL))
+            // 最多再等 3 秒收尾（guest 退出 → exit_hook 通知 → 读线程完成）
+            _ = done.wait(timeout: .now() + 3)
+            exitCode = 137
+            ShellDiag.log("ISH TIMEOUT pid=\(pid)")
+        }
+
+        var stdout = outBuf as String
+        let stderr = errBuf as String
+        if !stderr.isEmpty {
+            if !stdout.isEmpty && !stdout.hasSuffix("\n") { stdout += "\n" }
+            stdout += stderr
+        }
+
+        // 纯 cd：从 pwd 输出解析新会话目录（guest 路径）
+        if isPureCd {
+            let lines = stdout.components(separatedBy: "\n").filter { $0.hasPrefix("/") }
+            if let p = lines.last, p.hasPrefix("/") {
+                guestCwd = p
+            }
+        }
+
+        // P5b v3.6.11: Alpine 命令向 /tmp 写了文件 → 附带 iOS 映射提示，agent 知道去哪取
+        if bridged.range(of: "[>]+\\s*/tmp/", options: .regularExpression) != nil {
+            if !stdout.isEmpty && !stdout.hasSuffix("\n") { stdout += "\n" }
+            stdout += "[bridge] Alpine 写出的 /tmp/* 已同步回 iOS: Documents/alpine-rootfs/data/tmp/*"
+        }
+
+        ShellDiag.log("ISH exec end elapsed=\(Int(Date().timeIntervalSince(tStart) * 1000))ms exit=\(exitCode) timedOut=\(timedOut) out=\(stdout.prefix(80))")
+        return (stdout, exitCode, timedOut)
+    }
+
+    /// autoBridge（字节拷贝兜底）：autoBind 未覆盖的 iOS 路径，原生读文件→stdin 管道喂字节→
+    /// Alpine 写 /tmp/_bridge_N_name→替换路径。返回 (替换后命令, 建文件前缀片段, stdin 原始字节)。
+    /// 不用 base64 内联进命令串（大文件会超 iSH 命令长度）。>maxBytes 跳过（走 inject binary_symbols 等）。
+    private static func autoBridge(_ command: String, maxBytes: Int = 2 * 1024 * 1024) -> (String, String, Data) {
+        let fm = FileManager.default
+        var result = command
+        var prefix = ""
+        var stdinData = Data()
+        let prefixes = ["/var/mobile/", "/private/var/mobile/", "/System/", "/var/containers/"]
+        let alt = prefixes.map { NSRegularExpression.escapedPattern(for: $0) }.joined(separator: "|")
+        // v3.6.16: 修复正则 bug——[^\s...]+ 必须应用到整个交替，否则只拼到最后一个分支，
+        // 导致 /var/mobile/ 等前缀分支只匹配到目录(如 /var/mobile/)而非完整文件路径。
+        // v3.6.19c: 排除集补全 shell 分隔符/标点(; | & , = : [ ] { } ` )，避免命令分隔符被吞进
+        // 路径导致"文件找不到→桥接静默跳过→Alpine 对 iOS 文件失效"；`/` 本身保留以便路径继续延伸。
+        let pattern = "(^|[\\s\"'=>(])((?:" + alt + ")[^\\s\"'<>\\);|&,=:\\[\\]{}`]+)"
+        guard let re = try? NSRegularExpression(pattern: pattern) else { return (command, "", Data()) }
+        let ns = result as NSString
+        var seen = Set<String>()
+        var pending: [(String, String)] = []   // (iosPath, bridgeFile)
+        var counter = 0
+        for m in re.matches(in: result, options: [], range: NSRange(location: 0, length: ns.length)) where m.numberOfRanges >= 3 {
+            let raw = ns.substring(with: m.range(at: 2))
+            guard !seen.contains(raw) else { continue }
+            seen.insert(raw)
+            let norm = ShellExecTool.normalizePath(raw)
+            if norm.contains("/alpine-rootfs/") { continue }   // rootfs 自身落盘，Alpine 命令里无意义
+            // 详细诊断：定位桥到底在哪一步断（命中/不存在/超限/读取失败）
+            if !fm.fileExists(atPath: norm) {
+                ShellDiag.log("autoBridge HIT: \(norm) 存在=false → 跳过")
+                continue
+            }
+            // v3.6.19c: 仅桥接 regular file（目录/symlink/设备不桥），杜绝目录 token 误读浪费。
+            if (try? fm.attributesOfItem(atPath: norm)[.type]) as? FileAttributeType != .typeRegular {
+                ShellDiag.log("autoBridge HIT: \(norm) 非regular file(目录?) → 跳过")
+                continue
+            }
+            guard let size = (try? fm.attributesOfItem(atPath: norm)[.size]) as? Int else {
+                ShellDiag.log("autoBridge HIT: \(norm) stat失败 → 跳过")
+                continue
+            }
+            if size <= 0 || size > maxBytes {
+                ShellDiag.log("autoBridge HIT: \(norm) size=\(size)B 超限(>\(maxBytes)) → 跳过")
+                continue
+            }
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: norm)) else {
+                ShellDiag.log("autoBridge HIT: \(norm) size=\(size)B 读取失败 → 跳过")
+                continue
+            }
+            counter += 1
+            let safeName = URL(fileURLWithPath: raw).lastPathComponent
+                .replacingOccurrences(of: "[^A-Za-z0-9._-]", with: "_", options: .regularExpression)
+            let bridgeFile = "/tmp/_bridge_\(counter)_" + (safeName.isEmpty ? "f" : safeName)
+            // 原始字节经 stdin 管道喂给 guest，head -c N 精确写文件（命令串短，无长度限制）
+            stdinData.append(data)
+            prefix += "head -c \(data.count) > \(bridgeFile); "
+            pending.append((raw, bridgeFile))
+            ShellDiag.log("autoBridge OK: \(norm) → \(bridgeFile) (\(data.count)B)")
+        }
+        for (iosPath, bridgeFile) in pending.sorted(by: { $0.0.count > $1.0.count }) {
+            result = result.replacingOccurrences(of: iosPath, with: bridgeFile)
+        }
+        if counter > 0 {
+            ShellDiag.log("autoBridge: bridged \(counter) file(s), stdin=\(stdinData.count)B; files=[\(pending.map { $0.1 }.joined(separator: ","))]")
+        } else if !seen.isEmpty {
+            ShellDiag.log("autoBridge: 命中 \(seen.count) 个 iOS 路径但全部跳过(见上)")
+        } else {
+            ShellDiag.log("autoBridge: 未命中任何 iOS 路径 → 命令原样执行: \(String(command.prefix(80)))")
+        }
+        return (result, prefix, stdinData)
+    }
+
+    /// P3 按需补给：从 Alpine 命令输出检测缺失工具("X: not found" / "command not found")，
+    /// 命中白名单则返回对应 apk 包名供自动安装；否则 nil。避免 agent 反复试探缺什么工具。
+    static func missingToolPkg(_ output: String) -> String? {
+        let map: [(cmd: String, pkg: String)] = [
+            ("python3", "python3"), ("python", "python3"), ("pip", "py3-pip"),
+            ("tar", "tar"), ("dpkg", "dpkg"), ("strings", "binutils"), ("hexdump", "binutils"),
+            ("nm", "binutils"), ("objdump", "binutils"), ("readelf", "binutils"),
+            ("size", "binutils"), ("addr2line", "binutils"),
+            ("rabin2", "radare2"), ("r2", "radare2"), ("radare2", "radare2"),
+            ("xxd", "xxd"), ("jq", "jq"), ("gdb", "gdb"),
+            ("git", "git"), ("wget", "wget"), ("make", "make"), ("cmake", "cmake"),
+            ("gcc", "build-base"), ("clang", "clang"), ("openssl", "openssl"),
+            ("unzip", "unzip"), ("sqlite3", "sqlite3"),
+        ]
+        for (cmd, pkg) in map {
+            if output.contains("\(cmd): not found")
+                || output.contains("\(cmd): command not found")
+                || output.contains("command not found: \(cmd)") {
+                return pkg
+            }
+        }
+        // v3.6.14 兜底：白名单外的任意工具名也直接返回该名作为包名（Alpine 绝大多数包名=命令名），
+        // 让"AI 需要任何新工具"都能自动 apk add 并配合自动桥分析 iOS 文件，无需维护穷举清单。
+        return inferPkgFromNotFound(output)
+    }
+
+    /// 从 "not found" 输出推断缺失工具的命令名（白名单兜底）。
+    private static func inferPkgFromNotFound(_ output: String) -> String? {
+        let patterns = [
+            "(?:sh|/bin/sh|bash)?[\\s:]*([a-z0-9][a-z0-9._+-]*): (?:command )?not found",
+            "command not found: ([a-z0-9][a-z0-9._+-]*)",
+        ]
+        for p in patterns {
+            guard let re = try? NSRegularExpression(pattern: p, options: [.caseInsensitive]) else { continue }
+            let ns = output as NSString
+            for m in re.matches(in: output, options: [], range: NSRange(location: 0, length: ns.length)) {
+                let cmd = ns.substring(with: m.range(at: 1))
+                if isSafePkgName(cmd) { return cmd }
+            }
+        }
+        return nil
+    }
+
+    /// 兜底安装的安全校验：只允许纯字母数字 . _ + - 的小写标识符，且非 shell 关键字/常见误报。
+    private static func isSafePkgName(_ s: String) -> Bool {
+        guard !s.isEmpty, s.count <= 40,
+              s.first?.isLetter == true || s.first?.isNumber == true else { return false }
+        let blocked = ["cd","fi","then","else","do","done","case","esac","test","true","false",
+                       "exit","echo","printf","read","source","time","which","type","break","continue","pwd","ls","cat"]
+        if blocked.contains(s) { return false }
+        return s.allSatisfy { $0.isLetter || $0.isNumber || $0 == "." || $0 == "_" || $0 == "+" || $0 == "-" }
+    }
+
+    /// shell 单引号转义
+    private static func shellQuote(_ s: String) -> String {
+        s.replacingOccurrences(of: "'", with: "'\\''")
+    }
+
+    /// 构造 NUL 分隔 + 末尾双 NUL 的 argv 块
+    private static func buildCStringArray(_ args: [String]) -> String {
+        args.joined(separator: "\0") + "\0\0"
+    }
+
+    /// 内置默认环境（参考 OpenMinis envp）
+    private static func buildDefaultEnvp() -> String {
+        var vars: [String] = []
+        vars.append("TERM=xterm-256color")
+        vars.append("HOME=/root")
+        vars.append("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+        vars.append("LANG=C.UTF-8")
+        vars.append("CHARSET=UTF-8")
+        vars.append("ENV=/etc/profile")
+        vars.append("OPENSSL_armcap=0")
+        vars.append("NO_COLOR=1")
+        vars.append("PYTHONDONTWRITEBYTECODE=1")
+        // 设备时区（POSIX TZ，musl 兼容）
+        let secs = TimeZone.current.secondsFromGMT()
+        let hrs = secs / 3600
+        let mins = abs(secs % 3600) / 60
+        let tz = mins != 0 ? String(format: "LCL%+ld:%02ld", -hrs, mins) : String(format: "LCL%+ld", -hrs)
+        vars.append("TZ=\(tz)")
+        return vars.joined(separator: "\0") + "\0\0"
     }
 }

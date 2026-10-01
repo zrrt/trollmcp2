@@ -67,7 +67,7 @@ let package = Package(
             dependencies: [
                 .product(name: "RSKGrowingTextView", package: "RSKGrowingTextView"),
                 .product(name: "ZIPFoundation", package: "ZIPFoundation"),
-                // v4.3.57：CISH（libish 静态库）暂从主进程移除——验证分享崩溃根因
+                "CISH",
                 "MitmCore",
                 "CMitm"
             ],
