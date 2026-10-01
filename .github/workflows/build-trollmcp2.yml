@@ -99,11 +99,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: native-tools
-          path: native-tools-out
+          # v4.4.5-fix2: glob 上传内容本身（而非目录），避免下载后路径嵌套 native-tools-out/native-tools-out/lua
+          path: native-tools-out/*
           if-no-files-found: warn
 
   build:
-    needs: native-tools
+    # v4.4.5-fix2: needs native-python —— native-python 已有产物缓存（秒级完成），
+    # 等它确保 python artifact 就位，build 才能真正集成（此前并行时 download 拿不到→python 被跳过）
+    needs: [native-tools, native-python]
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
