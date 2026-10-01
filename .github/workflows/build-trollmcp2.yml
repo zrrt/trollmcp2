@@ -458,14 +458,14 @@ jobs:
           export _PYTHON_SYSCONFIGDATA_NAME=_sysconfigdata__ios_arm64_iphoneos
           export PYTHONPATH="$PYIOS/lib-arm64/python3.14:$PYTHONPATH"
           python3 -c "
-import sysconfig, sys
-ip = sysconfig.get_config_var('INCLUDEPY') or ''
-print('sysconfig INCLUDEPY =', ip)
-assert 'ios-arm64' in ip and ip.startswith('/'), 'sysconfigdata 未生效或路径未绝对化: ' + ip
-lp = sysconfig.get_config_var('LIBDIR') or ''
-print('sysconfig LIBDIR =', lp)
-assert 'ios-arm64' in lp, 'LIBDIR 未指向 ios-arm64: ' + lp
-"
+          import sysconfig, sys
+          ip = sysconfig.get_config_var('INCLUDEPY') or ''
+          print('sysconfig INCLUDEPY =', ip)
+          assert 'ios-arm64' in ip and ip.startswith('/'), 'sysconfigdata 未生效或路径未绝对化: ' + ip
+          lp = sysconfig.get_config_var('LIBDIR') or ''
+          print('sysconfig LIBDIR =', lp)
+          assert 'ios-arm64' in lp, 'LIBDIR 未指向 ios-arm64: ' + lp
+          "
           python -m pip wheel --no-deps --no-build-isolation \
             -Csetup-args=--cross-file=$PWD/ios-meson.ini \
             -Csetup-args=-Dallow-noblas=true \
