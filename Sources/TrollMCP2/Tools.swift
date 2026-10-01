@@ -757,7 +757,7 @@ final class GitHubExecTool: MCPTool {
         parameters: [
             "command": "Subcommand: account_status / trigger_build / fetch_runs / download_artifact",
             "workflow": "Workflow file for trigger_build: build-trollmcp2.yml (default, build IPA) or build-tweak.yml (build tweak dylib)",
-            "tweak": "Only for tweak trigger_build: tweak project name (e.g. JinxVIPBypass / ProbeAgent / CompileProbe)",
+            "tweak": "Only for tweak trigger_build: tweak project name (e.g. ProbeAgent / ConfigHook / NetworkTweak)",
             "ref": "Git branch to build (default main)",
             "run_id": "Run ID (for download_artifact)"
         ],

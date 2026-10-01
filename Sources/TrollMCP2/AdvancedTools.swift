@@ -1131,7 +1131,7 @@ final class HookApplyTool: MCPTool {
 final class DeviceFakeTool: MCPTool {
     let definition = ToolDefinition(
         name: "device.fake",
-        summary: "Spoof device info (model, iOS version, etc.). Use for: fake device model to bypass device detection, test app on different device. Don't use for: restore real device info (use device.restore), inject dylib (use injection.enable). Prerequisite: inject FakeDevice.dylib first. Example: user says 'spoof phone as iPhone 16 Pro Max' → fake device.",
+        summary: "Spoof device info (model, iOS version, etc.). Use for: fake device model to bypass device detection, test app on different device. Don't use for: restore real device info (use device.restore), inject dylib (use injection.enable). Mechanism: device disguise is built into ConfigHook.dylib (reads fake_device.json), no separate FakeDevice. Example: user says 'spoof phone as iPhone 16 Pro Max' → fake device.",
         parameters: [
             "bundle_id": "Target App bundle_id (required)",
             "name": "Fake device name (e.g. iPhone 16 Pro Max)",
@@ -1164,11 +1164,11 @@ final class DeviceFakeTool: MCPTool {
         let mode = (params["mode"] as? String) ?? "memory"
         if mode == "file" {
             // 旧式文件注入：保留但明确标注风险
-            let dylib = ProcessHelper.tweakPath("FakeDevice.dylib") ?? ""
-            guard !dylib.isEmpty else { return ["error": "built-in FakeDevice.dylib does not exist"] }
+            let dylib = ProcessHelper.tweakPath("ConfigHook.dylib") ?? ""
+            guard !dylib.isEmpty else { return ["error": "built-in ConfigHook.dylib does not exist"] }
             let r = try InjectionManager.shared.enable(bundleId: bundleId, dylibSourcePath: dylib)
             if (r["status"] as? String) != "injected" {
-                return ["error": "FakeDevice file injection failed", "detail": r]
+                return ["error": "ConfigHook file injection failed", "detail": r]
             }
             let exe = ProcessHelper.executableName(for: app)
             _ = InjectionManager.shared.runAsRoot("killall", args: ["killall", "-9", exe])
@@ -1187,9 +1187,9 @@ final class DeviceFakeTool: MCPTool {
 
         // 默认：内存injected (opainject）——不碰任何文件
         let exeName = ProcessHelper.executableName(for: app)
-        let dylib = ProcessHelper.tweakPath("FakeDevice.dylib") ?? ""
+        let dylib = ProcessHelper.tweakPath("ConfigHook.dylib") ?? ""
         guard !dylib.isEmpty, FileManager.default.fileExists(atPath: dylib) else {
-            return ["error": "built-in FakeDevice.dylib does not exist", "hint": "check tweaks/FakeDevice.dylib inside the IPA"]
+            return ["error": "built-in ConfigHook.dylib does not exist", "hint": "check tweaks/ConfigHook.dylib inside the IPA"]
         }
         var pid = ProcessHelper.pidOf(executableName: exeName)
         if pid == nil {
@@ -1217,7 +1217,7 @@ final class DeviceFakeTool: MCPTool {
             "exit": exit,
             "output": output,
             "note": ok
-                ? "内存注入OK：FakeDevice 已在进程内生效，未改动任何文件；App 重启后自动还原真实设备"
+                ? "内存注入OK：设备伪装(ConfigHook)已在进程内生效，未改动任何文件；App 重启后自动还原真实设备"
                 : "opainject failed (见 output)。App 文件未被动过，无需恢复"
         ]
     }

@@ -1,8 +1,0 @@
-Package: com.zrrt.jinxvipbypass
-Name: JinxVIPBypass
-Version: 0.0.1
-Architecture: iphoneos-arm64
-Description: Jinx VIP bypass - force VIPManager isVIP YES
-Maintainer: zrrt
-Author: zrrt
-Section: Tweaks

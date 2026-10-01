@@ -1,8 +1,0 @@
-Package: com.trollagent.fakedevice
-Name: FakeDevice
-Version: 1.0
-Architecture: iphoneos-arm64
-Description: Device spoofing dylib for TrollAgent. Reads fake_device.json from Workspace and fakes UIDevice name/model/systemVersion at runtime.
-Maintainer: TrollAgent
-Author: TrollAgent
-Section: Tweaks
