@@ -31,8 +31,8 @@ enum ISHEngine {
 
     /// iSH 会话 cwd（guest 路径，与旧 ios_system 的 iOS 沙箱路径隔离）
     private static var guestCwd = "/root"
-    /// v4.3.77：当前正在执行的 guest pid（spawn 后登记、exec 结束清空）
-    /// v4.3.78：类型修正——cish_spawn 返回 long(Swift Int)，cish_killpg 的 pid/sig 也是 long/int(Swift Int)
+    /// v4.3.79：类型修正——cish_spawn 返回 long(Swift Int)=pid；cish_killpg(long,int) 导入后
+    /// pid 是 Int、sig 是 Int32（C int→Swift Int32）。v4.3.78 误把 sig 也改成 Int 导致反方向报错。
     private static var currentPid: Int = -1
 
     /// v4.3.77：用户点停止时立即中断当前命令/安装（不再让 apkAdd 闷头跑到 timeout、
@@ -43,9 +43,9 @@ enum ISHEngine {
         let p = currentPid
         guard p > 0 else { return }
         ShellDiag.log("user stop: interrupt pid \(p)")
-        cish_killpg(p, Int(SIGTERM))
+        cish_killpg(p, Int32(SIGTERM))
         Thread.sleep(forTimeInterval: 0.5)
-        cish_killpg(p, Int(SIGKILL))
+        cish_killpg(p, Int32(SIGKILL))
     }
 
     private static var rootfsDir: String {
@@ -531,9 +531,9 @@ enum ISHEngine {
         if done.wait(timeout: .now() + timeout) == .timedOut {
             timedOut = true
             // OpenMinis 语义：先 SIGTERM 让命令善后/落盘，1 秒后 SIGKILL 兜底
-            _ = cish_killpg(pid, Int(SIGTERM))
+            _ = cish_killpg(pid, Int32(SIGTERM))
             _ = done.wait(timeout: .now() + 1)
-            _ = cish_killpg(pid, Int(SIGKILL))
+            _ = cish_killpg(pid, Int32(SIGKILL))
             // 最多再等 3 秒收尾（guest 退出 → exit_hook 通知 → 读线程完成）
             _ = done.wait(timeout: .now() + 3)
             exitCode = 137
