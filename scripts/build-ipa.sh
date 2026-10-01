@@ -165,7 +165,19 @@ if [ -n "$XCF_DIR" ]; then
         else
             echo "!!! ios-arm64 lib-dynload missing (platform extensions)" >&2
         fi
-        # 3. 编译 python3 CLI（嵌入式入口：PyConfig + PYTHONHOME + -c/-m/script）
+        # 3. numpy/pandas iOS wheel（CI native-wheels job 用 cibuildwheel 编的 cp314 arm64 iphoneos wheel）
+        #    解包进 site-packages——原生 python3 直接 import numpy/pandas
+        if ls native-wheels/*.whl >/dev/null 2>&1; then
+            SP="$APP/python/lib/python3.14/site-packages"
+            mkdir -p "$SP"
+            for w in native-wheels/*.whl; do
+                unzip -oq "$w" -d "$SP" && echo ">>> wheel unpacked: $(basename "$w")"
+            done
+            echo ">>> site-packages: $(du -sh "$SP" | cut -f1)"
+        else
+            echo "!!! native-wheels not present — numpy/pandas 未进包 (iSH 版仍会段错误)" >&2
+        fi
+        # 4. 编译 python3 CLI（嵌入式入口：PyConfig + PYTHONHOME + -c/-m/script）
         if [ -f "Sources/PythonCLI/main.c" ] && [ -f "$APP/Frameworks/Python.framework/Headers/Python.h" ]; then
             xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" \
                 -I"$APP/Frameworks/Python.framework/Headers" \

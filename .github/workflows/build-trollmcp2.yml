@@ -141,7 +141,8 @@ jobs:
   build:
     # v4.4.5-fix2: needs native-python —— native-python 已有产物缓存（秒级完成），
     # 等它确保 python artifact 就位，build 才能真正集成（此前并行时 download 拿不到→python 被跳过）
-    needs: [native-tools, native-python]
+    # v4.4.5-fix3d: needs native-wheels —— numpy/pandas iOS wheel 有缓存秒级完成
+    needs: [native-tools, native-python, native-wheels]
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -304,6 +305,14 @@ jobs:
           merge-multiple: true
         continue-on-error: true
 
+      - name: Download native wheels (numpy/pandas iOS)
+        uses: actions/download-artifact@v4
+        with:
+          name: native-wheels
+          path: native-wheels
+          merge-multiple: true
+        continue-on-error: true
+
       - name: Build IPA (with native Python integration)
         run: |
           ls -la python-ios/ 2>/dev/null | head -5 || true
@@ -368,4 +377,47 @@ jobs:
         with:
           name: python-ios-xcframework
           path: cpython/cross-build/dist/*.tar.gz
+          if-no-files-found: warn
+
+  # v4.4.5-fix3d: 原生 numpy/pandas iOS wheel——cibuildwheel 4.x 原生支持 iOS（beeware patch 已上游合并），
+  # CIBW_PLATFORM=ios + arm64_iphoneos 出真机 wheel（cp314）。无 BLAS 时 numpy 自动 fallback（功能完整，
+  # 性能降级）。产物供 build 解包进 App/python/lib/python3.14/site-packages——原生 Python 直接 import。
+  native-wheels:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - uses: actions/cache@v4
+        id: wheels-cache
+        with:
+          path: wheels-out
+          key: ios-wheels-numpy-pandas-cp314-v1
+
+      - name: Build numpy iOS wheel (cp314 arm64 iphoneos)
+        if: steps.wheels-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p wheels-out
+          pip install cibuildwheel==4.*
+          CIBW_PLATFORM=ios CIBW_ARCHS=arm64_iphoneos CIBW_BUILD="cp314-*" \
+            CIBW_BEFORE_BUILD="pip install cython" \
+            python -m cibuildwheel numpy --output-dir wheels-out 2>&1 | tail -20
+          ls -la wheels-out/
+
+      - name: Build pandas iOS wheel (cp314 arm64 iphoneos)
+        if: steps.wheels-cache.outputs.cache-hit != 'true'
+        run: |
+          CIBW_PLATFORM=ios CIBW_ARCHS=arm64_iphoneos CIBW_BUILD="cp314-*" \
+            python -m cibuildwheel pandas --output-dir wheels-out 2>&1 | tail -20
+          ls -la wheels-out/
+
+      - name: Upload native wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-wheels
+          path: wheels-out/*.whl
           if-no-files-found: warn
