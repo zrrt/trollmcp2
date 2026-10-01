@@ -391,7 +391,9 @@ jobs:
         id: wheels-cache
         with:
           path: wheels-out
-          key: ios-wheels-numpy-pandas-cp314-v1
+          # fix3f: v1→v2——v1 被 fix3d 的"假成功"污染（cibuildwheel | tail 吞错→空 wheels-out
+          # 仍被 cache save→fix3e 命中空缓存→构建被跳过→upload error→job fail）。升 key 强制重建。
+          key: ios-wheels-numpy-pandas-cp314-v2
 
       - name: Build numpy iOS wheel (cp314 arm64 iphoneos)
         if: steps.wheels-cache.outputs.cache-hit != 'true'
