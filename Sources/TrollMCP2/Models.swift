@@ -580,7 +580,8 @@ final class ConversationStore: ObservableObject {
     @Published var statusText: String?
     /// v2.9.34：请求过程可视化——当前第几轮 (对齐老 MCP 的"正在请求模型 (第 N/60 轮）"）
     @Published var requestRound = 0
-    @Published var requestRounds = 60
+    /// v4.3.71：0 = 无轮次上限（已移除 60 轮机制），UI 只显示"第 N 轮"
+    @Published var requestRounds = 0
     /// v2.9.34：正在执行的工具名 (展示"正在执行工具 xxx…"）
     @Published var runningTool: String?
     /// v3.5.10：正在上屏的"工具启动即显示 running 步骤卡"的消息 id——
@@ -874,26 +875,12 @@ final class ConversationStore: ObservableObject {
             return
         }
         // v2.9.25：不再限制工具调用轮次 (用户可手动点「停止」）。
-        // 仅保留 60 轮极端安全保险，正常流程永不触发，防止 AI 完全失控无限发请求。
-        guard depth < 60 else {
-            isLoading = false
-            statusText = nil
-            requestRound = 0
-            runningTool = nil
-            // v2.9.82：后台时通知
-            TaskNotify.shared.endBackground()
-            TaskNotify.shared.notifyIfBackground(title: "⏹ 任务已停止", body: "达到极端安全上限 (60 轮)，已停止。可点「停止」中断。")
-            let stopMsg = ChatMessage(role: "assistant", content: "已达到极端安全上限 (60 轮)，已停止。若 AI 仍在循环，请点输入框旁的「停止」按钮中断。", isError: true)
-            self.appendToCurrent(stopMsg)
-            self.liveTrail = []   // v2.9.127：停止分支先清空上轮残留轨迹再收尾
-            self.trailStep(.done(.note, "任务停止", detail: "达到 60 轮上限", ok: false))
-            self.attachTrail(to: stopMsg.id)
-            return
-        }
+        // v4.3.71：移除 60 轮极端安全上限——长会话已由 LLM Compaction 控制上下文体积，
+        // 不再需要轮次硬停（用户仍可随时点「停止」按钮中断；工具死循环仍由 _loop_hint 提示）。
         // v2.9.34：请求过程可视化
         DispatchQueue.main.async {
             self.requestRound = depth + 1
-            self.requestRounds = 60
+            self.requestRounds = 0   // v4.3.71：无轮次上限
             self.statusText = "已准备请求 (正在整理会话与可用工具)"
             self.liveTrail = []   // v2.9.127：新一轮清空实时轨迹
         }
@@ -922,7 +909,8 @@ final class ConversationStore: ObservableObject {
         let client = OpenAIClient(config)
         client.currentReasoningLevel = reasoningLevel
         currentClient = client
-        var history = messagesForAPI(budget: config.contextTokens)
+        let prepared = messagesForAPI(budget: config.contextTokens)
+        var history = prepared.messages
         // v2.9.138：模块化 system prompt 组装 (稳定前缀工程）——
         // 稳定块 (系统指令→开发者指令）在前、动态状态块 (设备/App/工作区/会话）在后，
         // 稳定前缀保持字节一致 → 官方 API 前缀缓存可直接matched (Anthropic/OpenAI）。
@@ -949,7 +937,7 @@ final class ConversationStore: ObservableObject {
             self.pendingEmptyReplyCorrection = nil
         }
 
-        client.send(messages: history, tools: effectiveTools, onStatus: { status in
+        client.send(messages: history, compactSource: prepared.compactSource, tools: effectiveTools, onStatus: { status in
             DispatchQueue.main.async {
                 // v2.9.34：带轮次前缀，展示"正在请求模型 (第 N/60 轮）…"
                 if self.requestRound > 0 && !status.contains("第 ") {
@@ -1577,9 +1565,11 @@ final class ConversationStore: ObservableObject {
         return parts.joined(separator: " | ")
     }
 
-    private func messagesForAPI(budget: Int) -> [ChatMessage] {
+    /// v4.3.71：返回 (messages, compactSource) —— compactSource 是被裁掉的旧消息原文，
+    /// 供 OpenAIClient 在发送主请求前交给模型生成结构化摘要 (LLM Compaction)。
+    private func messagesForAPI(budget: Int) -> (messages: [ChatMessage], compactSource: [ChatMessage]) {
         var all = currentMessages.filter { !$0.isError }
-        guard !all.isEmpty else { return all }
+        guard !all.isEmpty else { return ([], []) }
         // v2.9.138：工具结果修剪 (Claude Code Precision Forgetting Layer 1）——
         // 非最近 3 条 tool 消息、内容 > 300 字符的旧工具结果替换为紧凑占位符。
         // 零 LLM 成本回收上下文：AI 需要细节时可重新调用该工具。
@@ -1599,9 +1589,9 @@ final class ConversationStore: ObservableObject {
         // 之前只按消息估算，tools (可能几十 KB JSON）+ 两条 system 前缀没算，
         // 长会话+多工具时实际请求体远超预算 → 中转处理慢 ("一直请求中"）。
         let theBudget = max(Int(Double(budget) * 0.7), 2000)
-        // 估算总 token；低于预算直接返回 (短会话）
+        // 估算总 token；低于预算直接返回 (短会话，无需压缩）
         let total = all.reduce(0) { $0 + Self.estimateTokens($1) }
-        if total <= theBudget { return all }
+        if total <= theBudget { return (all, []) }
         // 长会话：从旧到新裁剪，但始终保留最后 N 条核心消息
         let keepMin = 6
         var kept: [ChatMessage] = []
@@ -1622,8 +1612,10 @@ final class ConversationStore: ObservableObject {
         // 插入截断提示 (v2.9.88：本地生成话题摘要，而非简单丢弃 —— 不用额外请求，
         // 从被裁消息里提取用户提问/工具名作为"旧会话记忆"，AI 仍能感知上下文主题）
         let dropped = all.count - result.count
+        // v4.3.71：被裁旧消息原文交给 LLM Compaction 生成结构化摘要（替换下方启发式摘要）
+        let compactSource = dropped > 0 ? Array(all.prefix(all.count - result.count)) : []
         if dropped > 0 {
-            let droppedMsgs = Array(all.prefix(all.count - result.count))
+            let droppedMsgs = compactSource
             var topics: [String] = []
             var toolNames: Set<String> = []
             var idx = 0
@@ -1657,7 +1649,7 @@ final class ConversationStore: ObservableObject {
             let hint = ChatMessage(role: "system", content: "[系统] " + summaryParts.joined(separator: "。"))
             result.insert(hint, at: 0)
         }
-        return result
+        return (result, compactSource)
     }
 
     /// 粗估 token：中文/日文等约 1 字≈1.5 token；ASCII 约 4 字符≈1 token；图片按固定值计

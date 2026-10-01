@@ -91,7 +91,74 @@ final class OpenAIClient {
         activeTask?.cancel()
     }
 
-    func send(messages: [ChatMessage], tools: [[String: Any]]? = nil, onStatus: ((String) -> Void)? = nil, onDelta: ((String) -> Void)? = nil, onThinking: ((String) -> Void)? = nil, completion: @escaping (Result<ChatResult, Error>) -> Void) {
+    /// v4.3.71：LLM Compaction（对齐 Claude Code / Codex 的 context compaction）——
+    /// 长会话中 messagesForAPI 裁掉了旧消息 (compactSource 非空) 时，先把被裁消息交给模型
+    /// 生成结构化摘要，替换本地启发式话题摘要（"[系统] 已省略…"）后再发主请求。
+    /// 摘要失败 (nil) 自动回退启发式，绝不影响主请求可用性。
+    func summarize(_ compactSource: [ChatMessage], completion: @escaping (String?) -> Void) {
+        guard !compactSource.isEmpty else { completion(nil); return }
+        let base = config.baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard let url = URL(string: base + "/chat/completions") else { completion(nil); return }
+        let summarySystem = "你是会话压缩引擎。下面是一段 AI 助手与用户的旧会话（含用户提问、助手回复、工具调用与结果）。请把它压缩成一份结构化 Markdown 摘要，供助手在后续轮次无缝续接。必须包含：\n1. 任务概览：用户核心诉求、成功标准、约束；\n2. 当前状态：已完成事项、改动/生成的文件或产物（带路径）；\n3. 关键发现：技术约束、重要决策、已解决的报错、失败过的方案；\n4. 下一步：待办事项、阻塞点、优先级；\n5. 需保留的上下文：用户偏好、专业细节、承诺。\n只输出摘要正文，不要寒暄，不要复述对话原文。"
+        let conversation = compactSource.map { m -> String in
+            let roleLabel: String
+            switch m.role {
+            case "user": roleLabel = "用户"
+            case "assistant": roleLabel = "助手"
+            case "tool": roleLabel = "工具结果(\(m.toolName ?? "tool"))"
+            default: roleLabel = m.role
+            }
+            return "【\(roleLabel)】\n\(m.content)"
+        }.joined(separator: "\n\n")
+        var body: [String: Any] = [
+            "model": config.model,
+            "messages": [
+                ["role": "system", "content": summarySystem],
+                ["role": "user", "content": conversation]
+            ],
+            config.maxTokensKey: 1600
+        ]
+        if config.sendsTemperature { body["temperature"] = 0.3 }
+        var request = URLRequest(url: url, timeoutInterval: 90)
+        setHTTPMethod("POST", on: &request)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        applyAuth(to: &request)
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        session.dataTask(with: request) { data, response, error in
+            guard error == nil, let data = data,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let choices = json["choices"] as? [[String: Any]],
+                  let text = (choices.first?["message"] as? [String: Any])?["content"] as? String,
+                  !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                completion(nil)
+                return
+            }
+            completion(text)
+        }.resume()
+    }
+
+    func send(messages: [ChatMessage], compactSource: [ChatMessage] = [], tools: [[String: Any]]? = nil, onStatus: ((String) -> Void)? = nil, onDelta: ((String) -> Void)? = nil, onThinking: ((String) -> Void)? = nil, completion: @escaping (Result<ChatResult, Error>) -> Void) {
+        // v4.3.71：LLM Compaction 前置——先摘要被裁旧消息，替换启发式占位后再发主请求
+        if !compactSource.isEmpty {
+            summarize(compactSource) { [weak self] summary in
+                guard let self = self else {
+                    completion(.failure(NSError(domain: "OpenAIClient", code: -999, userInfo: [NSLocalizedDescriptionKey: "请求已取消"])))
+                    return
+                }
+                var msgs = messages
+                if let s = summary, !s.isEmpty,
+                   let idx = msgs.firstIndex(where: { $0.role == "system" && $0.content.hasPrefix("[系统] 已省略") }) {
+                    msgs[idx] = ChatMessage(role: "system", content: "【长会话摘要·模型生成】\n" + s)
+                }
+                self.sendInner(messages: msgs, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking, completion: completion)
+            }
+            return
+        }
+        sendInner(messages: messages, tools: tools, onStatus: onStatus, onDelta: onDelta, onThinking: onThinking, completion: completion)
+    }
+
+    /// v4.3.71：send 主流程（熔断/降级链/流式），与 compaction 前置分支分离。
+    private func sendInner(messages: [ChatMessage], tools: [[String: Any]]? = nil, onStatus: ((String) -> Void)? = nil, onDelta: ((String) -> Void)? = nil, onThinking: ((String) -> Void)? = nil, completion: @escaping (Result<ChatResult, Error>) -> Void) {
         cancelled = false
         requestStart = Date()
         overallDeadline = Date().addingTimeInterval(overallBudget)

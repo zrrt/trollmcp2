@@ -532,10 +532,18 @@ struct ChatView: View {
                                     .padding(.trailing, 16)
                             }
                             if store.requestRound > 0 {
-                                Text(L10n.t("ui_157", store.requestRound, store.requestRounds))
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                                    .padding(.trailing, 16)
+                                // v4.3.71：无轮次上限 (requestRounds==0) 只显示"第 N 轮"
+                                if store.requestRounds > 0 {
+                                    Text(L10n.t("ui_157", store.requestRound, store.requestRounds))
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                        .padding(.trailing, 16)
+                                } else {
+                                    Text("第 \(store.requestRound) 轮")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                        .padding(.trailing, 16)
+                                }
                             }
                         }
                     }
