@@ -420,7 +420,7 @@ final class SystemPrompts {
     /// v3.6.19l：精简版——每类规则只保留一处权威定义，其它处用指针引用；去重复、去审计腔、统一命名。
     static let environmentPrompt = """
     === ENVIRONMENT PROMPT (system layer, always loaded, not selectable) ===
-    VERSION: v4.3.77 (build 207). PRIORITY (when anything conflicts): this ENVIRONMENT PROMPT > shared core rules >
+    VERSION: v4.3.78 (build 208). PRIORITY (when anything conflicts): this ENVIRONMENT PROMPT > shared core rules >
     the active mode's role content > individual tool descriptions.
 
     === NOVICE ONE-LINE ROUTING (小白模式，最高优先级） ===

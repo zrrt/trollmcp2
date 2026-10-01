@@ -6,8 +6,6 @@ import UniformTypeIdentifiers
 struct ChatView: View {
     @ObservedObject private var store = ConversationStore.shared
     @ObservedObject private var modelStore = ModelStore.shared
-    // v4.3.75：安装进度注册表——工具"执行中"时若 registry 有活动任务，气泡渲染实时进度条
-    @ObservedObject private var installRegistry = InstallationRegistry.shared
 
     @State private var inputText = ""
     @State private var inputHeight: CGFloat = 36
@@ -1238,6 +1236,8 @@ struct QuickActionCard: View {
 
 struct MessageBubble: View {
     let message: ChatMessage
+    // v4.3.77：安装进度——工具"执行中"气泡渲染实时进度条（引用处位于本 struct）
+    @ObservedObject private var installRegistry = InstallationRegistry.shared
     var selectionMode: Bool = false
     var isSelected: Bool = false
     var onToggleSelect: (() -> Void)? = nil
