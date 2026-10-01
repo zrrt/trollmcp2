@@ -429,6 +429,10 @@ jobs:
           SC="$PYIOS/lib-arm64/python3.14/_sysconfigdata__ios_arm64-iphoneos.py"
           sed -i "" "s|'Apple/iOS/Frameworks/arm64-iphoneos|'$PYIOS|g" "$SC"
           grep -o "'INCLUDEPY': '[^']*'" "$SC" | head -1
+          # fix3j: sysconfigdata 文件名带连字符(-iphoneos)无法被 importlib 加载(Python 模块名
+          # 不能含连字符)→ pip 的 sysconfig 初始化 ModuleNotFoundError。复制下划线命名副本，
+          # _PYTHON_SYSCONFIGDATA_NAME 指向它即可被 PYTHONPATH 正常 import。
+          cp "$SC" "$PYIOS/lib-arm64/python3.14/_sysconfigdata__ios_arm64_iphoneos.py"
           # meson cross 文件（xcrun SDK 工具链，arm64 真机）
           cat > ios-meson.ini <<INI
           [binaries]
