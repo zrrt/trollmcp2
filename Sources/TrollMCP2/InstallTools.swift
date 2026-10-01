@@ -72,7 +72,7 @@ final class ToolInstallTool: MCPTool {
             if apk.exitCode == 0 {
                 InstallationRegistry.shared.finish(ok: true, summary: "已装 \(pkg)")
                 return ["ok": true, "tool": name, "status": "installed", "source": "alpine_apk", "package": pkg,
-                        "hint": "已 apk add \(pkg)；Alpine 工具可 bind 直读 iOS 文件（无 2MB 限制）"]
+                        "hint": "已 apk add \(pkg)；直接调用 `\(name) <参数>` 即可——shell.exec 会自动路由 Alpine 并 bind 直读 iOS 路径（如 \(name) /var/mobile/xxx 自动改 /ios_mobile/xxx）；缺依赖时首次调用会自动补齐"]
             }
             InstallationRegistry.shared.finish(ok: false, summary: ISHEngine.installDiagnose(apk.output, timedOut: apk.timedOut, exitCode: apk.exitCode))
             lastApkErr = apk.output

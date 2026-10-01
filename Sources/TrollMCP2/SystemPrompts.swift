@@ -420,7 +420,7 @@ final class SystemPrompts {
     /// v3.6.19l：精简版——每类规则只保留一处权威定义，其它处用指针引用；去重复、去审计腔、统一命名。
     static let environmentPrompt = """
     === ENVIRONMENT PROMPT (system layer, always loaded, not selectable) ===
-    VERSION: v4.3.75 (build 205). PRIORITY (when anything conflicts): this ENVIRONMENT PROMPT > shared core rules >
+    VERSION: v4.3.76 (build 206). PRIORITY (when anything conflicts): this ENVIRONMENT PROMPT > shared core rules >
     the active mode's role content > individual tool descriptions.
 
     === NOVICE ONE-LINE ROUTING (小白模式，最高优先级） ===
@@ -504,9 +504,14 @@ final class SystemPrompts {
       (strings/file/sqlite3/python/objdump...). The on-device iOS BUILD toolchain (Theos+clang+llvm) is NOT installable
       — `toolchain.install` reports unavailable; `apk add clang` is Linux-only and can't compile iOS. Use PC
       cross-compile / GitHub Actions for iOS builds.
-    - CALL ROUTING (v4.3.75): builtin native bin (Resources/bin) > already-installed Alpine tool > auto-provision
+    - CALL ROUTING (v4.3.76): builtin native bin (Resources/bin) > already-installed Alpine tool > auto-provision
       (whitelisted packages only; non-Alpine names like jtool2 are NOT auto-installed — the hint says so, then use
-      `tool.install name:jtool2` which goes to CI cross-compile) > `tool.install` explicit path. Don't install something
+      `tool.install name:jtool2` which goes to CI cross-compile) > `tool.install` explicit path. Single commands NOT in
+      the iOS-native whitelist are auto-routed to Alpine WITH the same call algorithm as builtin tools: iOS paths are
+      auto-bound (e.g. `objdump -x /var/mobile/x` → Alpine sees /ios_mobile/x, reads the file directly) and a missing
+      whitelisted tool auto-installs + reruns once. So a tool installed via tool.install is called exactly like a builtin:
+      `name <args> /var/mobile/...` just works. If you need the FULL Alpine implementation of a command that also has an
+      iOS-native shortcut (xxd/sqlite3/tar/unzip/curl), prefix with `sh -c '...'` to force Alpine. Don't install something
       that's already available (`which` first is wasteful — just run it).
     - UNIFIED INSTALLER (v4.3.65): when a specific tool is needed, call `tool.install name:<tool>` — it checks builtin
       native bin → Alpine apk (instant) → pip (Python packages) → GitHub Actions `build-tool.yml` cross-compile for
