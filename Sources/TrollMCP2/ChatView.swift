@@ -1698,8 +1698,11 @@ struct FileCardRow: View {
             // v4.3.46：用 TrollStore 安装 → 打开方式（UIDocumentInteractionController）。
             // TrollStore 注册了 .tipa/.ipa 的打开方式，不经过 ShareSheet（系统分享面板
             // 在本设备侧载环境 MobileIcons/CoreImage SIGSEGV，任何路径都崩）。
-            Button(action: { ShareCenter.shared.openIn(url) }) {
-                Label("用 TrollStore 安装", systemImage: "shippingbox")
+            // v4.3.51：URL scheme 直调 TrollStore 安装（不渲染 App 图标列表，安全）
+            if ext == "tipa" || ext == "ipa" {
+                Button(action: { ShareCenter.shared.openInTrollStore(url) }) {
+                    Label("用 TrollStore 安装", systemImage: "shippingbox")
+                }
             }
         }
         .sheet(isPresented: $showPreview) {

@@ -51,12 +51,7 @@ struct QLFilePreview: View {
                                 Image(systemName: "folder")
                             }
                             .disabled(url == nil)
-                            Button {
-                                if let url = url { ShareCenter.shared.openIn(url) }
-                            } label: {
-                                Image(systemName: "square.and.arrow.up")
-                            }
-                            .disabled(url == nil)
+                            // v4.3.51：移除"打开方式"按钮——渲染 App 图标列表会触发 MobileIcons 崩溃
                         }
                     }
                 }

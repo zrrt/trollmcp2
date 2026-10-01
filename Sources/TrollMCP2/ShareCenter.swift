@@ -44,9 +44,9 @@ final class ShareCenter: ObservableObject {
             alert.addAction(UIAlertAction(title: "存储到文件", style: .default) { _ in
                 self.saveToFiles(url)
             })
-            alert.addAction(UIAlertAction(title: "用其他 App 打开", style: .default) { _ in
-                self.openIn(url)
-            })
+            // v4.3.51：移除"用其他 App 打开"——UIDocumentInteractionController.presentOpenInMenu
+            // 内部渲染"能打开此文件的全部 App 图标列表"，本设备侧载环境 MobileIcons 渲染
+            // 列表图标时 CoreImage SIGSEGV（实测崩溃，与 ShareSheet 同一崩溃点）。
             alert.addAction(UIAlertAction(title: "取消", style: .cancel))
             Self.anchor(alert)
             Self.topViewController()?.present(alert, animated: true)
@@ -99,10 +99,32 @@ final class ShareCenter: ObservableObject {
 
     // MARK: - 用其他 App 打开（UIDocumentInteractionController，安全路径）
 
-    /// 打开方式：UIDocumentInteractionController.presentOpenInMenu。
-    /// Launch Services 的 App 列表（不走 ShareSheet）。
-    /// 注意：presentOpenInMenu 的宿主视图若被提前释放会不显示，故把交互控制器
-    /// 用 associatedObject 挂到宿主 VC 上保持存活。
+    /// v4.3.51：用 TrollStore 安装（URL scheme 直调，不渲染任何 App 图标列表）。
+    /// TrollStore 注册了 apple-magnifier://install?url= 路由（安装 tipa/ipa 到设备）。
+    /// 该路径是系统级 scheme 路由，不经过 MobileIcons 图标列表渲染，侧载环境安全。
+    func openInTrollStore(_ url: URL) {
+        guard url.pathExtension.lowercased() == "tipa" || url.pathExtension.lowercased() == "ipa" else {
+            self.showNotice("仅支持 .tipa/.ipa 文件直接安装")
+            return
+        }
+        guard let base = URL(string: "apple-magnifier://install?url="),
+              let encoded = url.absoluteString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let target = URL(string: base.absoluteString + encoded) else {
+            UIPasteboard.general.string = url.path
+            self.showNotice("无法直达 TrollStore，已复制文件路径")
+            return
+        }
+        UIApplication.shared.open(target) { ok in
+            if !ok {
+                UIPasteboard.general.string = url.path
+                self.showNotice("未检测到 TrollStore，已复制文件路径")
+            }
+        }
+        AuditLog.shared.log("share.open_in_trollstore", detail: url.lastPathComponent)
+    }
+
+    /// v4.3.51 弃用：打开方式列表会渲染 App 图标 → 侧载环境 MobileIcons SIGSEGV。
+    /// 保留代码仅供追溯。
     func openIn(_ url: URL) {
         // 延迟 0.45s：contextMenu 按钮点击后 dismiss 动画约 0.5s，立即 present 会被吞
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
