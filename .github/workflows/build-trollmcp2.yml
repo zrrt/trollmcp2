@@ -176,3 +176,32 @@ jobs:
             --title "TrollAgent latest (v${VER})" \
             --notes "滚动构建（main 分支最新）。供 App 内多源自动更新使用：GitHub 被墙时经镜像前缀或 Releases 直链下载。下载地址：https://github.com/${GITHUB_REPOSITORY}/releases/download/latest/TrollAgent.tipa" || \
             { echo "RELEASE PUBLISH FAILED (non-fatal)"; exit 0; }
+
+  # v4.4.3：原生 ARM64 Python（iOS 版 CPython，PEP 730 官方构建脚本）。
+  # 目的：pandas/numpy 在 iSH 模拟器里 import 必段错误闪退（崩溃栈 cpu_run_to_interrupt，
+  # OpenMinis 模拟器跑不了 openblas）。正解 = 原生 Python.framework 直接跑在 iPhone 芯片上。
+  # 独立 job：编译失败不影响主出包（build job 不依赖本 job）；成功后 artifact 供后续集成
+  # （Python.framework + stdlib 打进 .app + ShellTool 路由 python3 → 原生 CLI）。
+  native-python:
+    runs-on: macos-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: python/cpython
+          ref: v3.14.8
+          path: cpython
+          fetch-depth: 1
+
+      - name: Build Python.xcframework (iOS arm64, official Apple build script)
+        run: |
+          cd cpython
+          python Apple build iOS
+          ls -la cross-build/dist/
+
+      - name: Upload Python iOS xcframework
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-ios-xcframework
+          path: cpython/cross-build/dist/*.tar.gz
+          if-no-files-found: warn
