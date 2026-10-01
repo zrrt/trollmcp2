@@ -25,19 +25,29 @@ final class ToolInstallTool: MCPTool {
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         // 1. profile 批量安装
         if let profile = params["profile"] as? String {
-            let p = profile.lowercased()
+            let p = profile.lowercased().trimmingCharacters(in: .whitespaces)
             if let batch = Self.profiles[p] {
                 return installBatch(batch, profile: p)
             }
-            return ["ok": false, "error": "unknown profile \(p), available: \(Self.profiles.keys.sorted().joined(separator: "/"))"]
+            // 未知 profile：不直接报错——AI 可能把 pandas 这类包名误传成 profile，
+            // 把它当作普通工具名继续走 name 安装流程。
+            var sub = params
+            sub["profile"] = nil
+            sub["name"] = p
+            return installByName(p, params: sub)
         }
         guard let rawName = params["name"] as? String else {
             throw MCPError.invalidParams("name or profile required")
         }
         let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !name.isEmpty else { throw MCPError.invalidParams("name required") }
+        return installByName(name, params: params)
+    }
 
-        // 2. 已就绪？——内置原生 bin / Alpine 已有
+    // MARK: - 按名单个安装（内置 → Alpine apk → pip → CI）
+
+    private func installByName(_ name: String, params: [String: Any]) -> [String: Any] {
+        // 1. 已就绪？——内置原生 bin / Alpine 已有
         if let bundled = bundledBinPath(name) {
             return ["ok": true, "tool": name, "status": "ready", "source": "builtin_native", "path": bundled,
                     "hint": "App 内置原生 iOS 二进制，可直接用于 iOS 文件分析与注入"]
@@ -49,15 +59,30 @@ final class ToolInstallTool: MCPTool {
                     "hint": "Alpine 已有；命令引用 iOS 路径会自动 bind 直读（/ios_workspace、/ios_containers、/ios_system 只读）"]
         }
 
-        // 3. Alpine apk 安装（常用名 → Alpine 包名映射）
-        let pkg = Self.alpineNameMap[name] ?? name
-        let apk = ISHEngine.exec("apk add --no-cache \(pkg)", timeout: 180)
-        if apk.exitCode == 0 {
-            return ["ok": true, "tool": name, "status": "installed", "source": "alpine_apk", "package": pkg,
-                    "hint": "已 apk add \(pkg)；Alpine 工具可 bind 直读 iOS 文件（无 2MB 限制）"]
+        // 2. Alpine apk 安装：依次尝试候选包名（映射名 / 原名 / py3-xxx）
+        var lastApkErr = ""
+        for pkg in apkCandidates(for: name) {
+            let apk = ISHEngine.exec("apk add --no-cache \(pkg)", timeout: 240)
+            if apk.exitCode == 0 {
+                return ["ok": true, "tool": name, "status": "installed", "source": "alpine_apk", "package": pkg,
+                        "hint": "已 apk add \(pkg)；Alpine 工具可 bind 直读 iOS 文件（无 2MB 限制）"]
+            }
+            lastApkErr = apk.output
+            // 「找不到包」才继续试下一个候选；网络/磁盘等错误也继续，最终由兜底提示
         }
-        let apkErr = apk.output
-        let pkgNotFound = apkErr.contains("unable to select package") || apkErr.contains("No such package")
+        let pkgNotFound = lastApkErr.contains("unable to select package") || lastApkErr.contains("No such package")
+
+        // 3. Python 包回退：确保 python3 + pip，再 pip install
+        if Self.pythonHints.contains(name) || name.hasPrefix("py-") {
+            ISHEngine.exec("apk add --no-cache python3 py3-pip", timeout: 240)
+            let pipName = name.hasPrefix("py-") ? String(name.dropFirst(3)) : name
+            let pip = ISHEngine.exec("pip install --break-system-packages --no-cache-dir \(pipName)", timeout: 300)
+            if pip.exitCode == 0 {
+                return ["ok": true, "tool": name, "status": "installed", "source": "pip",
+                        "hint": "已 pip install \(pipName)；iSH 上含 C 扩展的包较慢，优先用 apk 的 py3- 预编译版"]
+            }
+            lastApkErr = pip.output
+        }
 
         // 4. 原生 iOS 二进制 → CI 交叉编译（build-tool.yml）
         if pkgNotFound || Self.nativeRegistry.keys.contains(name) || params["source"] != nil {
@@ -85,7 +110,18 @@ final class ToolInstallTool: MCPTool {
 
         // 5. 兜底指引
         return ["ok": false, "tool": name, "status": "not_found",
-                "hint": "Alpine 无此包。可尝试：① tool.install profile:re（逆向工具链批装）；② 提供 source 仓库 URL 走 CI 交叉编译（原生 iOS 二进制）；③ shell.exec('apk search \(name)') 找近似包名；④ 自写工具 inject load_dylib"]
+                "hint": "Alpine 无此包（试了 \(apkCandidates(for: name).joined(separator: "/"))）。可尝试：① tool.install profile:re（逆向工具链批装）；② 提供 source 仓库 URL 走 CI 交叉编译（原生 iOS 二进制）；③ shell.exec('apk search \(name)') 找近似包名；④ 自写工具 inject load_dylib"]
+    }
+
+    /// Alpine 候选包名：映射名 → 原名 → py3-xxx（Python 包在 Alpine 多为 py3- 前缀）
+    private func apkCandidates(for name: String) -> [String] {
+        var out: [String] = []
+        if let mapped = Self.alpineNameMap[name] { out.append(mapped) }
+        out.append(name)
+        if name != "python" && name != "python3" && !name.hasPrefix("py3-") {
+            out.append("py3-\(name)")
+        }
+        var seen = Set<String>(); return out.filter { seen.insert($0).inserted }
     }
 
     // MARK: - 批量安装（profile）
@@ -138,7 +174,21 @@ final class ToolInstallTool: MCPTool {
         "xxd": "xxd", "tree": "tree", "vim": "vim", "gawk": "gawk",
         "zip": "zip", "unzip": "unzip", "xz": "xz", "file": "file",
         "curl": "curl", "git": "git", "jq": "jq", "openssl": "openssl",
-        "gcc": "gcc", "clang": "clang", "gdb": "gdb"
+        "gcc": "gcc", "clang": "clang", "gdb": "gdb",
+        // 常见 Python 包（Alpine 预编译，py3- 前缀）
+        "pandas": "py3-pandas", "numpy": "py3-numpy", "scipy": "py3-scipy",
+        "requests": "py3-requests", "matplotlib": "py3-matplotlib", "pillow": "py3-pillow",
+        "flask": "py3-flask", "django": "py3-django", "pip": "py3-pip",
+        "bs4": "py3-beautifulsoup4", "beautifulsoup4": "py3-beautifulsoup4",
+        "openpyxl": "py3-openpyxl", "pytest": "py3-pytest", "yaml": "py3-yaml",
+        "sqlalchemy": "py3-sqlalchemy", "cryptography": "py3-cryptography"
+    ]
+
+    /// 常见 Python 包名：apk 无对应 py3- 包时，回退到 pip install
+    private static let pythonHints: Set<String> = [
+        "pandas", "numpy", "scipy", "requests", "matplotlib", "pillow", "flask",
+        "django", "bs4", "beautifulsoup4", "openpyxl", "pytest", "sqlalchemy",
+        "cryptography", "pyyaml", "aiohttp", "tornado", "click", "six"
     ]
 
     /// 逆向/开发/网络 三档 curated 批量（Alpine 包）

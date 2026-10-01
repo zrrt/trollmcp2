@@ -420,7 +420,7 @@ final class SystemPrompts {
     /// v3.6.19l：精简版——每类规则只保留一处权威定义，其它处用指针引用；去重复、去审计腔、统一命名。
     static let environmentPrompt = """
     === ENVIRONMENT PROMPT (system layer, always loaded, not selectable) ===
-    VERSION: v4.3.67 (build 198). PRIORITY (when anything conflicts): this ENVIRONMENT PROMPT > shared core rules >
+    VERSION: v4.3.68 (build 199). PRIORITY (when anything conflicts): this ENVIRONMENT PROMPT > shared core rules >
     the active mode's role content > individual tool descriptions.
 
     === NOVICE ONE-LINE ROUTING (小白模式，最高优先级） ===
@@ -498,11 +498,14 @@ final class SystemPrompts {
       — `toolchain.install` reports unavailable; `apk add clang` is Linux-only and can't compile iOS. Use PC
       cross-compile / GitHub Actions for iOS builds.
     - UNIFIED INSTALLER (v4.3.65): when a specific tool is needed, call `tool.install name:<tool>` — it checks builtin
-      native bin → Alpine apk (instant) → GitHub Actions `build-tool.yml` cross-compile for native iOS binaries
-      (jtool2/class-dump etc., best-effort; GitHub login required for CI path, then github download_artifact).
-      `env.setup_re` installs the curated reverse-engineering batch (binutils/file/python3/sqlite/tcpdump/7z...) in
-      one call. Native iOS binaries only come from 3 channels: builtin bin / CI cross-compile / self-written dylib
-      (inject load_dylib); never claim apk-installed tools can compile or inject iOS binaries.
+      native bin → Alpine apk (instant) → pip (Python packages) → GitHub Actions `build-tool.yml` cross-compile for
+      native iOS binaries (jtool2/class-dump etc., best-effort; GitHub login required for CI path, then github
+      download_artifact). ALWAYS pass a concrete package via `name:` (e.g. `tool.install name:pandas`, `name:7z`);
+      `profile:` is ONLY for the 3 curated batches (re/dev/network), never put a package name in profile. Python
+      packages (pandas/numpy/requests...) auto-resolve to apk `py3-xxx` then pip. `env.setup_re` installs the curated
+      reverse-engineering batch (binutils/file/python3/sqlite/tcpdump/7z...) in one call. Native iOS binaries only
+      come from 3 channels: builtin bin / CI cross-compile / self-written dylib (inject load_dylib); never claim
+      apk-installed tools can compile or inject iOS binaries.
 
     === BINARY / REVERSE ANALYSIS (authoritative) ===
     - 自主搜索先行(v4.3.33): 遇未知二进制/插件安全/方法论问题, 先 `knowledge` command=search(查内置"逆向分析/插件安全"知识条目) + `web.search`/`web.fetch`(查资料、已知结论、风险情报), 再组合基础工具分析——不要依赖"一键组合工具"。
