@@ -542,12 +542,14 @@ final class KnowledgeStore {
     // AI 遇"分析二进制/插件安不安全"类问题先 knowledge.search 检索这里, 再 web.search 补资料, 最后组合基础工具自主分析。
     // 版本迁移: 种子版本变更时删内置条目重新播种; 只删固定前缀的文件, 保留用户自建。
     private let seedVersionKey = "trollmcp2.knowledge_seed_version"
-    private let currentSeedVersion = 1
+    private let currentSeedVersion = 2
     private func seedBuiltinIfNeeded() {
         let fm = FileManager.default
         let saved = UserDefaults.standard.integer(forKey: seedVersionKey)
         if saved != currentSeedVersion {
-            for prefix in ["内置-逆向分析", "内置-插件安全"] {
+            // v4.3.66：前缀列表扩展，覆盖第二批种子；只删固定前缀，保留用户自建
+            for prefix in ["内置-逆向分析", "内置-插件安全", "内置-iOS逆向", "内置-iOS系统",
+                           "内置-巨魔", "内置-iSH", "内置-游戏破解", "内置-逆向"] {
                 if let files = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) {
                     for f in files where f.lastPathComponent.hasPrefix(prefix) {
                         try? fm.removeItem(at: f)
@@ -611,7 +613,7 @@ final class KnowledgeStore {
 可信 / 需真机验证(network.capture 看实际回连) / 可疑 / 恶意特征。命中要引用提取到的原文。
 """)
         ]
-        for (name, content) in seeds {
+        for (name, content) in seeds + SeedKnowledgeData.v2Seeds {
             let url = dir.appendingPathComponent(name)
             if !fm.fileExists(atPath: url.path) {
                 try? content.write(to: url, atomically: true, encoding: .utf8)

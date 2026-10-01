@@ -1740,34 +1740,71 @@ final class ConversationStore: ObservableObject {
         return String(line.prefix(30))
     }
 
+    // v4.3.66：会话存储从 UserDefaults 全量迁移到独立文件（对齐微信/WCDB：大对象不进
+    // UserDefaults 同步 IO；文件原子写 + 备份轮换，编码/写盘放后台串行队列，不阻塞主线程）
+    private var storeDir: String {
+        let p = NSHomeDirectory().appending("/Documents/Workspace/store")
+        try? FileManager.default.createDirectory(atPath: p, withIntermediateDirectories: true)
+        return p
+    }
+    private var storeFile: String { storeDir.appending("/conversations.json") }
+    private let saveQueue = DispatchQueue(label: "trollmcp2.conversations.save", qos: .utility)
+
     private func save() {
-        if let data = try? JSONEncoder().encode(conversations) {
-            // v2.9.107：原子写前备份轮换 (保留最近 2 份，防会话数据损坏丢失）
-            let ud = UserDefaults.standard
-            if let cur = ud.data(forKey: key) {
-                if let old = ud.data(forKey: key + ".bak.1") { ud.set(old, forKey: key + ".bak.2") }
-                ud.set(cur, forKey: key + ".bak.1")
+        let snapshot = conversations
+        let dir = storeDir
+        let path = storeFile
+        saveQueue.async {
+            guard let data = try? JSONEncoder().encode(snapshot) else { return }
+            let fm = FileManager.default
+            let bak1 = dir.appending("/conversations.bak.1.json")
+            let bak2 = dir.appending("/conversations.bak.2.json")
+            // 备份轮换：旧 bak1 → bak2，旧主文件 → bak1
+            if fm.fileExists(atPath: bak1) {
+                try? fm.removeItem(atPath: bak2)
+                try? fm.moveItem(atPath: bak1, toPath: bak2)
             }
-            ud.set(data, forKey: key)
+            if fm.fileExists(atPath: path) {
+                try? fm.moveItem(atPath: path, toPath: bak1)
+            }
+            try? data.write(to: URL(fileURLWithPath: path), options: .atomic)
         }
     }
 
+    private func decodeFile(_ path: String) -> [ChatConversation]? {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return nil }
+        return try? JSONDecoder().decode([ChatConversation].self, from: data)
+    }
+
+    private func applyLoaded(_ decoded: [ChatConversation]) {
+        conversations = decoded.sorted { $0.updatedAt > $1.updatedAt }
+        selectedId = conversations.first?.id
+    }
+
     private func load() {
+        let fm = FileManager.default
+        // 1. 文件主数据
+        if fm.fileExists(atPath: storeFile), let d = decodeFile(storeFile), !d.isEmpty {
+            applyLoaded(d); return
+        }
+        // 2. 文件备份
+        for i in 1...2 {
+            let bak = storeDir.appending("/conversations.bak.\(i).json")
+            if fm.fileExists(atPath: bak), let d = decodeFile(bak), !d.isEmpty {
+                applyLoaded(d); save(); return
+            }
+        }
+        // 3. 一次性迁移：旧 UserDefaults 主数据 + 其备份（迁移后写入文件，旧数据保留不删）
         if let data = UserDefaults.standard.data(forKey: key),
            let decoded = try? JSONDecoder().decode([ChatConversation].self, from: data),
            !decoded.isEmpty {
-            conversations = decoded.sorted { $0.updatedAt > $1.updatedAt }
-            selectedId = conversations.first?.id
-            return
+            applyLoaded(decoded); save(); return
         }
-        // v2.9.107：主数据损坏时从备份恢复
         for i in 1...2 {
             if let bak = UserDefaults.standard.data(forKey: key + ".bak.\(i)"),
                let decoded = try? JSONDecoder().decode([ChatConversation].self, from: bak),
                !decoded.isEmpty {
-                conversations = decoded.sorted { $0.updatedAt > $1.updatedAt }
-                selectedId = conversations.first?.id
-                return
+                applyLoaded(decoded); save(); return
             }
         }
 
