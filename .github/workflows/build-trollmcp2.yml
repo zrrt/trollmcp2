@@ -70,6 +70,30 @@ jobs:
             echo "!!! node iOS binary not found — skipped" >&2
           fi
 
+      # v4.4.5-fix3: capstone 5.0.3 交叉编译 iOS arm64——r2 的 libr_core 依赖它（r2ios-sdk 不带 libcapstone.a），
+      # 同时产出独立 cstool 反汇编 CLI（支持 aarch64/arm/x86 全家，比自研 objdump 更全）
+      - name: Build capstone 5.0.3 (iOS arm64)
+        if: steps.tools-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p native-tools-out
+          curl -sL -o /tmp/cap.tar.gz https://github.com/capstone-engine/capstone/archive/refs/tags/5.0.3.tar.gz
+          tar -xzf /tmp/cap.tar.gz -C /tmp
+          cd /tmp/capstone-5.0.3
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          make CAPSTONE_ARCHS="aarch64 arm x86" CAPSTONE_DIET=no \
+            CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK" \
+            AR="xcrun -sdk iphoneos ar" RANLIB="xcrun -sdk iphoneos ranlib" || \
+            { echo "!!! capstone build failed" >&2; exit 0; }
+          if [ -f libcapstone.a ]; then
+            cp libcapstone.a "$GITHUB_WORKSPACE/native-tools-out/libcapstone.a"
+            echo ">>> capstone lib built ($(du -h libcapstone.a | cut -f1))"
+          fi
+          if [ -f cstool ]; then
+            cp cstool "$GITHUB_WORKSPACE/native-tools-out/cstool"
+            chmod +x "$GITHUB_WORKSPACE/native-tools-out/cstool"
+            echo ">>> cstool built"
+          fi
+
       # v4.4.5: radare2 CLI（r2ios-sdk 是静态库 SDK，无现成 r2 可执行——写 main 链接 libr.a 全套）
       - name: Build r2 CLI (r2ios-sdk static libs)
         if: steps.tools-cache.outputs.cache-hit != 'true'
@@ -83,9 +107,13 @@ jobs:
           echo '#include <r_main.h>' > /tmp/r2main.c
           echo 'int main(int argc, char **argv) { return r_main_r2(argc, argv); }' >> /tmp/r2main.c
           LIBS="$(ls $LIB/libr_*.a 2>/dev/null | tr '\n' ' ')"
-          # capstone: r2ios-sdk 若自带则加链（libr_core 依赖），先探测
+          # capstone: 用上一步自编的 libcapstone.a（r2ios-sdk 自带与否不确定）
           CAP=""
-          if ls $LIB/libcapstone.a >/dev/null 2>&1; then CAP="-lcapstone"; fi
+          if [ -f "$GITHUB_WORKSPACE/native-tools-out/libcapstone.a" ]; then
+            CAP="$GITHUB_WORKSPACE/native-tools-out/libcapstone.a"
+          elif ls $LIB/libcapstone.a >/dev/null 2>&1; then
+            CAP="$LIB/libcapstone.a"
+          fi
           xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" \
             -I"$INC" /tmp/r2main.c \
             -Wl,-start-group $LIBS -Wl,-end-group $CAP \

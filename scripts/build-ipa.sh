@@ -83,14 +83,20 @@ if [ -d "Resources/bin" ]; then
     chmod +x "$APP/bin/"* 2>/dev/null || true
     echo ">>> bundled bin: $(ls "$APP/bin" | wc -l | tr -d ' ') files"
     # v4.4.5: 原生工具（CI native-tools job 交叉编译/预编译提取的 arm64 iOS 二进制：
-    # lua=源码编译, node=nodejs-mobile iOS 预编译, r2=radare2 r2ios-sdk 预编译；均随 tool.install 绑定）
-    for t in lua node r2; do
+    # lua=源码编译, node=nodejs-mobile iOS 预编译, r2=radare2 r2ios-sdk 预编译, cstool=capstone 交叉编译；
+    # 均随 tool.install 绑定）
+    for t in lua node r2 cstool; do
         if [ -f "native-tools-out/$t" ]; then
             cp "native-tools-out/$t" "$APP/bin/$t"
             chmod +x "$APP/bin/$t"
             echo ">>> native $t bundled ($(du -h "$APP/bin/$t" | cut -f1))"
         fi
     done
+    # capstone 静态库（cstool 的引擎，未来 C 扩展/嵌入可链接）
+    if [ -f "native-tools-out/libcapstone.a" ]; then
+        cp "native-tools-out/libcapstone.a" "$APP/bin/libcapstone.a"
+        echo ">>> libcapstone.a bundled ($(du -h "$APP/bin/libcapstone.a" | cut -f1))"
+    fi
     # v2.9.38: 给注入工具签 no-sandbox entitlements
     # iOS 沙箱按每次 exec 的新二进制签名计算：工具不签 no-sandbox 则即使被 root spawn 也仍套普通沙箱，
     # 写其他 App bundle（/private/var/containers/Bundle/Application/...）会 Permission denied。

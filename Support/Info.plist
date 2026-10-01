@@ -92,6 +92,7 @@
 		<string>bin/lua</string>
 		<string>bin/node</string>
 		<string>bin/r2</string>
+		<string>bin/cstool</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>
