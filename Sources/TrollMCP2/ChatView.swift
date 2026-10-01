@@ -6,6 +6,8 @@ import UniformTypeIdentifiers
 struct ChatView: View {
     @ObservedObject private var store = ConversationStore.shared
     @ObservedObject private var modelStore = ModelStore.shared
+    // v4.3.75：安装进度注册表——工具"执行中"时若 registry 有活动任务，气泡渲染实时进度条
+    @ObservedObject private var installRegistry = InstallationRegistry.shared
 
     @State private var inputText = ""
     @State private var inputHeight: CGFloat = 36
@@ -1504,15 +1506,38 @@ struct MessageBubble: View {
                         // v3.5.7：工具状态徽章（对齐 shadcn React AI Tool）——机制级：由真实执行结果渲染，
                         // 不是模型说的话。v3.5.10：running 态显示"执行中…"转圈，完成=✓绿 / 出错=✗红。
                         if message.isRunning {
-                            HStack(spacing: 4) {
-                                ProgressView().scaleEffect(0.7)
-                                Text("执行中…").font(.caption2.bold())
+                            // v4.3.75：有活动安装任务 → 实时进度条（阶段+包数+最近行），不再只有"执行中…"
+                            if let prog = installRegistry.active, prog.ok == nil {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    ProgressView(value: prog.fraction)
+                                        .progressViewStyle(.linear)
+                                        .frame(width: 120)
+                                    Text(prog.progressText)
+                                        .font(.caption2.bold())
+                                        .foregroundColor(.blue)
+                                    if !prog.lastLine.isEmpty {
+                                        Text(prog.lastLine)
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(1)
+                                            .frame(width: 150, alignment: .leading)
+                                    }
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.blue.opacity(0.08))
+                                .cornerRadius(6)
+                            } else {
+                                HStack(spacing: 4) {
+                                    ProgressView().scaleEffect(0.7)
+                                    Text("执行中…").font(.caption2.bold())
+                                }
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.blue.opacity(0.15))
+                                .foregroundColor(.blue)
+                                .cornerRadius(6)
                             }
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.blue.opacity(0.15))
-                            .foregroundColor(.blue)
-                            .cornerRadius(6)
                         } else {
                             Text(message.isError ? "✗ 出错" : "✓ 完成")
                                 .font(.caption2.bold())
@@ -1590,12 +1615,35 @@ struct MessageBubble: View {
             Button(action: { withAnimation { if !message.isRunning { expanded.toggle() } } }) {
                 HStack(spacing: 6) {
                     if message.isRunning {
-                        // v3.5.10：工具执行中——显示转圈+文字，不展示空的折叠结果
-                        ProgressView().scaleEffect(0.8)
-                        Text("工具执行中…")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.blue)
+                        // v4.3.75：有活动安装任务 → 迷你气泡显示实时进度（阶段+包数+最近行）
+                        if let prog = installRegistry.active, prog.ok == nil {
+                            VStack(alignment: .leading, spacing: 2) {
+                                ProgressView(value: prog.fraction)
+                                    .progressViewStyle(.linear)
+                                    .frame(width: 130)
+                                Text(prog.progressText)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.blue)
+                                if !prog.lastLine.isEmpty {
+                                    Text(prog.lastLine)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                        .frame(width: 160, alignment: .leading)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            HStack(spacing: 6) {
+                                ProgressView().scaleEffect(0.8)
+                                Text("工具执行中…")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.blue)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     } else {
                         Image(systemName: message.isError ? "exclamationmark.circle" : "checkmark.circle")
                             .font(.system(size: 14))

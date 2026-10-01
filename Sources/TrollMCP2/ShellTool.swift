@@ -162,9 +162,20 @@ final class ShellExecTool: MCPTool {
                 // 修复"命令说 20s 超时、装包却闷头跑 180s、UI 一直显示执行中"的体验问题。
                 let provisionTimeout = min(max(timeout, 60), 240)
                 let provisionStart = Date()
-                _ = ISHEngine.apkAdd([pkg], timeout: provisionTimeout)
+                // v4.3.75：进度条——安装期间 registry 逐行更新，UI 渲染进度；失败给结构化诊断
+                InstallationRegistry.shared.start(key: pkg)
+                let apkResult = ISHEngine.apkAdd([pkg], timeout: provisionTimeout) { line in
+                    InstallationRegistry.shared.appendLine(line)
+                }
                 let provisionElapsed = Int(Date().timeIntervalSince(provisionStart))
-                provisionNote = "首次运行已自动安装缺失工具 \(pkg)（耗时 \(provisionElapsed)s）。"
+                if apkResult.exitCode == 0 {
+                    InstallationRegistry.shared.finish(ok: true, summary: "已装 \(pkg)（\(provisionElapsed)s）")
+                    provisionNote = "首次运行已自动安装缺失工具 \(pkg)（耗时 \(provisionElapsed)s）。"
+                } else {
+                    let diag = ISHEngine.installDiagnose(apkResult.output, timedOut: apkResult.timedOut, exitCode: apkResult.exitCode)
+                    InstallationRegistry.shared.finish(ok: false, summary: diag)
+                    provisionNote = "自动安装 \(pkg) 失败：\(diag)"
+                }
                 let (rout, rexit, rtimed) = ISHEngine.exec(boundCmd, timeout: timeout)
                 finalOut = rout; finalExit = rexit; finalTimed = rtimed
             } else if let pkg = prov.pkg {
@@ -854,8 +865,18 @@ final class ShellExecTool: MCPTool {
                             ShellDiag.log("provision auto: apk add \(pkg) (missing in Alpine)")
                             let provTimeout = min(max(timeout, 60), 240)
                             let pStart = Date()
-                            _ = ISHEngine.apkAdd([pkg], timeout: provTimeout)
-                            provNote = "首次运行已自动安装缺失工具 \(pkg)（耗时 \(Int(Date().timeIntervalSince(pStart)))s）。"
+                            InstallationRegistry.shared.start(key: pkg)
+                            let apkRes = ISHEngine.apkAdd([pkg], timeout: provTimeout) { line in
+                                InstallationRegistry.shared.appendLine(line)
+                            }
+                            if apkRes.exitCode == 0 {
+                                InstallationRegistry.shared.finish(ok: true, summary: "已装 \(pkg)（\(Int(Date().timeIntervalSince(pStart)))s）")
+                                provNote = "首次运行已自动安装缺失工具 \(pkg)（耗时 \(Int(Date().timeIntervalSince(pStart)))s）。"
+                            } else {
+                                let diag = ISHEngine.installDiagnose(apkRes.output, timedOut: apkRes.timedOut, exitCode: apkRes.exitCode)
+                                InstallationRegistry.shared.finish(ok: false, summary: diag)
+                                provNote = "自动安装 \(pkg) 失败：\(diag)"
+                            }
                             let (rout, rexit, rtimed) = ISHEngine.exec(body, timeout: timeout)
                             output = rout; outputExit = rexit; timedOut = rtimed
                         } else if let pkg = prov.pkg {

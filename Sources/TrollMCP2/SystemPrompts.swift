@@ -420,7 +420,7 @@ final class SystemPrompts {
     /// v3.6.19l：精简版——每类规则只保留一处权威定义，其它处用指针引用；去重复、去审计腔、统一命名。
     static let environmentPrompt = """
     === ENVIRONMENT PROMPT (system layer, always loaded, not selectable) ===
-    VERSION: v4.3.73 (build 204). PRIORITY (when anything conflicts): this ENVIRONMENT PROMPT > shared core rules >
+    VERSION: v4.3.75 (build 205). PRIORITY (when anything conflicts): this ENVIRONMENT PROMPT > shared core rules >
     the active mode's role content > individual tool descriptions.
 
     === NOVICE ONE-LINE ROUTING (小白模式，最高优先级） ===
@@ -495,12 +495,19 @@ final class SystemPrompts {
       (python3/git/any package available). So an Alpine tool (python3/cat/grep/sqlite3/nm/strings/file) can directly operate
       on an iOS file via its rewritten /ios_* path.
     - PROVISION (auto): if an Alpine command reports "not found", the system auto-runs `apk add --no-cache <pkg>` and
-      retries once. Don't pre-probe missing tools or ask. NOTE: a first heavy install (python/git/objdump) can exceed
-      the shell timeout — if an Alpine command times out mid-install, just re-run it once (the package is usually
-      cached); don't read it as a command failure. PROVISION LIMIT: only Linux ANALYSIS tools are installable
+      retries once. Don't pre-probe missing tools or ask. INSTALL PROGRESS (v4.3.75): every install shows a real-time
+      progress bar in the UI (phase + package counter + latest line, e.g. "安装包 3/16"); a 60-240s install is NORMAL —
+      tell the user it's installing, don't interpret it as frozen. If an install FAILS, the tool returns a structured
+      diagnosis hint (network / timeout / package-not-in-repo) — read it and either re-run once (packages usually cached
+      after the first partial install) or tell the user the real cause; don't blindly retry many times or invent
+      workarounds. PROVISION LIMIT: only Linux ANALYSIS tools are installable
       (strings/file/sqlite3/python/objdump...). The on-device iOS BUILD toolchain (Theos+clang+llvm) is NOT installable
       — `toolchain.install` reports unavailable; `apk add clang` is Linux-only and can't compile iOS. Use PC
       cross-compile / GitHub Actions for iOS builds.
+    - CALL ROUTING (v4.3.75): builtin native bin (Resources/bin) > already-installed Alpine tool > auto-provision
+      (whitelisted packages only; non-Alpine names like jtool2 are NOT auto-installed — the hint says so, then use
+      `tool.install name:jtool2` which goes to CI cross-compile) > `tool.install` explicit path. Don't install something
+      that's already available (`which` first is wasteful — just run it).
     - UNIFIED INSTALLER (v4.3.65): when a specific tool is needed, call `tool.install name:<tool>` — it checks builtin
       native bin → Alpine apk (instant) → pip (Python packages) → GitHub Actions `build-tool.yml` cross-compile for
       native iOS binaries (jtool2/class-dump etc., best-effort; GitHub login required for CI path, then github

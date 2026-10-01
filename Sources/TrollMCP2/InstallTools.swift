@@ -64,11 +64,17 @@ final class ToolInstallTool: MCPTool {
         //    在手机网络被断导致索引拉不下→误报 no such package；大包 240s 超时，避免 20s 被掐）
         var lastApkErr = ""
         for pkg in apkCandidates(for: name) {
-            let apk = ISHEngine.apkAdd([pkg], timeout: 240)
+            // v4.3.75：进度条 + 失败结构化诊断
+            InstallationRegistry.shared.start(key: pkg)
+            let apk = ISHEngine.apkAdd([pkg], timeout: 240) { line in
+                InstallationRegistry.shared.appendLine(line)
+            }
             if apk.exitCode == 0 {
+                InstallationRegistry.shared.finish(ok: true, summary: "已装 \(pkg)")
                 return ["ok": true, "tool": name, "status": "installed", "source": "alpine_apk", "package": pkg,
                         "hint": "已 apk add \(pkg)；Alpine 工具可 bind 直读 iOS 文件（无 2MB 限制）"]
             }
+            InstallationRegistry.shared.finish(ok: false, summary: ISHEngine.installDiagnose(apk.output, timedOut: apk.timedOut, exitCode: apk.exitCode))
             lastApkErr = apk.output
             // 「找不到包」才继续试下一个候选；网络/磁盘等错误也继续，最终由兜底提示
         }
@@ -76,13 +82,27 @@ final class ToolInstallTool: MCPTool {
 
         // 3. Python 包回退：确保 python3 + pip，再 pip install
         if Self.pythonHints.contains(name) || name.hasPrefix("py-") {
-            ISHEngine.apkAdd(["python3", "py3-pip"], timeout: 240)
+            InstallationRegistry.shared.start(key: "python3 py3-pip")
+            let apkPy = ISHEngine.apkAdd(["python3", "py3-pip"], timeout: 240) { line in
+                InstallationRegistry.shared.appendLine(line)
+            }
+            if apkPy.exitCode != 0 {
+                let diag = ISHEngine.installDiagnose(apkPy.output, timedOut: apkPy.timedOut, exitCode: apkPy.exitCode)
+                InstallationRegistry.shared.finish(ok: false, summary: diag)
+                return ["ok": false, "tool": name, "status": "failed", "source": "alpine_apk",
+                        "error": "python3/pip 安装失败", "hint": diag]
+            }
             let pipName = name.hasPrefix("py-") ? String(name.dropFirst(3)) : name
-            let pip = ISHEngine.exec("pip install --break-system-packages --no-cache-dir \(pipName)", timeout: 300)
+            InstallationRegistry.shared.start(key: "pip install \(pipName)")
+            let pip = ISHEngine.exec("pip install --break-system-packages --no-cache-dir \(pipName)", timeout: 300) { line in
+                InstallationRegistry.shared.appendLine(line)
+            }
             if pip.exitCode == 0 {
+                InstallationRegistry.shared.finish(ok: true, summary: "pip 已装 \(pipName)")
                 return ["ok": true, "tool": name, "status": "installed", "source": "pip",
                         "hint": "已 pip install \(pipName)；iSH 上含 C 扩展的包较慢，优先用 apk 的 py3- 预编译版"]
             }
+            InstallationRegistry.shared.finish(ok: false, summary: ISHEngine.installDiagnose(pip.output, timedOut: pip.timedOut, exitCode: pip.exitCode))
             lastApkErr = pip.output
         }
 

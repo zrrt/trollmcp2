@@ -311,20 +311,40 @@ enum ISHEngine {
     /// ③大包(openblas/numpy 等 16 依赖)下载慢，默认 20s 超时必被 SIGKILL。
     /// 做法：先幂等切国内镜像源(阿里云 HTTPS，按 /etc/alpine-release 动态版本号)，再补 ca-certificates，
     /// 最后 apk add。超时默认 240s（大包可 1-3 分钟），由调用方按需调整。
-    static func apkAdd(_ pkgs: [String], timeout: TimeInterval = 240) -> (output: String, exitCode: Int32, timedOut: Bool) {
+    static func apkAdd(_ pkgs: [String], timeout: TimeInterval = 240, onLine: ((String) -> Void)? = nil) -> (output: String, exitCode: Int32, timedOut: Bool) {
         let pk = pkgs.joined(separator: " ")
         let sedExpr = "s#https://dl-cdn.alpinelinux.org/alpine/v[^/]*#https://mirrors.aliyun.com/alpine/v$V#g; s#http://dl-cdn.alpinelinux.org/alpine/v[^/]*#https://mirrors.aliyun.com/alpine/v$V#g"
         // grep -q 已是指南针：repositories 已是镜像则跳过 sed（幂等）；非镜像则整文件替换官方→阿里云。
         let pre = "V=$(cut -d. -f1-2 /etc/alpine-release 2>/dev/null); "
             + "grep -q 'mirrors.aliyun.com' /etc/apk/repositories 2>/dev/null || sed -i \"\(sedExpr)\" /etc/apk/repositories 2>/dev/null; "
             + "apk add --no-cache ca-certificates >/dev/null 2>&1; "
-        return exec(pre + "apk add --no-cache " + pk, timeout: timeout)
+        return exec(pre + "apk add --no-cache " + pk, timeout: timeout, onLine: onLine)
+    }
+
+    /// v4.3.75：安装失败结构化诊断——AI 可直接转述给用户，替代一坨 apk 日志。
+    static func installDiagnose(_ output: String, timedOut: Bool, exitCode: Int32) -> String {
+        if timedOut {
+            return "安装超时（iSH 模拟器装大包/网络慢），可稍后重试或拆分安装"
+        }
+        let o = output
+        if o.contains("unable to select package") || o.contains("No such package") {
+            return "Alpine 仓库没有这个包（可能不是 Alpine 包名）；请确认包名或用 tool.install 指定 name/source"
+        }
+        if o.contains("SSL routines") || o.contains("unexpected eof") || o.contains("Permission denied")
+            || o.contains("IO ERROR") || o.contains("fetch ") {
+            return "网络/软件源异常（已自动切国内镜像源），稍后重试"
+        }
+        if o.contains("ERROR:") {
+            return "apk 安装报错（已自动切镜像源），完整日志已返回可按需排查"
+        }
+        return "安装失败 exit=\(exitCode)，完整日志已返回可按需排查"
     }
 
     /// 执行命令。返回 (输出, 退出码, 是否超时)。未 boot 时自动尝试 boot，失败返回错误串。
     /// v3.7.7: 命令引用 iOS 路径时自动 bind 挂载顶层并改写为 /ios_*（见 autoBind），Alpine 直接读写；
     /// 未 bind 的 iOS 路径由 autoBridge(字节拷贝) 兜底。
-    static func exec(_ command: String, timeout: TimeInterval) -> (output: String, exitCode: Int32, timedOut: Bool) {
+    /// v4.3.75: 新增 onLine 逐行回调（后台读线程触发，调用方负责线程安全）——供安装进度条使用。
+    static func exec(_ command: String, timeout: TimeInterval, onLine: ((String) -> Void)? = nil) -> (output: String, exitCode: Int32, timedOut: Bool) {
         if case .booted = state {} else {
             if let e = ensureBooted() { return (e, -1, false) }
         }
@@ -443,10 +463,20 @@ enum ISHEngine {
         DispatchQueue.global(qos: .userInitiated).async {
             var out = Data()
             var b = [UInt8](repeating: 0, count: 16384)
+            var lineBuffer = ""
+            let emitLines = { (chunk: String) in
+                lineBuffer += chunk
+                while let nl = lineBuffer.firstIndex(of: "\n") {
+                    let line = String(lineBuffer[lineBuffer.startIndex..<nl])
+                    lineBuffer.removeSubrange(lineBuffer.startIndex...nl)
+                    onLine?(line)
+                }
+            }
             while true {
                 let n = read(outFds[0], &b, b.count)
                 if n <= 0 { break }
                 out.append(contentsOf: b[0..<n])
+                if onLine != nil { emitLines(String(decoding: b[0..<n], as: UTF8.self)) }
             }
             close(outFds[0])
             outBuf.append(String(decoding: out, as: UTF8.self))
@@ -456,6 +486,7 @@ enum ISHEngine {
                 let n = read(errFds[0], &b, b.count)
                 if n <= 0 { break }
                 err.append(contentsOf: b[0..<n])
+                if onLine != nil { emitLines(String(decoding: b[0..<n], as: UTF8.self)) }
             }
             close(errFds[0])
             errBuf.append(String(decoding: err, as: UTF8.self))
