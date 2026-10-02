@@ -333,12 +333,39 @@ enum ISHEngine {
     /// 最后 apk add。超时默认 240s（大包可 1-3 分钟），由调用方按需调整。
     static func apkAdd(_ pkgs: [String], timeout: TimeInterval = 240, onLine: ((String) -> Void)? = nil) -> (output: String, exitCode: Int32, timedOut: Bool) {
         let pk = pkgs.joined(separator: " ")
-        let sedExpr = "s#https://dl-cdn.alpinelinux.org/alpine/v[^/]*#https://mirrors.aliyun.com/alpine/v$V#g; s#http://dl-cdn.alpinelinux.org/alpine/v[^/]*#https://mirrors.aliyun.com/alpine/v$V#g"
-        // grep -q 已是指南针：repositories 已是镜像则跳过 sed（幂等）；非镜像则整文件替换官方→阿里云。
-        let pre = "V=$(cut -d. -f1-2 /etc/alpine-release 2>/dev/null); "
-            + "grep -q 'mirrors.aliyun.com' /etc/apk/repositories 2>/dev/null || sed -i \"\(sedExpr)\" /etc/apk/repositories 2>/dev/null; "
-            + "apk add --no-cache ca-certificates >/dev/null 2>&1; "
-        return exec(pre + "apk add --no-cache " + pk, timeout: timeout, onLine: onLine)
+        // fix3bq: 根治"进度条卡死/单源挂死等 240s"——多镜像顺序快速失败切换 + 阶段化进度：
+        //   ①ca-certificates（HTTPS 握手必需，失败不阻塞后续）②逐镜像 apk update（50s 无进展即换源）
+        //   ③选定源 apk add（输出解析成 下载/安装/完成 阶段喂给进度条）
+        let mirrors = ["mirrors.aliyun.com", "mirrors.ustc.edu.cn", "mirrors.tuna.tsinghua.edu.cn", "mirrors.cloud.tencent.com"]
+        _ = exec("apk add --no-cache ca-certificates >/dev/null 2>&1", timeout: 45, onLine: onLine)
+        var usedMirror = ""
+        var lastErr = ""
+        for m in mirrors {
+            let sedExpr = "s#https://dl-cdn.alpinelinux.org/alpine/v[^/]*#https://\(m)/alpine/v$V#g; s#http://dl-cdn.alpinelinux.org/alpine/v[^/]*#https://\(m)/alpine/v$V#g"
+            let pre = "V=$(cut -d. -f1-2 /etc/alpine-release 2>/dev/null); "
+                + "grep -q '\(m)' /etc/apk/repositories 2>/dev/null || sed -i \"\(sedExpr)\"/etc/apk/repositories 2>/dev/null; "
+            onLine?("正在更新软件源索引（\(m)）…")
+            let upd = exec(pre + "apk update", timeout: 50, onLine: { line in onLine?(line) })
+            if upd.exitCode == 0 {
+                usedMirror = m
+                onLine?("软件源就绪：\(m)")
+                break
+            }
+            lastErr = upd.output
+            onLine?("\(m) 源不可用，切换下一个镜像…")
+        }
+        guard !usedMirror.isEmpty else {
+            return (lastErr.isEmpty ? "all mirrors failed" : lastErr, 1, false)
+        }
+        let add = exec("apk add --no-cache " + pk, timeout: timeout, onLine: { line in
+            var stage = ""
+            if line.contains("Downloading") { stage = "下载中… " }
+            else if line.contains("Installing") { stage = "安装中… " }
+            else if line.contains("Fetching") { stage = "拉取包信息… " }
+            else if line.contains("OK:") { stage = "完成✓ " }
+            onLine?(stage + line)
+        })
+        return add
     }
 
     /// v4.3.75：安装失败结构化诊断——AI 可直接转述给用户，替代一坨 apk 日志。
