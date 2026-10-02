@@ -44,7 +44,7 @@ final class ShellExecTool: MCPTool {
             "limit": "Optional Int: result string truncation cap (default 4000 chars). If diagnostics output is trimmed and the body is invisible, pass limit=20000 或更大；full=true 则不截断返回完整结果",
             "full": "Optional Bool: true=返回完整结果不截断 (慎用，大输出占满上下文)",
             "offset": "Optional Int: skip first N chars of output before showing (default 0), combine with limit to read a middle slice",
-            "env": "已弃用/忽略：环境由系统按命令类型自动路由(装包/解包deb/复杂脚本/python自动走Alpine，其余默认iOS原生)。不要手动传 env 切环境——你无选择权，环境路由是系统的。若确实需强制某环境请说明需求(如'在Alpine里装python')。"
+            "env": "已弃用/忽略：环境由系统按命令类型自动路由(装包/解包deb/复杂脚本走Alpine，其余默认iOS原生)。python3/python 首词自动走原生 ARM64 CPython(能跑 numpy)；要 Alpine 版 Python 用 sh -c 'python3 ...'。不要手动传 env 切环境——你无选择权，环境路由是系统的。若确实需强制某环境请说明需求(如'在Alpine里装python')。"
         ],
         verified: true
     )
@@ -564,8 +564,10 @@ final class ShellExecTool: MCPTool {
             #"^\s*apk\s+"#,           // apk add / apk update
             #"^\s*(tar|dpkg|dpkg-deb|rpm|unzip|zip)\s+"#,  // 解包/装包 (原生缺失或假实现→Alpine 真工具链)。strings/nm/hexdump 原生已有且能直读大文件, 不在此路由
             #"\|\s*(tar|dpkg|dpkg-deb|unzip)\s+"#,  // 管道中间的解包命令 (curl x | tar -x)
-            #"^\s*python3?\s+"#,      // python / python3
-            #"^\s*(pip3?)\s+"#,        // pip / pip3
+            // fix3p: python3/python 不再强制 Alpine——v4.4.4+ 原生 ARM64 CPython(内置)能跑 numpy，
+            // 首词 python3 走 iOS 原生分支(runIOSPython3)。要 Alpine 版 Python 用 sh -c 'python3 ...'
+            // (sh marker 命中仍走 Alpine)，或显式声明"在 Alpine 里跑"。
+            #"^\s*(pip3?)\s+"#,        // pip / pip3 (装包仍在 Alpine)
             #"^\s*(git|wget|make|cmake|gcc|clang)\s+"#,  // 工具链
             #"^\s*sh\s+"#,             // 任意 sh 脚本(含无 flag) → Alpine 全功能 shell
             #"^\s*bash\s+"#,

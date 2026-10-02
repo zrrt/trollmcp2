@@ -38,11 +38,12 @@ int main(int argc, char **argv) {
     status = PyConfig_SetBytesString(&config, &config.home, pythonhome);
     if (PyStatus_Exception(status)) { Py_ExitStatusException(status); }
 
-    // module search path：stdlib + lib-dynload（.so 扩展模块）
-    char libdir[1400];
+    // module search path：stdlib + lib-dynload（.so 扩展模块）+ site-packages（wheels 解包处）
+    // fix3p: site-packages 缺失导致原生 python3 找不到 numpy/pandas(wheel 解包于此, build-ipa.sh 集成)
+    char libdir[1600];
     snprintf(libdir, sizeof libdir,
-             "%s/python/lib/python3.14:%s/python/lib/python3.14/lib-dynload",
-             bundle, bundle);
+             "%s/python/lib/python3.14:%s/python/lib/python3.14/lib-dynload:%s/python/lib/python3.14/site-packages",
+             bundle, bundle, bundle);
     PyWideStringList paths;
     PyWideStringList_Init(&paths);
     wchar_t *wlib = Py_DecodeLocale(libdir, NULL);
