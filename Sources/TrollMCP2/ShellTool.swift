@@ -479,9 +479,14 @@ final class ShellExecTool: MCPTool {
         // fix3cl4: 通用单段原生路由——命令名在 App bin/ 存在即可执行即走原生（覆盖 llvm-objdump/nm/
         // readelf/size/strings 等全部内置工具）。之前只枚举 lua/node/r2/cstool，llvm 家族单段落 Alpine
         // not found。放 python3/470 分支之后，互不冲突；含 / 或 .. 的路径不匹配（防误判）。
+        // fix3cl5: 排除"文件操作/签名/管理"类——这些 bin/ 原生版处理 iOS 路径，而 AI 惯用 Alpine
+        // 路径（/root/... 等，经 iSH bind 映射）。误切原生会让 cp/mv/rm /root/x 回归失败。
+        // 它们继续走原 Alpine/默认路由；通用路由只对分析/脚本类生效。
+        let genRouteExcludes: Set<String> = ["cp", "mv", "rm", "mkdir", "chown", "install_name_tool",
+                                              "ldid", "optool", "insert_dylib", "jtool2"]
         if !iosCmd.contains("/"), !iosCmd.contains("..") {
             let firstWord = iosCmd.split(separator: " ").first.map(String.init) ?? ""
-            if !firstWord.isEmpty {
+            if !firstWord.isEmpty, !genRouteExcludes.contains(firstWord) {
                 let bundledRoots = [Bundle.main.bundlePath + "/bin", Bundle.main.bundlePath + "/Resources/bin"]
                 if bundledRoots.contains(where: { FileManager.default.isExecutableFile(atPath: $0 + "/" + firstWord) }) {
                     let result = ShellExecTool.runIOSNativeSegment(iosCmd)
