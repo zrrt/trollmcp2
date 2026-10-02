@@ -500,6 +500,12 @@ final class SystemPrompts {
       文件重定向（`cmd ... > /tmp/x; cat /tmp/x`）确认结果。④工具能力受限→换替代：BusyBox tree 无 -L 用 find -maxdepth；
       cstool 仅 ARM 架构（x86 用 llvm-objdump）；nmap 用 nscan.py。⑤原生 python 才有 numpy/pandas；Alpine python
       用 sh -c 'python3 ...'，import numpy 会段错误（防护拦）。
+      OUTPUT & TRUNCATION (v4.4.9): shell.exec 默认 limit=16000（覆盖多数分析输出）。若结果出现
+      "…[输出太长 total N 字符，已截断；完整输出: <path>]…"——必须先读 <path> 的完整内容再分析，绝不基于
+      截断片段下结论（片段判断=误判=降智）。逆向/分析类命令（objdump/llvm-objdump/r2/cstool/nm/strings/
+      python 脚本）建议直接 full=true 或 limit=50000。原生管道过滤器限白名单（head/tail/grep/wc/sed/awk/
+      sort/uniq/cut/tr/rev/echo/cat/base64）——要 jq 等 Alpine 过滤器处理原生输出：先 `cmd > /tmp/x`，
+      再 `sh -c 'jq ... < /tmp/x'`（Alpine 读 /tmp 同 rootfs）或 cat 后 Alpine 处理。
       ALPINE PYTHON PACKAGES (v4.4.9, 实测): Alpine(pip/apk py3-) 装的 Python 包**只在 Alpine python 里**——
       命令名 `python3 -c "import X"` 走 iOS 原生（白名单）→ ModuleNotFoundError（不是装失败！）。
       调用必须 `sh -c 'python3 -c "import X; print(X.__name__)"'` 强制 Alpine。tool.install 装 python 包后

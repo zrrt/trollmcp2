@@ -41,7 +41,7 @@ final class ShellExecTool: MCPTool {
             "command": "Shell command to execute (required)",
             "timeout": "Timeout seconds (default 30, max 120)",
             "reset_cwd": "Optional Bool: reset working dir to default (default false)",
-            "limit": "Optional Int: result string truncation cap (default 4000 chars). If diagnostics output is trimmed and the body is invisible, pass limit=20000 或更大；full=true 则不截断返回完整结果",
+            "limit": "Optional Int: result string truncation cap (default 16000 chars——覆盖多数分析输出；仍不够用 full=true). If diagnostics output is trimmed and the body is invisible, pass limit=20000 或更大；full=true 则不截断返回完整结果",
             "full": "Optional Bool: true=返回完整结果不截断 (慎用，大输出占满上下文)",
             "offset": "Optional Int: skip first N chars of output before showing (default 0), combine with limit to read a middle slice",
             "env": "已弃用/忽略：环境由系统按命令类型自动路由(装包/解包deb/复杂脚本走Alpine，其余默认iOS原生)。python3/python 首词自动走原生 ARM64 CPython(能跑 numpy)；要 Alpine 版 Python 用 sh -c 'python3 ...'。不要手动传 env 切环境——你无选择权，环境路由是系统的。若确实需强制某环境请说明需求(如'在Alpine里装python')。"
@@ -138,13 +138,13 @@ final class ShellExecTool: MCPTool {
         }
         
         // v3.3.4: limit/full/offset —— 输出截断可动态控制 (AI 实测：limit/full 参数不生效）
-        //  limit  = 截断上限字符数 (默认 4000；0 = 不截断）
+        //  limit  = 截断上限字符数 (默认 16000；0 = 不截断——截断会附 spill 完整文件路径，先读完整再下结论）
         //  full   = true 时返回全量 (等效 limit:0），不 spill 不截断
         //  offset = 跳过前 N 字符再展示 (配合 limit 取中间段，等价 sed 取中段）
         let limitParam = (params["limit"] as? Int) ?? 0
         let fullOutput = params["full"] as? Bool == true
         let offsetParam = max(0, (params["offset"] as? Int) ?? 0)
-        let outLimit = fullOutput ? 0 : (limitParam > 0 ? limitParam : 4000)
+        let outLimit = fullOutput ? 0 : (limitParam > 0 ? limitParam : 16000)
         
         // P2 环境自动路由：不再由 agent 手动 env 指定切环境（横跳旋钮拆掉）。
         // 系统按命令类型自动判定：需 Alpine 工具(装包/解包/脚本/python) → Alpine；
@@ -858,7 +858,7 @@ final class ShellExecTool: MCPTool {
     /// 主执行器：处理整条含 shell 语法的命令
     /// 结构：先按非管道分隔符 (; && ||）切分成"链"，每条链内按 | 分生产段+过滤段；
     /// 逐链执行：生产段输出 → 过滤段逐个过滤 → 追加到 stdoutChunks；&& / || 按上链 exit 短路。
-    static func runIOSPipeline(_ command: String, limit: Int = 4000, offset: Int = 0, timeout: TimeInterval = 30) -> [String: Any] {
+    static func runIOSPipeline(_ command: String, limit: Int = 16000, offset: Int = 0, timeout: TimeInterval = 30) -> [String: Any] {
         let segments = splitShellSegments(command)
         guard !segments.isEmpty else {
             return ["command": command, "exit_code": 1, "stdout": "空命令", "ios_native": true]
