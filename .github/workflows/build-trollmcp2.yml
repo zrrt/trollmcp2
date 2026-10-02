@@ -621,6 +621,10 @@ jobs:
           path: cpython
           fetch-depth: 1
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
       # v4.4.4: 缓存编译产物（tar.gz ~79MB）——CPython iOS 编译 60-90 分钟，
       # 命中缓存后本 job 秒级完成，build job 才能稳定集成到 App。
       # 必须在 checkout 之后 restore（checkout clean 会清掉 cache 恢复的目录）。
@@ -629,7 +633,7 @@ jobs:
         with:
           path: cpython/cross-build/dist
           # fix3g: save-always:false——编译失败不写缓存，防空产物毒化
-          key: python-ios-dist-3.14.8-v1
+          key: python-ios-dist-3.14.8-v2
           save-always: false
 
       - name: Build Python.xcframework (iOS arm64, official Apple build script)
@@ -655,11 +659,32 @@ jobs:
           ls "$SP" | head -8
           echo "pip bundled into $SP"
 
+      # fix3clc: 静态编译 libpython3.14.a（--disable-shared）——python3 CLI 静态链接，
+      # 彻底绕开 iOS 子进程 dyld 加载 Python.framework 的 SIGKILL（剥离方案已证伪回退）。
+      # 失败不阻塞（fallback：build-ipa.sh 回 framework 动态链接，包仍可装）。
+      - name: Build static libpython3.14.a (iOS arm64, fallback-tolerant)
+        if: steps.pycache.outputs.cache-hit != 'true'
+        run: |
+          set -x
+          cd cpython
+          SDK=$(xcrun -sdk iphoneos --show-sdk-path)
+          HOSTPY=$(which python3)
+          echo ">>> HOSTPY=$HOSTPY"
+          ./configure --host=arm64-apple-ios --build=x86_64-apple-darwin             --with-build-python="$HOSTPY"             --disable-shared             --without-ensurepip --without-doc-strings             CC="xcrun -sdk iphoneos clang -arch arm64"             CFLAGS="-isysroot $SDK -miphoneos-version-min=13.0"             CPPFLAGS="-isysroot $SDK"             LDFLAGS="-isysroot $SDK"             ac_cv_file__dev_ptmx=no ac_cv_file__dev_ptc=no             ac_cv_func_faccessat2=yes ac_cv_func_fsync=yes             ac_cv_func_fdatasync=yes ac_cv_func_dup3=no             ac_cv_func_getrandom=yes ac_cv_header_libintl_h=no             ac_cv_lib_intl_textdomain=no ac_cv_lib_intl_bindtextdomain=no             ac_cv_lib_intl_gettext=no ac_cv_func_bind_textdomain_codeset=no || { echo "!!! configure FAILED (fallback: dynamic framework)"; exit 0; }
+          make -j4 libpython3.14.a 2>&1 | tail -5 || { echo "!!! make FAILED (fallback: dynamic framework)"; exit 0; }
+          ls -la libpython3.14.a || exit 0
+          mkdir -p cross-build/dist/static-lib
+          cp libpython3.14.a cross-build/dist/static-lib/
+          cp -R Include cross-build/dist/static-lib/include
+          echo ">>> static libpython3.14.a ready: $(ls -la libpython3.14.a | awk '{print $5}') bytes"
+
       - name: Upload Python iOS xcframework
         uses: actions/upload-artifact@v4
         with:
           name: python-ios-xcframework
-          path: cpython/cross-build/dist/*.tar.gz
+          path: |
+            cpython/cross-build/dist/*.tar.gz
+            cpython/cross-build/dist/static-lib/**
           if-no-files-found: warn
 
   # v4.4.5-fix3h: 原生 numpy iOS wheel——手动 meson 交叉编译（beeware 真实路线）。
