@@ -9,7 +9,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>zh_CN</string>
 	<key>CFBundleDisplayName</key>
-	<string>TrollAgent</string>
+	<string>TrollAgent 坦克版</string>
 	<key>CFBundleExecutable</key>
 	<string>TrollAgent</string>
 	<key>CFBundleIcons</key>

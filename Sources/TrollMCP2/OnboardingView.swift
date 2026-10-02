@@ -132,7 +132,7 @@ struct OnboardingView: View {
     // MARK: - 页 2：能力
     private var capabilityPage: some View {
         VStack(spacing: 20) {
-            Text("强大能力，AI 帮你操作")
+            Text("全副武装，AI 帮你操作")
                 .font(.title2)
                 .fontWeight(.bold)
                 .padding(.top, 10)
