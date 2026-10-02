@@ -617,11 +617,18 @@ jobs:
           print('LDSHARED =', sysconfig.get_config_var('LDSHARED'))
           print('LDFLAGS  =', sysconfig.get_config_var('LDFLAGS'))
           print('LIBS     =', sysconfig.get_config_var('LIBS'))
-          # fix3bg: framework 不在 LDSHARED(实测无 env 宿主 LDSHARED=clang -bundle... 无 framework)——
-          #         遍历所有键找出 framework 在哪(可能 -Wl,-framework,Python 或 LIBS/PY_LDFLAGS 逗号形式)
-          for k, v in sysconfig.get_config_vars().items():
-              if isinstance(v, str) and 'framework' in v.lower():
-                  print('>>> FW KEY:', k, '=', v[:160])
+          # fix3bh: framework 不再靠 SC sed(8 轮 sed 仍残留)——链接层面根治:
+          #         ld -framework Python -F /Library/.../Versions/3.14 找 Python.framework/Python
+          #         →在该路径下创建假的 iOS arm64 空 dylib 冒充 Python.framework
+          #         →符号全走 -Wl,-undefined,dynamic_lookup 动态解析, 链接直接过
+          import subprocess, os
+          FWROOT = '/Library/Frameworks/Python.framework/Versions/3.14'
+          os.makedirs(FWROOT + '/Python.framework', exist_ok=True)
+          subprocess.run(['xcrun', '--sdk', 'iphoneos', 'clang', '-arch', 'arm64', '-dynamiclib',
+                          '-Wl,-undefined,dynamic_lookup', '-mios-version-min=15.0',
+                          '-x', 'c', '/dev/null', '-o', '/tmp/pydummy.dylib'], check=True)
+          subprocess.run(['cp', '/tmp/pydummy.dylib', FWROOT + '/Python.framework/Python'], check=True)
+          print('>>> fake Python.framework 就绪:', os.listdir(FWROOT + '/Python.framework'))
           "
           # fix3o: meson-python 0.19 打 iOS wheel tag 时若未设部署目标会调用 platform.ios_ver()
           # (macOS 上 release='' → int('') 崩)。官方设计: IPHONEOS_DEPLOYMENT_TARGET 覆盖版本解析。
