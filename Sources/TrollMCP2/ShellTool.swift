@@ -746,7 +746,7 @@ final class ShellExecTool: MCPTool {
         // fix3q: 内置原生工具链（native-tools 交叉编译进 App bin/）——AI 直接调用走原生 ARM64
         "lua", "node", "r2", "cstool",
         // fix3v: nmap（native-nmap job 交叉编译，进 App bin/nmap）——原生直跑，无需 Alpine
-        "nmap",
+        // fix3ac: nmap 源码 iOS 编不过, 已降级为 bin/nscan.py(Python 扫描, 无需原生命令声明)
         // fix3w: LLVM 工具链 + jtool2（native-llvm job）——llvm-objdump 等原生直跑
         "llvm-objdump", "llvm-nm", "llvm-readelf", "llvm-size", "llvm-strings", "jtool2"
     ]

@@ -488,9 +488,9 @@ final class SystemPrompts {
       arm64 iOS binaries. Directly call them in shell: `lua script.lua`, `node script.js`, `r2 -A <mach-o>`,
       `cstool <arch> <hex>`. They route to native automatically (no tool.install needed; tool.install still works to
       rebind). r2 covers rizin functionality; cstool decodes instructions (e.g. `cstool arm64 10014c52944000d5`).
-    - NMAP (v4.4.7, bundled native): `nmap` is an App-bundled arm64 iOS binary (minimal build: no openssl/lua/ncat,
-      raw sockets). Usage: `nmap -sT 127.0.0.1` (TCP scan), `nmap -sn 192.168.1.0/24` (host discovery), `nmap -p 1-1000 <ip>`.
-      Routed native automatically via iosNativeCommands.
+    - NSCAN (v4.4.8, nmap-lite): iOS SDK 缺 Linux 网络头, nmap 源码编不过(业界无 iOS prebuilt)。
+      Replace with bundled Python scanner: `python3 <app>/bin/nscan.py <host> 1-1000` or `python3 <app>/bin/nscan.py -p 22,80 <host>`.
+      Scans TCP ports (connect scan, 100 threads). Use it for port scanning instead of nmap.
     - LLVM TOOLS (v4.4.8, bundled native): llvm-objdump / llvm-nm / llvm-readelf / llvm-size / llvm-strings are
       App-bundled arm64 iOS binaries (LLVM 17, AArch64-only). Usage: `llvm-objdump -d <mach-o>` (full disassembly +
       more sections than objdump), `llvm-nm -a <mach-o>`, `llvm-readelf --sections <mach-o>`. Routed native.

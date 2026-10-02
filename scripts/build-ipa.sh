@@ -97,11 +97,11 @@ if [ -d "Resources/bin" ]; then
         cp "native-tools-out/libcapstone.a" "$APP/bin/libcapstone.a"
         echo ">>> libcapstone.a bundled ($(du -h "$APP/bin/libcapstone.a" | cut -f1))"
     fi
-    # v4.4.6-fix3u: nmap（native-nmap job 交叉编译，continue-on-error 尽力而为；失败则无此文件，容错跳过）
-    if [ -f "nmap-out/nmap" ]; then
-        cp "nmap-out/nmap" "$APP/bin/nmap"
-        chmod +x "$APP/bin/nmap"
-        echo ">>> native nmap bundled ($(du -h "$APP/bin/nmap" | cut -f1))"
+    # v4.4.6-fix3u→fix3ac: nmap 源码 iOS 编不过(SDK 缺 Linux 头)→ 降级 nscan.py(Python 端口扫描, 原生 python3 跑)
+    if [ -f "nmap-out/nscan.py" ]; then
+        cp "nmap-out/nscan.py" "$APP/bin/nscan.py"
+        chmod +x "$APP/bin/nscan.py"
+        echo ">>> nscan.py bundled"
     fi
     # v4.4.8-fix3w: LLVM 工具链（native-llvm job 交叉编译）+ jtool2（prebuilt arm64 切片）
     for t in llvm-objdump llvm-nm llvm-readelf llvm-size llvm-strings jtool2; do

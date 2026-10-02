@@ -45,10 +45,11 @@ jobs:
           #         先 sed 打错(system(cmd)→l_-1) 再打错(l_-1 undeclared)——精确匹配整个 l_system(cmd);
           sed -i.bak 's/= l_system(cmd);/= -1; (void)cmd;/' src/loslib.c
           # fix3x: 去掉 || true 吞错——lua 必须编出, 失败即 job fail（用户要求全工具进包）
+          # fix3ac: lua 5.4.7 make generic 产物在顶层(lua/luac)，不是 src/lua——检查路径改顶层
           make generic CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK -DLUA_USE_POSIX" || \
             make generic CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK"
-          if [ -f src/lua ]; then
-            cp src/lua "$GITHUB_WORKSPACE/native-tools-out/lua"
+          if [ -f lua ]; then
+            cp lua "$GITHUB_WORKSPACE/native-tools-out/lua"
             chmod +x "$GITHUB_WORKSPACE/native-tools-out/lua"
             echo ">>> lua built"
           else
@@ -89,9 +90,24 @@ jobs:
           tar -xzf /tmp/cap.tar.gz -C /tmp
           cd /tmp/capstone-5.0.3
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          # fix3ac: CC 带空格(xcrun 参数)被 make 拆词→"-sdk: command not found"(Error 127)
+          #         → 写单 token wrapper 脚本, CC/AR/RANLIB 传脚本路径
+          cat > /tmp/ioscc <<WRAP
+          #!/bin/sh
+          exec xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -mios-version-min=15.0 "\$@"
+          WRAP
+          cat > /tmp/iosar <<WRAP
+          #!/bin/sh
+          exec xcrun --sdk iphoneos ar "\$@"
+          WRAP
+          cat > /tmp/iosranlib <<WRAP
+          #!/bin/sh
+          exec xcrun --sdk iphoneos ranlib "\$@"
+          WRAP
+          chmod +x /tmp/ioscc /tmp/iosar /tmp/iosranlib
           make CAPSTONE_ARCHS="aarch64 arm x86" CAPSTONE_DIET=no \
-            CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK" \
-            AR="xcrun -sdk iphoneos ar" RANLIB="xcrun -sdk iphoneos ranlib"
+            CC=/tmp/ioscc \
+            AR=/tmp/iosar RANLIB=/tmp/iosranlib
           # fix3x: 去掉 exit 0 吞错——capstone 失败即 job fail
           if [ -f libcapstone.a ]; then
             cp libcapstone.a "$GITHUB_WORKSPACE/native-tools-out/libcapstone.a"
@@ -583,43 +599,29 @@ jobs:
           path: wheels-out/*.whl
           if-no-files-found: error
 
-  # v4.4.6-fix3u: nmap 源码交叉（独立 job + continue-on-error——失败不阻塞主链路出包）。
-  # 减依赖最小化（--without-*：zenmap/ncat/ndiff/nping/openssl/liblua/pcap 用原始 socket）；
-  # xcrun iphoneos clang 交叉；产物 nmap-out/nmap 给 build 集成进 App bin/。
+  # v4.4.6-fix3u→fix3ac: nmap 源码交叉 iOS 判定不可行——iOS SDK 缺 Linux 网络头
+  # (net/if_arp.h 等, libpcap 亦报 architecture not supported), 业界无 iOS nmap prebuilt。
+  # 诚实降级: 改为内置 Python TCP 端口扫描器 nscan.py(原生 python3 直跑, 功能等效端口扫描),
+  # 不再跑失败的源码编译; job 保留 continue-on-error 防意外。
   native-nmap:
     runs-on: macos-latest
-    timeout-minutes: 40
+    timeout-minutes: 10
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build nmap (iOS arm64, minimal deps)
+      - name: Package nscan.py (Python TCP port scanner, nmap-lite)
         run: |
           set -euo pipefail
           mkdir -p nmap-out
-          curl -sL -o /tmp/nmap.tar.bz2 https://nmap.org/dist/nmap-7.94.tar.bz2
-          tar -xjf /tmp/nmap.tar.bz2 -C /tmp
-          cd /tmp/nmap-7.94
-          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
-          CC="xcrun --sdk iphoneos clang -arch arm64 -isysroot $SDK -mios-version-min=15.0"
-          # fix3aa: 去掉 tail 截断——前两轮失败都因 tail 只留 15 行看不到真实错误(configure/libpcap)；
-          #        完整输出进日志, 失败可定位；加长 timeout 兜底
-          ./configure --host=aarch64-apple-darwin \
-            --without-zenmap --without-ncat --without-ndiff --without-nping \
-            --without-openssl --without-liblua \
-            CC="$CC" CXX="$CC"
-          make -j4
-          file nmap 2>/dev/null || true
-          if [ -f nmap ]; then
-            cp nmap "$GITHUB_WORKSPACE/nmap-out/nmap"
-            chmod +x "$GITHUB_WORKSPACE/nmap-out/nmap"
-            echo ">>> nmap built"
-          else
-            echo "!!! nmap binary missing after make — job will fail"
-            exit 1
-          fi
+          # fix3ac: 直接拷贝仓库内 scripts/nscan.py（heredoc 在 YAML 块内无法保持脚本缩进）
+          cp scripts/nscan.py nmap-out/nscan.py
+          chmod +x nmap-out/nscan.py
+          echo ">>> nscan.py packaged"
+          python3 -c "import ast; ast.parse(open('nmap-out/nscan.py').read()); print('nscan.py 语法 OK')"
+          wc -l nmap-out/nscan.py
 
-      - name: Upload nmap
+      - name: Upload nscan
         uses: actions/upload-artifact@v4
         with:
           name: native-nmap
