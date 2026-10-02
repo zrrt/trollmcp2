@@ -620,9 +620,10 @@ jobs:
           "
           echo ">>> env: python3=$(which python3) PYTHONPATH=$PYTHONPATH"
           ls -la "$PYIOS/lib-arm64/python3.14/" | grep sysconfigdata || echo "!!! sysconfigdata 副本缺失"
+          # fix3ai: allow-noblas 是 numpy 的 meson 选项, pandas 3.0.6 meson.build 没有→
+          #         Unknown option 报错(metadata-generation-failed)——去掉该参数, 只留 cpu-dispatch
           python -m pip wheel --no-deps --no-build-isolation \
             -Csetup-args=--cross-file=$PWD/ios-meson.ini \
-            -Csetup-args=-Dallow-noblas=true \
             -Csetup-args=-Dc_args=-mios-version-min=15.0 \
             -Csetup-args=-Dcpp_args=-mios-version-min=15.0 \
             -Csetup-args=-Dcpu-dispatch=none \
