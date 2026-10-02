@@ -682,7 +682,11 @@ jobs:
           # 4) 宿主构建依赖（env vars 前！）：Cython(编译 .pyx) + numpy(头文件)
           # fix3ag: pandas 3.0.6 metadata 生成需要 versioneer(ModuleNotFoundError)——补装
           python -m pip install -q "Cython>3.1.0,<4" "numpy>=2.2,<3" versioneer
-          pip download --no-deps --no-binary :all: pandas==3.0.6 -d wheel-src
+          # fix3aw: pip download 对 sdist 强制 build isolation(宿主装 pandas 的 build deps, 6 分钟+ 且
+          #         metadata done 后仍 exit 1, 错误被吞)——改用 curl 直下 sdist(PyPI 固定 URL), 无隔离
+          mkdir -p wheel-src
+          curl -sL -o wheel-src/pandas-3.0.6.tar.gz https://files.pythonhosted.org/packages/source/p/pandas/pandas-3.0.6.tar.gz
+          ls -la wheel-src/
           tar -xzf wheel-src/pandas-3.0.6.tar.gz -C wheel-src
           # 5) iOS 交叉环境（与 numpy 步骤一致）
           export PATH="$PYIOS/bin:$PATH"
