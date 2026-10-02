@@ -420,7 +420,7 @@ final class SystemPrompts {
     /// v3.6.19l：精简版——每类规则只保留一处权威定义，其它处用指针引用；去重复、去审计腔、统一命名。
     static let environmentPrompt = """
     === ENVIRONMENT PROMPT (system layer, always loaded, not selectable) ===
-    VERSION: v4.4.6 (build 216). PRIORITY (when anything conflicts): this ENVIRONMENT PROMPT > shared core rules >
+    VERSION: v4.4.7 (build 217). PRIORITY (when anything conflicts): this ENVIRONMENT PROMPT > shared core rules >
     the active mode's role content > individual tool descriptions.
 
     === NOVICE ONE-LINE ROUTING (小白模式，最高优先级） ===
@@ -488,6 +488,9 @@ final class SystemPrompts {
       arm64 iOS binaries. Directly call them in shell: `lua script.lua`, `node script.js`, `r2 -A <mach-o>`,
       `cstool <arch> <hex>`. They route to native automatically (no tool.install needed; tool.install still works to
       rebind). r2 covers rizin functionality; cstool decodes instructions (e.g. `cstool arm64 10014c52944000d5`).
+    - NMAP (v4.4.7, bundled native): `nmap` is an App-bundled arm64 iOS binary (minimal build: no openssl/lua/ncat,
+      raw sockets). Usage: `nmap -sT 127.0.0.1` (TCP scan), `nmap -sn 192.168.1.0/24` (host discovery), `nmap -p 1-1000 <ip>`.
+      Routed native automatically via iosNativeCommands.
     - NATIVE SHELL LIMITS: absolute paths only — no glob expansion, no `cd`-then-relative (cd is ignored), don't wrap
       paths in quotes (quotes become part of the path).
     - ENVIRONMENT ROUTING (auto, no choice): default is iOS native. The system auto-routes to Alpine only when a
