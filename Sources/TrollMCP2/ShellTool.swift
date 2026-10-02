@@ -463,6 +463,19 @@ final class ShellExecTool: MCPTool {
             return result
         }
         
+        // fix3cj: 内置原生工具链(lua/node/r2/cstool)单段命令也走原生——之前无管道时
+        // 36 个快捷路径不匹配 → 落到 Alpine 兜底 ISHEngine.exec → "node: not found"。
+        // 只有含 | ; > 的命令走 runIOSPipeline(938 行)才会命中 case node/r2/lua/cstool。
+        // 这里在 Alpine 兜底前补上同样的原生分发，让 `node -e "..."`、`r2 -v`、`lua -v`、`cstool -d` 单段直跑。
+        if iosCmd == "lua" || iosCmd.hasPrefix("lua ") ||
+           iosCmd == "node" || iosCmd.hasPrefix("node ") ||
+           iosCmd == "r2" || iosCmd.hasPrefix("r2 ") ||
+           iosCmd == "cstool" || iosCmd.hasPrefix("cstool ") {
+            let result = ShellExecTool.runIOSNativeSegment(iosCmd)
+            AuditLog.shared.log("shell.exec (ios bundled)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
         // v3.0.41：iSH 为唯一引擎 (ios_system 已删除）。初始化failed直接报错，不再回退。
         let (output, exitCode, timedOut) = ISHEngine.exec(command, timeout: timeout)
 
@@ -2058,21 +2071,36 @@ final class ShellExecTool: MCPTool {
         }
         let body = command.dropFirst("python3".count)
         let args = shellSplitArgs(String(body))
+        // fix3ck: iOS CPython 无 tty 时 fd 1/2 不可靠（os.write(1) 也丢），main.c 已改为把
+        // sys.stdout/stderr 重定向到 TROLL_PY_OUT 文件（App Documents，沙盒一定可写）。
+        // Swift 侧传绝对路径 + 执行后读回，与 node 的 stdout 重定向同一思路。
+        let docsPath = NSHomeDirectory() + "/Documents"
+        let pyOutPath = docsPath + "/troll_py_out.txt"
+        let pyDiagPath = docsPath + "/troll_py_diag.txt"
+        try? FileManager.default.removeItem(atPath: pyOutPath)
+        try? FileManager.default.removeItem(atPath: pyDiagPath)
         let res = BuildRunner.shared.run(executable: pythonPath, args: args,
-                                         env: ["PYTHONIOENCODING": "utf-8"], timeout: 120)
+                                         env: ["PYTHONIOENCODING": "utf-8",
+                                               "TROLL_PY_OUT": pyOutPath,
+                                               "TROLL_PY_DIAG": pyDiagPath], timeout: 120)
         var out = res.stdout
         if res.timedOut { out += "\n[python3 执行超时 120s 被终止]" }
         if let serr = res.spawnError, !serr.isEmpty {
             out += "\n[spawn error: \(serr)]"
         }
-        // fix3ch: 自动读回 python3 诊断文件（/tmp + 相对 cwd），AI 直接看到卡在哪一步
-        for dpath in ["/tmp/troll_py_diag.txt", "troll_py_diag.txt"] {
+        // fix3ck: 读回文件重定向的输出 + 诊断（Documents 绝对路径——沙盒一定可写可读）
+        if res.stdout.isEmpty, let d = try? String(contentsOfFile: pyOutPath, encoding: .utf8), !d.isEmpty {
+            out += d
+        }
+        // fix3ch/fix3ck: 自动读回 python3 诊断文件（Documents 优先 + /tmp + 相对 cwd 兜底）
+        for dpath in [pyDiagPath, "/tmp/troll_py_diag.txt", "troll_py_diag.txt"] {
             if let d = try? String(contentsOfFile: dpath, encoding: .utf8), !d.isEmpty {
                 out += "\n[py-diag]\n" + d
                 try? FileManager.default.removeItem(atPath: dpath)
                 break
             }
         }
+        try? FileManager.default.removeItem(atPath: pyOutPath)
         return ["command": command, "exit_code": res.exitCode, "stdout": out,
                 "stderr": res.stderr, "ios_native": true]
     }
@@ -2099,24 +2127,34 @@ final class ShellExecTool: MCPTool {
         }
         // r2 逆向分析可能耗时（大文件反汇编），给更长超时
         let tmo: TimeInterval = (name == "r2") ? 300 : 90
-        let res = BuildRunner.shared.run(executable: binPath, args: args,
-                                         env: ["PYTHONIOENCODING": "utf-8", "TMPDIR": NSTemporaryDirectory()], timeout: tmo)
+        // fix3ck: r2 输出写 TROLL_R2_OUT 文件（r_core 静态库构造器重定向 stdout，fputs 全丢）——Swift 读回
+        let docsPath = NSHomeDirectory() + "/Documents"
+        let r2OutPath = docsPath + "/troll_r2_out.txt"
+        var benv = ["PYTHONIOENCODING": "utf-8", "TMPDIR": NSTemporaryDirectory()]
+        if name == "r2" {
+            try? FileManager.default.removeItem(atPath: r2OutPath)
+            benv["TROLL_R2_OUT"] = r2OutPath
+        }
+        let res = BuildRunner.shared.run(executable: binPath, args: args, env: benv, timeout: tmo)
         var out = res.stdout
         if res.timedOut { out += "\n[\(name) 执行超时 \(tmo)s 被终止]" }
         if let serr = res.spawnError, !serr.isEmpty {
             out += "\n[spawn error: \(serr)]"
         }
-        // fix3ch: node 自动读回 C 层诊断（相对 cwd），AI 直接看到 node_start 是否执行
-        if name == "node", let d = try? String(contentsOfFile: "troll_node_diag.txt", encoding: .utf8), !d.isEmpty {
-            out += "\n[node-diag]\n" + d
-            try? FileManager.default.removeItem(atPath: "troll_node_diag.txt")
+        // fix3ck: r2 读回文件输出（stdout 被 r_core 构造器重定向吞掉，文件是唯一通道）
+        if name == "r2", let d = try? String(contentsOfFile: r2OutPath, encoding: .utf8), !d.isEmpty {
+            out += d
+            try? FileManager.default.removeItem(atPath: r2OutPath)
         }
-        // fix3ch: node console.log 重定向文件读回（process.stdout 在移动端指向 /dev/null）
+        // fix3ck: node 无 -e（--version/script 模式）——V8 层输出仍被 /dev/null 吞（prelude 只对 -e 生效），
+        // 明确提示 AI 改用 -e 模式，避免"装完不能用"的盲猜循环
         if name == "node", res.stdout.isEmpty, out.isEmpty {
             let noutPath = NSTemporaryDirectory() + "troll_node_out.txt"
             if let d = try? String(contentsOfFile: noutPath, encoding: .utf8), !d.isEmpty {
                 out = d
                 try? FileManager.default.removeItem(atPath: noutPath)
+            } else {
+                out += "\n[node] 移动端 process.stdout 输出到 /dev/null（NodeMobile 限制）：--version/script 模式输出不可见。请用 node -e \"代码\" 模式（已自动重定向 stdout 到文件读回）。"
             }
         }
         return ["command": command, "exit_code": res.exitCode, "stdout": out,

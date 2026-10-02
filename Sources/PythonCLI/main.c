@@ -13,7 +13,14 @@
 // fix3cg: 诊断文件——iOS 无 tty 时 stdout/stderr 均不可见，关键状态写诊断文件。
 // fix3ch: /tmp 在 python3 子进程沙盒可能只读 → 同时写相对 cwd（App 容器）+ /tmp，
 // Swift 侧自动读回附加到输出，AI 直接看到无需手动 cat。
+// fix3ck: 实测 fd 1/2 层彻底无效（os.write(1) 也丢），且 /tmp 与相对 cwd 的 diag 均未被 Swift 读到——
+// 改为优先写 Swift 传的 TROLL_PY_DIAG（App Documents，沙盒一定可写），Swift 读同一绝对路径。
 static void diag(const char *msg) {
+    const char *envd = getenv("TROLL_PY_DIAG");
+    if (envd && envd[0]) {
+        FILE *f = fopen(envd, "a");
+        if (f) { fprintf(f, "%s\n", msg); fclose(f); }
+    }
     FILE *f = fopen("/tmp/troll_py_diag.txt", "a");
     if (f) { fprintf(f, "%s\n", msg); fclose(f); }
     f = fopen("troll_py_diag.txt", "a");
@@ -118,19 +125,21 @@ int main(int argc, char **argv) {
 
     // v4.4.9-fix3cd/fix3cg: iOS framework 版 Python 的 sys.stdout/stderr 在无 tty 环境下未绑定 fd 1/2，
     // print() 输出在 Python 层被静默丢弃（C 层 fflush 救不了——数据根本没到 C stdout）→ AI 实测看到空结果。
-    // 任何代码运行前强制重绑（line buffered，Python 层输出直达进程 stdout 管道）。
-    // fix3ch: 绑定代码用 os.write 直写 fd 1（绕过 sys.stdout）验证 fd 状态——fd 1 若已恢复
-    // （dup2 saved_out），BuildRunner 能读到 [PY-FD1]；否则定位 fd 层问题。
+    // fix3ch: 绑定代码用 os.write 直写 fd 1（绕过 sys.stdout）验证 fd 状态。
+    // fix3ck: 真机实测 os.write(1) 也空——fd 1/2 层在 iOS CPython 无 tty 时不可靠（PEP 730）。
+    // 改为彻底不依赖 fd：sys.stdout/stderr 直接重定向到 Swift 传的 TROLL_PY_OUT 文件（App Documents），
+    // print/os.write 全部写入该文件，Swift 执行后读回——与 node 的 stdout 重定向同一思路。
+    // 保留 os.write 标记仅作诊断（TROLL_PY_DIAG 一定能读到，用于确认 main 是否真的执行）。
     int bind_rc = PyRun_SimpleString(
         "import sys, os\n"
-        "os.write(1, b'[PY-FD1-OK]\\n')\n"
-        "os.write(2, b'[PY-FD2-OK]\\n')\n"
-        "try:\n"
-        "    sys.stdout = os.fdopen(1, 'w', buffering=1, encoding='utf-8')\n"
-        "    sys.stderr = os.fdopen(2, 'w', buffering=1, encoding='utf-8')\n"
-        "    os.write(1, b'[PY-BIND-OK]\\n')\n"
-        "except Exception as e:\n"
-        "    os.write(1, ('[PY-BIND-ERR %r]\\n' % (e,)).encode())\n");
+        "_d = os.environ.get('TROLL_PY_OUT', '')\n"
+        "if _d:\n"
+        "    _f = open(_d, 'w', encoding='utf-8', errors='replace')\n"
+        "    sys.stdout = _f\n"
+        "    sys.stderr = _f\n"
+        "    os.write(1, b'[PY-BIND-FILE]\\n')\n"   // fd1 可能无效，写失败不致命（文件重定向已接管）
+        "else:\n"
+        "    sys.stdout = sys.stderr = open(os.devnull, 'w')\n");
     diag(bind_rc == 0 ? "bind PyRun ok" : "bind PyRun FAIL (rc != 0)");
     if (PyErr_Occurred()) { PyErr_Print(); PyErr_Clear(); diag("cleared bind PyErr"); }
 
