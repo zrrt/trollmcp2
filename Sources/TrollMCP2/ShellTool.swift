@@ -2137,6 +2137,16 @@ final class ShellExecTool: MCPTool {
                 }
             }
         }
+        // fix3cl6: 构造器标记——dyld 构造器无条件写，区分"dyld 加载成功(main 问题)"vs"dyld 阶段被杀(framework 问题)"
+        if out.isEmpty {
+            for cpath in [wsBase + "/troll_py_ctor.txt", "/tmp/troll_py_ctor.txt"] {
+                if let d = try? String(contentsOfFile: cpath, encoding: .utf8), !d.isEmpty {
+                    out += "\n[py-ctor]\n" + d
+                    try? FileManager.default.removeItem(atPath: cpath)
+                    break
+                }
+            }
+        }
         try? FileManager.default.removeItem(atPath: pyOutPath)
         try? FileManager.default.removeItem(atPath: docsBase + "/troll_py_out.txt")
         return ["command": command, "exit_code": res.exitCode, "stdout": out,

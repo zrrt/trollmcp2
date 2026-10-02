@@ -31,7 +31,7 @@ jobs:
           # fix3cg: v8——nodecli.c(setvbuf)/r2main.c(-v/-h fputs) 修复后强制全量重编（v7 缓存是旧的，
           #         实测 node/r2 空输出 = 旧 wrapper 进包）。重编后 node/r2 输出应正常。
           # fix3ch: v9——nodecli.c 加 C 层诊断(ndiag)、r2main.c -v/-h 加 fflush——强制再重编
-          key: native-tools-v13
+          key: native-tools-v14
           save-always: false
 
       - name: Build lua 5.4 (iOS arm64)
@@ -216,8 +216,13 @@ jobs:
           // fix3cl4: 三保险——used 属性(编译器保) + 全局指针引用(链接保) + main 里真实读取写入输出(链接/加载保)。
           // 实测 -Wl,-undefined,dynamic_lookup 下链接器未静态解析该 stub，符号表里只有 UNDEF 引用、无定义，
           // dyld 启动仍报 flat namespace 找不到 → main 前的构造器失败 exit(0) → 输出全空。
-          __attribute__((used)) int _JAVA_OPS = 0;
+          // fix3cl6: 真机符号表确诊——libr_*.a 引用的是 JAVA_OPS(无下划线, Mach-O 名 _JAVA_OPS=UNDEF)，
+          //          而旧 stub 定义的是 _JAVA_OPS(带下划线, Mach-O 名 __JAVA_OPS=DEF)——两符号不同名，
+          //          dyld 在 flat namespace 找 _JAVA_OPS 无定义 → 崩。必须定义无下划线版 JAVA_OPS。
+          __attribute__((used)) int _JAVA_OPS = 0;   // 带下划线版（旧，保留兼容）
+          __attribute__((used)) int JAVA_OPS = 0;    // 无下划线版（libr_*.a 真正引用的）
           volatile int *_java_ops_keep = &_JAVA_OPS;
+          volatile int *java_ops_keep = &JAVA_OPS;
           // fix3ch: -v/-h 输出后必须 fflush——iOS 无 tty stdout 全缓冲，不刷输出滞留→AI 看到空结果
           // fix3ck: 真机实测 r2 全部输出丢失(exit 0 空, -c 也空)——r_core 静态库的全局构造器
           //         会把进程 stdout 重定向掉，fputs(stdout)+fflush 全无效。改为输出写
@@ -225,8 +230,8 @@ jobs:
           int main(int argc, char **argv) {
             const char *op = getenv("TROLL_R2_OUT");
             FILE *of = (op && op[0]) ? fopen(op, "w") : stdout;
-            // fix3cl4: 真实使用 _JAVA_OPS（防止链接器/加载器丢弃定义）——TROLL_R2_DIAG 时写进输出供 AI 验证
-            if (of && getenv("TROLL_R2_DIAG")) fprintf(of, "[r2-diag java_ops=%d keep=%p]\n", _JAVA_OPS, (void*)_java_ops_keep);
+            // fix3cl4/cl6: 真实使用两个定义（防止链接器/加载器丢弃）——TROLL_R2_DIAG 时写进输出供 AI 验证
+            if (of && getenv("TROLL_R2_DIAG")) fprintf(of, "[r2-diag java_ops=%d keep=%p / JAVA_OPS=%d jkeep=%p]\n", _JAVA_OPS, (void*)_java_ops_keep, JAVA_OPS, (void*)java_ops_keep);
             int i;
             for (i = 1; i < argc; i++) {
               if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--version")) {

@@ -42,6 +42,17 @@ static void derive_bundle(const char *argv0, char *buf, size_t size) {
     p = strrchr(buf, '/'); if (p) *p = '\0';        // .../TrollAgent.app
 }
 
+// fix3cl6: dyld 构造器诊断——在 main 之前由 dyld 无条件执行（若有）。写独立文件区分：
+// "构造器跑了" = dyld 已把控制权交给二进制（链接/加载 OK），问题在 main/入口；
+// "构造器没跑" = 进程在 dyld 加载阶段就被杀（framework 加载失败/被系统拦截），main 根本不会执行。
+__attribute__((constructor))
+static void pycli_ctor(void) {
+    FILE *cf = fopen("/var/mobile/Documents/Workspace/troll_py_ctor.txt", "w");
+    if (cf) { fprintf(cf, "ctor ran pid=%d\n", (int)getpid()); fclose(cf); }
+    cf = fopen("/tmp/troll_py_ctor.txt", "w");
+    if (cf) { fprintf(cf, "ctor ran pid=%d\n", (int)getpid()); fclose(cf); }
+}
+
 int main(int argc, char **argv) {
     // fix3cl4: 探针——`python3 --troll-probe` 立即 exit(42)。Swift 读回 exit_code，
     // 42=main 执行了（问题在后续绑定/输出）；0=main 根本没跑（dyld/构造器层 exit）——确诊通道。

@@ -116,7 +116,16 @@ final class BuildRunner {
         if timedOut {
             exitCode = -2
         } else {
-            exitCode = Int32((UInt32(status) >> 8) & 0xff)   // WEXITSTATUS
+            // fix3cl6: 之前只取 WEXITSTATUS(status>>8)——被信号杀死的进程(崩溃/被 SIGKILL)status 低 8 位是信号号、
+            // 高 8 位为 0，导致"崩溃显示 exit 0"（r2 的 dyld abort、python3 的静默被杀全部被误读为正常退出）。
+            // 现在按 POSIX 惯例：WIFSIGNALED → 128+signum（崩溃可见），否则 WEXITSTATUS。
+            let wstatus = UInt32(bitPattern: status)
+            let sig = wstatus & 0x7f
+            if sig != 0 && (wstatus & 0x7f) != 0x7f {
+                exitCode = Int32(128 + Int32(sig))
+            } else {
+                exitCode = Int32((wstatus >> 8) & 0xff)
+            }
         }
         return BuildProcessResult(exitCode: exitCode, stdout: outStr, stderr: errStr, timedOut: timedOut, spawnError: nil)
     }
