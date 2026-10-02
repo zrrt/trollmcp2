@@ -83,9 +83,10 @@ if [ -d "Resources/bin" ]; then
     chmod +x "$APP/bin/"* 2>/dev/null || true
     echo ">>> bundled bin: $(ls "$APP/bin" | wc -l | tr -d ' ') files"
     # v4.4.5: 原生工具（CI native-tools job 交叉编译/预编译提取的 arm64 iOS 二进制：
-    # lua=源码编译, node=nodejs-mobile iOS 预编译, r2=radare2 r2ios-sdk 预编译, cstool=capstone 交叉编译；
+    # lua=源码编译, node=nodejs-mobile iOS 预编译, r2=radare2 r2ios-sdk 预编译, cstool=capstone 交叉编译,
+    # jq=源码编译(v4.4.9-fix3cm 补, 消除提示词示例有/实物无的不一致)；
     # 均随 tool.install 绑定）
-    for t in lua node r2 cstool; do
+    for t in lua node r2 cstool jq; do
         if [ -f "native-tools-out/$t" ]; then
             cp "native-tools-out/$t" "$APP/bin/$t"
             chmod +x "$APP/bin/$t"

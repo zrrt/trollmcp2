@@ -192,6 +192,35 @@ jobs:
             exit 1
           fi
 
+      # v4.4.9-fix3cm: jq 1.7.1 交叉编译 iOS arm64——纯 C 单二进制、无 fork 依赖、体积 ~1.5MB。
+      # 背景: 提示词里长期拿 jq 当调用示例(a0f3700)但从未进包→AI 以为有、真机 Command not found；
+      #       git log/workflow 全文搜 jq 零编译记录。补实物消除"文档与实物不一致"。
+      - name: Build jq 1.7.1 (iOS arm64)
+        if: steps.tools-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p native-tools-out
+          curl -sL -o /tmp/jq.tar.gz https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-1.7.1.tar.gz
+          tar -xzf /tmp/jq.tar.gz -C /tmp
+          cd /tmp/jq-1.7.1
+          # 交叉编译: --without-oniguruma 去掉正则引擎外部依赖(jq 内置 fallback 正则)
+          # --disable-maintainer-mode 跳过文档/生成文件步骤; autoconf 交叉分支需 --host/--build 成对给
+          cat > /tmp/ioscc <<'WRAP'
+          #!/bin/sh
+          exec xcrun --sdk iphoneos clang -arch arm64 -isysroot "$(xcrun --sdk iphoneos --show-sdk-path)" -mios-version-min=15.0 "$@"
+          WRAP
+          chmod +x /tmp/ioscc
+          ./configure --host=aarch64-apple-darwin --build=x86_64-apple-darwin CC=/tmp/ioscc \
+            --without-oniguruma --disable-maintainer-mode 2>&1 | tail -15
+          make -j4 2>&1 | tail -15
+          if [ -f jq ]; then
+            cp jq "$GITHUB_WORKSPACE/native-tools-out/jq"
+            chmod +x "$GITHUB_WORKSPACE/native-tools-out/jq"
+            echo ">>> jq built ($(du -h jq | cut -f1))"
+          else
+            echo "!!! jq build failed" >&2
+            exit 1
+          fi
+
       # v4.4.5: radare2 CLI（r2ios-sdk 是静态库 SDK，无现成 r2 可执行——写 main 链接 libr.a 全套）
       - name: Build r2 CLI (r2ios-sdk static libs)
         if: steps.tools-cache.outputs.cache-hit != 'true'
@@ -633,7 +662,9 @@ jobs:
         with:
           path: cpython/cross-build/dist
           # fix3g: save-always:false——编译失败不写缓存，防空产物毒化
-          key: python-ios-dist-3.14.8-v3
+          # fix3clf: v4——旧缓存(v3)的 dist/ 只有 tar.gz、无 static-lib（上版从未生成成功），
+          #         bump 强制全量重编一次，让 dist/static-lib 进缓存（dist 整体在 cache path 内）
+          key: python-ios-dist-3.14.8-v4
           save-always: false
 
       - name: Build Python.xcframework (iOS arm64, official Apple build script)
@@ -659,28 +690,28 @@ jobs:
           ls "$SP" | head -8
           echo "pip bundled into $SP"
 
-      # fix3cld: 按源码 Apple/iOS/README.md——iOS 必须 --enable-framework（不支持非 framework 构建）；
-      # configure 对 --host=aarch64-apple-ios 自动选官方 wrapper（PATH 里的 arm64-apple-ios-clang），
-      # 不手动指定 CC。configure 默认也构建 libpython3.14.a，make 该 target 提取静态库。
-      # 失败不阻塞（fallback：build-ipa.sh 回 framework 动态链接，包仍可装）。
-      - name: Build static libpython3.14.a (iOS arm64, fallback-tolerant)
+      # fix3clc/fix3cle: 静态链接 libpython3.14.a 进 python3 CLI（绕开 iOS 子进程 dyld 加载 framework 的 SIGKILL）。
+      # fix3clf 实证修正：原实现 in-source `make libpython3.14.a` 在 cpython/ 根目录跑 → 没产出（iOS 是 out-of-tree
+      # 构建，configure 在 cross-build/arm64-apple-ios/）→ 被 fallback exit 0 静默吞掉 → 空 static-lib 进 upload
+      # （if-no-files-found: warn）→ build job 走 dynamic fallback → 真机 python3 仍 137。教训：fallback 吞错 = 用户拿废包。
+      # 正解：官方 Apple build iOS 的 out-of-tree 构建（cross-build/arm64-apple-ios/）在组 framework 时
+      # 已生成 libpython3.14.a（arm64-apple-ios-ar rcs + -all_load），直接从构建树提取即可，无需再 make。
+      # 失败必须 exit 1（不再静默）——build job 会因缺 static-lib 而明显失败，杜绝"AI 以为有、真机没有"。
+      - name: Build static libpython3.14.a (iOS arm64, extract from official build tree)
         if: steps.pycache.outputs.cache-hit != 'true'
         run: |
           set -x
           cd cpython
-          HOSTPY=$(which python3)
-          echo ">>> HOSTPY=$HOSTPY"
-          export PATH="$(pwd)/Apple/iOS/Resources/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin"
-          # fix3cle: wrapper 用 ${IPHONEOS_DEPLOYMENT_TARGET} 生成 -target arm64-apple-ios<ver>；
-          # 不设则 clang 默认 minos=SDK版本(26.5)——显式 13.0 保证产物兼容 iOS 13+（设备16.3稳）。
-          export IPHONEOS_DEPLOYMENT_TARGET=13.0
-          ./configure --enable-framework --host=aarch64-apple-ios --build=arm64-apple-darwin --with-build-python="$HOSTPY" --without-ensurepip --without-doc-strings ac_cv_file__dev_ptmx=no ac_cv_file__dev_ptc=no ac_cv_func_faccessat2=yes ac_cv_func_fsync=yes ac_cv_func_fdatasync=yes ac_cv_func_dup3=no ac_cv_func_getrandom=yes ac_cv_header_libintl_h=no ac_cv_lib_intl_textdomain=no ac_cv_lib_intl_bindtextdomain=no ac_cv_lib_intl_gettext=no ac_cv_func_bind_textdomain_codeset=no || { echo "!!! configure FAILED (fallback: dynamic framework)"; exit 0; }
-          make -j4 libpython3.14.a 2>&1 | tail -5 || { echo "!!! make FAILED (fallback: dynamic framework)"; exit 0; }
-          ls -la libpython3.14.a || exit 0
-          mkdir -p cross-build/dist/static-lib
-          cp libpython3.14.a cross-build/dist/static-lib/
-          cp -R Include cross-build/dist/static-lib/include
-          echo ">>> static libpython3.14.a ready: $(ls -la libpython3.14.a | awk '{print $5}') bytes"
+          LIB=$(find cross-build/arm64-apple-ios -maxdepth 1 -name 'libpython3.14.a' 2>/dev/null | head -1)
+          if [ -n "$LIB" ] && [ -s "$LIB" ]; then
+            mkdir -p cross-build/dist/static-lib
+            cp "$LIB" cross-build/dist/static-lib/libpython3.14.a
+            cp -R Include cross-build/dist/static-lib/include
+            echo ">>> static libpython3.14.a ready: $(ls -la cross-build/dist/static-lib/libpython3.14.a | awk '{print $5}') bytes"
+          else
+            echo "!!! static libpython3.14.a NOT FOUND in cross-build/arm64-apple-ios — python3 将 dynamic fallback" >&2
+            exit 1
+          fi
 
       - name: Upload Python iOS xcframework
         uses: actions/upload-artifact@v4
