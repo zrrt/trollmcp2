@@ -236,6 +236,9 @@ final class WebSearchTool: MCPTool {
             "people.com.cn", "xinhuanet.com", "gov.cn", "china.com.cn", "cas.cn", "cuhk.edu.hk"
         ]
         if officialDomains.contains(bare) { return "official" }
+        // fix3cl8: 子域归属——dnf.qq.com / aid.qq.com 等官方产品子域应归属 qq.com(official)。
+        // 旧实现精确匹配白名单，子域全部落 unknown → 官网标 unknown、official_count=0、sort 失效。
+        for d in officialDomains where bare.hasSuffix("." + d) { return "official" }
         // 媒体 / 知名社区 / 百科（可参考但非官方）
         let thirdPartyDomains: Set<String> = [
             "wikipedia.org", "zhihu.com", "zhuanlan.zhihu.com", "xiaohongshu.com", "xhs.cn",
@@ -246,9 +249,11 @@ final class WebSearchTool: MCPTool {
             "ifanr.com", "engadget.com", "theverge.com", "techcrunch.com", "wired.com",
             "arstechnica.com", "news.ycombinator.com", "baike.baidu.com", "zh.wikipedia.org",
             "wikiwand.com", "gitbooks.io", "readthedocs.io", "mdn.mozilla.org", "freecodecamp.org",
-            "geekpark.net", "jiqizhixin.com", "qbitai.com", "wanqu.co", "solidot.org", "cnbeta.com"
+            "geekpark.net", "jiqizhixin.com", "qbitai.com", "wanqu.co", "solidot.org", "cnbeta.com",
+            "colg.cn", "bbs.colg.cn", "ali213.net", "gamersky.com", "3dmgame.com", "17173.com", "duowan.com"
         ]
         if thirdPartyDomains.contains(bare) { return "third_party" }
+        for d in thirdPartyDomains where bare.hasSuffix("." + d) { return "third_party" }
         return "unknown"
     }
 
@@ -361,7 +366,11 @@ final class WebSearchTool: MCPTool {
             // 标题：<h2> 下第一个 <a>，容许多行/嵌套 span
             let head = block.firstMatch(pattern: "<h2[^>]*>[\\s\\S]*?<a[^>]*href=\"([^\"]+)\"[^>]*>([\\s\\S]*?)</a>")
             // 摘要：取 b_caption 或第一个 <p> (去除标签）
-            let snippet = (block.firstCapture(pattern: "<p[^>]*>([\\s\\S]*?)</p>") ?? "").stripHTMLTags()
+            // fix3cl8: Bing 新版 HTML 摘要常不在 <p> 而在 b_caption/div.caption——多标签兜底
+            let snippet = (block.firstCapture(pattern: "<p[^>]*>([\\s\\S]*?)</p>")
+                           ?? block.firstCapture(pattern: "<div[^>]*class=\"[^\"]*b_caption[^\"]*\"[^>]*>([\\s\\S]*?)</div>")
+                           ?? block.firstCapture(pattern: "<div[^>]*class=\"[^\"]*caption[^\"]*\"[^>]*>([\\s\\S]*?)</div>")
+                           ?? "").stripHTMLTags()
             if let caps = head, caps.count == 2 {
                 let title = caps[1].stripHTMLTags()
                 if !title.isEmpty {

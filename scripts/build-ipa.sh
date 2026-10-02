@@ -170,6 +170,37 @@ if [ -n "$XCF_DIR" ]; then
         echo ">>> integrating native Python (iOS arm64)..."
         # 1. Python.framework → App/Frameworks（CLI 链接 libPython，rpath 指向 ../Frameworks）
         mkdir -p "$APP/Frameworks"
+        # fix3cl9: 剥离官方 XCFramework 的异常 load 命令——LC_DYLD_ENVIRONMENT(0x80000022)+LC_LOAD_DYLINKER(0x1b)
+        # 是 macOS 构建残留，iOS 对子进程 DYLD 注入敏感：dyld 加载带这俩命令的 dylib 直接 SIGKILL(137)，
+        # 导致 python3 构造器都没跑到（真机实测 exit=137 + troll_py_ctor.txt 不存在；node 的 framework
+        # 无此命令所以正常）。剥离后 TrollStore 安装时自动重签，签名不阻塞。
+        python3 - "$SLICE/Python.framework/Python" <<'PYEOF'
+import struct, sys
+src = sys.argv[1]
+data = open(src,'rb').read()
+assert data[:4] == b'\xcf\xfa\xed\xfe'
+ncmds, sizeofcmds = struct.unpack('<II', data[16:24])
+pos = 32
+keep = []
+removed = []
+for _ in range(ncmds):
+    cmd, sz = struct.unpack('<II', data[pos:pos+8])
+    if cmd in (0x80000022, 0x1b):
+        removed.append(hex(cmd))
+    else:
+        keep.append(data[pos:pos+sz])
+    pos += sz
+if not removed:
+    print(">>> no dyld cmds to strip (already clean)")
+else:
+    out = bytearray(data[:32])
+    new_cmds = b''.join(keep)
+    struct.pack_into('<II', out, 16, len(keep), len(new_cmds))
+    out += new_cmds
+    out += data[pos:]
+    open(src,'wb').write(out)
+    print(f">>> stripped dyld cmds {removed} from {src} ({len(keep)} cmds left)")
+PYEOF
         cp -R "$SLICE/Python.framework" "$APP/Frameworks/"
         # 2. stdlib（PYTHONHOME = App/python）：PEP 730 布局 = XCFramework 顶层共享
         #    lib/python3.14/（纯 Python 模块 + ensurepip + site-packages）+
