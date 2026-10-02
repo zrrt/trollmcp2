@@ -99,7 +99,16 @@ jobs:
           cat > /tmp/nodecli.c <<'NC'
           #include <stdio.h>
           extern int node_start(int argc, char **argv);
-          int main(int argc, char **argv) { return node_start(argc, argv); }
+          int main(int argc, char **argv) {
+              // fix3ce: iOS 无 tty stdout 全缓冲——nodejs-mobile(V8) 输出滞留不 flush → AI 看到空结果。
+              // 行缓冲 + 退出强刷；stderr 同步。
+              setvbuf(stdout, NULL, _IOLBF, 0);
+              setvbuf(stderr, NULL, _IOLBF, 0);
+              int rc = node_start(argc, argv);
+              fflush(stdout);
+              fflush(stderr);
+              return rc;
+          }
           NC
               SDK=$(xcrun --sdk iphoneos --show-sdk-path)
               if xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" -o "$GITHUB_WORKSPACE/native-tools-out/node" /tmp/nodecli.c /tmp/NodeMobile_arm64.dylib -Wl,-undefined,dynamic_lookup 2>/tmp/node_build.err; then
@@ -448,7 +457,16 @@ jobs:
           cat > /tmp/nodecli.c <<'NC'
           #include <stdio.h>
           extern int node_start(int argc, char **argv);
-          int main(int argc, char **argv) { return node_start(argc, argv); }
+          int main(int argc, char **argv) {
+              // fix3ce: iOS 无 tty stdout 全缓冲——nodejs-mobile(V8) 输出滞留不 flush → AI 看到空结果。
+              // 行缓冲 + 退出强刷；stderr 同步。
+              setvbuf(stdout, NULL, _IOLBF, 0);
+              setvbuf(stderr, NULL, _IOLBF, 0);
+              int rc = node_start(argc, argv);
+              fflush(stdout);
+              fflush(stderr);
+              return rc;
+          }
           NC
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
           if xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" -o "$NODE" /tmp/nodecli.c /tmp/NodeMobile_arm64.dylib -Wl,-undefined,dynamic_lookup 2>/tmp/node_build.err; then

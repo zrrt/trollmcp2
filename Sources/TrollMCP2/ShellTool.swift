@@ -842,7 +842,7 @@ final class ShellExecTool: MCPTool {
                 let bundledRoots = [Bundle.main.bundlePath + "/bin", Bundle.main.bundlePath + "/Resources/bin"]
                 for root in bundledRoots {
                     let p = root + "/" + word
-                    if FileManager.default.isExecutableFile(atPath: p) {
+                    if FileManager.default.fileExists(atPath: p) {
                         let body = segment.dropFirst(word.count)
                         let args = shellSplitArgs(String(body))
                         let res = BuildRunner.shared.run(executable: p, args: args,
@@ -918,7 +918,7 @@ final class ShellExecTool: MCPTool {
                 }
                 let isIOSCmd = iosNativeCommands.contains(word) ||
                     (!word.contains("/") && !word.contains("..") &&
-                     FileManager.default.isExecutableFile(atPath: Bundle.main.bundlePath + "/bin/" + word))
+                     (FileManager.default.fileExists(atPath: Bundle.main.bundlePath + "/bin/" + word)))
                 if isIOSCmd { anyIOS = true }
                 if cidx == 0 && isIOSCmd { firstIOS = true }
                 // v4.3.13: base64 -d 带重定向时改为 var，特判后置 false 跳过文本重定向
