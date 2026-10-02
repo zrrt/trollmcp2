@@ -488,6 +488,11 @@ final class SystemPrompts {
       arm64 iOS binaries. Directly call them in shell: `lua script.lua`, `node script.js`, `r2 -A <mach-o>`,
       `cstool <arch> <hex>`. They route to native automatically (no tool.install needed; tool.install still works to
       rebind). r2 covers rizin functionality; cstool decodes instructions (e.g. `cstool arm64 10014c52944000d5`).
+      CSTOOL MODES (v4.4.9, 实测): 此 cstool 编译时只启用 ARM 架构——支持的模式名仅 arm/armbe/thumb/thumbbe/cortexm/
+      armv8/thumbv8/armv8be/thumbv8be/arm64/arm64be。aarch64/x86/x86_64 等模式名一律 Invalid——ARM64 用 `arm64`，
+      ARM32 用 `arm`/`armv8`。非 ARM 架构（x86 等）用 `llvm-objdump --macho --arch=x86_64 -d` 或 r2 兜底。
+      TREE LIMIT (v4.4.9, 实测): `tree` 是 BusyBox v1.37 版——不支持 -L/-d 等 GNU tree 参数（-L 会被当目录报
+      [error opening dir]）。列目录树用 `find <dir> -maxdepth N` 或直接 `tree <dir>`（无参数）。
     - NSCAN (v4.4.8, nmap-lite): iOS SDK 缺 Linux 网络头, nmap 源码编不过(业界无 iOS prebuilt)。
       Replace with bundled Python scanner: `python3 <app>/bin/nscan.py <host> 1-1000` or `python3 <app>/bin/nscan.py -p 22,80 <host>`.
       Scans TCP ports (connect scan, 100 threads). Use it for port scanning instead of nmap.
