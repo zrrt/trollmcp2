@@ -31,7 +31,7 @@ jobs:
           # fix3cg: v8——nodecli.c(setvbuf)/r2main.c(-v/-h fputs) 修复后强制全量重编（v7 缓存是旧的，
           #         实测 node/r2 空输出 = 旧 wrapper 进包）。重编后 node/r2 输出应正常。
           # fix3ch: v9——nodecli.c 加 C 层诊断(ndiag)、r2main.c -v/-h 加 fflush——强制再重编
-          key: native-tools-v10
+          key: native-tools-v11
           save-always: false
 
       - name: Build lua 5.4 (iOS arm64)
