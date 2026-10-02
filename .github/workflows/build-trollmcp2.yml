@@ -694,6 +694,20 @@ jobs:
           #         -undefined dynamic_lookup: Python C API 符号动态解析(无 Python.framework 可链接)
           c_link_args = ['-Wl,-undefined,dynamic_lookup', '-mios-version-min=15.0']
           INI
+          # fix3bd: meson 的 build machine 工具必须在 native-file(cross-file 的 build.* 被忽略, meson 1.12 交叉不自动探测)
+          cat > ios-native.ini <<INI
+          [binaries]
+          c = ['clang']
+          cpp = ['clang++']
+          cython = ['cython']
+          INI
+          # fix3bd: 用 cross-file 指定的 python 实锤 meson 将读到的 LDSHARED(还有 framework 就是 SC 没删干净)
+          /Library/Frameworks/Python.framework/Versions/3.14/bin/python -c "
+          import sysconfig
+          print('>>> cross-python LDSHARED =', sysconfig.get_config_var('LDSHARED'))
+          print('>>> cross-python SC name =', sysconfig._get_sysconfigdata_name())
+          "
+          grep "LDSHARED" "$PYIOS/lib-arm64/python3.14/_sysconfigdata__ios_arm64_iphoneos.py" | head -2 || echo ">>> 交叉 SC 无 LDSHARED 键"
           # 4) 宿主构建依赖（env vars 前！）：Cython(编译 .pyx) + numpy(头文件)
           # fix3ag: pandas 3.0.6 metadata 生成需要 versioneer(ModuleNotFoundError)——补装
           python -m pip install -q "Cython>3.1.0,<4" "numpy>=2.2,<3" versioneer
@@ -737,6 +751,7 @@ jobs:
           #          meson.build 都没有(连续 Unknown option)→ 全部去掉, 只留 cross-file + c_args/cpp_args
           python -m pip wheel --no-deps --no-build-isolation \
             -Csetup-args=--cross-file=$PWD/ios-meson.ini \
+            -Csetup-args=--native-file=$PWD/ios-native.ini \
             -Csetup-args=-Dc_args=-mios-version-min=15.0 \
             -Csetup-args=-Dcpp_args=-mios-version-min=15.0 \
             wheel-src/pandas-3.0.6 -w wheels-out
