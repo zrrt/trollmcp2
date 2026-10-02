@@ -509,7 +509,7 @@ jobs:
           # sysconfigdata(PEP 730 机制)。先断言验证生效，失败立即暴露而非盲等 meson。
           export _PYTHON_HOST_PLATFORM=ios-arm64
           export _PYTHON_SYSCONFIGDATA_NAME=_sysconfigdata__ios_arm64_iphoneos
-          export PYTHONPATH="$PYIOS/lib-arm64/python3.14:$PYTHONPATH"
+          export PYTHONPATH="$PYIOS/lib-arm64/python3.14${PYTHONPATH:+:$PYTHONPATH}"
           # fix3l: meson-python 0.19 检测到 cross 会自动生成 cross-file 并用 PEP 730 官方编译器
           # arm64-apple-ios-clang(在 XCFramework ios-arm64/bin/ 里)——必须加进 PATH
           export PATH="$PYIOS/bin:$PATH"
@@ -558,7 +558,7 @@ jobs:
           export PATH="$PYIOS/bin:$PATH"
           export _PYTHON_HOST_PLATFORM=ios-arm64
           export _PYTHON_SYSCONFIGDATA_NAME=_sysconfigdata__ios_arm64_iphoneos
-          export PYTHONPATH="$PYIOS/lib-arm64/python3.14:$PYTHONPATH"
+          export PYTHONPATH="$PYIOS/lib-arm64/python3.14${PYTHONPATH:+:$PYTHONPATH}"
           export IPHONEOS_DEPLOYMENT_TARGET=15.0
           # 3) 断言 sysconfigdata 生效
           python3 -c "
@@ -672,8 +672,8 @@ jobs:
             -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER=$(xcrun --find clang) -DCMAKE_CXX_COMPILER=$(xcrun --find clang++) \
-            -DCMAKE_C_FLAGS="-arch arm64 -isysroot $SDK -mios-version-min=15.0" \
-            -DCMAKE_CXX_FLAGS="-arch arm64 -isysroot $SDK -mios-version-min=15.0" \
+            -DCMAKE_C_FLAGS="-arch arm64 -isysroot $SDK -mios-version-min=15.0 -DLLVM_ON_UNIX=1" \
+            -DCMAKE_CXX_FLAGS="-arch arm64 -isysroot $SDK -mios-version-min=15.0 -DLLVM_ON_UNIX=1" \
             -DCMAKE_EXE_LINKER_FLAGS="-arch arm64 -isysroot $SDK -mios-version-min=15.0" \
             -DLLVM_TARGETS_TO_BUILD=AArch64 -DLLVM_ENABLE_PROJECTS="" \
             -DLLVM_BUILD_TOOLS=ON -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF \
