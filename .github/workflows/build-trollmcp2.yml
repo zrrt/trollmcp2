@@ -157,11 +157,13 @@ jobs:
           elif ls $LIB/libcapstone.a >/dev/null 2>&1; then
             CAP="$LIB/libcapstone.a"
           fi
+          # fix3am: Apple ld 不支持 GNU 的 -start-group/-end-group(报 unknown options)——换 -all_load
+          #         (强制加载全部静态库成员, 解决 libr_*.a 循环依赖) + -dead_strip(裁掉未引用符号控体积)
           xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" \
             -I"$INC" /tmp/r2main.c \
-            -Wl,-start-group $LIBS -Wl,-end-group $CAP \
+            -Wl,-all_load -Wl,-dead_strip $LIBS $CAP \
             -o "$GITHUB_WORKSPACE/native-tools-out/r2" \
-            -lz -liconv -lresolv -framework Foundation 2>&1 | tail -15
+            -lz -liconv -lresolv -framework Foundation 2>&1 | tail -20
           # fix3x: 去掉 || true 吞错——r2 必须编出（用户要求全工具）
           if [ -f "$GITHUB_WORKSPACE/native-tools-out/r2" ]; then
             chmod +x "$GITHUB_WORKSPACE/native-tools-out/r2"
