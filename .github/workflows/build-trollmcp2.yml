@@ -41,8 +41,9 @@ jobs:
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
           # iOS 无 system()（loslib.c os_execute 报 'system' unavailable）：
           # 编译前打补丁，os.execute 直接返回失败（iOS 本就不支持 shell 命令）
-          # fix3z: lua 5.4.7 实际是 `int stat = system(cmd);`——只匹配 system(cmd); 本身
-          sed -i.bak 's/system(cmd);/-1; (void)cmd;/' src/loslib.c
+          # fix3z→fix3aa: lua 5.4.7 实际是 `stat = l_system(cmd);`(宏封装, 非 system(cmd))
+          #         先 sed 打错(system(cmd)→l_-1) 再打错(l_-1 undeclared)——精确匹配整个 l_system(cmd);
+          sed -i.bak 's/= l_system(cmd);/= -1; (void)cmd;/' src/loslib.c
           # fix3x: 去掉 || true 吞错——lua 必须编出, 失败即 job fail（用户要求全工具进包）
           make generic CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK -DLUA_USE_POSIX" || \
             make generic CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK"
@@ -601,14 +602,13 @@ jobs:
           cd /tmp/nmap-7.94
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
           CC="xcrun --sdk iphoneos clang -arch arm64 -isysroot $SDK -mios-version-min=15.0"
-          # fix3x: --without-pcap 不是有效参数（configure 解析为 pcap type "no" 报错）
-          # fix3z: --with-pcap=no 同样报 "no is not a valid pcap type"(7.94 强制 pcap) →
-          #        去掉 pcap 参数, 用默认(yes)让 configure 用交叉 CC 编自带 libpcap
+          # fix3aa: 去掉 tail 截断——前两轮失败都因 tail 只留 15 行看不到真实错误(configure/libpcap)；
+          #        完整输出进日志, 失败可定位；加长 timeout 兜底
           ./configure --host=aarch64-apple-darwin \
             --without-zenmap --without-ncat --without-ndiff --without-nping \
             --without-openssl --without-liblua \
-            CC="$CC" CXX="$CC" 2>&1 | tail -15
-          make -j4 2>&1 | tail -15
+            CC="$CC" CXX="$CC"
+          make -j4
           file nmap 2>/dev/null || true
           if [ -f nmap ]; then
             cp nmap "$GITHUB_WORKSPACE/nmap-out/nmap"
