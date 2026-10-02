@@ -593,9 +593,11 @@ jobs:
           # fix3az: 宿主 SC 文件名不猜(3.14 可能是 _sysconfigdata_darwin_darwin 或 _sysconfigdata__macosx_*)
           #         原 cp $HOSTSCNAME.py 2>/dev/null 静默失败→set -e exit 1 无输出(首次执行实锤)
           #         →glob 宿主 lib 下所有 _sysconfigdata*.py 全 sed, 去掉 2>/dev/null 让错误可见
-          HOSTSCDIR=$(env -u _PYTHON_SYSCONFIGDATA_NAME python3 -c 'import sysconfig, os; print(os.path.dirname(os.path.abspath(sysconfig.__file__)))')
-          echo ">>> HOSTSCDIR=$HOSTSCDIR"
-          cp "$HOSTSCDIR"/_sysconfigdata*.py /tmp/pyfix/
+          # fix3ba: sysconfig 在 3.14 是包(__file__ 在 .../sysconfig/__init__.py)→dirname 取到子目录, SC 在上一级
+          #         →改用 sys.prefix 拼 lib/pythonX.Y(标准位置, 不依赖 __file__ 形态)
+          HOSTLIB=$(env -u _PYTHON_SYSCONFIGDATA_NAME python3 -c 'import sys, os; print(os.path.join(sys.prefix, "lib", "python%d.%d" % sys.version_info[:2]))')
+          echo ">>> HOSTLIB=$HOSTLIB"
+          cp "$HOSTLIB"/_sysconfigdata*.py /tmp/pyfix/
           ls /tmp/pyfix/ | head -3
           sed -i '' 's/-framework Python//g' /tmp/pyfix/_sysconfigdata*.py
           grep -c "framework" /tmp/pyfix/_sysconfigdata*.py || echo ">>> host SC framework 已删干净"
@@ -704,9 +706,11 @@ jobs:
           # fix3az: 宿主 SC 文件名不猜(3.14 可能是 _sysconfigdata_darwin_darwin 或 _sysconfigdata__macosx_*)
           #         原 cp $HOSTSCNAME.py 2>/dev/null 静默失败→set -e exit 1 无输出(首次执行实锤)
           #         →glob 宿主 lib 下所有 _sysconfigdata*.py 全 sed, 去掉 2>/dev/null 让错误可见
-          HOSTSCDIR=$(env -u _PYTHON_SYSCONFIGDATA_NAME python3 -c 'import sysconfig, os; print(os.path.dirname(os.path.abspath(sysconfig.__file__)))')
-          echo ">>> HOSTSCDIR=$HOSTSCDIR"
-          cp "$HOSTSCDIR"/_sysconfigdata*.py /tmp/pyfix/
+          # fix3ba: sysconfig 在 3.14 是包(__file__ 在 .../sysconfig/__init__.py)→dirname 取到子目录, SC 在上一级
+          #         →改用 sys.prefix 拼 lib/pythonX.Y(标准位置, 不依赖 __file__ 形态)
+          HOSTLIB=$(env -u _PYTHON_SYSCONFIGDATA_NAME python3 -c 'import sys, os; print(os.path.join(sys.prefix, "lib", "python%d.%d" % sys.version_info[:2]))')
+          echo ">>> HOSTLIB=$HOSTLIB"
+          cp "$HOSTLIB"/_sysconfigdata*.py /tmp/pyfix/
           ls /tmp/pyfix/ | head -3
           sed -i '' 's/-framework Python//g' /tmp/pyfix/_sysconfigdata*.py
           grep -c "framework" /tmp/pyfix/_sysconfigdata*.py || echo ">>> host SC framework 已删干净"
