@@ -699,10 +699,13 @@ jobs:
             -DLLVM_ENABLE_LIBXML2=OFF -DLLVM_ENABLE_ZSTD=OFF
           ninja -C llvm-host llvm-tblgen
           echo ">>> host llvm-tblgen: $(ls llvm-host/bin/llvm-tblgen 2>/dev/null)"
-          # Step 2: cross (iOS arm64) —— host tblgen 显式传入, 只编 5 个单工具
           # fix3y→fix3z: CMAKE_SYSTEM_NAME=iOS 下 install(TARGETS) 强制 BUNDLE DESTINATION 校验
           #   (CMAKE_SKIP_INSTALL_RULES 不生效——configure 期校验) → 改 Generic + 手动交叉 flags:
           #   无 Apple 平台特性 → 无 BUNDLE 校验; 编译 flag 由 CFLAGS/LDFLAGS 提供(arch+isysroot+min-version)
+          # fix3ab: Generic 不设 UNIX → LLVM_ON_UNIX 未定义 → getSize/EnvPathSeparator 缺失
+          # fix3ad: AddLLVM.cmake:297 的 -Wl,--gc-sections 受 LLVM_GC_SECTIONS 控制(GNU ld 选项,
+          #         Apple ld 不认→'unknown options: --gc-sections' 链接失败)——显式关闭
+          # fix3ae: 注释行严禁夹在 \ 续行中间(# 吞掉后续参数行, 下个参数行成独立命令→exit 127)
           cmake -G Ninja -S llvm-src/llvm -B llvm-build \
             -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
             -DCMAKE_BUILD_TYPE=Release \
@@ -712,8 +715,6 @@ jobs:
             -DCMAKE_EXE_LINKER_FLAGS="-arch arm64 -isysroot $SDK -mios-version-min=15.0" \
             -DLLVM_TARGETS_TO_BUILD=AArch64 -DLLVM_ENABLE_PROJECTS="" \
             -DLLVM_BUILD_TOOLS=ON -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF \
-            # fix3ad: AddLLVM.cmake:297 的 -Wl,--gc-sections 受 LLVM_GC_SECTIONS 控制(GNU ld 选项,
-            #         Apple ld 不认→'unknown options: --gc-sections' 链接失败)——显式关闭
             -DLLVM_GC_SECTIONS=OFF \
             -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_UTILS=OFF \
             -DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_TERMINFO=OFF -DLLVM_ENABLE_LIBXML2=OFF \
