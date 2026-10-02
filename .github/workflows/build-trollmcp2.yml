@@ -617,6 +617,11 @@ jobs:
           print('LDSHARED =', sysconfig.get_config_var('LDSHARED'))
           print('LDFLAGS  =', sysconfig.get_config_var('LDFLAGS'))
           print('LIBS     =', sysconfig.get_config_var('LIBS'))
+          # fix3bg: framework 不在 LDSHARED(实测无 env 宿主 LDSHARED=clang -bundle... 无 framework)——
+          #         遍历所有键找出 framework 在哪(可能 -Wl,-framework,Python 或 LIBS/PY_LDFLAGS 逗号形式)
+          for k, v in sysconfig.get_config_vars().items():
+              if isinstance(v, str) and 'framework' in v.lower():
+                  print('>>> FW KEY:', k, '=', v[:160])
           "
           # fix3o: meson-python 0.19 打 iOS wheel tag 时若未设部署目标会调用 platform.ios_ver()
           # (macOS 上 release='' → int('') 崩)。官方设计: IPHONEOS_DEPLOYMENT_TARGET 覆盖版本解析。
@@ -658,7 +663,7 @@ jobs:
           sed -i "" "s|'Apple/iOS/Frameworks/arm64-iphoneos|'$PYIOS|g" "$SC"
           # fix3as: LDSHARED 以 -framework Python 开头(无前导空格), 之前 sed 只删带空格的→没删掉——
           #         全局删(含开头), 链接命令即去 framework(仅留 -F 搜索路径, 无害)
-          sed -i '' 's/-framework Python//g' "$SC"
+          sed -i '' 's/-framework Python//g; s/-Wl,-framework,Python//g; s/-framework Python.framework//g; s|-F /Library/Frameworks/Python.framework[^ ]*||g' "$SC"
           cp "$SC" "$PYIOS/lib-arm64/python3.14/_sysconfigdata__ios_arm64_iphoneos.py"
           # fix3at: 断言 LDSHARED 已无 framework(之前 sed 后仍残留, 失败立即暴露而非盲等 meson)
           grep -c "framework" "$SC" || echo ">>> SC framework 已删干净"
