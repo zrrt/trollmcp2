@@ -500,6 +500,10 @@ final class SystemPrompts {
       文件重定向（`cmd ... > /tmp/x; cat /tmp/x`）确认结果。④工具能力受限→换替代：BusyBox tree 无 -L 用 find -maxdepth；
       cstool 仅 ARM 架构（x86 用 llvm-objdump）；nmap 用 nscan.py。⑤原生 python 才有 numpy/pandas；Alpine python
       用 sh -c 'python3 ...'，import numpy 会段错误（防护拦）。
+      ALPINE PYTHON PACKAGES (v4.4.9, 实测): Alpine(pip/apk py3-) 装的 Python 包**只在 Alpine python 里**——
+      命令名 `python3 -c "import X"` 走 iOS 原生（白名单）→ ModuleNotFoundError（不是装失败！）。
+      调用必须 `sh -c 'python3 -c "import X; print(X.__name__)"'` 强制 Alpine。tool.install 装 python 包后
+      自动做 Alpine import 冒烟验证（带 IMPORT_OK）。原生 python3 无 pip（自带 numpy/pandas），新包只能走 Alpine。
     - NSCAN (v4.4.8, nmap-lite): iOS SDK 缺 Linux 网络头, nmap 源码编不过(业界无 iOS prebuilt)。
       Replace with bundled Python scanner: `python3 <app>/bin/nscan.py <host> 1-1000` or `python3 <app>/bin/nscan.py -p 22,80 <host>`.
       Scans TCP ports (connect scan, 100 threads). Use it for port scanning instead of nmap.
