@@ -92,6 +92,11 @@ if [ -d "Resources/bin" ]; then
             echo ">>> native $t bundled ($(du -h "$APP/bin/$t" | cut -f1))"
         fi
     done
+    # fix3bo: node C wrapper 的运行时库（nodejs-mobile NodeMobile dylib）同目录进包，@executable_path 相对定位
+    if [ -f "native-tools-out/NodeMobile.dylib" ]; then
+        cp "native-tools-out/NodeMobile.dylib" "$APP/bin/NodeMobile.dylib"
+        echo ">>> NodeMobile.dylib bundled"
+    fi
     # capstone 静态库（cstool 的引擎，未来 C 扩展/嵌入可链接）
     if [ -f "native-tools-out/libcapstone.a" ]; then
         cp "native-tools-out/libcapstone.a" "$APP/bin/libcapstone.a"
