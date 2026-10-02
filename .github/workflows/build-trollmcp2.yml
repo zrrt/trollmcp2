@@ -633,7 +633,7 @@ jobs:
         with:
           path: cpython/cross-build/dist
           # fix3g: save-always:false——编译失败不写缓存，防空产物毒化
-          key: python-ios-dist-3.14.8-v2
+          key: python-ios-dist-3.14.8-v3
           save-always: false
 
       - name: Build Python.xcframework (iOS arm64, official Apple build script)
@@ -659,18 +659,19 @@ jobs:
           ls "$SP" | head -8
           echo "pip bundled into $SP"
 
-      # fix3clc: 静态编译 libpython3.14.a（--disable-shared）——python3 CLI 静态链接，
-      # 彻底绕开 iOS 子进程 dyld 加载 Python.framework 的 SIGKILL（剥离方案已证伪回退）。
+      # fix3cld: 按源码 Apple/iOS/README.md——iOS 必须 --enable-framework（不支持非 framework 构建）；
+      # configure 对 --host=aarch64-apple-ios 自动选官方 wrapper（PATH 里的 arm64-apple-ios-clang），
+      # 不手动指定 CC。configure 默认也构建 libpython3.14.a，make 该 target 提取静态库。
       # 失败不阻塞（fallback：build-ipa.sh 回 framework 动态链接，包仍可装）。
       - name: Build static libpython3.14.a (iOS arm64, fallback-tolerant)
         if: steps.pycache.outputs.cache-hit != 'true'
         run: |
           set -x
           cd cpython
-          SDK=$(xcrun -sdk iphoneos --show-sdk-path)
           HOSTPY=$(which python3)
           echo ">>> HOSTPY=$HOSTPY"
-          ./configure --host=arm64-apple-ios --build=x86_64-apple-darwin             --with-build-python="$HOSTPY"             --disable-shared             --without-ensurepip --without-doc-strings             CC="xcrun -sdk iphoneos clang -arch arm64"             CFLAGS="-isysroot $SDK -miphoneos-version-min=13.0"             CPPFLAGS="-isysroot $SDK"             LDFLAGS="-isysroot $SDK"             ac_cv_file__dev_ptmx=no ac_cv_file__dev_ptc=no             ac_cv_func_faccessat2=yes ac_cv_func_fsync=yes             ac_cv_func_fdatasync=yes ac_cv_func_dup3=no             ac_cv_func_getrandom=yes ac_cv_header_libintl_h=no             ac_cv_lib_intl_textdomain=no ac_cv_lib_intl_bindtextdomain=no             ac_cv_lib_intl_gettext=no ac_cv_func_bind_textdomain_codeset=no || { echo "!!! configure FAILED (fallback: dynamic framework)"; exit 0; }
+          export PATH="$(pwd)/Apple/iOS/Resources/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin"
+          ./configure --enable-framework --host=aarch64-apple-ios --build=arm64-apple-darwin --with-build-python="$HOSTPY" --without-ensurepip --without-doc-strings ac_cv_file__dev_ptmx=no ac_cv_file__dev_ptc=no ac_cv_func_faccessat2=yes ac_cv_func_fsync=yes ac_cv_func_fdatasync=yes ac_cv_func_dup3=no ac_cv_func_getrandom=yes ac_cv_header_libintl_h=no ac_cv_lib_intl_textdomain=no ac_cv_lib_intl_bindtextdomain=no ac_cv_lib_intl_gettext=no ac_cv_func_bind_textdomain_codeset=no || { echo "!!! configure FAILED (fallback: dynamic framework)"; exit 0; }
           make -j4 libpython3.14.a 2>&1 | tail -5 || { echo "!!! make FAILED (fallback: dynamic framework)"; exit 0; }
           ls -la libpython3.14.a || exit 0
           mkdir -p cross-build/dist/static-lib
