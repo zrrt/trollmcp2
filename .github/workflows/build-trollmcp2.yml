@@ -201,6 +201,9 @@ jobs:
           #endif
           PTR
           # fix3ap: 预编译 libr_io.a 引用真 _ptrace(iOS libSystem 符号存在但头被删)——-U 允许 undefined
+          # fix3aq: io_zip.o 依赖 libzip(r2ios-sdk 未带, undefined _zip_*)——ar d 移除该插件成员
+          #         (r2 的分析/反汇编不依赖 zip IO; 插件架构其他 .o 不引用 r_io_zip_*)
+          xcrun --sdk iphoneos ar d "$LIB/libr_io.a" io_zip.o 2>/dev/null || ar d "$LIB/libr_io.a" io_zip.o 2>/dev/null || true
           xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" \
             -I/tmp/r2stub -I"$INC" /tmp/r2main.c \
             -Wl,-all_load -Wl,-dead_strip -Wl,-U,_ptrace $LIBS $CAP \
