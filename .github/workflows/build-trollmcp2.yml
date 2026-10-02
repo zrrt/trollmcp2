@@ -41,7 +41,8 @@ jobs:
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
           # iOS 无 system()（loslib.c os_execute 报 'system' unavailable）：
           # 编译前打补丁，os.execute 直接返回失败（iOS 本就不支持 shell 命令）
-          sed -i.bak 's/stat = system(cmd);/stat = -1; (void)cmd;/' src/loslib.c
+          # fix3z: lua 5.4.7 实际是 `int stat = system(cmd);`——只匹配 system(cmd); 本身
+          sed -i.bak 's/system(cmd);/-1; (void)cmd;/' src/loslib.c
           # fix3x: 去掉 || true 吞错——lua 必须编出, 失败即 job fail（用户要求全工具进包）
           make generic CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK -DLUA_USE_POSIX" || \
             make generic CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK"
@@ -543,6 +544,11 @@ jobs:
       - name: Build pandas iOS wheel (cp314 arm64 iphoneos, meson cross)
         run: |
           set -euo pipefail
+          # fix3z: PYIOS 是 numpy 步骤的局部变量, 本 step 是独立 shell——必须重新定义
+          #         (python-ios/ 已由 numpy 步骤解包+sysconfigdata hack+cross-file 就位)
+          XCF=$(find python-ios -type d -name "Python.xcframework" | head -1)
+          PYIOS="$(pwd)/$XCF/ios-arm64"
+          echo ">>> PYIOS=$PYIOS"
           # 1) 宿主构建依赖（env vars 前！）：Cython(编译 .pyx) + numpy(头文件)
           python -m pip install -q "Cython>3.1.0,<4" "numpy>=2.2,<3"
           pip download --no-deps --no-binary :all: pandas==3.0.6 -d wheel-src
@@ -595,11 +601,12 @@ jobs:
           cd /tmp/nmap-7.94
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
           CC="xcrun --sdk iphoneos clang -arch arm64 -isysroot $SDK -mios-version-min=15.0"
-          # fix3x: --without-pcap 不是有效参数（configure 解析为 pcap type "no" 报错）→ 改 --with-pcap=no;
-          #        去掉 exit 0 吞错——失败必须 job 失败（continue-on-error job 级, run 仍绿但产物缺失可见）
+          # fix3x: --without-pcap 不是有效参数（configure 解析为 pcap type "no" 报错）
+          # fix3z: --with-pcap=no 同样报 "no is not a valid pcap type"(7.94 强制 pcap) →
+          #        去掉 pcap 参数, 用默认(yes)让 configure 用交叉 CC 编自带 libpcap
           ./configure --host=aarch64-apple-darwin \
             --without-zenmap --without-ncat --without-ndiff --without-nping \
-            --without-openssl --without-liblua --with-pcap=no \
+            --without-openssl --without-liblua \
             CC="$CC" CXX="$CC" 2>&1 | tail -15
           make -j4 2>&1 | tail -15
           file nmap 2>/dev/null || true
@@ -658,10 +665,16 @@ jobs:
           ninja -C llvm-host llvm-tblgen
           echo ">>> host llvm-tblgen: $(ls llvm-host/bin/llvm-tblgen 2>/dev/null)"
           # Step 2: cross (iOS arm64) —— host tblgen 显式传入, 只编 5 个单工具
+          # fix3y→fix3z: CMAKE_SYSTEM_NAME=iOS 下 install(TARGETS) 强制 BUNDLE DESTINATION 校验
+          #   (CMAKE_SKIP_INSTALL_RULES 不生效——configure 期校验) → 改 Generic + 手动交叉 flags:
+          #   无 Apple 平台特性 → 无 BUNDLE 校验; 编译 flag 由 CFLAGS/LDFLAGS 提供(arch+isysroot+min-version)
           cmake -G Ninja -S llvm-src/llvm -B llvm-build \
-            -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT="$SDK" \
-            -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+            -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=$(xcrun --find clang) -DCMAKE_CXX_COMPILER=$(xcrun --find clang++) \
+            -DCMAKE_C_FLAGS="-arch arm64 -isysroot $SDK -mios-version-min=15.0" \
+            -DCMAKE_CXX_FLAGS="-arch arm64 -isysroot $SDK -mios-version-min=15.0" \
+            -DCMAKE_EXE_LINKER_FLAGS="-arch arm64 -isysroot $SDK -mios-version-min=15.0" \
             -DLLVM_TARGETS_TO_BUILD=AArch64 -DLLVM_ENABLE_PROJECTS="" \
             -DLLVM_BUILD_TOOLS=ON -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF \
             -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_UTILS=OFF \
@@ -669,8 +682,7 @@ jobs:
             -DLLVM_ENABLE_ZSTD=OFF -DLLVM_ENABLE_BACKTRACES=OFF -DLLVM_ENABLE_LLD=OFF \
             -DLLVM_BUILD_LLVM_DYLIB=OFF -DLLVM_LINK_LLVM_DYLIB=OFF \
             -DLLVM_TABLEGEN=$PWD/llvm-host/bin/llvm-tblgen \
-            -DLLVM_NATIVE_TOOL_DIR=$PWD/llvm-host/bin \
-            -DCMAKE_SKIP_INSTALL_RULES=ON
+            -DLLVM_NATIVE_TOOL_DIR=$PWD/llvm-host/bin
           ninja -C llvm-build llvm-objdump llvm-nm llvm-readelf llvm-size llvm-strings
           ls llvm-build/bin/ 2>/dev/null | head
 
