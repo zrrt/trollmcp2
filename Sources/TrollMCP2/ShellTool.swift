@@ -885,6 +885,7 @@ final class ShellExecTool: MCPTool {
         var stdoutChunks: [String] = []
         var lastExit = 0
         var anyIOS = false
+        var firstIOS = false
         
         for chain in chains {
             // && / || 短路：上一条链的 exit 决定本链是否执行
@@ -893,7 +894,6 @@ final class ShellExecTool: MCPTool {
             
             var text = ""
             var exit = 0
-            var firstIOS = false
             for (cidx, c) in chain.cmds.enumerated() {
                 var word = firstWord(c)
                 var (body, redirect0, append, outFile) = extractRedirect(c)

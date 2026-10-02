@@ -176,7 +176,7 @@ final class ToolInstallTool: MCPTool {
                     return (true, "冒烟验证 `\(name) \(flag)` OK（" + String(first.prefix(90)) + "）")
                 }
                 if exit == 0 && out.isEmpty {
-                    return (false, "冒烟 `\(name) \(flag)` exit 0 但无输出——stdout 缓冲/捕获问题，工具可能"装了但结果不可见"；调用后若空输出请用 `> /tmp/x; cat /tmp/x` 重定向验证")
+                    return (false, "冒烟 `\(name) \(flag)` exit 0 但无输出——stdout 缓冲/捕获问题，工具可能「装了但结果不可见」；调用后若空输出请用 `> /tmp/x; cat /tmp/x` 重定向验证")
                 }
             } catch { }
         }
