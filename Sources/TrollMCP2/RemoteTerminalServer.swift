@@ -201,7 +201,10 @@ final class RemoteTerminalServer {
         let path = req.path
 
         if path == "/health" {
-            sendResponse(client, status: 200, body: json(["ok": true, "service": "trollagent-remote-terminal", "version": appVersion()]))
+            // fix3ci: /health 返回 build（CFBundleVersion=git commit 短哈希）——AI 测试前一眼确认装机版本，
+            // 根治"凭二进制大小猜新旧包"的误判。
+            let build = (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String) ?? "unknown"
+            sendResponse(client, status: 200, body: json(["ok": true, "service": "trollagent-remote-terminal", "version": appVersion(), "build": build]))
             return
         }
         guard authOK else {

@@ -2087,11 +2087,20 @@ final class ShellExecTool: MCPTool {
                     "ios_native": true]
         }
         let body = command.dropFirst(name.count)
-        let args = shellSplitArgs(String(body))
+        var args = shellSplitArgs(String(body))
+        // fix3ch: node——NodeMobile 在移动端把 process.stdout/stderr 输出到 /dev/null（官方文档确认），
+        // console.log 在 V8 层丢弃，setvbuf 管不到。Swift 侧给 node -e 前置注入：process.stdout.write/
+        // stderr.write 重定向到 App tmp 文件，执行后读回附加到输出。
+        if name == "node", let i = args.firstIndex(where: { $0 == "-e" || $0 == "--eval" }), i + 1 < args.count {
+            let prelude = "const fs=require('fs');const _p=process.env.TMPDIR+'/troll_node_out.txt';" +
+                "process.stdout.write=(d,...a)=>{fs.writeFileSync(_p,String(d),{flag:'a'});};" +
+                "process.stderr.write=(d,...a)=>{fs.writeFileSync(_p,String(d),{flag:'a'});};"
+            args[i + 1] = prelude + args[i + 1]
+        }
         // r2 逆向分析可能耗时（大文件反汇编），给更长超时
         let tmo: TimeInterval = (name == "r2") ? 300 : 90
         let res = BuildRunner.shared.run(executable: binPath, args: args,
-                                         env: ["PYTHONIOENCODING": "utf-8"], timeout: tmo)
+                                         env: ["PYTHONIOENCODING": "utf-8", "TMPDIR": NSTemporaryDirectory()], timeout: tmo)
         var out = res.stdout
         if res.timedOut { out += "\n[\(name) 执行超时 \(tmo)s 被终止]" }
         if let serr = res.spawnError, !serr.isEmpty {
@@ -2101,6 +2110,14 @@ final class ShellExecTool: MCPTool {
         if name == "node", let d = try? String(contentsOfFile: "troll_node_diag.txt", encoding: .utf8), !d.isEmpty {
             out += "\n[node-diag]\n" + d
             try? FileManager.default.removeItem(atPath: "troll_node_diag.txt")
+        }
+        // fix3ch: node console.log 重定向文件读回（process.stdout 在移动端指向 /dev/null）
+        if name == "node", res.stdout.isEmpty, out.isEmpty {
+            let noutPath = NSTemporaryDirectory() + "troll_node_out.txt"
+            if let d = try? String(contentsOfFile: noutPath, encoding: .utf8), !d.isEmpty {
+                out = d
+                try? FileManager.default.removeItem(atPath: noutPath)
+            }
         }
         return ["command": command, "exit_code": res.exitCode, "stdout": out,
                 "stderr": res.stderr, "ios_native": true]
