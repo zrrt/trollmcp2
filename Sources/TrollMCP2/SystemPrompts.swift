@@ -500,6 +500,9 @@ final class SystemPrompts {
       文件重定向（`cmd ... > /tmp/x; cat /tmp/x`）确认结果。④工具能力受限→换替代：BusyBox tree 无 -L 用 find -maxdepth；
       cstool 仅 ARM 架构（x86 用 llvm-objdump）；nmap 用 nscan.py。⑤原生 python 才有 numpy/pandas；Alpine python
       用 sh -c 'python3 ...'，import numpy 会段错误（防护拦）。
+      JTOOL2 注意 (v4.4.9 实测): jtool2 -h 可能 exit 0 但无输出（iOS 缓冲滞留）——Mach-O 分析优先
+      llvm-objdump/llvm-nm/llvm-readelf/llvm-strings（LLVM 17 真机全通）；必须用 jtool2 且空输出时加
+      `> /tmp/x 2>&1; cat /tmp/x` 重定向验证。
       OUTPUT & TRUNCATION (v4.4.9): shell.exec 默认 limit=16000（覆盖多数分析输出）。若结果出现
       "…[输出太长 total N 字符，已截断；完整输出: <path>]…"——必须先读 <path> 的完整内容再分析，绝不基于
       截断片段下结论（片段判断=误判=降智）。逆向/分析类命令（objdump/llvm-objdump/r2/cstool/nm/strings/
