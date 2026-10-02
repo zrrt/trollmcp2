@@ -662,6 +662,9 @@ jobs:
           cp "$SC" "$PYIOS/lib-arm64/python3.14/_sysconfigdata__ios_arm64_iphoneos.py"
           # fix3at: 断言 LDSHARED 已无 framework(之前 sed 后仍残留, 失败立即暴露而非盲等 meson)
           grep -c "framework" "$SC" || echo ">>> SC framework 已删干净"
+          # fix3bf: HOSTPY 必须在 cross-file heredoc 展开前定义(set -u 否则 heredoc 内 $HOSTPY unbound 直接退出)
+          HOSTPY=$(which python3)
+          echo ">>> HOSTPY=$HOSTPY"
           # 3) meson cross 文件（xcrun SDK 工具链, arm64 真机）
           cat > ios-meson.ini <<INI
           [binaries]
@@ -696,9 +699,7 @@ jobs:
           #         -undefined dynamic_lookup: Python C API 符号动态解析(无 Python.framework 可链接)
           c_link_args = ['-Wl,-undefined,dynamic_lookup', '-mios-version-min=15.0']
           INI
-          # fix3be: HOSTPY=hostedtoolcache python3(可写), sed 其宿主 SC 删 -framework Python——meson 读它(宿主 SC 已干净)
-          HOSTPY=$(which python3)
-          echo ">>> HOSTPY=$HOSTPY"
+          # fix3be: sed hostedtoolcache 宿主 SC 删 -framework Python——meson 读它(宿主 SC 已干净)
           HSCLIB=$($HOSTPY -c 'import sys,os; print(os.path.join(sys.prefix,"lib","python%d.%d"%sys.version_info[:2]))')
           ls "$HSCLIB"/_sysconfigdata*.py
           sed -i '' 's/-framework Python//g' "$HSCLIB"/_sysconfigdata*.py
