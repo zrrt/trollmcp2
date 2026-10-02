@@ -893,10 +893,12 @@ final class ShellExecTool: MCPTool {
             
             var text = ""
             var exit = 0
+            var firstIOS = false
             for (cidx, c) in chain.cmds.enumerated() {
                 let word = firstWord(c)
                 let isIOSCmd = iosNativeCommands.contains(word)
                 if isIOSCmd { anyIOS = true }
+                if cidx == 0 && isIOSCmd { firstIOS = true }
                 let (body, redirect0, append, outFile) = extractRedirect(c)
                 // v4.3.13: base64 -d 带重定向时改为 var，特判后置 false 跳过文本重定向
                 var redirect = redirect0
@@ -964,10 +966,12 @@ final class ShellExecTool: MCPTool {
             "command": command,
             "exit_code": lastExit,
             "stdout": finalOut,
-            "ios_native": anyIOS,
-            "hint": anyIOS
+            "ios_native": firstIOS,
+            "hint": firstIOS
                 ? "iOS 原生复合命令：支持管道/分号/重定向 (Swift 过滤器 head/tail/grep/wc/sed/awk/sort/uniq/cut/tr/echo)"
-                : "复合命令 (含 Alpine 段)：管道/分号/重定向已正确解析"
+                : (anyIOS
+                    ? "首段走 Alpine 环境执行（链内含 iOS 原生过滤器 head/tail 等）；Alpine 工具（tree/jq 等）在 Alpine 环境正常"
+                    : "复合命令 (含 Alpine 段)：管道/分号/重定向已正确解析")
         ]
     }
     
