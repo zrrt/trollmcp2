@@ -601,21 +601,32 @@ jobs:
       - uses: actions/cache@v4
         id: llvm-cache
         with:
-          path: llvm-build
-          key: llvm-v1
+          path: |
+            llvm-build
+            llvm-host
+          key: llvm-v2
           save-always: false
 
       - name: Install ninja
         run: python3 -m pip install -q ninja 2>/dev/null || brew install ninja
 
-      - name: Build LLVM tools (iOS arm64, AArch64-only single tools)
+      - name: Build LLVM tools (iOS arm64, host tblgen + cross single tools)
         if: steps.llvm-cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
-          mkdir -p llvm-src llvm-build llvm-out
+          mkdir -p llvm-src llvm-host llvm-build llvm-out
           curl -sL -o /tmp/llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/llvm-project-17.0.6.src.tar.xz
           tar -xJf /tmp/llvm.tar.xz -C llvm-src --strip-components=1
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          # Step 1: host (macOS) 编译 llvm-tblgen —— LLVM cross 必须的 TableGen host 工具
+          cmake -G Ninja -S llvm-src/llvm -B llvm-host \
+            -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=AArch64 \
+            -DLLVM_BUILD_TOOLS=OFF -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF \
+            -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_TERMINFO=OFF \
+            -DLLVM_ENABLE_LIBXML2=OFF -DLLVM_ENABLE_ZSTD=OFF
+          ninja -C llvm-host llvm-tblgen
+          echo ">>> host llvm-tblgen: $(ls llvm-host/bin/llvm-tblgen 2>/dev/null)"
+          # Step 2: cross (iOS arm64) —— host tblgen 显式传入, 只编 5 个单工具
           cmake -G Ninja -S llvm-src/llvm -B llvm-build \
             -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT="$SDK" \
             -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
@@ -625,8 +636,10 @@ jobs:
             -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_UTILS=OFF \
             -DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_TERMINFO=OFF -DLLVM_ENABLE_LIBXML2=OFF \
             -DLLVM_ENABLE_ZSTD=OFF -DLLVM_ENABLE_BACKTRACES=OFF -DLLVM_ENABLE_LLD=OFF \
-            -DLLVM_BUILD_LLVM_DYLIB=OFF -DLLVM_LINK_LLVM_DYLIB=OFF 2>&1 | tail -5
-          ninja -C llvm-build llvm-objdump llvm-nm llvm-readelf llvm-size llvm-strings 2>&1 | tail -6
+            -DLLVM_BUILD_LLVM_DYLIB=OFF -DLLVM_LINK_LLVM_DYLIB=OFF \
+            -DLLVM_TABLEGEN=$PWD/llvm-host/bin/llvm-tblgen \
+            -DLLVM_NATIVE_TOOL_DIR=$PWD/llvm-host/bin
+          ninja -C llvm-build llvm-objdump llvm-nm llvm-readelf llvm-size llvm-strings
           ls llvm-build/bin/ 2>/dev/null | head
 
       - name: Copy LLVM tools to out (cache hit 也复制)
