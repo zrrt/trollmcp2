@@ -76,7 +76,8 @@ final class ToolInstallTool: MCPTool {
             }
             if apk.exitCode == 0 {
                 InstallationRegistry.shared.finish(ok: true, summary: "已装 \(pkg)")
-                let (ok, note) = smokeTest(name)
+                let isPy = pkg.hasPrefix("py3-") || Self.pythonHints.contains(name)
+                let (ok, note) = smokeTest(name, importMode: isPy)
                 return ["ok": true, "tool": name, "status": ok ? "installed" : "installed_unverified", "source": "alpine_apk", "package": pkg,
                         "hint": "已 apk add \(pkg)（" + note + "）。直接调用 `\(name) <参数>` 即可——shell.exec 会自动路由 Alpine 并 bind 直读 iOS 路径（如 \(name) /var/mobile/xxx 自动改 /ios_mobile/xxx）；缺依赖时首次调用会自动补齐。若冒烟异常：先 `\(name) --help` 看用法；仍无输出用文件重定向验证（`\(name) ... > /tmp/x; cat /tmp/x`）"]
             }
@@ -105,8 +106,9 @@ final class ToolInstallTool: MCPTool {
             }
             if pip.exitCode == 0 {
                 InstallationRegistry.shared.finish(ok: true, summary: "pip 已装 \(pipName)")
-                return ["ok": true, "tool": name, "status": "installed", "source": "pip",
-                        "hint": "已 pip install \(pipName)；iSH 上含 C 扩展的包较慢，优先用 apk 的 py3- 预编译版"]
+                let (ok, note) = smokeTest(pipName, importMode: true)
+                return ["ok": true, "tool": name, "status": ok ? "installed" : "installed_unverified", "source": "pip",
+                        "hint": "已 pip install \(pipName)（" + note + "）。调用必须 `sh -c 'python3 -c ...'` 强制 Alpine（命令名 python3 走原生看不到 Alpine 包）；iSH 上含 C 扩展的包较慢，优先用 apk 的 py3- 预编译版"]
             }
             InstallationRegistry.shared.finish(ok: false, summary: ISHEngine.installDiagnose(pip.output, timedOut: pip.timedOut, exitCode: pip.exitCode))
             lastApkErr = pip.output
@@ -145,7 +147,24 @@ final class ToolInstallTool: MCPTool {
     /// v4.4.9-fix3bv: 冒烟测试——命令名调用 --version/-v/--help/-h，验证 exit 0 且输出可见。
     /// 治"装了但不可用"：apk exit 0 但包没进当前环境（pandas 误报）、stdout 缓冲空输出（python3/r2）、
     /// 精简版缺参数（BusyBox tree -L）。返回 (ok, 可读说明)。
-    private func smokeTest(_ name: String) -> (ok: Bool, note: String) {
+    private func smokeTest(_ name: String, importMode: Bool = false) -> (ok: Bool, note: String) {
+        // python 包（pip/apk py3- 装的）：包只在 Alpine python 可见——命令名 python3 走 iOS 原生看不到
+        // （pandas 误报根源）→ sh -c 强制 Alpine + import 验证；import 成功打印 OK 供输出可见判断
+        if importMode {
+            let safe = name.replacingOccurrences(of: "[^A-Za-z0-9_.-]", with: "_", options: .regularExpression)
+            do {
+                let r = try ShellExecTool().invoke(["command": "sh -c 'python3 -c \"import \(safe); print(\"IMPORT_OK \" + \(safe).__name__)\"'", "timeout": 30])
+                let out = (r["stdout"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let exit = r["exit_code"] as? Int ?? 1
+                if exit == 0 && out.contains("IMPORT_OK") {
+                    return (true, "Alpine python 冒烟 `import \(safe)` OK（" + String(out.prefix(60)) + "）——注意：调用必须用 `sh -c 'python3 ...'` 强制 Alpine（命令名 python3 走原生看不到 Alpine 包）")
+                }
+                let errNote = out.isEmpty ? "无输出" : String(out.prefix(80))
+                return (false, "Alpine python `import \(safe)` 失败（exit \(exit)：" + errNote + "）——包可能没装进 Alpine python，或 C 扩展在 iSH 段错误（numpy/pandas 用原生 python，已内置）")
+            } catch {
+                return (false, "Alpine python `import \(safe)` 冒烟异常：\(error)")
+            }
+        }
         for flag in ["--version", "-v", "--help", "-h"] {
             do {
                 let r = try ShellExecTool().invoke(["command": "\(name) \(flag)", "timeout": 20])
