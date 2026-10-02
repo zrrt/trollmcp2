@@ -687,13 +687,8 @@ jobs:
           mkdir -p wheel-src
           curl -sL -o wheel-src/pandas-3.0.6.tar.gz https://files.pythonhosted.org/packages/source/p/pandas/pandas-3.0.6.tar.gz
           ls -la wheel-src/
-          # fix3ax: BSD tar 解压静默失败(exit 1 无输出)——换 python tarfile(跨平台稳, 失败有明确 traceback)
-          python3 - <<'PYEOF'
-import tarfile
-with tarfile.open('wheel-src/pandas-3.0.6.tar.gz', 'r:gz') as t:
-    t.extractall('wheel-src')
-print('>>> tarfile 解压成功')
-PYEOF
+          # fix3ax: BSD tar 解压静默失败(exit 1 无输出)——换 python tarfile 单行(跨平台稳, 失败有明确 traceback; heredoc 顶格破坏 YAML block 缩进, 故用 -c)
+          python3 -c "import tarfile; t=tarfile.open('wheel-src/pandas-3.0.6.tar.gz','r:gz'); t.extractall('wheel-src'); print('>>> tarfile 解压成功')"
           ls wheel-src/
           # 5) iOS 交叉环境（与 numpy 步骤一致）
           export PATH="$PYIOS/bin:$PATH"
