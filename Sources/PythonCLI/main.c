@@ -15,13 +15,17 @@
 // Swift 侧自动读回附加到输出，AI 直接看到无需手动 cat。
 // fix3ck: 实测 fd 1/2 层彻底无效（os.write(1) 也丢），且 /tmp 与相对 cwd 的 diag 均未被 Swift 读到——
 // 改为优先写 Swift 传的 TROLL_PY_DIAG（App Documents，沙盒一定可写），Swift 读同一绝对路径。
+// fix3cl: 再兜底写 App 工作区 Workspace（/var/mobile/Documents/Workspace，App 数据容器一定可写可读）——
+// 四通道（env 指定 / Workspace / /tmp / cwd），Swift 端逐一读回，总有一个能到。
 static void diag(const char *msg) {
     const char *envd = getenv("TROLL_PY_DIAG");
     if (envd && envd[0]) {
         FILE *f = fopen(envd, "a");
         if (f) { fprintf(f, "%s\n", msg); fclose(f); }
     }
-    FILE *f = fopen("/tmp/troll_py_diag.txt", "a");
+    FILE *f = fopen("/var/mobile/Documents/Workspace/troll_py_diag.txt", "a");
+    if (f) { fprintf(f, "%s\n", msg); fclose(f); }
+    f = fopen("/tmp/troll_py_diag.txt", "a");
     if (f) { fprintf(f, "%s\n", msg); fclose(f); }
     f = fopen("troll_py_diag.txt", "a");
     if (f) { fprintf(f, "%s\n", msg); fclose(f); }
@@ -132,7 +136,7 @@ int main(int argc, char **argv) {
     // 保留 os.write 标记仅作诊断（TROLL_PY_DIAG 一定能读到，用于确认 main 是否真的执行）。
     int bind_rc = PyRun_SimpleString(
         "import sys, os\n"
-        "_d = os.environ.get('TROLL_PY_OUT', '')\n"
+        "_d = os.environ.get('TROLL_PY_OUT', '') or '/var/mobile/Documents/Workspace/troll_py_out.txt'\n"
         "if _d:\n"
         "    _f = open(_d, 'w', encoding='utf-8', errors='replace')\n"
         "    sys.stdout = _f\n"

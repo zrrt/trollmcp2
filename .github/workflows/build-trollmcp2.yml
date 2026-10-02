@@ -209,6 +209,9 @@ jobs:
           #include <r_core.h>
           #include <string.h>
           #include <stdio.h>
+          // fix3cl: dyld flat namespace 找不到 java 插件全局操作表符号（libr_*.a 引用 _JAVA_OPS）——
+          // 真机 stderr 报 symbol not found，可能拦在 main 之前导致输出全空。提供 stub 让链接/加载通过。
+          int _JAVA_OPS = 0;
           // fix3ch: -v/-h 输出后必须 fflush——iOS 无 tty stdout 全缓冲，不刷输出滞留→AI 看到空结果
           // fix3ck: 真机实测 r2 全部输出丢失(exit 0 空, -c 也空)——r_core 静态库的全局构造器
           //         会把进程 stdout 重定向掉，fputs(stdout)+fflush 全无效。改为输出写

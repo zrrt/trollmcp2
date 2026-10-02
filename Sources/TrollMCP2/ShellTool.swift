@@ -2072,11 +2072,12 @@ final class ShellExecTool: MCPTool {
         let body = command.dropFirst("python3".count)
         let args = shellSplitArgs(String(body))
         // fix3ck: iOS CPython 无 tty 时 fd 1/2 不可靠（os.write(1) 也丢），main.c 已改为把
-        // sys.stdout/stderr 重定向到 TROLL_PY_OUT 文件（App Documents，沙盒一定可写）。
-        // Swift 侧传绝对路径 + 执行后读回，与 node 的 stdout 重定向同一思路。
-        let docsPath = NSHomeDirectory() + "/Documents"
-        let pyOutPath = docsPath + "/troll_py_out.txt"
-        let pyDiagPath = docsPath + "/troll_py_diag.txt"
+        // sys.stdout/stderr 重定向到 TROLL_PY_OUT 文件。fix3cl: 用 Workspace 绝对路径
+        // （App 数据容器一定可写可读），Documents//tmp/cwd 兜底——多通道总有一个能到。
+        let wsBase = "/var/mobile/Documents/Workspace"
+        let docsBase = NSHomeDirectory() + "/Documents"
+        let pyOutPath = wsBase + "/troll_py_out.txt"
+        let pyDiagPath = wsBase + "/troll_py_diag.txt"
         try? FileManager.default.removeItem(atPath: pyOutPath)
         try? FileManager.default.removeItem(atPath: pyDiagPath)
         let res = BuildRunner.shared.run(executable: pythonPath, args: args,
@@ -2088,12 +2089,13 @@ final class ShellExecTool: MCPTool {
         if let serr = res.spawnError, !serr.isEmpty {
             out += "\n[spawn error: \(serr)]"
         }
-        // fix3ck: 读回文件重定向的输出 + 诊断（Documents 绝对路径——沙盒一定可写可读）
+        // fix3ck/fix3cl: 读回文件重定向的输出 + 诊断（Workspace 优先，Documents//tmp/cwd 兜底）
         if res.stdout.isEmpty, let d = try? String(contentsOfFile: pyOutPath, encoding: .utf8), !d.isEmpty {
             out += d
+        } else if res.stdout.isEmpty, let d = try? String(contentsOfFile: docsBase + "/troll_py_out.txt", encoding: .utf8), !d.isEmpty {
+            out += d
         }
-        // fix3ch/fix3ck: 自动读回 python3 诊断文件（Documents 优先 + /tmp + 相对 cwd 兜底）
-        for dpath in [pyDiagPath, "/tmp/troll_py_diag.txt", "troll_py_diag.txt"] {
+        for dpath in [pyDiagPath, docsBase + "/troll_py_diag.txt", "/tmp/troll_py_diag.txt", "troll_py_diag.txt"] {
             if let d = try? String(contentsOfFile: dpath, encoding: .utf8), !d.isEmpty {
                 out += "\n[py-diag]\n" + d
                 try? FileManager.default.removeItem(atPath: dpath)
@@ -2101,6 +2103,7 @@ final class ShellExecTool: MCPTool {
             }
         }
         try? FileManager.default.removeItem(atPath: pyOutPath)
+        try? FileManager.default.removeItem(atPath: docsBase + "/troll_py_out.txt")
         return ["command": command, "exit_code": res.exitCode, "stdout": out,
                 "stderr": res.stderr, "ios_native": true]
     }
@@ -2141,10 +2144,15 @@ final class ShellExecTool: MCPTool {
         if let serr = res.spawnError, !serr.isEmpty {
             out += "\n[spawn error: \(serr)]"
         }
-        // fix3ck: r2 读回文件输出（stdout 被 r_core 构造器重定向吞掉，文件是唯一通道）
-        if name == "r2", let d = try? String(contentsOfFile: r2OutPath, encoding: .utf8), !d.isEmpty {
-            out += d
-            try? FileManager.default.removeItem(atPath: r2OutPath)
+        // fix3ck/fix3cl: r2 读回文件输出（Workspace 优先，Documents 兜底——stdout 被 r_core 构造器吞，文件是唯一通道）
+        if name == "r2" {
+            if let d = try? String(contentsOfFile: r2OutPath, encoding: .utf8), !d.isEmpty {
+                out += d
+                try? FileManager.default.removeItem(atPath: r2OutPath)
+            } else if let d = try? String(contentsOfFile: NSHomeDirectory() + "/Documents/troll_r2_out.txt", encoding: .utf8), !d.isEmpty {
+                out += d
+                try? FileManager.default.removeItem(atPath: NSHomeDirectory() + "/Documents/troll_r2_out.txt")
+            }
         }
         // fix3ck: node 无 -e（--version/script 模式）——V8 层输出仍被 /dev/null 吞（prelude 只对 -e 生效），
         // 明确提示 AI 改用 -e 模式，避免"装完不能用"的盲猜循环

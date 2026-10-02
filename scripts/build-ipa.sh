@@ -92,10 +92,13 @@ if [ -d "Resources/bin" ]; then
             echo ">>> native $t bundled ($(du -h "$APP/bin/$t" | cut -f1))"
         fi
     done
-    # fix3bo: node C wrapper 的运行时库（nodejs-mobile NodeMobile dylib）同目录进包，@executable_path 相对定位
+    # fix3bo/fix3cl: node C wrapper 的运行时库（NodeMobile dylib）——install name 是
+    # @rpath/NodeMobile.framework/NodeMobile，必须按 framework 目录结构放进 App/Frameworks/，
+    # 放 bin/ 会让 dyld 按 @rpath 找 Frameworks/NodeMobile.framework 时 Library not loaded。
     if [ -f "native-tools-out/NodeMobile.dylib" ]; then
-        cp "native-tools-out/NodeMobile.dylib" "$APP/bin/NodeMobile.dylib"
-        echo ">>> NodeMobile.dylib bundled"
+        mkdir -p "$APP/Frameworks/NodeMobile.framework"
+        cp "native-tools-out/NodeMobile.dylib" "$APP/Frameworks/NodeMobile.framework/NodeMobile"
+        echo ">>> NodeMobile.framework/NodeMobile bundled (install name @rpath/NodeMobile.framework/NodeMobile)"
     fi
     # capstone 静态库（cstool 的引擎，未来 C 扩展/嵌入可链接）
     if [ -f "native-tools-out/libcapstone.a" ]; then
