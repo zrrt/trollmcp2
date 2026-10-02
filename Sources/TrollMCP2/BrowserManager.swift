@@ -147,15 +147,33 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
         // v4.3.65：媒体渲染优化（参考 reynard-browser）——视频内联播放，自动化点击/填表不被全屏打断
         config.allowsInlineMediaPlayback = true
         config.allowsPictureInPictureMediaPlayback = true
+        // fix3cl7：现代网页(SPA/JS 框架)兼容补强——
+        // ① 显式开启 JS（默认开，显式设防降级）
+        // ② 允许 JS 自动开新窗口/弹窗（SPA 登录/跳转常见）
+        // ③ 自动播放媒体无需用户手势（视频站/轮播不卡）
+        // ④ 不限制 App 绑定域（显式防误配）
+        if #available(iOS 14.0, *) {
+            let prefs = WKWebpagePreferences()
+            prefs.allowsContentJavaScript = true
+            config.defaultWebpagePreferences = prefs
+        }
+        config.preferences.javaScriptCanOpenWindowsAutomatically = true
+        config.mediaTypesRequiringUserActionForPlayback = []
+        config.limitsNavigationsToAppBoundDomains = false
         let wv = WKWebView(frame: .zero, configuration: config)
         wv.navigationDelegate = self
         wv.allowsBackForwardNavigationGestures = true
-        // v2.9.98：UA 伪装成普通 iPhone Safari，减少被站点识别为应用内嵌/自动化浏览器
-        let ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Mobile/15E148 Safari/604.1"
+        // fix3cl7: UA 升级——旧 iOS 16.3 UA 是 2022 年的，2026 年现代网站(SPA 框架特性检测/
+        // Cloudflare/新版站点)会识别为过时浏览器而拒绝/降级 JS 渲染。改用 iOS 18.5 主流 UA。
+        let ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1"
         wv.customUserAgent = ua
         // v2.9.98：隐藏自动化特征（webdriver），降低被检测为 AI/机器人控制的概率
+        // fix3cl7：同时注入 window.onerror 捕获——SPA 白屏时把 JS 错误记到 window.__trollJsErrors，getText 诊断输出
         if let ucc = wv.configuration.userContentController as WKUserContentController? {
-            let script = WKUserScript(source: "Object.defineProperty(navigator,'webdriver',{get:()=>undefined});",
+            let script = WKUserScript(source: """
+            Object.defineProperty(navigator,'webdriver',{get:()=>undefined});
+            (function(){window.__trollJsErrors=[];window.addEventListener('error',function(e){window.__trollJsErrors.push((e.message||'')+' @ '+(e.filename||'').split('/').pop()+':'+(e.lineno||''));if(window.__trollJsErrors.length>20)window.__trollJsErrors.shift();});})();
+            """,
                                       injectionTime: .atDocumentStart, forMainFrameOnly: false)
             ucc.addUserScript(script)
         }
@@ -398,13 +416,37 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
         guard ensureWebView() else { return errInit() }
         FloatingBrowser.shared.show()
         beginAction("提取页面正文…")
+        // fix3cl7: SPA 渲染等待——现代网页 JS 框架(React/Vue/Next)加载后 body 一开始是空的，
+        // 立即抓内文会得到空页(用户反馈"很多网页加载不出来")。轮询等待 body 有内容或稳定，
+        // 最多等 8s（每 500ms 一次）；空页时输出 JS 诊断而非裸空串。
+        var text = ""
+        let probeLen = { self.evalSync("(document.body&&document.body.innerText||'').length", timeout: 3) }
+        var lastLen = Int(probeLen()) ?? 0
+        var stable = 0
+        let deadline = Date().addingTimeInterval(8)
+        while Date() < deadline && stable < 2 {
+            if lastLen > 0 {
+                // 有内容后再等一轮确认稳定（防首帧骨架屏）
+                Thread.sleep(forTimeInterval: 0.6)
+                let nowLen = Int(probeLen()) ?? 0
+                if nowLen == lastLen || nowLen > 0 { stable += 1; lastLen = nowLen } else { lastLen = nowLen; stable = 0 }
+            } else {
+                Thread.sleep(forTimeInterval: 0.5)
+                lastLen = Int(probeLen()) ?? 0
+            }
+        }
+        if lastLen == 0 {
+            // 空页诊断——输出 readyState/脚本数/JS 错误/URL，帮助判断是"没渲染完"还是"JS 报错"
+            let diag = evalSync("(function(){var e=[];e.push('readyState='+document.readyState);e.push('scripts='+document.scripts.length);e.push('url='+location.href);if(window.__trollJsErrors)e.push('jsErrors='+window.__trollJsErrors.slice(-3).join('|'));return e.join('\\n');})()", timeout: 5)
+            if !diag.hasPrefix("ERR") { text = "[页面空内容诊断] " + diag }
+        }
         let js = """
         (function(){
           var t=(document.body&&document.body.innerText||'').replace(/\\s+\\n/g,'\\n').replace(/\\n{3,}/g,'\\n\\n').trim();
           return t;
         })();
         """
-        var text = evalSync(js, timeout: 10)
+        if text.isEmpty { text = evalSync(js, timeout: 10) }
         if text.hasPrefix("ERR:") { endAction(); return text }
         if let q = query, !q.isEmpty {
             // 找关键词附近上下文：前后各 400 字符

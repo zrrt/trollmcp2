@@ -110,6 +110,23 @@ final class WebSearchTool: MCPTool {
         let queries: [String]
         if let qs = params["queries"] as? [String], !qs.isEmpty {
             queries = qs.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        } else if let qstr = params["queries"] as? String, !qstr.isEmpty {
+            // fix3cl6: 容错——第三方客户端(Botcf 等)可能把数组序列化成字符串("[\"a\",\"b\"]" 或 "a,b")，
+            // as? [String] 失败会误报 "query or queries required"。手动解析字符串数组形态。
+            var parts: [String] = []
+            let t = qstr.trimmingCharacters(in: .whitespacesAndNewlines)
+            if t.hasPrefix("[") && t.hasSuffix("]") {
+                let inner = String(t.dropFirst().dropLast())
+                for it in inner.components(separatedBy: ",") {
+                    let s = it.trimmingCharacters(in: .whitespacesAndNewlines)
+                        .replacingOccurrences(of: "\"", with: "")
+                        .replacingOccurrences(of: "'", with: "")
+                    if !s.isEmpty { parts.append(s) }
+                }
+            } else {
+                parts = t.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            }
+            queries = parts
         } else if let q = params["query"] as? String, !q.isEmpty {
             queries = [q.trimmingCharacters(in: .whitespacesAndNewlines)]
         } else {
