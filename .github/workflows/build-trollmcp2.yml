@@ -590,11 +590,15 @@ jobs:
           # fix3au: meson 的 python 模块可能读宿主 SC(交叉 SC sed 影响不到 LDSHARED 的 framework)——双保险:
           #          sed 宿主 SC 副本放 PYTHONPATH(无论读哪个 SC, -framework Python 都删干净)
           mkdir -p /tmp/pyfix
-          HOSTSCNAME=$(env -u _PYTHON_SYSCONFIGDATA_NAME python3 -c 'import sysconfig; print(sysconfig._get_sysconfigdata_name())')
+          # fix3az: 宿主 SC 文件名不猜(3.14 可能是 _sysconfigdata_darwin_darwin 或 _sysconfigdata__macosx_*)
+          #         原 cp $HOSTSCNAME.py 2>/dev/null 静默失败→set -e exit 1 无输出(首次执行实锤)
+          #         →glob 宿主 lib 下所有 _sysconfigdata*.py 全 sed, 去掉 2>/dev/null 让错误可见
           HOSTSCDIR=$(env -u _PYTHON_SYSCONFIGDATA_NAME python3 -c 'import sysconfig, os; print(os.path.dirname(os.path.abspath(sysconfig.__file__)))')
-          cp "$HOSTSCDIR/$HOSTSCNAME.py" /tmp/pyfix/ 2>/dev/null
-          sed -i '' 's/-framework Python//g' /tmp/pyfix/$HOSTSCNAME.py
-          grep -c "framework" /tmp/pyfix/$HOSTSCNAME.py || echo ">>> host SC framework 已删干净"
+          echo ">>> HOSTSCDIR=$HOSTSCDIR"
+          cp "$HOSTSCDIR"/_sysconfigdata*.py /tmp/pyfix/
+          ls /tmp/pyfix/ | head -3
+          sed -i '' 's/-framework Python//g' /tmp/pyfix/_sysconfigdata*.py
+          grep -c "framework" /tmp/pyfix/_sysconfigdata*.py || echo ">>> host SC framework 已删干净"
           export PYTHONPATH="/tmp/pyfix:$PYIOS/lib-arm64/python3.14${PYTHONPATH:+:$PYTHONPATH}"
           # fix3l: meson-python 0.19 检测到 cross 会自动生成 cross-file 并用 PEP 730 官方编译器
           # arm64-apple-ios-clang(在 XCFramework ios-arm64/bin/ 里)——必须加进 PATH
@@ -697,11 +701,15 @@ jobs:
           # fix3au: meson 的 python 模块可能读宿主 SC(交叉 SC sed 影响不到 LDSHARED 的 framework)——双保险:
           #          sed 宿主 SC 副本放 PYTHONPATH(无论读哪个 SC, -framework Python 都删干净)
           mkdir -p /tmp/pyfix
-          HOSTSCNAME=$(env -u _PYTHON_SYSCONFIGDATA_NAME python3 -c 'import sysconfig; print(sysconfig._get_sysconfigdata_name())')
+          # fix3az: 宿主 SC 文件名不猜(3.14 可能是 _sysconfigdata_darwin_darwin 或 _sysconfigdata__macosx_*)
+          #         原 cp $HOSTSCNAME.py 2>/dev/null 静默失败→set -e exit 1 无输出(首次执行实锤)
+          #         →glob 宿主 lib 下所有 _sysconfigdata*.py 全 sed, 去掉 2>/dev/null 让错误可见
           HOSTSCDIR=$(env -u _PYTHON_SYSCONFIGDATA_NAME python3 -c 'import sysconfig, os; print(os.path.dirname(os.path.abspath(sysconfig.__file__)))')
-          cp "$HOSTSCDIR/$HOSTSCNAME.py" /tmp/pyfix/ 2>/dev/null
-          sed -i '' 's/-framework Python//g' /tmp/pyfix/$HOSTSCNAME.py
-          grep -c "framework" /tmp/pyfix/$HOSTSCNAME.py || echo ">>> host SC framework 已删干净"
+          echo ">>> HOSTSCDIR=$HOSTSCDIR"
+          cp "$HOSTSCDIR"/_sysconfigdata*.py /tmp/pyfix/
+          ls /tmp/pyfix/ | head -3
+          sed -i '' 's/-framework Python//g' /tmp/pyfix/_sysconfigdata*.py
+          grep -c "framework" /tmp/pyfix/_sysconfigdata*.py || echo ">>> host SC framework 已删干净"
           export PYTHONPATH="/tmp/pyfix:$PYIOS/lib-arm64/python3.14${PYTHONPATH:+:$PYTHONPATH}"
           export IPHONEOS_DEPLOYMENT_TARGET=15.0
           # 6) 断言 sysconfigdata 生效（环境自证, 失败立即暴露而非盲等 meson）
