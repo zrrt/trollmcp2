@@ -26,7 +26,9 @@ jobs:
           path: native-tools-out
           # v3: 修复 lua(system() iOS 不可用)/r2(缺 capstone) 后强制重构建（v2 缓存只含 node）
           # fix3g: save-always:false——构建失败不写缓存，防空产物毒化
-          key: native-tools-v3
+          # fix3x: v4——实测 v3 缓存只含 node(lua/capstone/r2 步骤曾被 || true 吞错→空产物进缓存→永久命中跳过编译)；
+          #        全面严格化(去掉吞错)后 bump key 强制全量重编一次, 新缓存含全工具
+          key: native-tools-v4
           save-always: false
 
       - name: Build lua 5.4 (iOS arm64)
@@ -40,13 +42,16 @@ jobs:
           # iOS 无 system()（loslib.c os_execute 报 'system' unavailable）：
           # 编译前打补丁，os.execute 直接返回失败（iOS 本就不支持 shell 命令）
           sed -i.bak 's/stat = system(cmd);/stat = -1; (void)cmd;/' src/loslib.c
+          # fix3x: 去掉 || true 吞错——lua 必须编出, 失败即 job fail（用户要求全工具进包）
           make generic CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK -DLUA_USE_POSIX" || \
-            make generic CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK" || true
+            make generic CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK"
           if [ -f src/lua ]; then
             cp src/lua "$GITHUB_WORKSPACE/native-tools-out/lua"
             chmod +x "$GITHUB_WORKSPACE/native-tools-out/lua"
+            echo ">>> lua built"
           else
             echo "!!! lua build failed" >&2
+            exit 1
           fi
 
       # v4.4.5: nodejs（nodejs-mobile iOS 预编译）——提取 arm64 Mach-O 可执行
@@ -84,11 +89,14 @@ jobs:
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
           make CAPSTONE_ARCHS="aarch64 arm x86" CAPSTONE_DIET=no \
             CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK" \
-            AR="xcrun -sdk iphoneos ar" RANLIB="xcrun -sdk iphoneos ranlib" || \
-            { echo "!!! capstone build failed" >&2; exit 0; }
+            AR="xcrun -sdk iphoneos ar" RANLIB="xcrun -sdk iphoneos ranlib"
+          # fix3x: 去掉 exit 0 吞错——capstone 失败即 job fail
           if [ -f libcapstone.a ]; then
             cp libcapstone.a "$GITHUB_WORKSPACE/native-tools-out/libcapstone.a"
             echo ">>> capstone lib built ($(du -h libcapstone.a | cut -f1))"
+          else
+            echo "!!! capstone build failed" >&2
+            exit 1
           fi
           if [ -f cstool ]; then
             cp cstool "$GITHUB_WORKSPACE/native-tools-out/cstool"
@@ -120,13 +128,15 @@ jobs:
             -I"$INC" /tmp/r2main.c \
             -Wl,-start-group $LIBS -Wl,-end-group $CAP \
             -o "$GITHUB_WORKSPACE/native-tools-out/r2" \
-            -lz -liconv -lresolv -framework Foundation 2>&1 | tail -15 || true
+            -lz -liconv -lresolv -framework Foundation 2>&1 | tail -15
+          # fix3x: 去掉 || true 吞错——r2 必须编出（用户要求全工具）
           if [ -f "$GITHUB_WORKSPACE/native-tools-out/r2" ]; then
             chmod +x "$GITHUB_WORKSPACE/native-tools-out/r2"
             file "$GITHUB_WORKSPACE/native-tools-out/r2"
             echo ">>> r2 CLI built"
           else
-            echo "!!! r2 link failed (libr.a 依赖可能缺 capstone 等) — skipped, 可用自研 objdump/nm/class-dump" >&2
+            echo "!!! r2 link failed (libr.a 依赖可能缺 capstone 等)" >&2
+            exit 1
           fi
 
       - name: List native tools
@@ -333,6 +343,24 @@ jobs:
           ls -la python-ios/ 2>/dev/null | head -5 || true
           bash scripts/build-ipa.sh
 
+      # v4.4.8-fix3x: 进包断言——实测发现 job 绿但工具缺失（缓存劫持/吞错），
+      # 这里逐项列出实际进包情况，build 日志可查、可审计。
+      - name: Verify bundled tools in tipa
+        run: |
+          APP="$GITHUB_WORKSPACE/build/TrollAgent.app"
+          [ -d "$APP" ] || APP=$(find "$GITHUB_WORKSPACE" -maxdepth 3 -name "*.app" -type d 2>/dev/null | head -1)
+          echo "APP: $APP"
+          echo "=== bin/ 工具断言 ==="
+          for t in lua node r2 cstool nmap llvm-objdump llvm-nm llvm-readelf jtool2 objdump class-dump ldid optool; do
+            if [ -f "$APP/bin/$t" ]; then echo "IN   : $t"; else echo "MISSING: $t"; fi
+          done
+          echo "=== site-packages 断言 ==="
+          SP=$(find "$APP" -type d -name site-packages 2>/dev/null | head -1)
+          echo "site-packages: $SP"
+          ls "$SP" 2>/dev/null | head -10
+          for p in numpy pandas; do
+            if ls "$SP" 2>/dev/null | grep -q "^$p"; then echo "IN   : $p"; else echo "MISSING: $p"; fi
+          done
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -510,8 +538,9 @@ jobs:
       # 宿主装 Cython+numpy 供头文件（cross 标准法，arm64 host 与 iOS arm64 类型一致）；
       # 注意顺序（fix3k 教训）：宿主 pip install 必须在 iOS env vars 之前——_PYTHON_HOST_PLATFORM
       # 会劫持 pip 平台判断（以为在 iOS 上跑→没有 macOS wheel→装失败）。
+      # fix3x: 去掉 if 缓存条件——此前绑定 numpy 缓存, 缓存命中时 pandas 步骤被跳过(假进包)；
+      #        现在无条件每次编译（约 3-5min），保证 pandas wheel 每次都产出并上传。
       - name: Build pandas iOS wheel (cp314 arm64 iphoneos, meson cross)
-        if: steps.wheels-cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
           # 1) 宿主构建依赖（env vars 前！）：Cython(编译 .pyx) + numpy(头文件)
@@ -566,19 +595,21 @@ jobs:
           cd /tmp/nmap-7.94
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
           CC="xcrun --sdk iphoneos clang -arch arm64 -isysroot $SDK -mios-version-min=15.0"
+          # fix3x: --without-pcap 不是有效参数（configure 解析为 pcap type "no" 报错）→ 改 --with-pcap=no;
+          #        去掉 exit 0 吞错——失败必须 job 失败（continue-on-error job 级, run 仍绿但产物缺失可见）
           ./configure --host=aarch64-apple-darwin \
             --without-zenmap --without-ncat --without-ndiff --without-nping \
-            --without-openssl --without-liblua --without-pcap \
-            CC="$CC" CXX="$CC" 2>&1 | tail -8 || { echo "!!! nmap configure failed — skipped"; exit 0; }
-          make -j4 2>&1 | tail -12 || { echo "!!! nmap make failed — skipped"; exit 0; }
+            --without-openssl --without-liblua --with-pcap=no \
+            CC="$CC" CXX="$CC" 2>&1 | tail -15
+          make -j4 2>&1 | tail -15
           file nmap 2>/dev/null || true
           if [ -f nmap ]; then
             cp nmap "$GITHUB_WORKSPACE/nmap-out/nmap"
             chmod +x "$GITHUB_WORKSPACE/nmap-out/nmap"
             echo ">>> nmap built"
           else
-            echo "!!! nmap binary missing — skipped"
-            exit 0
+            echo "!!! nmap binary missing after make — job will fail"
+            exit 1
           fi
 
       - name: Upload nmap
