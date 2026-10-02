@@ -742,7 +742,9 @@ final class ShellExecTool: MCPTool {
         "sha256sum", "diff", "hexdump", "curl", "wget", "plutil", "sqlite3",
         "unzip", "df", "free", "uname", "uptime", "hostname", "ps", "top",
         "kill", "ifconfig", "netstat", "nslookup", "tar", "gzip", "gunzip",
-        "ta", "base64", "strings", "nm", "kfd_diag", "python3", "objdump", "class-dump"
+        "ta", "base64", "strings", "nm", "kfd_diag", "python3", "objdump", "class-dump",
+        // fix3q: 内置原生工具链（native-tools 交叉编译进 App bin/）——AI 直接调用走原生 ARM64
+        "lua", "node", "r2", "cstool"
     ]
     
     /// v4.3.9: 反向路径翻译——iOS 原生命令收到 Alpine 挂载路径时翻译回 iOS 真实路径。
@@ -816,6 +818,8 @@ final class ShellExecTool: MCPTool {
         case "class-dump": return runIOSClassDump(iosCmd)
         case "python3": return runIOSPython3(iosCmd)
         case "kfd_diag": return runIOSKfdDiag(iosCmd)
+        // fix3q: 内置原生工具链（CI native-tools 交叉编译进 bin/）——AI 直接调用即走原生 ARM64
+        case "lua", "node", "r2", "cstool": return runIOSBundled(word, iosCmd)
         case "ta": return OffloadRouter.run(trimmed)
         default:
             return [
@@ -2009,6 +2013,30 @@ final class ShellExecTool: MCPTool {
                                          env: ["PYTHONIOENCODING": "utf-8"], timeout: 120)
         var out = res.stdout
         if res.timedOut { out += "\n[python3 执行超时 120s 被终止]" }
+        if let serr = res.spawnError, !serr.isEmpty {
+            out += "\n[spawn error: \(serr)]"
+        }
+        return ["command": command, "exit_code": res.exitCode, "stdout": out,
+                "stderr": res.stderr, "ios_native": true]
+    }
+
+    /// fix3q: 内置原生工具链通用执行——lua/node/r2/cstool（native-tools 交叉编译进 App bin/）。
+    /// 直接探测 Bundle bin/<name>（TSRootBinaries 注册），不存在则明确提示改用 Alpine 或 tool.install。
+    private static func runIOSBundled(_ name: String, _ command: String) -> [String: Any] {
+        let binPath = Bundle.main.bundlePath + "/bin/" + name
+        guard FileManager.default.isExecutableFile(atPath: binPath) else {
+            return ["command": command, "exit_code": 1,
+                    "stdout": "\(name): 内置原生 \(name) 未就绪（此构建未集成 native-tools）— 可试 Alpine：sh -c '\(name) ...'，或用 tool.install 安装。",
+                    "ios_native": true]
+        }
+        let body = command.dropFirst(name.count)
+        let args = shellSplitArgs(String(body))
+        // r2 逆向分析可能耗时（大文件反汇编），给更长超时
+        let tmo = (name == "r2") ? 300 : 90
+        let res = BuildRunner.shared.run(executable: binPath, args: args,
+                                         env: ["PYTHONIOENCODING": "utf-8"], timeout: tmo)
+        var out = res.stdout
+        if res.timedOut { out += "\n[\(name) 执行超时 \(tmo)s 被终止]" }
         if let serr = res.spawnError, !serr.isEmpty {
             out += "\n[spawn error: \(serr)]"
         }

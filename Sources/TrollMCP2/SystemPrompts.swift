@@ -484,9 +484,10 @@ final class SystemPrompts {
       sections/symbols, `objdump -d <mach-o>` adds ARM64 disassembly; `class-dump <mach-o>` prints Objective-C classes
       and methods (__objc_classname/__objc_methname); `nm [-a] <mach-o>` symbols; `strings <mach-o>` strings. These read
       huge files directly with no 2MB limit.
-    - BUNDLED NATIVE BINARIES (v4.4.x): lua / node / r2 (radare2) are App-bundled arm64 iOS binaries. Call
-      `tool.install name:lua` (or node/r2) — it binds the App-bundled binary (no network install), then call them like
-      builtin tools: `lua script.lua`, `node script.js`, `r2 -A <mach-o>`. r2 covers rizin functionality.
+    - BUNDLED NATIVE BINARIES (v4.4.x; fix3q 起免安装直调): lua / node / r2 (radare2) / cstool (capstone) are App-bundled
+      arm64 iOS binaries. Directly call them in shell: `lua script.lua`, `node script.js`, `r2 -A <mach-o>`,
+      `cstool <arch> <hex>`. They route to native automatically (no tool.install needed; tool.install still works to
+      rebind). r2 covers rizin functionality; cstool decodes instructions (e.g. `cstool arm64 10014c52944000d5`).
     - NATIVE SHELL LIMITS: absolute paths only — no glob expansion, no `cd`-then-relative (cd is ignored), don't wrap
       paths in quotes (quotes become part of the path).
     - ENVIRONMENT ROUTING (auto, no choice): default is iOS native. The system auto-routes to Alpine only when a
