@@ -314,6 +314,15 @@ fi
 
 # 把特权 entitlements 签入主二进制，TrollStore 安装时才能继承 no-sandbox/no-container/task_for_pid 等权限
 # v2.9.64：强制用 ldid 签名（TrollStore 官方明确要求 ldid -S 格式；codesign ad-hoc 签名格式不同，可能导致 entitlements 不被保留）
+# v4.4.9-fix3by: Python 瘦身（大厂标配）——Python 官方 build 把完整 stdlib 复制进包（含 test/ 162MB 测试套件、
+# idlelib 编辑器等生产用不到的模块）。删除后 App 448M→~260M（numpy/pandas/lib-dynload 全保留）。
+if [ -d "$APP/python/lib/python3.14" ]; then
+    echo ">>> python slim: removing test/idlelib/turtledemo/pydoc_data/__pycache__"
+    rm -rf "$APP/python/lib/python3.14/test" "$APP/python/lib/python3.14/idlelib"            "$APP/python/lib/python3.14/turtledemo" "$APP/python/lib/python3.14/pydoc_data"            "$APP/python/lib/python3.14/__pycache__"
+    find "$APP/python/lib" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+    echo ">>> python after slim: $(du -sh "$APP/python" | cut -f1)"
+fi
+
 if [ -f "Support/TrollAgent.entitlements" ]; then
     echo ">>> ldid sign main binary with entitlements"
     # CI 已 brew install ldid；优先用 macOS 原生 ldid（xerub ldid 对 iOS arm64e 兼容最好）
