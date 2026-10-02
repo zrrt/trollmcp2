@@ -2032,7 +2032,7 @@ final class ShellExecTool: MCPTool {
         let body = command.dropFirst(name.count)
         let args = shellSplitArgs(String(body))
         // r2 逆向分析可能耗时（大文件反汇编），给更长超时
-        let tmo = (name == "r2") ? 300 : 90
+        let tmo: TimeInterval = (name == "r2") ? 300 : 90
         let res = BuildRunner.shared.run(executable: binPath, args: args,
                                          env: ["PYTHONIOENCODING": "utf-8"], timeout: tmo)
         var out = res.stdout
