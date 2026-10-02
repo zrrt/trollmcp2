@@ -28,7 +28,7 @@ jobs:
           # fix3g: save-always:false——构建失败不写缓存，防空产物毒化
           # fix3x: v4——实测 v3 缓存只含 node(lua/capstone/r2 步骤曾被 || true 吞错→空产物进缓存→永久命中跳过编译)；
           #        全面严格化(去掉吞错)后 bump key 强制全量重编一次, 新缓存含全工具
-          key: native-tools-v5
+          key: native-tools-v6
           save-always: false
 
       - name: Build lua 5.4 (iOS arm64)
