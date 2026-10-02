@@ -96,11 +96,11 @@ jobs:
             NODEMOBILE=$(find /tmp/node-ios -type f -name "NodeMobile" 2>/dev/null | head -1)
             if [ -n "$NODEMOBILE" ]; then
               lipo "$NODEMOBILE" -thin arm64 -output /tmp/NodeMobile_arm64.dylib 2>/dev/null || cp "$NODEMOBILE" /tmp/NodeMobile_arm64.dylib
-              cat > /tmp/nodecli.c <<'NC'
-              #include <stdio.h>
-              extern int node_start(int argc, char **argv);
-              int main(int argc, char **argv) { return node_start(argc, argv); }
-              NC
+          cat > /tmp/nodecli.c <<'NC'
+          #include <stdio.h>
+          extern int node_start(int argc, char **argv);
+          int main(int argc, char **argv) { return node_start(argc, argv); }
+          NC
               SDK=$(xcrun --sdk iphoneos --show-sdk-path)
               if xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" -o "$GITHUB_WORKSPACE/native-tools-out/node" /tmp/nodecli.c /tmp/NodeMobile_arm64.dylib -Wl,-undefined,dynamic_lookup 2>/tmp/node_build.err; then
                 # install_name 修正：wrapper 依赖的 NodeMobile.dylib 放同目录，@executable_path 相对定位
@@ -286,6 +286,8 @@ jobs:
     # v4.4.8-fix3w: needs native-llvm（LLVM 单工具 + jtool2；下载 continue-on-error，失败不出这些工具但出包）
     needs: [native-tools, native-python, native-wheels, native-nmap, native-llvm]
     runs-on: macos-latest
+    env:
+      RELEASE_VERSION: 4.4.9
     steps:
       - uses: actions/checkout@v4
 
