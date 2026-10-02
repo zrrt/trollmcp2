@@ -130,13 +130,14 @@ jobs:
             echo "!!! capstone build failed" >&2
             exit 1
           fi
-          # fix3bl: CAPSTONE_BUILD_CORE_ONLY=yes 只编核心库(cstool 不在 core 目标)→单独 make cstool
-          #         (依赖已编的 libcapstone.a), 失败即 job fail——此前 cstool 从未编出, Verify 一直 MISSING
-          make cstool CAPSTONE_ARCHS="aarch64 arm" CAPSTONE_DIET=no             CC=/tmp/ioscc AR=/tmp/iosar RANLIB=/tmp/iosranlib 2>&1 | tail -10
-          if [ -f cstool ]; then
-            cp cstool "$GITHUB_WORKSPACE/native-tools-out/cstool"
+          # fix3bl→fix3bm: capstone 顶层无 cstool target(报 Nothing to be done)——cstool 在子目录
+          #         Makefile, 且顶层 all 在 CAPSTONE_BUILD_CORE_ONLY=yes 时跳过 -C cstool→
+          #         单独 make -C cstool(依赖顶层已编 libcapstone.a), 产物在 cstool/cstool
+          make -C cstool CC=/tmp/ioscc AR=/tmp/iosar RANLIB=/tmp/iosranlib 2>&1 | tail -10
+          if [ -f cstool/cstool ]; then
+            cp cstool/cstool "$GITHUB_WORKSPACE/native-tools-out/cstool"
             chmod +x "$GITHUB_WORKSPACE/native-tools-out/cstool"
-            echo ">>> cstool built ($(du -h cstool | cut -f1))"
+            echo ">>> cstool built ($(du -h cstool/cstool | cut -f1))"
           else
             echo "!!! cstool build failed" >&2
             exit 1
