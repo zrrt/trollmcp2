@@ -48,15 +48,20 @@ final class ToolInstallTool: MCPTool {
 
     private func installByName(_ name: String, params: [String: Any]) -> [String: Any] {
         // 1. 已就绪？——内置原生 bin / Alpine 已有
+        // v4.4.9-fix3bv: 就绪≠可用——二进制存在/apk exit 0 都可能是"装了但调不动/输出不可见"
+        // (pandas 误报、python3/r2 空输出、BusyBox tree 缺参数)。统一冒烟：命令名调 --version/-v/--help/-h，
+        // 验证 exit 0 且输出可见；异常则在 hint 里明确提示（不静默报 ready）。
         if let bundled = bundledBinPath(name) {
+            let (ok, note) = smokeTest(name)
             return ["ok": true, "tool": name, "status": "ready", "source": "builtin_native", "path": bundled,
-                    "hint": "App 内置原生 iOS 二进制，可直接用于 iOS 文件分析与注入"]
+                    "hint": "App 内置原生 iOS 二进制；" + note]
         }
         let which = ISHEngine.exec("which \(name) 2>/dev/null", timeout: 30)
         if which.exitCode == 0 {
             let path = which.output.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: "\n").first.map(String.init) ?? name
-            return ["ok": true, "tool": name, "status": "ready", "source": "alpine", "path": path,
-                    "hint": "Alpine 已有；命令引用 iOS 路径会自动 bind 直读（/ios_workspace、/ios_containers、/ios_system 只读）"]
+            let (ok, note) = smokeTest(name)
+            return ["ok": true, "tool": name, "status": ok ? "ready" : "unverified", "source": "alpine", "path": path,
+                    "hint": "Alpine 已有；命令引用 iOS 路径会自动 bind 直读（/ios_workspace、/ios_containers、/ios_system 只读）。" + note]
         }
 
         // 2. Alpine apk 安装：依次尝试候选包名（映射名 / 原名 / py3-xxx）。
@@ -71,8 +76,9 @@ final class ToolInstallTool: MCPTool {
             }
             if apk.exitCode == 0 {
                 InstallationRegistry.shared.finish(ok: true, summary: "已装 \(pkg)")
-                return ["ok": true, "tool": name, "status": "installed", "source": "alpine_apk", "package": pkg,
-                        "hint": "已 apk add \(pkg)；直接调用 `\(name) <参数>` 即可——shell.exec 会自动路由 Alpine 并 bind 直读 iOS 路径（如 \(name) /var/mobile/xxx 自动改 /ios_mobile/xxx）；缺依赖时首次调用会自动补齐"]
+                let (ok, note) = smokeTest(name)
+                return ["ok": true, "tool": name, "status": ok ? "installed" : "installed_unverified", "source": "alpine_apk", "package": pkg,
+                        "hint": "已 apk add \(pkg)（" + note + "）。直接调用 `\(name) <参数>` 即可——shell.exec 会自动路由 Alpine 并 bind 直读 iOS 路径（如 \(name) /var/mobile/xxx 自动改 /ios_mobile/xxx）；缺依赖时首次调用会自动补齐。若冒烟异常：先 `\(name) --help` 看用法；仍无输出用文件重定向验证（`\(name) ... > /tmp/x; cat /tmp/x`）"]
             }
             InstallationRegistry.shared.finish(ok: false, summary: ISHEngine.installDiagnose(apk.output, timedOut: apk.timedOut, exitCode: apk.exitCode))
             lastApkErr = apk.output
@@ -136,6 +142,27 @@ final class ToolInstallTool: MCPTool {
     }
 
     /// Alpine 候选包名：映射名 → 原名 → py3-xxx（Python 包在 Alpine 多为 py3- 前缀）
+    /// v4.4.9-fix3bv: 冒烟测试——命令名调用 --version/-v/--help/-h，验证 exit 0 且输出可见。
+    /// 治"装了但不可用"：apk exit 0 但包没进当前环境（pandas 误报）、stdout 缓冲空输出（python3/r2）、
+    /// 精简版缺参数（BusyBox tree -L）。返回 (ok, 可读说明)。
+    private func smokeTest(_ name: String) -> (ok: Bool, note: String) {
+        for flag in ["--version", "-v", "--help", "-h"] {
+            do {
+                let r = try ShellExecTool().invoke(["command": "\(name) \(flag)", "timeout": 20])
+                let out = (r["stdout"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let exit = r["exit_code"] as? Int ?? 1
+                if exit == 0 && !out.isEmpty {
+                    let first = out.split(separator: "\n").first.map(String.init) ?? ""
+                    return (true, "冒烟验证 `\(name) \(flag)` OK（" + String(first.prefix(90)) + "）")
+                }
+                if exit == 0 && out.isEmpty {
+                    return (false, "冒烟 `\(name) \(flag)` exit 0 但无输出——stdout 缓冲/捕获问题，工具可能"装了但结果不可见"；调用后若空输出请用 `> /tmp/x; cat /tmp/x` 重定向验证")
+                }
+            } catch { }
+        }
+        return (false, "冒烟 `\(name) --version/-v/--help/-h` 全部失败——工具可能装了但不可调用，或该工具无版本/帮助参数；先用 `\(name) --help` 看真实用法")
+    }
+
     private func apkCandidates(for name: String) -> [String] {
         var out: [String] = []
         if let mapped = Self.alpineNameMap[name] { out.append(mapped) }
