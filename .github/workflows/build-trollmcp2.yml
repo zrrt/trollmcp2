@@ -613,6 +613,10 @@ jobs:
           lp = sysconfig.get_config_var('LIBDIR') or ''
           print('sysconfig LIBDIR =', lp)
           assert 'ios-arm64' in lp, 'LIBDIR 未指向 ios-arm64: ' + lp
+          # fix3bb: 实锤 meson 将读到的 LDSHARED——framework 双保险 sed 后到底删没删
+          print('LDSHARED =', sysconfig.get_config_var('LDSHARED'))
+          print('LDFLAGS  =', sysconfig.get_config_var('LDFLAGS'))
+          print('LIBS     =', sysconfig.get_config_var('LIBS'))
           "
           # fix3o: meson-python 0.19 打 iOS wheel tag 时若未设部署目标会调用 platform.ios_ver()
           # (macOS 上 release='' → int('') 崩)。官方设计: IPHONEOS_DEPLOYMENT_TARGET 覆盖版本解析。
