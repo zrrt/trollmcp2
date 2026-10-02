@@ -146,9 +146,18 @@ jobs:
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
           INC=/tmp/r2ios/var/jb/usr/include/libr
           LIB=/tmp/r2ios/var/jb/usr/lib
-          # fix3ak: r_main.h(6.2.2) 不含 r_main_r2 声明→implicit declaration 报错→手动 extern
-          echo 'extern int r_main_r2(int argc, const char **argv);' > /tmp/r2main.c
-          echo 'int main(int argc, char **argv) { return r_main_r2(argc, (const char **)argv); }' >> /tmp/r2main.c
+          # fix3ak→fix3an: r_main_r2 不在 r2ios-sdk 库内(radare2 的 CLI 入口在可执行源码, 非 libr.a)
+          #         undefined symbol——改用库内 API: r_core_new + r_core_args(radare2 标准库级 CLI 入口)
+          cat > /tmp/r2main.c <<R2M
+          #include <r_core.h>
+          int main(int argc, char **argv) {
+            RCore *core = r_core_new();
+            if (!core) return 1;
+            int ret = r_core_args(core, argc, (const char **)argv);
+            r_core_free(core);
+            return ret;
+          }
+          R2M
           LIBS="$(ls $LIB/libr_*.a 2>/dev/null | tr '\n' ' ')"
           # capstone: 用上一步自编的 libcapstone.a（r2ios-sdk 自带与否不确定）
           CAP=""
