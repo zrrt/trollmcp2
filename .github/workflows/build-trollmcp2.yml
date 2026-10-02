@@ -609,6 +609,12 @@ jobs:
           [properties]
           allow-noblas = true
           cpu-dispatch = 'none'
+          [built-in options]
+          c_args = ['-mios-version-min=15.0']
+          cpp_args = ['-mios-version-min=15.0']
+          # fix3al: c_link_args 必须在 cross 文件(pip 命令行传 -Dc_link_args 也覆盖不了 LDSHARED)——
+          #         -undefined dynamic_lookup: Python C API 符号动态解析(无 Python.framework 可链接)
+          c_link_args = ['-Wl,-undefined,dynamic_lookup', '-mios-version-min=15.0']
           INI
           # 4) 宿主构建依赖（env vars 前！）：Cython(编译 .pyx) + numpy(头文件)
           # fix3ag: pandas 3.0.6 metadata 生成需要 versioneer(ModuleNotFoundError)——补装
