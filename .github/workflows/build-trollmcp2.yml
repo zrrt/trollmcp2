@@ -144,7 +144,8 @@ jobs:
     # v4.4.5-fix2: needs native-python —— native-python 已有产物缓存（秒级完成），
     # 等它确保 python artifact 就位，build 才能真正集成（此前并行时 download 拿不到→python 被跳过）
     # v4.4.5-fix3d: needs native-wheels —— numpy/pandas iOS wheel 有缓存秒级完成
-    needs: [native-tools, native-python, native-wheels]
+    # v4.4.6-fix3u: needs native-nmap（continue-on-error job，失败不阻塞出包）
+    needs: [native-tools, native-python, native-wheels, native-nmap]
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -307,6 +308,14 @@ jobs:
         with:
           name: native-wheels
           path: native-wheels
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Download native nmap (if ready)
+        uses: actions/download-artifact@v4
+        with:
+          name: native-nmap
+          path: nmap-out
           merge-multiple: true
         continue-on-error: true
 
@@ -488,9 +497,84 @@ jobs:
           # 验证 wheel tag
           for w in wheels-out/*.whl; do unzip -p "$w" "*/METADATA" 2>/dev/null | head -3; echo "--- $w"; done
 
+      # v4.4.6-fix3u: pandas 3.0.6（已迁移 meson，机制与 numpy 同：cross-file + PEP 730 sysconfigdata）
+      # 宿主装 Cython+numpy 供头文件（cross 标准法，arm64 host 与 iOS arm64 类型一致）；
+      # 注意顺序（fix3k 教训）：宿主 pip install 必须在 iOS env vars 之前——_PYTHON_HOST_PLATFORM
+      # 会劫持 pip 平台判断（以为在 iOS 上跑→没有 macOS wheel→装失败）。
+      - name: Build pandas iOS wheel (cp314 arm64 iphoneos, meson cross)
+        if: steps.wheels-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          # 1) 宿主构建依赖（env vars 前！）：Cython(编译 .pyx) + numpy(头文件)
+          python -m pip install -q "Cython>3.1.0,<4" "numpy>=2.2,<3"
+          pip download --no-deps --no-binary :all: pandas==3.0.6 -d wheel-src
+          tar -xzf wheel-src/pandas-3.0.6.tar.gz -C wheel-src
+          # 2) iOS 交叉环境（与 numpy 步骤一致）
+          export PATH="$PYIOS/bin:$PATH"
+          export _PYTHON_HOST_PLATFORM=ios-arm64
+          export _PYTHON_SYSCONFIGDATA_NAME=_sysconfigdata__ios_arm64_iphoneos
+          export PYTHONPATH="$PYIOS/lib-arm64/python3.14:$PYTHONPATH"
+          export IPHONEOS_DEPLOYMENT_TARGET=15.0
+          # 3) 断言 sysconfigdata 生效
+          python3 -c "
+          import sysconfig
+          ip = sysconfig.get_config_var('INCLUDEPY') or ''
+          assert 'ios-arm64' in ip, 'sysconfigdata 失效: ' + ip
+          "
+          python -m pip wheel --no-deps --no-build-isolation \
+            -Csetup-args=--cross-file=$PWD/ios-meson.ini \
+            -Csetup-args=-Dallow-noblas=true \
+            -Csetup-args=-Dc_args=-mios-version-min=15.0 \
+            -Csetup-args=-Dcpp_args=-mios-version-min=15.0 \
+            -Csetup-args=-Dcpu-dispatch=none \
+            wheel-src/pandas-3.0.6 -w wheels-out
+          ls -la wheels-out/
+          for w in wheels-out/*pandas*.whl; do unzip -p "$w" "*/METADATA" 2>/dev/null | head -3; echo "--- $w"; done
+
       - name: Upload native wheels
         uses: actions/upload-artifact@v4
         with:
           name: native-wheels
           path: wheels-out/*.whl
           if-no-files-found: error
+
+  # v4.4.6-fix3u: nmap 源码交叉（独立 job + continue-on-error——失败不阻塞主链路出包）。
+  # 减依赖最小化（--without-*：zenmap/ncat/ndiff/nping/openssl/liblua/pcap 用原始 socket）；
+  # xcrun iphoneos clang 交叉；产物 nmap-out/nmap 给 build 集成进 App bin/。
+  native-nmap:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build nmap (iOS arm64, minimal deps)
+        run: |
+          set -euo pipefail
+          mkdir -p nmap-out
+          curl -sL -o /tmp/nmap.tar.bz2 https://nmap.org/dist/nmap-7.94.tar.bz2
+          tar -xjf /tmp/nmap.tar.bz2 -C /tmp
+          cd /tmp/nmap-7.94
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          CC="xcrun --sdk iphoneos clang -arch arm64 -isysroot $SDK -mios-version-min=15.0"
+          ./configure --host=aarch64-apple-darwin \
+            --without-zenmap --without-ncat --without-ndiff --without-nping \
+            --without-openssl --without-liblua --without-pcap \
+            CC="$CC" CXX="$CC" 2>&1 | tail -8 || { echo "!!! nmap configure failed — skipped"; exit 0; }
+          make -j4 2>&1 | tail -12 || { echo "!!! nmap make failed — skipped"; exit 0; }
+          file nmap 2>/dev/null || true
+          if [ -f nmap ]; then
+            cp nmap "$GITHUB_WORKSPACE/nmap-out/nmap"
+            chmod +x "$GITHUB_WORKSPACE/nmap-out/nmap"
+            echo ">>> nmap built"
+          else
+            echo "!!! nmap binary missing — skipped"
+            exit 0
+          fi
+
+      - name: Upload nmap
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-nmap
+          path: nmap-out/*
+          if-no-files-found: warn

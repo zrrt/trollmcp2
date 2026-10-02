@@ -97,6 +97,12 @@ if [ -d "Resources/bin" ]; then
         cp "native-tools-out/libcapstone.a" "$APP/bin/libcapstone.a"
         echo ">>> libcapstone.a bundled ($(du -h "$APP/bin/libcapstone.a" | cut -f1))"
     fi
+    # v4.4.6-fix3u: nmap（native-nmap job 交叉编译，continue-on-error 尽力而为；失败则无此文件，容错跳过）
+    if [ -f "nmap-out/nmap" ]; then
+        cp "nmap-out/nmap" "$APP/bin/nmap"
+        chmod +x "$APP/bin/nmap"
+        echo ">>> native nmap bundled ($(du -h "$APP/bin/nmap" | cut -f1))"
+    fi
     # v2.9.38: 给注入工具签 no-sandbox entitlements
     # iOS 沙箱按每次 exec 的新二进制签名计算：工具不签 no-sandbox 则即使被 root spawn 也仍套普通沙箱，
     # 写其他 App bundle（/private/var/containers/Bundle/Application/...）会 Permission denied。
