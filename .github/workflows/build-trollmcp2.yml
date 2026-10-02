@@ -474,6 +474,9 @@ jobs:
           print('sysconfig LIBDIR =', lp)
           assert 'ios-arm64' in lp, 'LIBDIR 未指向 ios-arm64: ' + lp
           "
+          # fix3o: meson-python 0.19 打 iOS wheel tag 时若未设部署目标会调用 platform.ios_ver()
+          # (macOS 上 release='' → int('') 崩)。官方设计: IPHONEOS_DEPLOYMENT_TARGET 覆盖版本解析。
+          export IPHONEOS_DEPLOYMENT_TARGET=15.0
           python -m pip wheel --no-deps --no-build-isolation \
             -Csetup-args=--cross-file=$PWD/ios-meson.ini \
             -Csetup-args=-Dallow-noblas=true \
