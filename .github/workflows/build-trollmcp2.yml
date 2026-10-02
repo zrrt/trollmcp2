@@ -49,14 +49,15 @@ jobs:
           # fix3ae: iOS 无 libm 静态库(数学函数在 libSystem 内), -lm 链接失败且错误被 make 吞——
           #         lua 链接用 LIBS 变量(src/Makefile:12 LIBS= -lm $(SYSLIBS) $(MYLIBS)),
           #         传 LIBS="" 去掉 -lm(此前 LDLIBS="" 无效, 链接行仍带 -lm)
-          rm -f lua luac
-          # fix3ag→fix3ah: make 输出必须可见(此前重定向吞掉编译失败→.o/.a 缺失→手动链接 no input);
-          #  make 编译 .o/.a(链接失败容忍), 手动链接保留 stderr + min-version(更稳)
+          # fix3aj: make generic = 顶层 Makefile:55 的 `cd src && $(MAKE)`——产物全在 src/ 下!
+          #         (顶层 Makefile 的 $(PLATS) target: @cd src && make)——手动链接/检查必须用 src/ 路径
+          rm -f src/lua src/luac
+          # make 输出必须可见(吞错教训); LIBS="" 去 -lm(iOS libm 在 libSystem 内); 链接失败容忍
           make generic CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK -DLUA_USE_POSIX" LIBS="" || true
-          xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK -mios-version-min=15.0 -o lua lua.o liblua.a 2>&1 | tail -5
-          xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK -mios-version-min=15.0 -o luac luac.o liblua.a 2>&1 | tail -5
-          ls -la lua luac 2>&1 || true
-          file lua 2>&1 || true
+          cd src && xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK -mios-version-min=15.0 -o lua lua.o liblua.a 2>&1 | tail -5
+          cd src && xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK -mios-version-min=15.0 -o luac luac.o liblua.a 2>&1 | tail -5
+          ls -la src/lua src/luac 2>&1 || true
+          file src/lua 2>&1 || true
           if [ -f lua ]; then
             cp lua "$GITHUB_WORKSPACE/native-tools-out/lua"
             chmod +x "$GITHUB_WORKSPACE/native-tools-out/lua"
@@ -620,13 +621,12 @@ jobs:
           "
           echo ">>> env: python3=$(which python3) PYTHONPATH=$PYTHONPATH"
           ls -la "$PYIOS/lib-arm64/python3.14/" | grep sysconfigdata || echo "!!! sysconfigdata 副本缺失"
-          # fix3ai: allow-noblas 是 numpy 的 meson 选项, pandas 3.0.6 meson.build 没有→
-          #         Unknown option 报错(metadata-generation-failed)——去掉该参数, 只留 cpu-dispatch
+          # fix3ai→fix3aj: allow-noblas/cpu-dispatch 都是 numpy 的 meson 选项, pandas 3.0.6
+          #          meson.build 都没有(连续 Unknown option)→ 全部去掉, 只留 cross-file + c_args/cpp_args
           python -m pip wheel --no-deps --no-build-isolation \
             -Csetup-args=--cross-file=$PWD/ios-meson.ini \
             -Csetup-args=-Dc_args=-mios-version-min=15.0 \
             -Csetup-args=-Dcpp_args=-mios-version-min=15.0 \
-            -Csetup-args=-Dcpu-dispatch=none \
             wheel-src/pandas-3.0.6 -w wheels-out
           ls -la wheels-out/
           for w in wheels-out/*pandas*.whl; do unzip -p "$w" "*/METADATA" 2>/dev/null | head -3; echo "--- $w"; done
