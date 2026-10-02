@@ -103,6 +103,14 @@ if [ -d "Resources/bin" ]; then
         chmod +x "$APP/bin/nmap"
         echo ">>> native nmap bundled ($(du -h "$APP/bin/nmap" | cut -f1))"
     fi
+    # v4.4.8-fix3w: LLVM 工具链（native-llvm job 交叉编译）+ jtool2（prebuilt arm64 切片）
+    for t in llvm-objdump llvm-nm llvm-readelf llvm-size llvm-strings jtool2; do
+        if [ -f "native-llvm-out/$t" ]; then
+            cp "native-llvm-out/$t" "$APP/bin/$t"
+            chmod +x "$APP/bin/$t"
+            echo ">>> native $t bundled ($(du -h "$APP/bin/$t" | cut -f1))"
+        fi
+    done
     # v2.9.38: 给注入工具签 no-sandbox entitlements
     # iOS 沙箱按每次 exec 的新二进制签名计算：工具不签 no-sandbox 则即使被 root spawn 也仍套普通沙箱，
     # 写其他 App bundle（/private/var/containers/Bundle/Application/...）会 Permission denied。

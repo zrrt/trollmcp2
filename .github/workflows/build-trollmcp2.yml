@@ -145,7 +145,8 @@ jobs:
     # 等它确保 python artifact 就位，build 才能真正集成（此前并行时 download 拿不到→python 被跳过）
     # v4.4.5-fix3d: needs native-wheels —— numpy/pandas iOS wheel 有缓存秒级完成
     # v4.4.6-fix3u: needs native-nmap（continue-on-error job，失败不阻塞出包）
-    needs: [native-tools, native-python, native-wheels, native-nmap]
+    # v4.4.8-fix3w: needs native-llvm（LLVM 单工具 + jtool2；下载 continue-on-error，失败不出这些工具但出包）
+    needs: [native-tools, native-python, native-wheels, native-nmap, native-llvm]
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -316,6 +317,14 @@ jobs:
         with:
           name: native-nmap
           path: nmap-out
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Download native LLVM tools + jtool2 (if ready)
+        uses: actions/download-artifact@v4
+        with:
+          name: native-llvm
+          path: native-llvm-out
           merge-multiple: true
         continue-on-error: true
 
@@ -577,4 +586,73 @@ jobs:
         with:
           name: native-nmap
           path: nmap-out/*
+          if-no-files-found: warn
+
+  # v4.4.8-fix3w: LLVM 工具链（llvm-objdump/nm/readelf/size/strings）+ jtool2。
+  # LLVM: 17.0.6 源码交叉编译 iOS arm64——只编 5 个单工具 + AArch64 target（不编全 LLVM, 25-45min）。
+  # jtool2: newosxbook 官网 prebuilt universal binary（x86_64+arm64+arm64e），lipo 提 arm64 切片,
+  #         otool 验证只依赖 libSystem（iOS 有）即可跑。
+  native-llvm:
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        id: llvm-cache
+        with:
+          path: llvm-build
+          key: llvm-v1
+          save-always: false
+
+      - name: Install ninja
+        run: python3 -m pip install -q ninja 2>/dev/null || brew install ninja
+
+      - name: Build LLVM tools (iOS arm64, AArch64-only single tools)
+        if: steps.llvm-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p llvm-src llvm-build llvm-out
+          curl -sL -o /tmp/llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/llvm-project-17.0.6.src.tar.xz
+          tar -xJf /tmp/llvm.tar.xz -C llvm-src --strip-components=1
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          cmake -G Ninja -S llvm-src/llvm -B llvm-build \
+            -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT="$SDK" \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLLVM_TARGETS_TO_BUILD=AArch64 -DLLVM_ENABLE_PROJECTS="" \
+            -DLLVM_BUILD_TOOLS=ON -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF \
+            -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_UTILS=OFF \
+            -DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_TERMINFO=OFF -DLLVM_ENABLE_LIBXML2=OFF \
+            -DLLVM_ENABLE_ZSTD=OFF -DLLVM_ENABLE_BACKTRACES=OFF -DLLVM_ENABLE_LLD=OFF \
+            -DLLVM_BUILD_LLVM_DYLIB=OFF -DLLVM_LINK_LLVM_DYLIB=OFF 2>&1 | tail -5
+          ninja -C llvm-build llvm-objdump llvm-nm llvm-readelf llvm-size llvm-strings 2>&1 | tail -6
+          ls llvm-build/bin/ 2>/dev/null | head
+
+      - name: Copy LLVM tools to out (cache hit 也复制)
+        run: |
+          mkdir -p llvm-out
+          for t in llvm-objdump llvm-nm llvm-readelf llvm-size llvm-strings; do
+            if [ -f "llvm-build/bin/$t" ]; then
+              cp "llvm-build/bin/$t" "llvm-out/$t"; chmod +x "llvm-out/$t"
+              file "llvm-out/$t" 2>/dev/null; echo ">>> LLVM $t"
+            fi
+          done
+
+      - name: Extract jtool2 arm64 slice (prebuilt, verify deps)
+        run: |
+          set -euo pipefail
+          mkdir -p llvm-out
+          curl -sL --max-time 30 "https://www.newosxbook.com/tools/jtool2.tgz" -o /tmp/jtool2.tgz
+          tar -xzf /tmp/jtool2.tgz -C /tmp
+          lipo -thin arm64 /tmp/jtool2 -o llvm-out/jtool2
+          echo ">>> jtool2 load deps:"; otool -L llvm-out/jtool2 || true
+          chmod +x llvm-out/jtool2
+          file llvm-out/jtool2
+
+      - name: Upload native-llvm
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-llvm
+          path: llvm-out/*
           if-no-files-found: warn

@@ -746,7 +746,9 @@ final class ShellExecTool: MCPTool {
         // fix3q: 内置原生工具链（native-tools 交叉编译进 App bin/）——AI 直接调用走原生 ARM64
         "lua", "node", "r2", "cstool",
         // fix3v: nmap（native-nmap job 交叉编译，进 App bin/nmap）——原生直跑，无需 Alpine
-        "nmap"
+        "nmap",
+        // fix3w: LLVM 工具链 + jtool2（native-llvm job）——llvm-objdump 等原生直跑
+        "llvm-objdump", "llvm-nm", "llvm-readelf", "llvm-size", "llvm-strings", "jtool2"
     ]
     
     /// v4.3.9: 反向路径翻译——iOS 原生命令收到 Alpine 挂载路径时翻译回 iOS 真实路径。
