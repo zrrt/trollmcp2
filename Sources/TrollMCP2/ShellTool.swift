@@ -895,11 +895,24 @@ final class ShellExecTool: MCPTool {
             var exit = 0
             var firstIOS = false
             for (cidx, c) in chain.cmds.enumerated() {
-                let word = firstWord(c)
-                let isIOSCmd = iosNativeCommands.contains(word)
+                var word = firstWord(c)
+                var (body, redirect0, append, outFile) = extractRedirect(c)
+                // v4.4.9-fix3ca: App bin 绝对路径自动纠正——AI 从 tool.install 拿 path 直接用会走 Alpine→
+                // Permission denied(Alpine 跑不了 arm64 iOS 二进制)。识别 <bundle>/bin/<name> 重写为命令名，
+                // 让原生路由/白名单/bin 兜底都认；bin 兜底工具(ldid/optool 等)同样原生直跑。
+                let binPrefix = Bundle.main.bundlePath + "/bin/"
+                if word.hasPrefix(binPrefix), word.count > binPrefix.count {
+                    let n = String(word.dropFirst(binPrefix.count))
+                    if !n.isEmpty, !n.contains("/") {
+                        body = n + String(body.dropFirst(word.count))
+                        word = n
+                    }
+                }
+                let isIOSCmd = iosNativeCommands.contains(word) ||
+                    (!word.contains("/") && !word.contains("..") &&
+                     FileManager.default.isExecutableFile(atPath: Bundle.main.bundlePath + "/bin/" + word))
                 if isIOSCmd { anyIOS = true }
                 if cidx == 0 && isIOSCmd { firstIOS = true }
-                let (body, redirect0, append, outFile) = extractRedirect(c)
                 // v4.3.13: base64 -d 带重定向时改为 var，特判后置 false 跳过文本重定向
                 var redirect = redirect0
                 

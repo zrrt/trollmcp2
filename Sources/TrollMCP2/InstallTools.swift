@@ -101,7 +101,8 @@ final class ToolInstallTool: MCPTool {
             }
             let pipName = name.hasPrefix("py-") ? String(name.dropFirst(3)) : name
             InstallationRegistry.shared.start(key: "pip install \(pipName)")
-            let pip = ISHEngine.exec("pip install --break-system-packages --no-cache-dir \(pipName)", timeout: 300) { line in
+            // v4.4.9-fix3ca: pip 换清华镜像(国内快/稳，官方源慢断)+内部超时——Alpine pip 装包不再卡
+            let pip = ISHEngine.exec("pip install --break-system-packages --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple --timeout 60 \(pipName)", timeout: 300) { line in
                 InstallationRegistry.shared.appendLine(line)
             }
             if pip.exitCode == 0 {
