@@ -50,9 +50,9 @@ jobs:
           #         lua 链接用 LIBS 变量(src/Makefile:12 LIBS= -lm $(SYSLIBS) $(MYLIBS)),
           #         传 LIBS="" 去掉 -lm(此前 LDLIBS="" 无效, 链接行仍带 -lm)
           rm -f lua luac
-          # fix3ag: make 的链接失败且错误被吞(产物不存在但无 stderr)——改为:
-          #  make 只编 .o/.a(链接失败忽略), 手动链接并保留 stderr 可见(加 min-version 更稳)
-          make generic CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK -DLUA_USE_POSIX" LIBS="" >/dev/null 2>&1 || true
+          # fix3ag→fix3ah: make 输出必须可见(此前重定向吞掉编译失败→.o/.a 缺失→手动链接 no input);
+          #  make 编译 .o/.a(链接失败容忍), 手动链接保留 stderr + min-version(更稳)
+          make generic CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK -DLUA_USE_POSIX" LIBS="" || true
           xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK -mios-version-min=15.0 -o lua lua.o liblua.a 2>&1 | tail -5
           xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK -mios-version-min=15.0 -o luac luac.o liblua.a 2>&1 | tail -5
           ls -la lua luac 2>&1 || true
@@ -713,7 +713,7 @@ jobs:
           # fix3ae: 注释行严禁夹在 \ 续行中间(# 吞掉后续参数行, 下个参数行成独立命令→exit 127)
           # fix3ag: -DLLVM_GC_SECTIONS=OFF 未生效(链接命令仍带 --gc-sections, if 条件非此变量)——
           #         直接 sed 删除 AddLLVM.cmake 里的 -Wl,--gc-sections(绕过变量逻辑, 一劳永逸)
-          sed -i 's/ -Wl,--gc-sections//' llvm-src/llvm/cmake/modules/AddLLVM.cmake
+          sed -i '' 's/ -Wl,--gc-sections//' llvm-src/llvm/cmake/modules/AddLLVM.cmake
           grep -n "gc-sections" llvm-src/llvm/cmake/modules/AddLLVM.cmake || echo ">>> gc-sections 已删除"
           cmake -G Ninja -S llvm-src/llvm -B llvm-build \
             -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
