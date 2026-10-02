@@ -671,6 +671,9 @@ jobs:
           HOSTPY=$(which python3)
           echo ">>> HOSTPY=$HOSTPY"
           export PATH="$(pwd)/Apple/iOS/Resources/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin"
+          # fix3cle: wrapper 用 ${IPHONEOS_DEPLOYMENT_TARGET} 生成 -target arm64-apple-ios<ver>；
+          # 不设则 clang 默认 minos=SDK版本(26.5)——显式 13.0 保证产物兼容 iOS 13+（设备16.3稳）。
+          export IPHONEOS_DEPLOYMENT_TARGET=13.0
           ./configure --enable-framework --host=aarch64-apple-ios --build=arm64-apple-darwin --with-build-python="$HOSTPY" --without-ensurepip --without-doc-strings ac_cv_file__dev_ptmx=no ac_cv_file__dev_ptc=no ac_cv_func_faccessat2=yes ac_cv_func_fsync=yes ac_cv_func_fdatasync=yes ac_cv_func_dup3=no ac_cv_func_getrandom=yes ac_cv_header_libintl_h=no ac_cv_lib_intl_textdomain=no ac_cv_lib_intl_bindtextdomain=no ac_cv_lib_intl_gettext=no ac_cv_func_bind_textdomain_codeset=no || { echo "!!! configure FAILED (fallback: dynamic framework)"; exit 0; }
           make -j4 libpython3.14.a 2>&1 | tail -5 || { echo "!!! make FAILED (fallback: dynamic framework)"; exit 0; }
           ls -la libpython3.14.a || exit 0

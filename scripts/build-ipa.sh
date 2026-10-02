@@ -206,7 +206,7 @@ if [ -n "$XCF_DIR" ]; then
             # 静态库由 native-python job 交叉编译（--disable-shared），build-ipa.sh 兜底 framework 动态链接。
             if [ -f "python-ios/static-lib/libpython3.14.a" ]; then
                 echo ">>> python3 CLI: STATIC linking libpython3.14.a"
-                xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" \
+                xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=13.0 \
                     -I"$APP/Frameworks/Python.framework/Headers" \
                     -I"python-ios/static-lib/include" \
                     -o "$APP/bin/python3" Sources/PythonCLI/main.c \
@@ -216,7 +216,7 @@ if [ -n "$XCF_DIR" ]; then
             fi
             if [ ! -f "$APP/bin/python3" ]; then
                 echo ">>> python3 CLI: dynamic link (fallback)"
-                xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" \
+                xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=13.0 \
                     -I"$APP/Frameworks/Python.framework/Headers" \
                     -F"$APP/Frameworks" -framework Python \
                     -Wl,-rpath,@executable_path/../Frameworks \
