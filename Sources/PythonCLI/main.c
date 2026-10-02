@@ -43,6 +43,19 @@ static void derive_bundle(const char *argv0, char *buf, size_t size) {
 }
 
 int main(int argc, char **argv) {
+    // fix3cl3: 无条件启动标记——在 diag 之前直接 fopen 多路径写，
+    // Swift 读回区分"main 根本没跑"(dyld/入口问题) vs "跑了但后面失败"(绑定/Py_Initialize)。
+    {
+        const char *paths[] = {
+            "/var/mobile/Documents/Workspace/troll_py_start.txt",
+            "/tmp/troll_py_start.txt",
+            "troll_py_start.txt"
+        };
+        for (int i = 0; i < 3; i++) {
+            FILE *sf = fopen(paths[i], "w");
+            if (sf) { fprintf(sf, "start argc=%d argv0=%s\n", argc, argv && argv[0] ? argv[0] : "?"); fclose(sf); }
+        }
+    }
     diag("=== python3 main start ===");
 
     // fix3cg: Py_Initialize 前保存 BuildRunner 重定向的 stdout/stderr fd。

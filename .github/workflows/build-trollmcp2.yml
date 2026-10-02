@@ -31,7 +31,7 @@ jobs:
           # fix3cg: v8——nodecli.c(setvbuf)/r2main.c(-v/-h fputs) 修复后强制全量重编（v7 缓存是旧的，
           #         实测 node/r2 空输出 = 旧 wrapper 进包）。重编后 node/r2 输出应正常。
           # fix3ch: v9——nodecli.c 加 C 层诊断(ndiag)、r2main.c -v/-h 加 fflush——强制再重编
-          key: native-tools-v11
+          key: native-tools-v12
           save-always: false
 
       - name: Build lua 5.4 (iOS arm64)
@@ -121,7 +121,7 @@ jobs:
           }
           NC
               SDK=$(xcrun --sdk iphoneos --show-sdk-path)
-              if xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" -o "$GITHUB_WORKSPACE/native-tools-out/node" /tmp/nodecli.c /tmp/NodeMobile_arm64.dylib -Wl,-undefined,dynamic_lookup 2>/tmp/node_build.err; then
+              if xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" -o "$GITHUB_WORKSPACE/native-tools-out/node" /tmp/nodecli.c /tmp/NodeMobile_arm64.dylib -Wl,-undefined,dynamic_lookup -Wl,-rpath,@executable_path/../Frameworks 2>/tmp/node_build.err; then
                 # install_name 修正：wrapper 依赖的 NodeMobile.dylib 放同目录，@executable_path 相对定位
                 ORIG_INAME=$(otool -D "$GITHUB_WORKSPACE/native-tools-out/node" 2>/dev/null | tail -1)
                 if [ -n "$ORIG_INAME" ]; then
@@ -211,7 +211,10 @@ jobs:
           #include <stdio.h>
           // fix3cl: dyld flat namespace 找不到 java 插件全局操作表符号（libr_*.a 引用 _JAVA_OPS）——
           // 真机 stderr 报 symbol not found，可能拦在 main 之前导致输出全空。提供 stub 让链接/加载通过。
+          // fix3cl3: dead_strip 会把只定义未引用的 stub 删掉（真机仍报 _JAVA_OPS 缺失）——
+          // 全局指针显式引用它，防止任何 dead_strip 环节剔除。
           int _JAVA_OPS = 0;
+          volatile int *_java_ops_keep = &_JAVA_OPS;
           // fix3ch: -v/-h 输出后必须 fflush——iOS 无 tty stdout 全缓冲，不刷输出滞留→AI 看到空结果
           // fix3ck: 真机实测 r2 全部输出丢失(exit 0 空, -c 也空)——r_core 静态库的全局构造器
           //         会把进程 stdout 重定向掉，fputs(stdout)+fflush 全无效。改为输出写
@@ -287,7 +290,7 @@ jobs:
           #         链接 -undefined dynamic_lookup 放行(lazy 解析, 不调用不崩; r2 分析/反汇编主链路完整)
           xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" \
             -I/tmp/r2stub -I"$INC" /tmp/r2main.c \
-            -Wl,-all_load -Wl,-dead_strip -Wl,-undefined,dynamic_lookup $LIBS $CAP \
+            -Wl,-all_load -Wl,-undefined,dynamic_lookup $LIBS $CAP \
             -o "$GITHUB_WORKSPACE/native-tools-out/r2" \
             -lz -liconv -lresolv -framework Foundation 2>&1 | tail -20
           # fix3x: 去掉 || true 吞错——r2 必须编出（用户要求全工具）
@@ -500,7 +503,7 @@ jobs:
           }
           NC
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
-          if xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" -o "$NODE" /tmp/nodecli.c /tmp/NodeMobile_arm64.dylib -Wl,-undefined,dynamic_lookup 2>/tmp/node_build.err; then
+          if xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" -o "$NODE" /tmp/nodecli.c /tmp/NodeMobile_arm64.dylib -Wl,-undefined,dynamic_lookup -Wl,-rpath,@executable_path/../Frameworks 2>/tmp/node_build.err; then
             ORIG_INAME=$(otool -D "$NODE" 2>/dev/null | tail -1)
             if [ -n "$ORIG_INAME" ]; then
               install_name_tool -change "$ORIG_INAME" @executable_path/NodeMobile.dylib "$NODE" 2>/dev/null || true

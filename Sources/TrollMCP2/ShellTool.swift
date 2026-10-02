@@ -2074,12 +2074,17 @@ final class ShellExecTool: MCPTool {
         // fix3ck: iOS CPython 无 tty 时 fd 1/2 不可靠（os.write(1) 也丢），main.c 已改为把
         // sys.stdout/stderr 重定向到 TROLL_PY_OUT 文件。fix3cl: 用 Workspace 绝对路径
         // （App 数据容器一定可写可读），Documents//tmp/cwd 兜底——多通道总有一个能到。
+        // fix3cl3: 先 mkdir 保证 Workspace 目录存在（python3 子进程 fopen 依赖父目录，
+        // 目录不存在 → 全部 diag 静默失败 → 真机表现"exit 0 全空"）
         let wsBase = "/var/mobile/Documents/Workspace"
         let docsBase = NSHomeDirectory() + "/Documents"
+        try? FileManager.default.createDirectory(atPath: wsBase, withIntermediateDirectories: true)
         let pyOutPath = wsBase + "/troll_py_out.txt"
         let pyDiagPath = wsBase + "/troll_py_diag.txt"
+        let pyStartPath = wsBase + "/troll_py_start.txt"
         try? FileManager.default.removeItem(atPath: pyOutPath)
         try? FileManager.default.removeItem(atPath: pyDiagPath)
+        try? FileManager.default.removeItem(atPath: pyStartPath)
         let res = BuildRunner.shared.run(executable: pythonPath, args: args,
                                          env: ["PYTHONIOENCODING": "utf-8",
                                                "TROLL_PY_OUT": pyOutPath,
@@ -2100,6 +2105,16 @@ final class ShellExecTool: MCPTool {
                 out += "\n[py-diag]\n" + d
                 try? FileManager.default.removeItem(atPath: dpath)
                 break
+            }
+        }
+        // fix3cl3: start 标记——main.c 在 main 第一行无条件写，读回区分"main 没跑"vs"绑定失败"
+        if out.isEmpty {
+            for spath in [pyStartPath, docsBase + "/troll_py_start.txt", "/tmp/troll_py_start.txt", "troll_py_start.txt"] {
+                if let d = try? String(contentsOfFile: spath, encoding: .utf8), !d.isEmpty {
+                    out += "\n[py-start]\n" + d
+                    try? FileManager.default.removeItem(atPath: spath)
+                    break
+                }
             }
         }
         try? FileManager.default.removeItem(atPath: pyOutPath)
@@ -2130,9 +2145,11 @@ final class ShellExecTool: MCPTool {
         }
         // r2 逆向分析可能耗时（大文件反汇编），给更长超时
         let tmo: TimeInterval = (name == "r2") ? 300 : 90
-        // fix3ck: r2 输出写 TROLL_R2_OUT 文件（r_core 静态库构造器重定向 stdout，fputs 全丢）——Swift 读回
-        let docsPath = NSHomeDirectory() + "/Documents"
-        let r2OutPath = docsPath + "/troll_r2_out.txt"
+        // fix3ck/fix3cl3: r2 输出写 TROLL_R2_OUT 文件（r_core 静态库构造器重定向 stdout，fputs 全丢）——
+        // Workspace 绝对路径 + mkdir 保障（子进程 fopen 依赖父目录存在）
+        let wsBase = "/var/mobile/Documents/Workspace"
+        try? FileManager.default.createDirectory(atPath: wsBase, withIntermediateDirectories: true)
+        let r2OutPath = wsBase + "/troll_r2_out.txt"
         var benv = ["PYTHONIOENCODING": "utf-8", "TMPDIR": NSTemporaryDirectory()]
         if name == "r2" {
             try? FileManager.default.removeItem(atPath: r2OutPath)
