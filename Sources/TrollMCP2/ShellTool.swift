@@ -822,6 +822,26 @@ final class ShellExecTool: MCPTool {
         case "lua", "node", "r2", "cstool": return runIOSBundled(word, iosCmd)
         case "ta": return OffloadRouter.run(trimmed)
         default:
+            // fix3s: 内置 bin 兜底——命令名在 App bin/ 或 Resources/bin/ 存在可执行 → 原生直跑。
+            // 覆盖：AI 下载放置的 arm64 iOS 工具、未列白名单的内置注入工具(ldid/optool/insert_dylib/
+            // install_name_tool/chown/mkdir/mv/rm/cp 等)。Alpine(iSH x86) 跑不了 arm64 原生二进制，
+            // 此兜底让"下载→ldid 签名→放置→调用"闭环。路径含 / 或 .. 的不匹配(防误判)。
+            if !word.contains("/"), !word.contains("..") {
+                let bundledRoots = [Bundle.main.bundlePath + "/bin", Bundle.main.bundlePath + "/Resources/bin"]
+                for root in bundledRoots {
+                    let p = root + "/" + word
+                    if FileManager.default.isExecutableFile(atPath: p) {
+                        let body = segment.dropFirst(word.count)
+                        let args = shellSplitArgs(String(body))
+                        let res = BuildRunner.shared.run(executable: p, args: args,
+                                                         env: ["PYTHONIOENCODING": "utf-8"], timeout: 120)
+                        var out = res.stdout
+                        if res.timedOut { out += "\n[执行超时 120s 被终止]" }
+                        return ["command": segment, "exit_code": res.exitCode, "stdout": out,
+                                "stderr": res.stderr, "ios_native": true]
+                    }
+                }
+            }
             return [
                 "command": segment,
                 "exit_code": 1,
