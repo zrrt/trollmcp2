@@ -674,6 +674,11 @@ jobs:
           #         meson 用宿主(macOS framework 版)→LDSHARED 带 -framework Python(交叉 SC 的 sed 影响不到)
           #         →显式指定宿主 python + _PYTHON_SYSCONFIGDATA_NAME 环境让其读交叉 SC
           python = ['/Library/Frameworks/Python.framework/Versions/3.14/bin/python']
+          # fix3bc: meson 交叉报 "Compiler for language c/cpp/cython for the build machine not found"——
+          #         cross-file 只有 host(iOS) 编译器, build machine 需显式(宿主 clang, meson 1.12 交叉不自动探测)
+          build.c = ['clang']
+          build.cpp = ['clang++']
+          cython = ['cython']
           [host_machine]
           system = 'ios'
           cpu_family = 'aarch64'
