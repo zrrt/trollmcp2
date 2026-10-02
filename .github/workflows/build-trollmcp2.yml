@@ -577,6 +577,22 @@ jobs:
           python Apple build iOS
           ls -la cross-build/dist/
 
+      # v4.4.9-fix3bx: 原生 python3 配 pip——pip wheel 是纯 Python，解压进 site-packages 即可用
+      # (原生 python3 无 pip→ensurepip 在 iOS 超时/不可靠；解压 wheel 无编译秒级完成)。
+      # 缓存命中时也跑（缓存是旧内容，解压进恢复目录后 upload artifact 会带上 pip）。
+      - name: Bundle pip into native site-packages (fix3bx)
+        run: |
+          curl -sL -m 60 -o /tmp/pip.whl https://bootstrap.pypa.io/pip/pip-25.0.1-py3-none-any.whl || curl -sL -m 60 -o /tmp/pip.whl https://pypi.tuna.tsinghua.edu.cn/packages/pip/pip-25.0.1-py3-none-any.whl || true
+          if [ ! -s /tmp/pip.whl ]; then echo "pip wheel download failed (skip)"; exit 0; fi
+          SP=$(find cpython/cross-build/dist -type d -name site-packages 2>/dev/null | head -1)
+          if [ -z "$SP" ]; then
+            echo "site-packages not found; dist layout:"; find cpython/cross-build/dist -maxdepth 3 -type d 2>/dev/null | head -25
+            exit 0
+          fi
+          python3 -c "import zipfile; zipfile.ZipFile('/tmp/pip.whl').extractall('$SP')"
+          ls "$SP" | head -8
+          echo "pip bundled into $SP"
+
       - name: Upload Python iOS xcframework
         uses: actions/upload-artifact@v4
         with:
