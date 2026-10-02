@@ -24,7 +24,7 @@ int main(int argc, char **argv) {
     PyConfig_InitPythonConfig(&config);
 
     // iOS 安全/兼容配置（官方 iOS 指南要求）
-    config.utf8_mode = 1;             // UTF-8 模式
+    // fix3bp: Python 3.14 移除 PyConfig.utf8_mode（默认 UTF-8 模式）
     config.buffered_stdio = 0;        // 关闭缓冲（管道交互实时）
     config.write_bytecode = 0;        // 不写 __pycache__（沙盒禁止写）
     config.install_signal_handlers = 1;
@@ -44,8 +44,7 @@ int main(int argc, char **argv) {
     snprintf(libdir, sizeof libdir,
              "%s/python/lib/python3.14:%s/python/lib/python3.14/lib-dynload:%s/python/lib/python3.14/site-packages",
              bundle, bundle, bundle);
-    PyWideStringList paths;
-    PyWideStringList_Init(&paths);
+    PyWideStringList paths = {0};   // fix3bp: 3.14 移除 PyWideStringList_Init，改零初始化
     wchar_t *wlib = Py_DecodeLocale(libdir, NULL);
     PyWideStringList_Append(&paths, wlib);
     config.module_search_paths = paths;
