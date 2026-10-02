@@ -46,8 +46,13 @@ jobs:
           sed -i.bak 's/= l_system(cmd);/= -1; (void)cmd;/' src/loslib.c
           # fix3x: 去掉 || true 吞错——lua 必须编出, 失败即 job fail（用户要求全工具进包）
           # fix3ac: lua 5.4.7 make generic 产物在顶层(lua/luac)，不是 src/lua——检查路径改顶层
-          make generic CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK -DLUA_USE_POSIX" || \
-            make generic CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK"
+          # fix3ae: iOS 无 libm 静态库(数学函数在 libSystem 内), -lm 链接必失败且错误被 make 吞——
+          #         LDLIBS="" 去掉 -lm; 失败时打印产物状态可见
+          rm -f lua luac
+          make generic CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK -DLUA_USE_POSIX" LDLIBS="" || \
+            make generic CC="xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK" LDLIBS=""
+          ls -la lua luac 2>&1 || true
+          file lua 2>&1 || true
           if [ -f lua ]; then
             cp lua "$GITHUB_WORKSPACE/native-tools-out/lua"
             chmod +x "$GITHUB_WORKSPACE/native-tools-out/lua"
