@@ -2065,6 +2065,14 @@ final class ShellExecTool: MCPTool {
         if let serr = res.spawnError, !serr.isEmpty {
             out += "\n[spawn error: \(serr)]"
         }
+        // fix3ch: 自动读回 python3 诊断文件（/tmp + 相对 cwd），AI 直接看到卡在哪一步
+        for dpath in ["/tmp/troll_py_diag.txt", "troll_py_diag.txt"] {
+            if let d = try? String(contentsOfFile: dpath, encoding: .utf8), !d.isEmpty {
+                out += "\n[py-diag]\n" + d
+                try? FileManager.default.removeItem(atPath: dpath)
+                break
+            }
+        }
         return ["command": command, "exit_code": res.exitCode, "stdout": out,
                 "stderr": res.stderr, "ios_native": true]
     }
@@ -2088,6 +2096,11 @@ final class ShellExecTool: MCPTool {
         if res.timedOut { out += "\n[\(name) 执行超时 \(tmo)s 被终止]" }
         if let serr = res.spawnError, !serr.isEmpty {
             out += "\n[spawn error: \(serr)]"
+        }
+        // fix3ch: node 自动读回 C 层诊断（相对 cwd），AI 直接看到 node_start 是否执行
+        if name == "node", let d = try? String(contentsOfFile: "troll_node_diag.txt", encoding: .utf8), !d.isEmpty {
+            out += "\n[node-diag]\n" + d
+            try? FileManager.default.removeItem(atPath: "troll_node_diag.txt")
         }
         return ["command": command, "exit_code": res.exitCode, "stdout": out,
                 "stderr": res.stderr, "ios_native": true]

@@ -10,14 +10,15 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-// fix3cg: 诊断文件——iOS 无 tty 时 stdout/stderr 均不可见，关键状态写 App tmp 诊断文件，
-// AI 可用 cat /tmp/troll_py_diag.txt 查看（App 沙盒 tmp 可写）。
+// fix3cg: 诊断文件——iOS 无 tty 时 stdout/stderr 均不可见，关键状态写诊断文件。
+// fix3ch: /tmp 在 python3 子进程沙盒可能只读 → 同时写相对 cwd（App 容器）+ /tmp，
+// Swift 侧自动读回附加到输出，AI 直接看到无需手动 cat。
 static void diag(const char *msg) {
     FILE *f = fopen("/tmp/troll_py_diag.txt", "a");
-    if (f) {
-        fprintf(f, "%s\n", msg);
-        fclose(f);
-    }
+    if (f) { fprintf(f, "%s\n", msg); fclose(f); }
+    f = fopen("troll_py_diag.txt", "a");
+    if (f) { fprintf(f, "%s\n", msg); fclose(f); }
+    fprintf(stderr, "%s\n", msg);
 }
 
 // 从 argv[0] 推导 App bundle 路径：<bundle>/bin/python3 → <bundle>
@@ -78,8 +79,13 @@ int main(int argc, char **argv) {
     status = Py_InitializeFromConfig(&config);
     PyConfig_Clear(&config);
     if (PyStatus_Exception(status)) {
-        diag("Py_InitializeFromConfig EXCEPTION");
-        Py_ExitStatusException(status);
+        // fix3ch: 初始化失败必须留痕——PyStatus 错误文本写诊断（/tmp+相对 cwd+stderr），
+        // 退出码非 0（旧版 Py_ExitStatusException 在 exitcode 未设置时 exit(0)，AI 误判成功）。
+        char errbuf[512];
+        snprintf(errbuf, sizeof errbuf, "Py_InitializeFromConfig EXCEPTION: %s",
+                 status.err_msg ? status.err_msg : "(no message)");
+        diag(errbuf);
+        exit(1);
     }
     diag(Py_IsInitialized() ? "Py initialized OK" : "Py NOT initialized (fatal)");
     if (!Py_IsInitialized()) { return 1; }
@@ -101,19 +107,30 @@ int main(int argc, char **argv) {
         else if (argv[i][0] == '-') { /* 忽略其他旗标，保持简单 */ }
         else { script = argv[i]; break; }  // 第一个非选项参数 = 脚本
     }
+    // fix3ch: argv 诊断——确认 -c 代码是否真正解析到（怀疑 shellSplitArgs 拆参异常致 code 丢失）
+    {
+        char abuf[600];
+        snprintf(abuf, sizeof abuf, "argc=%d code=%s module=%s script=%s show_version=%d",
+                 argc, code ? "SET" : "NULL", module ? "SET" : "NULL",
+                 script ? script : "NULL", show_version);
+        diag(abuf);
+    }
 
     // v4.4.9-fix3cd/fix3cg: iOS framework 版 Python 的 sys.stdout/stderr 在无 tty 环境下未绑定 fd 1/2，
     // print() 输出在 Python 层被静默丢弃（C 层 fflush 救不了——数据根本没到 C stdout）→ AI 实测看到空结果。
     // 任何代码运行前强制重绑（line buffered，Python 层输出直达进程 stdout 管道）。
-    // fix3cg: 绑定失败必须清 PyErr 并写诊断——否则残留异常导致后续所有 PyRun_SimpleString 静默跳过。
+    // fix3ch: 绑定代码用 os.write 直写 fd 1（绕过 sys.stdout）验证 fd 状态——fd 1 若已恢复
+    // （dup2 saved_out），BuildRunner 能读到 [PY-FD1]；否则定位 fd 层问题。
     int bind_rc = PyRun_SimpleString(
         "import sys, os\n"
+        "os.write(1, b'[PY-FD1-OK]\\n')\n"
+        "os.write(2, b'[PY-FD2-OK]\\n')\n"
         "try:\n"
         "    sys.stdout = os.fdopen(1, 'w', buffering=1, encoding='utf-8')\n"
         "    sys.stderr = os.fdopen(2, 'w', buffering=1, encoding='utf-8')\n"
-        "    print('PYBIND-OK', file=sys.stdout)\n"
+        "    os.write(1, b'[PY-BIND-OK]\\n')\n"
         "except Exception as e:\n"
-        "    print('PYBIND-ERR:', repr(e), file=sys.stderr)\n");
+        "    os.write(1, ('[PY-BIND-ERR %r]\\n' % (e,)).encode())\n");
     diag(bind_rc == 0 ? "bind PyRun ok" : "bind PyRun FAIL (rc != 0)");
     if (PyErr_Occurred()) { PyErr_Print(); PyErr_Clear(); diag("cleared bind PyErr"); }
 

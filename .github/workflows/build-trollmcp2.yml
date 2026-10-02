@@ -30,7 +30,8 @@ jobs:
           #        全面严格化(去掉吞错)后 bump key 强制全量重编一次, 新缓存含全工具
           # fix3cg: v8——nodecli.c(setvbuf)/r2main.c(-v/-h fputs) 修复后强制全量重编（v7 缓存是旧的，
           #         实测 node/r2 空输出 = 旧 wrapper 进包）。重编后 node/r2 输出应正常。
-          key: native-tools-v8
+          # fix3ch: v9——nodecli.c 加 C 层诊断(ndiag)、r2main.c -v/-h 加 fflush——强制再重编
+          key: native-tools-v9
           save-always: false
 
       - name: Build lua 5.4 (iOS arm64)
@@ -101,12 +102,19 @@ jobs:
           cat > /tmp/nodecli.c <<'NC'
           #include <stdio.h>
           extern int node_start(int argc, char **argv);
+          // fix3ch: C 层诊断（相对 cwd 可写）——确认 node_start 是否执行、argv 是否正确
+          static void ndiag(const char *msg) {
+              FILE *f = fopen("troll_node_diag.txt", "a");
+              if (f) { fprintf(f, "%s\n", msg); fclose(f); }
+          }
           int main(int argc, char **argv) {
               // fix3ce: iOS 无 tty stdout 全缓冲——nodejs-mobile(V8) 输出滞留不 flush → AI 看到空结果。
               // 行缓冲 + 退出强刷；stderr 同步。
               setvbuf(stdout, NULL, _IOLBF, 0);
               setvbuf(stderr, NULL, _IOLBF, 0);
+              ndiag("node start");
               int rc = node_start(argc, argv);
+              ndiag(rc == 0 ? "node_start ok" : "node_start FAIL");
               fflush(stdout);
               fflush(stderr);
               return rc;
@@ -201,15 +209,18 @@ jobs:
           #include <r_core.h>
           #include <string.h>
           #include <stdio.h>
+          // fix3ch: -v/-h 输出后必须 fflush——iOS 无 tty stdout 全缓冲，不刷输出滞留→AI 看到空结果
           int main(int argc, char **argv) {
             int i;
             for (i = 1; i < argc; i++) {
               if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--version")) {
                 fputs("radare2 6.2.2 (TrollAgent, iOS arm64)\n", stdout);
+                fflush(stdout);
                 return 0;
               }
               if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
                 fputs("Usage: r2 [-A] [-c cmd] [file]\n  -A   run aaa analysis\n  -c   run r2 command\n  -v   version\n", stdout);
+                fflush(stdout);
                 return 0;
               }
             }
@@ -459,12 +470,19 @@ jobs:
           cat > /tmp/nodecli.c <<'NC'
           #include <stdio.h>
           extern int node_start(int argc, char **argv);
+          // fix3ch: C 层诊断（相对 cwd 可写）——确认 node_start 是否执行、argv 是否正确
+          static void ndiag(const char *msg) {
+              FILE *f = fopen("troll_node_diag.txt", "a");
+              if (f) { fprintf(f, "%s\n", msg); fclose(f); }
+          }
           int main(int argc, char **argv) {
               // fix3ce: iOS 无 tty stdout 全缓冲——nodejs-mobile(V8) 输出滞留不 flush → AI 看到空结果。
               // 行缓冲 + 退出强刷；stderr 同步。
               setvbuf(stdout, NULL, _IOLBF, 0);
               setvbuf(stderr, NULL, _IOLBF, 0);
+              ndiag("node start");
               int rc = node_start(argc, argv);
+              ndiag(rc == 0 ? "node_start ok" : "node_start FAIL");
               fflush(stdout);
               fflush(stderr);
               return rc;
