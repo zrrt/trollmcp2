@@ -78,6 +78,23 @@ final class InstallationRegistry: ObservableObject {
         }
     }
 
+    /// v4.4.6: 通用进度（下载/长任务等非 apk 场景）——直接设完成比例。
+    /// done/total 以整数百分比承载（done=Int(f*100), total=100），UI progressText 显示 "下载中 45/100"。
+    func setFraction(_ f: Double, phase: String, line: String = "") {
+        guard var p = active else { return }
+        let clamped = min(1, max(0, f))
+        p.done = Int(clamped * 100)
+        p.total = 100
+        p.phase = phase
+        if !line.isEmpty { p.lastLine = String(line.prefix(60)) }
+        let snap = p
+        DispatchQueue.main.async { [weak self] in
+            if self?.active?.key == snap.key {
+                self?.active = snap
+            }
+        }
+    }
+
     /// 收起进度（结果气泡已折叠展示后清空，避免旧进度残留）
     func clear() {
         DispatchQueue.main.async { [weak self] in

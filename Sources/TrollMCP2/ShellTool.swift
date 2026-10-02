@@ -3127,20 +3127,95 @@ final class ShellExecTool: MCPTool {
             let filename = url.lastPathComponent
             outputPath = NSHomeDirectory() + "/Documents/downloads/" + (filename.isEmpty ? "download.bin" : filename)
         }
-        do {
-            let data = try Data(contentsOf: url)
-            try data.write(to: URL(fileURLWithPath: outputPath))
-            return [
-                "command": command,
-                "exit_code": 0,
-                "stdout": "Downloaded: \(urlString) → \(outputPath) (\(data.count) bytes)",
-                "ios_native": true
-            ]
-        } catch {
-            return ["command": command, "exit_code": 1, "stdout": "curl: download failed: \(error.localizedDescription)", "ios_native": true]
+        // v4.4.6: 下载走进度条（URLSession downloadTask + delegate → InstallationRegistry.setFraction），
+        // UI 实时显示百分比；完成后 AI 拿到含大小/耗时的结构化摘要。
+        let dlName = (outputPath as NSString).lastPathComponent
+        InstallationRegistry.shared.start(key: "下载 " + dlName)
+        let sem = DispatchSemaphore(value: 0)
+        let cfg = URLSessionConfiguration.ephemeral
+        cfg.timeoutIntervalForRequest = 30
+        cfg.timeoutIntervalForResource = 600   // 大文件最多等 10 分钟
+        let delegate = DownloadProgressDelegate()
+        let session = URLSession(configuration: cfg, delegate: delegate, delegateQueue: nil)
+        var dlLocation: URL? = nil
+        var dlErr: Error? = nil
+        var bytesTotal: Int64 = 0
+        delegate.onProgress = { f in
+            InstallationRegistry.shared.setFraction(f, phase: "下载中", line: "\(dlName) \(Int(f * 100))%")
         }
+        delegate.onComplete = { loc, err in
+            dlLocation = loc; dlErr = err; bytesTotal = delegate.totalBytes; sem.signal()
+        }
+        let startedAt = Date()
+        session.downloadTask(with: url).resume()
+        _ = sem.wait(timeout: .now() + 610)
+        session.invalidateAndCancel()
+        if let e = dlErr {
+            InstallationRegistry.shared.finish(ok: false, summary: "下载失败: \(e.localizedDescription)")
+            return ["command": command, "exit_code": 1,
+                    "stdout": "curl: download failed: \(e.localizedDescription)", "ios_native": true]
+        }
+        guard let loc = dlLocation else {
+            InstallationRegistry.shared.finish(ok: false, summary: "下载超时(>10min)")
+            return ["command": command, "exit_code": 1,
+                    "stdout": "curl: download timed out after 600s for \(urlString)", "ios_native": true]
+        }
+        let dir = (outputPath as NSString).deletingLastPathComponent
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        do {
+            try FileManager.default.moveItem(at: loc, to: URL(fileURLWithPath: outputPath))
+        } catch {
+            // 目标已存在等：退化为覆盖写
+            do {
+                let d = try Data(contentsOf: loc)
+                try d.write(to: URL(fileURLWithPath: outputPath))
+            } catch {
+                InstallationRegistry.shared.finish(ok: false, summary: "写入失败: \(error.localizedDescription)")
+                return ["command": command, "exit_code": 1, "stdout": "curl: cannot write \(outputPath): \(error.localizedDescription)", "ios_native": true]
+            }
+        }
+        let elapsed = Int(Date().timeIntervalSince(startedAt))
+        let mb = Double(bytesTotal) / 1_048_576
+        let summary = String(format: "已下载 %@ (%.1f MB) 100%% 耗时 %ds → %@", dlName, mb, elapsed, outputPath)
+        InstallationRegistry.shared.finish(ok: true, summary: summary)
+        return [
+            "command": command,
+            "exit_code": 0,
+            "stdout": "Downloaded: \(urlString) → \(outputPath) (\(bytesTotal) bytes, \(elapsed)s)",
+            "ios_native": true
+        ]
     }
     
+    /// v4.4.6: 下载进度委托——URLSessionDownloadDelegate 把字节进度映射到 InstallationRegistry。
+    /// onProgress: 0..1；onComplete(location, error)；totalBytes 记录已下载字节数（完成摘要用）。
+    private final class DownloadProgressDelegate: NSObject, URLSessionDownloadDelegate {
+        var onProgress: ((Double) -> Void)?
+        var onComplete: ((URL?, Error?) -> Void)?
+        var totalBytes: Int64 = 0
+
+        func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
+                        didWriteTo location: URL, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+            totalBytes = totalBytesWritten
+            let f: Double
+            if totalBytesExpectedToWrite > 0 {
+                f = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+            } else {
+                // 服务端未给 Content-Length：按 100MB 基准粗估（至少显示"进行中"）
+                f = Double(totalBytesWritten) / 104_857_600
+            }
+            onProgress?(f)
+        }
+
+        func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
+                        didFinishDownloadingTo location: URL) {
+            onComplete?(location, nil)
+        }
+
+        func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+            if let e = error { onComplete?(nil, e) }
+        }
+    }
+
     /// v3.1.32: iOS 原生 plutil 命令——读 plist 文件
     private static func runIOSPlutil(_ command: String) -> [String: Any] {
         let fm = FileManager.default
