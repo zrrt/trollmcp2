@@ -70,6 +70,17 @@ int main(int argc, char **argv) {
         else { script = argv[i]; break; }  // 第一个非选项参数 = 脚本
     }
 
+    // v4.4.9-fix3cd: iOS framework 版 Python 的 sys.stdout/stderr 在无 tty 环境下未绑定 fd 1/2，
+    // print() 输出在 Python 层被静默丢弃（C 层 fflush 救不了——数据根本没到 C stdout）→ AI 实测看到空结果。
+    // 任何代码运行前强制重绑（line buffered，Python 层输出直达进程 stdout 管道）。
+    PyRun_SimpleString(
+        "import sys, os\n"
+        "try:\n"
+        "    sys.stdout = os.fdopen(1, 'w', buffering=1, encoding='utf-8')\n"
+        "    sys.stderr = os.fdopen(2, 'w', buffering=1, encoding='utf-8')\n"
+        "except Exception:\n"
+        "    pass\n");
+
     int rc = 0;
     if (show_version) {
         PyRun_SimpleString("import sys; print(sys.version)");

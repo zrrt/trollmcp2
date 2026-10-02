@@ -455,6 +455,14 @@ final class ShellExecTool: MCPTool {
             return result
         }
         
+        // v4.4.9-fix3cd: python3/python 首词无管道也走原生——之前 36 个快捷路径都不匹配 → 兜底送 Alpine
+        // (3.12)，与提示词"python3 首词走原生 ARM64 CPython(3.14+numpy/pandas)"矛盾。要 Alpine 版仍用 sh -c 'python3 ...'。
+        if iosCmd == "python3" || iosCmd.hasPrefix("python3 ") || iosCmd == "python" || iosCmd.hasPrefix("python ") {
+            let result = ShellExecTool.runIOSPython3(iosCmd)
+            AuditLog.shared.log("shell.exec (ios python3)", detail: String(trimmed.prefix(100)))
+            return result
+        }
+        
         // v3.0.41：iSH 为唯一引擎 (ios_system 已删除）。初始化failed直接报错，不再回退。
         let (output, exitCode, timedOut) = ISHEngine.exec(command, timeout: timeout)
 
