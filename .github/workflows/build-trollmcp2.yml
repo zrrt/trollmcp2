@@ -146,16 +146,32 @@ jobs:
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
           INC=/tmp/r2ios/var/jb/usr/include/libr
           LIB=/tmp/r2ios/var/jb/usr/lib
-          # fix3ak→fix3an: r_main_r2 不在 r2ios-sdk 库内(radare2 的 CLI 入口在可执行源码, 非 libr.a)
-          #         undefined symbol——改用库内 API: r_core_new + r_core_args(radare2 标准库级 CLI 入口)
+          # fix3ak→fix3ap: r_main_r2 不在库内(CLI 入口在可执行源码); r_core_args 符号+声明都没有
+          #         (r2ios-sdk 6.2.2 移除, strings 实测 0 命中)——用库内 API 自写轻量 CLI:
+          #         r_core_new/init + 解析 -A(分析)/-c(命令)/文件(open+bin_load), r_core_cmd_str 执行
           cat > /tmp/r2main.c <<R2M
           #include <r_core.h>
+          #include <string.h>
+          #include <stdio.h>
           int main(int argc, char **argv) {
             RCore *core = r_core_new();
             if (!core) return 1;
-            int ret = r_core_args(core, argc, (const char **)argv);
+            r_core_init(core);
+            int aflag = 0, i;
+            for (i = 1; i < argc; i++) {
+              if (!strcmp(argv[i], "-A")) aflag = 1;
+              else if (!strcmp(argv[i], "-c") && i + 1 < argc) {
+                char *res = r_core_cmd_str(core, argv[++i]);
+                if (res) { fputs(res, stdout); }
+              }
+              else if (argv[i][0] != '-') {
+                r_core_file_open(core, argv[i], 0, 0);
+                r_core_bin_load(core, argv[i], 0);
+              }
+            }
+            if (aflag) { char *res = r_core_cmd_str(core, "aaa"); if (res) fputs(res, stdout); }
             r_core_free(core);
-            return ret;
+            return 0;
           }
           R2M
           LIBS="$(ls $LIB/libr_*.a 2>/dev/null | tr '\n' ' ')"
@@ -181,13 +197,13 @@ jobs:
           #define PT_ATTACH 10
           #define PT_DETACH 11
           #define PT_SYSCALL 24
-          static int r2stub_ptrace(int _r, pid_t _p, caddr_t _a, int _d) { (void)_r; (void)_p; (void)_a; (void)_d; return 0; }
-          #define ptrace r2stub_ptrace
+          int ptrace(int _r, pid_t _p, caddr_t _a, int _d);
           #endif
           PTR
+          # fix3ap: 预编译 libr_io.a 引用真 _ptrace(iOS libSystem 符号存在但头被删)——-U 允许 undefined
           xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" \
             -I/tmp/r2stub -I"$INC" /tmp/r2main.c \
-            -Wl,-all_load -Wl,-dead_strip $LIBS $CAP \
+            -Wl,-all_load -Wl,-dead_strip -Wl,-U,_ptrace $LIBS $CAP \
             -o "$GITHUB_WORKSPACE/native-tools-out/r2" \
             -lz -liconv -lresolv -framework Foundation 2>&1 | tail -20
           # fix3x: 去掉 || true 吞错——r2 必须编出（用户要求全工具）
