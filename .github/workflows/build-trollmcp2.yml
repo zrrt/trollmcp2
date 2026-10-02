@@ -618,14 +618,6 @@ jobs:
           print('LDFLAGS  =', sysconfig.get_config_var('LDFLAGS'))
           print('LIBS     =', sysconfig.get_config_var('LIBS'))
           "
-          # fix3bi: 假 framework 纯 bash 创建+立即 ld 实测(不依赖 python3 -c 输出可见性; 与 meson 链接命令完全一致)
-          #         ld -framework Python -F /Library/Frameworks/Python.framework/Versions/3.14 找 Python.framework/Python
-          FWROOT=/Library/Frameworks/Python.framework/Versions/3.14
-          mkdir -p "$FWROOT/Python.framework" 2>/dev/null || sudo mkdir -p "$FWROOT/Python.framework"
-          xcrun --sdk iphoneos clang -arch arm64 -dynamiclib -Wl,-undefined,dynamic_lookup -mios-version-min=15.0 -x c /dev/null -o /tmp/pydummy.dylib
-          cp /tmp/pydummy.dylib "$FWROOT/Python.framework/Python" 2>/dev/null || sudo cp /tmp/pydummy.dylib "$FWROOT/Python.framework/Python"
-          ls -la "$FWROOT/Python.framework/"
-          xcrun --sdk iphoneos clang -arch arm64 -dynamiclib -Wl,-undefined,dynamic_lookup -mios-version-min=15.0 -x c /dev/null -o /tmp/fwtest.so -framework Python -F "$FWROOT" && echo ">>> FAKE FW LINK OK" || echo ">>> FAKE FW LINK FAIL"
           # fix3o: meson-python 0.19 打 iOS wheel tag 时若未设部署目标会调用 platform.ios_ver()
           # (macOS 上 release='' → int('') 崩)。官方设计: IPHONEOS_DEPLOYMENT_TARGET 覆盖版本解析。
           export IPHONEOS_DEPLOYMENT_TARGET=15.0
@@ -767,6 +759,14 @@ jobs:
           ls -la "$PYIOS/lib-arm64/python3.14/" | grep sysconfigdata || echo "!!! sysconfigdata 副本缺失"
           # fix3ai→fix3aj: allow-noblas/cpu-dispatch 都是 numpy 的 meson 选项, pandas 3.0.6
           #          meson.build 都没有(连续 Unknown option)→ 全部去掉, 只留 cross-file + c_args/cpp_args
+          # fix3bj: 假 Python.framework 纯 bash(必执行)——ld -framework Python 找到假 dylib
+          #         →符号全走 -Wl,-undefined,dynamic_lookup 动态解析; 创建后立即用与 meson 相同命令实测
+          FWROOT=/Library/Frameworks/Python.framework/Versions/3.14
+          mkdir -p "$FWROOT/Python.framework" 2>/dev/null || sudo mkdir -p "$FWROOT/Python.framework"
+          xcrun --sdk iphoneos clang -arch arm64 -dynamiclib -Wl,-undefined,dynamic_lookup -mios-version-min=15.0 -x c /dev/null -o /tmp/pydummy.dylib
+          cp /tmp/pydummy.dylib "$FWROOT/Python.framework/Python" 2>/dev/null || sudo cp /tmp/pydummy.dylib "$FWROOT/Python.framework/Python"
+          ls -la "$FWROOT/Python.framework/"
+          xcrun --sdk iphoneos clang -arch arm64 -dynamiclib -Wl,-undefined,dynamic_lookup -mios-version-min=15.0 -x c /dev/null -o /tmp/fwtest.so -framework Python -F "$FWROOT" && echo ">>> FAKE FW LINK OK" || echo ">>> FAKE FW LINK FAIL"
           python -m pip wheel --no-deps --no-build-isolation \
             -Csetup-args=--cross-file=$PWD/ios-meson.ini \
             -Csetup-args=--native-file=$PWD/ios-native.ini \
