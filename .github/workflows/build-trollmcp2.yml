@@ -168,8 +168,25 @@ jobs:
           fi
           # fix3am: Apple ld 不支持 GNU 的 -start-group/-end-group(报 unknown options)——换 -all_load
           #         (强制加载全部静态库成员, 解决 libr_*.a 循环依赖) + -dead_strip(裁掉未引用符号控体积)
+          # fix3ao: r_io.h:46 无条件 include <sys/ptrace.h>——iOS SDK 无此头(fatal error)→
+          #         stub 头(PT_* 宏 + ptrace 实现, 避免链接 undefined symbol); -I 优先
+          mkdir -p /tmp/r2stub/sys
+          cat > /tmp/r2stub/sys/ptrace.h <<PTR
+          #ifndef _SYS_PTRACE_H
+          #define _SYS_PTRACE_H
+          #include <sys/types.h>
+          #define PT_TRACE_ME 0
+          #define PT_CONTINUE 7
+          #define PT_KILL 8
+          #define PT_ATTACH 10
+          #define PT_DETACH 11
+          #define PT_SYSCALL 24
+          static int r2stub_ptrace(int _r, pid_t _p, caddr_t _a, int _d) { (void)_r; (void)_p; (void)_a; (void)_d; return 0; }
+          #define ptrace r2stub_ptrace
+          #endif
+          PTR
           xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" \
-            -I"$INC" /tmp/r2main.c \
+            -I/tmp/r2stub -I"$INC" /tmp/r2main.c \
             -Wl,-all_load -Wl,-dead_strip $LIBS $CAP \
             -o "$GITHUB_WORKSPACE/native-tools-out/r2" \
             -lz -liconv -lresolv -framework Foundation 2>&1 | tail -20
