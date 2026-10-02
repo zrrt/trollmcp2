@@ -28,7 +28,7 @@ jobs:
           # fix3g: save-always:false——构建失败不写缓存，防空产物毒化
           # fix3x: v4——实测 v3 缓存只含 node(lua/capstone/r2 步骤曾被 || true 吞错→空产物进缓存→永久命中跳过编译)；
           #        全面严格化(去掉吞错)后 bump key 强制全量重编一次, 新缓存含全工具
-          key: native-tools-v6
+          key: native-tools-v7
           save-always: false
 
       - name: Build lua 5.4 (iOS arm64)
@@ -210,14 +210,14 @@ jobs:
               if (!strcmp(argv[i], "-A")) aflag = 1;
               else if (!strcmp(argv[i], "-c") && i + 1 < argc) {
                 char *res = r_core_cmd_str(core, argv[++i]);
-                if (res) { fputs(res, stdout); }
+                if (res) { fputs(res, stdout); fflush(stdout); }
               }
               else if (argv[i][0] != '-') {
                 r_core_file_open(core, argv[i], 0, 0);
                 r_core_bin_load(core, argv[i], 0);
               }
             }
-            if (aflag) { char *res = r_core_cmd_str(core, "aaa"); if (res) fputs(res, stdout); }
+            if (aflag) { char *res = r_core_cmd_str(core, "aaa"); if (res) { fputs(res, stdout); fflush(stdout); } }
             r_core_free(core);
             return 0;
           }

@@ -73,12 +73,15 @@ int main(int argc, char **argv) {
     int rc = 0;
     if (show_version) {
         PyRun_SimpleString("import sys; print(sys.version)");
+        fflush(stdout);   // fix3br: iOS 无 tty stdout 全缓冲，不刷输出滞留→AI 看到空结果
     } else if (code) {
         rc = PyRun_SimpleString(code);
+        fflush(stdout);
     } else if (module) {
         PyObject *mod = PyImport_ImportModule(module);
         if (!mod) { PyErr_Print(); rc = 1; }
         else { Py_DECREF(mod); }
+        fflush(stdout);
     } else if (script) {
         FILE *fp = fopen(script, "rb");
         if (!fp) {
@@ -86,6 +89,7 @@ int main(int argc, char **argv) {
             rc = 2;
         } else {
             rc = PyRun_AnyFileExFlags(fp, script, 1, NULL);
+            fflush(stdout);
         }
     } else {
         // 无参数：打印可用性 + 简短说明（iOS 无交互 REPL）
@@ -93,6 +97,7 @@ int main(int argc, char **argv) {
             "import sys\n"
             "print('TrollAgent native Python', sys.version.split()[0], '(iOS arm64)')\n"
             "print('usage: python3 -c <code> | -m <module> | <script.py>')\n");
+        fflush(stdout);
     }
     if (rc != 0 && PyErr_Occurred()) { PyErr_Print(); rc = 1; }
 
