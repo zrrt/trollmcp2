@@ -1,4 +1,4 @@
-// TrollAgent 原生 Python CLI (v4.4.4)
+// TrollAgent 原生 Python CLI (v4.4.9-fix3cg)
 // 嵌入式 CPython 入口：链接 App 内置 Python.framework，PYTHONHOME 指向 App bundle/python/。
 // 用法：python3 [-c code | -m module | script.py | 无参(打印版本/帮助)]
 // 编译：xcrun -sdk iphoneos clang -arch arm64 -isysroot $SDK -I<Framework>/Headers
@@ -7,6 +7,18 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+
+// fix3cg: 诊断文件——iOS 无 tty 时 stdout/stderr 均不可见，关键状态写 App tmp 诊断文件，
+// AI 可用 cat /tmp/troll_py_diag.txt 查看（App 沙盒 tmp 可写）。
+static void diag(const char *msg) {
+    FILE *f = fopen("/tmp/troll_py_diag.txt", "a");
+    if (f) {
+        fprintf(f, "%s\n", msg);
+        fclose(f);
+    }
+}
 
 // 从 argv[0] 推导 App bundle 路径：<bundle>/bin/python3 → <bundle>
 // iOS 上 argv[0] 通常是完整路径；同时兼容相对路径兜底（用 cwd 拼）。
@@ -19,6 +31,18 @@ static void derive_bundle(const char *argv0, char *buf, size_t size) {
 }
 
 int main(int argc, char **argv) {
+    diag("=== python3 main start ===");
+
+    // fix3cg: Py_Initialize 前保存 BuildRunner 重定向的 stdout/stderr fd。
+    // 官方 iOS CPython 在 Py_Initialize 内部可能把 fd 0/1/2 重定向到 /dev/null（无终端安全机制），
+    // 导致 print()/os.write() 全部静默丢失。dup 保存后用 dup2 恢复，让 Python 层输出直达
+    // BuildRunner 的临时文件（AI 读回）。
+    int saved_out = -1, saved_err = -1;
+    saved_out = dup(1);
+    saved_err = dup(2);
+    diag(saved_out >= 0 ? "dup stdout ok" : "dup stdout FAIL");
+    diag(saved_err >= 0 ? "dup stderr ok" : "dup stderr FAIL");
+
     PyStatus status;
     PyConfig config;
     PyConfig_InitPythonConfig(&config);
@@ -50,11 +74,19 @@ int main(int argc, char **argv) {
     config.module_search_paths = paths;
     config.module_search_paths_set = 1;
 
+    diag("calling Py_InitializeFromConfig");
     status = Py_InitializeFromConfig(&config);
     PyConfig_Clear(&config);
     if (PyStatus_Exception(status)) {
+        diag("Py_InitializeFromConfig EXCEPTION");
         Py_ExitStatusException(status);
     }
+    diag(Py_IsInitialized() ? "Py initialized OK" : "Py NOT initialized (fatal)");
+    if (!Py_IsInitialized()) { return 1; }
+
+    // fix3cg: 恢复 BuildRunner 的 stdout/stderr（Py_Initialize 可能已重定向到 /dev/null）
+    if (saved_out >= 0) { dup2(saved_out, 1); close(saved_out); diag("restored stdout"); }
+    if (saved_err >= 0) { dup2(saved_err, 2); close(saved_err); diag("restored stderr"); }
 
     // 参数解析（对齐 CPython CLI 常用子集）
     const char *code = NULL;      // -c
@@ -70,48 +102,58 @@ int main(int argc, char **argv) {
         else { script = argv[i]; break; }  // 第一个非选项参数 = 脚本
     }
 
-    // v4.4.9-fix3cd: iOS framework 版 Python 的 sys.stdout/stderr 在无 tty 环境下未绑定 fd 1/2，
+    // v4.4.9-fix3cd/fix3cg: iOS framework 版 Python 的 sys.stdout/stderr 在无 tty 环境下未绑定 fd 1/2，
     // print() 输出在 Python 层被静默丢弃（C 层 fflush 救不了——数据根本没到 C stdout）→ AI 实测看到空结果。
     // 任何代码运行前强制重绑（line buffered，Python 层输出直达进程 stdout 管道）。
-    PyRun_SimpleString(
+    // fix3cg: 绑定失败必须清 PyErr 并写诊断——否则残留异常导致后续所有 PyRun_SimpleString 静默跳过。
+    int bind_rc = PyRun_SimpleString(
         "import sys, os\n"
         "try:\n"
         "    sys.stdout = os.fdopen(1, 'w', buffering=1, encoding='utf-8')\n"
         "    sys.stderr = os.fdopen(2, 'w', buffering=1, encoding='utf-8')\n"
-        "except Exception:\n"
-        "    pass\n");
+        "    print('PYBIND-OK', file=sys.stdout)\n"
+        "except Exception as e:\n"
+        "    print('PYBIND-ERR:', repr(e), file=sys.stderr)\n");
+    diag(bind_rc == 0 ? "bind PyRun ok" : "bind PyRun FAIL (rc != 0)");
+    if (PyErr_Occurred()) { PyErr_Print(); PyErr_Clear(); diag("cleared bind PyErr"); }
 
     int rc = 0;
     if (show_version) {
-        PyRun_SimpleString("import sys; print(sys.version)");
-        fflush(stdout);   // fix3br: iOS 无 tty stdout 全缓冲，不刷输出滞留→AI 看到空结果
+        rc = PyRun_SimpleString("import sys; print(sys.version)");
+        diag(rc == 0 ? "version PyRun ok" : "version PyRun FAIL");
     } else if (code) {
         rc = PyRun_SimpleString(code);
-        fflush(stdout);
+        diag(rc == 0 ? "code PyRun ok" : "code PyRun FAIL");
+        if (rc != 0) { PyErr_Print(); PyErr_Clear(); diag("cleared code PyErr"); }
     } else if (module) {
         PyObject *mod = PyImport_ImportModule(module);
-        if (!mod) { PyErr_Print(); rc = 1; }
-        else { Py_DECREF(mod); }
-        fflush(stdout);
+        if (!mod) { PyErr_Print(); rc = 1; diag("module import FAIL"); }
+        else { Py_DECREF(mod); diag("module import ok"); }
+        if (PyErr_Occurred()) { PyErr_Clear(); }
     } else if (script) {
         FILE *fp = fopen(script, "rb");
         if (!fp) {
             fprintf(stderr, "python3: can't open file '%s': No such file or directory\n", script);
+            diag("script open FAIL");
             rc = 2;
         } else {
             rc = PyRun_AnyFileExFlags(fp, script, 1, NULL);
-            fflush(stdout);
+            diag(rc == 0 ? "script PyRun ok" : "script PyRun FAIL");
+            if (PyErr_Occurred()) { PyErr_Print(); PyErr_Clear(); }
         }
     } else {
         // 无参数：打印可用性 + 简短说明（iOS 无交互 REPL）
-        PyRun_SimpleString(
+        rc = PyRun_SimpleString(
             "import sys\n"
             "print('TrollAgent native Python', sys.version.split()[0], '(iOS arm64)')\n"
             "print('usage: python3 -c <code> | -m <module> | <script.py>')\n");
-        fflush(stdout);
+        diag(rc == 0 ? "usage PyRun ok" : "usage PyRun FAIL");
     }
     if (rc != 0 && PyErr_Occurred()) { PyErr_Print(); rc = 1; }
 
+    fflush(stdout);
+    fflush(stderr);
+    diag("=== python3 main end ===");
     Py_Finalize();
     free(wlib);
     return rc;
