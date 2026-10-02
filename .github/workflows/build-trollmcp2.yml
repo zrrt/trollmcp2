@@ -673,7 +673,9 @@ jobs:
           # fix3at: pandas 用 import('python').find_installation() 取链接参数——不指定 python 时
           #         meson 用宿主(macOS framework 版)→LDSHARED 带 -framework Python(交叉 SC 的 sed 影响不到)
           #         →显式指定宿主 python + _PYTHON_SYSCONFIGDATA_NAME 环境让其读交叉 SC
-          python = ['/Library/Frameworks/Python.framework/Versions/3.14/bin/python']
+          # fix3be: cross-file python 改用 hostedtoolcache(which python3, runner 可写可 sed)——
+          #         /Library/Frameworks 的 python.org SC 不可写, meson 读它时 LDSHARED 带 framework 无法 sed
+          python = ['$HOSTPY']
           # fix3bc: meson 交叉报 "Compiler for language c/cpp/cython for the build machine not found"——
           #         cross-file 只有 host(iOS) 编译器, build machine 需显式(宿主 clang, meson 1.12 交叉不自动探测)
           build.c = ['clang']
@@ -694,6 +696,13 @@ jobs:
           #         -undefined dynamic_lookup: Python C API 符号动态解析(无 Python.framework 可链接)
           c_link_args = ['-Wl,-undefined,dynamic_lookup', '-mios-version-min=15.0']
           INI
+          # fix3be: HOSTPY=hostedtoolcache python3(可写), sed 其宿主 SC 删 -framework Python——meson 读它(宿主 SC 已干净)
+          HOSTPY=$(which python3)
+          echo ">>> HOSTPY=$HOSTPY"
+          HSCLIB=$($HOSTPY -c 'import sys,os; print(os.path.join(sys.prefix,"lib","python%d.%d"%sys.version_info[:2]))')
+          ls "$HSCLIB"/_sysconfigdata*.py
+          sed -i '' 's/-framework Python//g' "$HSCLIB"/_sysconfigdata*.py
+          grep -c "framework" "$HSCLIB"/_sysconfigdata*.py || echo ">>> hostedtoolcache SC framework 已删干净"
           # fix3bd: meson 的 build machine 工具必须在 native-file(cross-file 的 build.* 被忽略, meson 1.12 交叉不自动探测)
           cat > ios-native.ini <<INI
           [binaries]
