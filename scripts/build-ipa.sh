@@ -317,9 +317,8 @@ fi
 # v4.4.9-fix3by: Python 瘦身（大厂标配）——Python 官方 build 把完整 stdlib 复制进包（含 test/ 162MB 测试套件、
 # idlelib 编辑器等生产用不到的模块）。删除后 App 448M→~260M（numpy/pandas/lib-dynload 全保留）。
 if [ -d "$APP/python/lib/python3.14" ]; then
-    echo ">>> python slim: removing test/idlelib/turtledemo/pydoc_data/__pycache__"
-    rm -rf "$APP/python/lib/python3.14/test" "$APP/python/lib/python3.14/idlelib"            "$APP/python/lib/python3.14/turtledemo" "$APP/python/lib/python3.14/pydoc_data"            "$APP/python/lib/python3.14/__pycache__"
-    find "$APP/python/lib" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+    echo ">>> python slim: removing test/idlelib/turtledemo (生产用不到；pydoc_data/__pycache__ 保留——help() 完整+首次运行不重建)"
+    rm -rf "$APP/python/lib/python3.14/test" "$APP/python/lib/python3.14/idlelib" "$APP/python/lib/python3.14/turtledemo"
     echo ">>> python after slim: $(du -sh "$APP/python" | cut -f1)"
 fi
 
