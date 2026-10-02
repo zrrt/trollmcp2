@@ -669,7 +669,8 @@ jobs:
             -DLLVM_ENABLE_ZSTD=OFF -DLLVM_ENABLE_BACKTRACES=OFF -DLLVM_ENABLE_LLD=OFF \
             -DLLVM_BUILD_LLVM_DYLIB=OFF -DLLVM_LINK_LLVM_DYLIB=OFF \
             -DLLVM_TABLEGEN=$PWD/llvm-host/bin/llvm-tblgen \
-            -DLLVM_NATIVE_TOOL_DIR=$PWD/llvm-host/bin
+            -DLLVM_NATIVE_TOOL_DIR=$PWD/llvm-host/bin \
+            -DCMAKE_SKIP_INSTALL_RULES=ON
           ninja -C llvm-build llvm-objdump llvm-nm llvm-readelf llvm-size llvm-strings
           ls llvm-build/bin/ 2>/dev/null | head
 
