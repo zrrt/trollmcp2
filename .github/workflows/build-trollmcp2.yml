@@ -558,30 +558,58 @@ jobs:
       # 会劫持 pip 平台判断（以为在 iOS 上跑→没有 macOS wheel→装失败）。
       # fix3x: 去掉 if 缓存条件——此前绑定 numpy 缓存, 缓存命中时 pandas 步骤被跳过(假进包)；
       #        现在无条件每次编译（约 3-5min），保证 pandas wheel 每次都产出并上传。
+      # fix3ad: 本 step 独立 shell——完整复制 numpy 环境准备(解包+sysconfigdata hack+副本+cross-file),
+      #         不再假设 numpy 步骤遗留就位(修复 'No module named _sysconfigdata' 根因: 副本/cross-file
+      #         是 numpy 步骤局部产物, 本步骤必须自给自足); pip 前补装 meson-python/ninja/wheel(幂等)。
       - name: Build pandas iOS wheel (cp314 arm64 iphoneos, meson cross)
         run: |
           set -euo pipefail
-          # fix3z: PYIOS 是 numpy 步骤的局部变量, 本 step 是独立 shell——必须重新定义
-          #         (python-ios/ 已由 numpy 步骤解包+sysconfigdata hack+cross-file 就位)
+          # 0) 宿主后端工具（幂等, 防 numpy 步骤未执行/缓存命中导致缺失）
+          pip install -q meson-python ninja cython wheel
+          # 1) 解包 Python.xcframework（native-python job 产物, download-artifact 已放 python-ios/）
+          tar -xzf python-ios/python-*.tar.gz -C python-ios/
           XCF=$(find python-ios -type d -name "Python.xcframework" | head -1)
           PYIOS="$(pwd)/$XCF/ios-arm64"
           echo ">>> PYIOS=$PYIOS"
-          # 1) 宿主构建依赖（env vars 前！）：Cython(编译 .pyx) + numpy(头文件)
+          # 2) sysconfigdata hack（PEP 730 相对路径→绝对路径）+ 下划线副本（import 可加载）
+          SC="$PYIOS/lib-arm64/python3.14/_sysconfigdata__ios_arm64-iphoneos.py"
+          sed -i "" "s|'Apple/iOS/Frameworks/arm64-iphoneos|'$PYIOS|g" "$SC"
+          cp "$SC" "$PYIOS/lib-arm64/python3.14/_sysconfigdata__ios_arm64_iphoneos.py"
+          # 3) meson cross 文件（xcrun SDK 工具链, arm64 真机）
+          cat > ios-meson.ini <<INI
+          [binaries]
+          c = ['xcrun', '--sdk', 'iphoneos', 'clang', '-arch', 'arm64', '-mios-version-min=15.0']
+          cpp = ['xcrun', '--sdk', 'iphoneos', 'clang++', '-arch', 'arm64', '-mios-version-min=15.0']
+          ar = ['xcrun', '--sdk', 'iphoneos', 'ar']
+          strip = ['xcrun', '--sdk', 'iphoneos', 'strip']
+          pkg-config = 'false'
+          [host_machine]
+          system = 'ios'
+          cpu_family = 'aarch64'
+          cpu = 'arm64'
+          endian = 'little'
+          [properties]
+          allow-noblas = true
+          cpu-dispatch = 'none'
+          INI
+          # 4) 宿主构建依赖（env vars 前！）：Cython(编译 .pyx) + numpy(头文件)
           python -m pip install -q "Cython>3.1.0,<4" "numpy>=2.2,<3"
           pip download --no-deps --no-binary :all: pandas==3.0.6 -d wheel-src
           tar -xzf wheel-src/pandas-3.0.6.tar.gz -C wheel-src
-          # 2) iOS 交叉环境（与 numpy 步骤一致）
+          # 5) iOS 交叉环境（与 numpy 步骤一致）
           export PATH="$PYIOS/bin:$PATH"
           export _PYTHON_HOST_PLATFORM=ios-arm64
           export _PYTHON_SYSCONFIGDATA_NAME=_sysconfigdata__ios_arm64_iphoneos
           export PYTHONPATH="$PYIOS/lib-arm64/python3.14${PYTHONPATH:+:$PYTHONPATH}"
           export IPHONEOS_DEPLOYMENT_TARGET=15.0
-          # 3) 断言 sysconfigdata 生效
+          # 6) 断言 sysconfigdata 生效（环境自证, 失败立即暴露而非盲等 meson）
           python3 -c "
           import sysconfig
           ip = sysconfig.get_config_var('INCLUDEPY') or ''
           assert 'ios-arm64' in ip, 'sysconfigdata 失效: ' + ip
           "
+          echo ">>> env: python3=$(which python3) PYTHONPATH=$PYTHONPATH"
+          ls -la "$PYIOS/lib-arm64/python3.14/" | grep sysconfigdata || echo "!!! sysconfigdata 副本缺失"
           python -m pip wheel --no-deps --no-build-isolation \
             -Csetup-args=--cross-file=$PWD/ios-meson.ini \
             -Csetup-args=-Dallow-noblas=true \
@@ -679,6 +707,9 @@ jobs:
             -DCMAKE_EXE_LINKER_FLAGS="-arch arm64 -isysroot $SDK -mios-version-min=15.0" \
             -DLLVM_TARGETS_TO_BUILD=AArch64 -DLLVM_ENABLE_PROJECTS="" \
             -DLLVM_BUILD_TOOLS=ON -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_EXAMPLES=OFF \
+            # fix3ad: AddLLVM.cmake:297 的 -Wl,--gc-sections 受 LLVM_GC_SECTIONS 控制(GNU ld 选项,
+            #         Apple ld 不认→'unknown options: --gc-sections' 链接失败)——显式关闭
+            -DLLVM_GC_SECTIONS=OFF \
             -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_UTILS=OFF \
             -DLLVM_ENABLE_ZLIB=OFF -DLLVM_ENABLE_TERMINFO=OFF -DLLVM_ENABLE_LIBXML2=OFF \
             -DLLVM_ENABLE_ZSTD=OFF -DLLVM_ENABLE_BACKTRACES=OFF -DLLVM_ENABLE_LLD=OFF \
