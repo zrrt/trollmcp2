@@ -102,9 +102,11 @@ jobs:
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
           # fix3ac: CC 带空格(xcrun 参数)被 make 拆词→"-sdk: command not found"(Error 127)
           #         → 写单 token wrapper 脚本, CC/AR/RANLIB 传脚本路径
+          # fix3ak: wrapper 里 $SDK 未 export→空→clang -isysroot "" 静默失败(IS_APPLE 检查吞 stderr)
+          #         → 内联求值 SDK 路径, 不依赖外部变量
           cat > /tmp/ioscc <<WRAP
           #!/bin/sh
-          exec xcrun --sdk iphoneos clang -arch arm64 -isysroot "$SDK" -mios-version-min=15.0 "\$@"
+          exec xcrun --sdk iphoneos clang -arch arm64 -isysroot "$(xcrun --sdk iphoneos --show-sdk-path)" -mios-version-min=15.0 "\$@"
           WRAP
           cat > /tmp/iosar <<WRAP
           #!/bin/sh
@@ -115,9 +117,11 @@ jobs:
           exec xcrun --sdk iphoneos ranlib "\$@"
           WRAP
           chmod +x /tmp/ioscc /tmp/iosar /tmp/iosranlib
-          make CAPSTONE_ARCHS="aarch64 arm x86" CAPSTONE_DIET=no \
+          # fix3ak: ①默认目标可能是空/递归歧义→显式 all; ②all 会拖 cstool+tests 子 make(tests 无必要且易挂)
+          #         → CAPSTONE_BUILD_CORE_ONLY=yes 只编核心库; ③make 输出管道可见(防静默吞错)
+          make all CAPSTONE_ARCHS="aarch64 arm" CAPSTONE_DIET=no CAPSTONE_BUILD_CORE_ONLY=yes \
             CC=/tmp/ioscc \
-            AR=/tmp/iosar RANLIB=/tmp/iosranlib
+            AR=/tmp/iosar RANLIB=/tmp/iosranlib 2>&1 | tail -30
           # fix3x: 去掉 exit 0 吞错——capstone 失败即 job fail
           if [ -f libcapstone.a ]; then
             cp libcapstone.a "$GITHUB_WORKSPACE/native-tools-out/libcapstone.a"
@@ -142,8 +146,9 @@ jobs:
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
           INC=/tmp/r2ios/var/jb/usr/include/libr
           LIB=/tmp/r2ios/var/jb/usr/lib
-          echo '#include <r_main.h>' > /tmp/r2main.c
-          echo 'int main(int argc, char **argv) { return r_main_r2(argc, argv); }' >> /tmp/r2main.c
+          # fix3ak: r_main.h(6.2.2) 不含 r_main_r2 声明→implicit declaration 报错→手动 extern
+          echo 'extern int r_main_r2(int argc, const char **argv);' > /tmp/r2main.c
+          echo 'int main(int argc, char **argv) { return r_main_r2(argc, (const char **)argv); }' >> /tmp/r2main.c
           LIBS="$(ls $LIB/libr_*.a 2>/dev/null | tr '\n' ' ')"
           # capstone: 用上一步自编的 libcapstone.a（r2ios-sdk 自带与否不确定）
           CAP=""
@@ -582,8 +587,11 @@ jobs:
           PYIOS="$(pwd)/$XCF/ios-arm64"
           echo ">>> PYIOS=$PYIOS"
           # 2) sysconfigdata hack（PEP 730 相对路径→绝对路径）+ 下划线副本（import 可加载）
+          # fix3ak: pandas 扩展链接带 -framework Python(sysconfig LDSHARED), iOS 交叉无 Python.framework→
+          #         ld: framework 'Python' not found——sed 删掉; Python C API 符号靠 dynamic_lookup 动态解析
           SC="$PYIOS/lib-arm64/python3.14/_sysconfigdata__ios_arm64-iphoneos.py"
           sed -i "" "s|'Apple/iOS/Frameworks/arm64-iphoneos|'$PYIOS|g" "$SC"
+          sed -i '' 's/ -framework Python//g' "$SC"
           cp "$SC" "$PYIOS/lib-arm64/python3.14/_sysconfigdata__ios_arm64_iphoneos.py"
           # 3) meson cross 文件（xcrun SDK 工具链, arm64 真机）
           cat > ios-meson.ini <<INI
