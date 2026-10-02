@@ -475,6 +475,21 @@ final class ShellExecTool: MCPTool {
             AuditLog.shared.log("shell.exec (ios bundled)", detail: String(trimmed.prefix(100)))
             return result
         }
+
+        // fix3cl4: 通用单段原生路由——命令名在 App bin/ 存在即可执行即走原生（覆盖 llvm-objdump/nm/
+        // readelf/size/strings 等全部内置工具）。之前只枚举 lua/node/r2/cstool，llvm 家族单段落 Alpine
+        // not found。放 python3/470 分支之后，互不冲突；含 / 或 .. 的路径不匹配（防误判）。
+        if !iosCmd.contains("/"), !iosCmd.contains("..") {
+            let firstWord = iosCmd.split(separator: " ").first.map(String.init) ?? ""
+            if !firstWord.isEmpty {
+                let bundledRoots = [Bundle.main.bundlePath + "/bin", Bundle.main.bundlePath + "/Resources/bin"]
+                if bundledRoots.contains(where: { FileManager.default.isExecutableFile(atPath: $0 + "/" + firstWord) }) {
+                    let result = ShellExecTool.runIOSNativeSegment(iosCmd)
+                    AuditLog.shared.log("shell.exec (ios bundled gen)", detail: String(trimmed.prefix(100)))
+                    return result
+                }
+            }
+        }
         
         // v3.0.41：iSH 为唯一引擎 (ios_system 已删除）。初始化failed直接报错，不再回退。
         let (output, exitCode, timedOut) = ISHEngine.exec(command, timeout: timeout)
@@ -2154,6 +2169,7 @@ final class ShellExecTool: MCPTool {
         if name == "r2" {
             try? FileManager.default.removeItem(atPath: r2OutPath)
             benv["TROLL_R2_OUT"] = r2OutPath
+            benv["TROLL_R2_DIAG"] = "1"
         }
         let res = BuildRunner.shared.run(executable: binPath, args: args, env: benv, timeout: tmo)
         var out = res.stdout

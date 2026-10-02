@@ -43,6 +43,9 @@ static void derive_bundle(const char *argv0, char *buf, size_t size) {
 }
 
 int main(int argc, char **argv) {
+    // fix3cl4: 探针——`python3 --troll-probe` 立即 exit(42)。Swift 读回 exit_code，
+    // 42=main 执行了（问题在后续绑定/输出）；0=main 根本没跑（dyld/构造器层 exit）——确诊通道。
+    if (argc > 1 && strcmp(argv[1], "--troll-probe") == 0) return 42;
     // fix3cl3: 无条件启动标记——在 diag 之前直接 fopen 多路径写，
     // Swift 读回区分"main 根本没跑"(dyld/入口问题) vs "跑了但后面失败"(绑定/Py_Initialize)。
     {
