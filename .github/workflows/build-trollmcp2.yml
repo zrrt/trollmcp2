@@ -28,7 +28,7 @@ jobs:
           # fix3g: save-always:false——构建失败不写缓存，防空产物毒化
           # fix3x: v4——实测 v3 缓存只含 node(lua/capstone/r2 步骤曾被 || true 吞错→空产物进缓存→永久命中跳过编译)；
           #        全面严格化(去掉吞错)后 bump key 强制全量重编一次, 新缓存含全工具
-          key: native-tools-v4
+          key: native-tools-v5
           save-always: false
 
       - name: Build lua 5.4 (iOS arm64)
@@ -130,10 +130,16 @@ jobs:
             echo "!!! capstone build failed" >&2
             exit 1
           fi
+          # fix3bl: CAPSTONE_BUILD_CORE_ONLY=yes 只编核心库(cstool 不在 core 目标)→单独 make cstool
+          #         (依赖已编的 libcapstone.a), 失败即 job fail——此前 cstool 从未编出, Verify 一直 MISSING
+          make cstool CAPSTONE_ARCHS="aarch64 arm" CAPSTONE_DIET=no             CC=/tmp/ioscc AR=/tmp/iosar RANLIB=/tmp/iosranlib 2>&1 | tail -10
           if [ -f cstool ]; then
             cp cstool "$GITHUB_WORKSPACE/native-tools-out/cstool"
             chmod +x "$GITHUB_WORKSPACE/native-tools-out/cstool"
-            echo ">>> cstool built"
+            echo ">>> cstool built ($(du -h cstool | cut -f1))"
+          else
+            echo "!!! cstool build failed" >&2
+            exit 1
           fi
 
       # v4.4.5: radare2 CLI（r2ios-sdk 是静态库 SDK，无现成 r2 可执行——写 main 链接 libr.a 全套）
