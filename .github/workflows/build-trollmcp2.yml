@@ -642,6 +642,8 @@ jobs:
           #         全局删(含开头), 链接命令即去 framework(仅留 -F 搜索路径, 无害)
           sed -i '' 's/-framework Python//g' "$SC"
           cp "$SC" "$PYIOS/lib-arm64/python3.14/_sysconfigdata__ios_arm64_iphoneos.py"
+          # fix3at: 断言 LDSHARED 已无 framework(之前 sed 后仍残留, 失败立即暴露而非盲等 meson)
+          grep -c "framework" "$SC" || echo ">>> SC framework 已删干净"
           # 3) meson cross 文件（xcrun SDK 工具链, arm64 真机）
           cat > ios-meson.ini <<INI
           [binaries]
@@ -650,6 +652,10 @@ jobs:
           ar = ['xcrun', '--sdk', 'iphoneos', 'ar']
           strip = ['xcrun', '--sdk', 'iphoneos', 'strip']
           pkg-config = 'false'
+          # fix3at: pandas 用 import('python').find_installation() 取链接参数——不指定 python 时
+          #         meson 用宿主(macOS framework 版)→LDSHARED 带 -framework Python(交叉 SC 的 sed 影响不到)
+          #         →显式指定宿主 python + _PYTHON_SYSCONFIGDATA_NAME 环境让其读交叉 SC
+          python = ['/Library/Frameworks/Python.framework/Versions/3.14/bin/python']
           [host_machine]
           system = 'ios'
           cpu_family = 'aarch64'
