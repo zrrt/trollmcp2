@@ -85,13 +85,16 @@ enum TrustEnabler {
                 // ① 系统空闲等待（Fuck 手动注入成功的关键窗口）
                 usleep(5_000_000)
                 // ② 注入期间防熄屏（保持前台驻留，子进程环境稳定）
-                DispatchQueue.main.sync {
+                // 用 async 而非 sync：注入 queue 不阻塞主线程，避免主线程忙时死锁
+                DispatchQueue.main.async {
                     UIApplication.shared.isIdleTimerDisabled = true
                 }
+                // 给主线程 200ms 完成 UI 设置再 spawn（async 无信号，靠小等待）
+                usleep(200_000)
                 let start = Date()
                 let ok = spawn(helper, args: [appex])
                 let cost = Int(Date().timeIntervalSince(start))
-                DispatchQueue.main.sync {
+                DispatchQueue.main.async {
                     UIApplication.shared.isIdleTimerDisabled = false
                 }
                 let detail: String
