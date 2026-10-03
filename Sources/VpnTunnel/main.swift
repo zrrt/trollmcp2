@@ -40,9 +40,9 @@ import CHev
         ipv6.includedRoutes = [NEIPv6Route.default()]
         var excl6: [NEIPv6Route] = []
         if let i6 = lanIPv6 {
-            excl6.append(NEIPv6Route(address: i6, networkPrefixLength: 64))
+            excl6.append(NEIPv6Route(destinationAddress: i6, networkPrefixLength: NSNumber(value: 64)))
         }
-        excl6.append(NEIPv6Route(address: "fe80::", networkPrefixLength: 10))  // link-local 排除
+        excl6.append(NEIPv6Route(destinationAddress: "fe80::", networkPrefixLength: NSNumber(value: 10)))  // link-local 排除
         ipv6.excludedRoutes = excl6
         settings.ipv6Settings = ipv6
         settings.dnsSettings = NEDNSSettings(servers: ["1.1.1.1", "8.8.8.8"])
