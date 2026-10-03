@@ -103,13 +103,23 @@ int main(int argc, char **argv) {
 
     // module search path：stdlib + lib-dynload（.so 扩展模块）+ site-packages（wheels 解包处）
     // fix3p: site-packages 缺失导致原生 python3 找不到 numpy/pandas(wheel 解包于此, build-ipa.sh 集成)
-    char libdir[1600];
-    snprintf(libdir, sizeof libdir,
-             "%s/python/lib/python3.14:%s/python/lib/python3.14/lib-dynload:%s/python/lib/python3.14/site-packages",
-             bundle, bundle, bundle);
+    // fix3cj: PyWideStringList 是"每个元素一个目录"的宽字符串列表——绝不能把 'a:b:c' 冒号串当单个条目
+    //（否则 sys.path = ['a:b:c'] 单条无效路径 → Py_Initialize "Failed to import encodings module"）。
+    // 逐个目录 Append：stdlib + lib-dynload + site-packages。
     PyWideStringList paths = {0};   // fix3bp: 3.14 移除 PyWideStringList_Init，改零初始化
-    wchar_t *wlib = Py_DecodeLocale(libdir, NULL);
-    PyWideStringList_Append(&paths, wlib);
+    {
+        const char *dirs[] = {
+            "/lib/python3.14",
+            "/lib/python3.14/lib-dynload",
+            "/lib/python3.14/site-packages"
+        };
+        for (int i = 0; i < 3; i++) {
+            char p[1600];
+            snprintf(p, sizeof p, "%s/python%s", bundle, dirs[i]);
+            wchar_t *w = Py_DecodeLocale(p, NULL);
+            if (w) PyWideStringList_Append(&paths, w);
+        }
+    }
     config.module_search_paths = paths;
     config.module_search_paths_set = 1;
 
