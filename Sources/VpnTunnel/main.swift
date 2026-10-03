@@ -26,11 +26,24 @@ import CHev
         let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "127.0.0.1")
         let ipv4 = NEIPv4Settings(addresses: ["198.18.0.1"], subnetMasks: ["255.255.255.0"])
         ipv4.includedRoutes = [NEIPv4Route.default()]
-        ipv4.excludedRoutes = []
+        // fix3cy19：WiFi 子网排除——保 8790 远程 AI 通道 + 局域网设备（调研 RESEARCH_REPORT §6.3-⑧）
+        //   （全接管若连本机 LAN 也吞，AI 无法通过 8790 连接分析）
+        let (lanNet, lanMask, lanIPv6) = Self.localSubnet()
+        var excl4: [NEIPv4Route] = []
+        if let n = lanNet, let m = lanMask {
+            excl4.append(NEIPv4Route(address: n, networkMask: m))
+            NSLog("[VpnTunnel] excluded LAN \(n)/\(m) (keep 8790 online)")
+        }
+        ipv4.excludedRoutes = excl4
         settings.ipv4Settings = ipv4
         let ipv6 = NEIPv6Settings(addresses: ["fc00::1"], networkPrefixLengths: [64])
         ipv6.includedRoutes = [NEIPv6Route.default()]
-        ipv6.excludedRoutes = []
+        var excl6: [NEIPv6Route] = []
+        if let i6 = lanIPv6 {
+            excl6.append(NEIPv6Route(address: i6, networkPrefixLength: 64))
+        }
+        excl6.append(NEIPv6Route(address: "fe80::", networkPrefixLength: 10))  // link-local 排除
+        ipv6.excludedRoutes = excl6
         settings.ipv6Settings = ipv6
         settings.dnsSettings = NEDNSSettings(servers: ["1.1.1.1", "8.8.8.8"])
         settings.mtu = 9000
@@ -121,6 +134,52 @@ import CHev
             if addr.sc_id == ctlInfo.ctl_id { return fd }
         }
         return nil
+    }
+
+    // MARK: - 本机 LAN 子网（getifaddrs 读 en0，excludedRoutes 保 8790 用）
+
+    private static func localSubnet() -> (net: String?, mask: String?, ip6: String?) {
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddr) == 0, let first = ifaddr else { return (nil, nil, nil) }
+        defer { freeifaddrs(first) }
+        var ip: String?, mask: String?, ip6: String?
+        var cur: UnsafeMutablePointer<ifaddrs>? = first
+        while let c = cur {
+            let family = c.pointee.ifa_addr.pointee.sa_family
+            let name = String(cString: c.pointee.ifa_name)
+            if name == "en0" {
+                if family == sa_family_t(AF_INET) {
+                    var addr = c.pointee.ifa_addr.pointee
+                    var nm = c.pointee.ifa_netmask.pointee
+                    var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                    var nmh = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                    if getnameinfo(&addr, socklen_t(MemoryLayout<sockaddr_in>.size), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0,
+                       getnameinfo(&nm, socklen_t(MemoryLayout<sockaddr_in>.size), &nmh, socklen_t(nmh.count), nil, 0, NI_NUMERICHOST) == 0 {
+                        let ipStr = String(cString: host)
+                        let maskStr = String(cString: nmh)
+                        // 网络地址 = ip & mask
+                        var a = in_addr(); var m = in_addr()
+                        inet_pton(AF_INET, ipStr, &a)
+                        inet_pton(AF_INET, maskStr, &m)
+                        let net = in_addr(s_addr: a.s_addr & m.s_addr)
+                        var nb = [CChar](repeating: 0, count: 16)
+                        inet_ntop(AF_INET, &net, &nb, socklen_t(nb.count))
+                        ip = String(cString: nb)
+                        mask = maskStr
+                    }
+                } else if family == sa_family_t(AF_INET6) {
+                    var addr = c.pointee.ifa_addr.pointee
+                    var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                    if getnameinfo(&addr, socklen_t(MemoryLayout<sockaddr_in6>.size), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 {
+                        var s = String(cString: host)
+                        if let idx = s.firstIndex(of: "%") { s = String(s[..<idx]) }
+                        ip6 = s
+                    }
+                }
+            }
+            cur = c.pointee.ifa_next
+        }
+        return (ip, mask, ip6)
     }
 
     // MARK: - hev-socks5-tunnel 配置（低内存 profile，抄 socksguard）
