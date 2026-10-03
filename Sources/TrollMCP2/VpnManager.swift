@@ -121,25 +121,50 @@ final class VpnManager {
         // fix3cy5（P2-配置链路补全）：主 App 从未把抓包配置传给隧道引擎——这是"Fuck 引擎搬过来
         //   但抓不到包"的直接原因（引擎起来不知道抓什么/存哪）。这里一次性补两条：
         //   ① providerConfiguration（随 startVPNTunnel 以 options 传入 appex）；
-        //   ② CFPreferences 写 appex bundle 域偏好 com.ai.iosxcode.packet-tunnel.start-state
-        //      （Fuck 引擎硬编码用 CFPropertyListCreateWithData 解析该键，结构对齐其配置项）。
-        //   配置项名对齐 TunnelServices 已知成员：localBindIP/storeFolder/getCertPath/wifiIsOpen。
-        let config: [String: Any] = [
+        //   ② CFPreferences 写 start-state（appex 硬编码键全名 com.ai.iosxcode.packet-tunnel.start-state，
+        //      用 CFPropertyListCreateWithData 解析 + setHTTPServer:/setHTTPSServer: 配系统代理）。
+        //   fix3cy6：Fuck 主 App bundle=com.ai.iosxcode，写偏好天然落 com.ai.iosxcode 域；我们 bundle
+        //   不同 → 三个可能被读的域【全部写入】，键用 appex 硬编码全名；值内同时提供
+        //   host/port（NEProxyServer 所需）与 TunnelServices 配置项（localBindIP/storeFolder/certPath 等），
+        //   多写键无副作用，appex 只取它认识的。
+        let startState: [String: Any] = [
+            // NEProxyServer 地址（appex setHTTPServer:/setHTTPSServer: 用）
+            "host": "127.0.0.1",
+            "port": 18180,
+            "proxyHost": "127.0.0.1",
+            "proxyPort": 18180,
+            // TunnelServices 配置项（MitmService / wifi 模式）
             "localBindIP": "127.0.0.1",
             "storeFolder": "/var/mobile/Documents/Workspace/mitm",
             "getCertPath": "/var/mobile/Documents/Workspace/certs/ca.pem",
-            "wifiIsOpen": false
+            "wifiIsOpen": false,
+            "wifiBindIP": "192.169.89.1",
+            "wifiChannel": 1,
+            "wifiStarted": false
         ]
+        let config: [String: Any] = startState
         proto.providerConfiguration = config
-        // appex bundle 域偏好（Fuck 引擎启动时同步读）
         if let data = try? PropertyListSerialization.data(fromPropertyList: config, format: .binary, options: 0) {
-            CFPreferencesSetValue("com.ai.iosxcode.packet-tunnel.start-state" as CFString,
-                                  data as CFData,
+            let key = "com.ai.iosxcode.packet-tunnel.start-state" as CFString
+            // 域 1：appex 当前 bundle（重签后 = com.trollagent.app.VpnTunnel，CFPreferencesCopyAppValue 命中）
+            CFPreferencesSetValue(key, data as CFData,
                                   "com.trollagent.app.VpnTunnel" as CFString,
+                                  kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
+            // 域 2：Fuck 原始 bundle（appex 若硬编码读 com.ai.iosxcode suite 命中）
+            CFPreferencesSetValue(key, data as CFData,
+                                  "com.ai.iosxcode" as CFString,
+                                  kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
+            // 域 3：AppGroup 域（appex 若经 group 共享容器读命中）
+            CFPreferencesSetValue(key, data as CFData,
+                                  "group.com.ai.iosxcode" as CFString,
                                   kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
             CFPreferencesSynchronize("com.trollagent.app.VpnTunnel" as CFString,
                                      kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
-            VpnManager.vpnlog("start-state written to com.trollagent.app.VpnTunnel (config: \(config.keys))")
+            CFPreferencesSynchronize("com.ai.iosxcode" as CFString,
+                                     kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
+            CFPreferencesSynchronize("group.com.ai.iosxcode" as CFString,
+                                     kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
+            VpnManager.vpnlog("start-state written to 3 domains (keys: \(startState.keys))")
         }
         self.manager.protocolConfiguration = proto
         self.manager.isEnabled = true
