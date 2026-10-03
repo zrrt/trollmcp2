@@ -59,7 +59,7 @@ let package = Package(
         // v3.3.0：VPN 抓包模式 appex（PacketTunnelProvider，P1 hev 转发内核）
         .executableTarget(
             name: "VpnTunnel",
-            dependencies: ["MitmCore", "CMitm", .product(name: "Tun2SocksKit", package: "Tun2SocksKit")],
+            dependencies: ["MitmCore", "CMitm", .product(name: "Tun2SocksKit", package: "Tun2SocksKit"), .product(name: "Tun2SocksKitC", package: "Tun2SocksKit")],
             path: "Sources/VpnTunnel",
             linkerSettings: [
                 .linkedFramework("NetworkExtension")

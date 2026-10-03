@@ -10,6 +10,7 @@ import Foundation
 import NetworkExtension
 import MitmCore
 import Tun2SocksKit
+import Tun2SocksKitC
 
 @objc public class TunnelProvider: NEPacketTunnelProvider {
 
