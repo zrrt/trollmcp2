@@ -188,6 +188,5 @@ int main(int argc, char **argv) {
     fflush(stderr);
     diag("=== python3 main end ===");
     Py_Finalize();
-    free(wlib);
     return rc;
 }
