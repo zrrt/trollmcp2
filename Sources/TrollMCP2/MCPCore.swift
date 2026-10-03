@@ -1109,6 +1109,8 @@ public final class ToolRegistry: ObservableObject {
         // v3.1.44: verify 大工具 + 子命令 (合并 2 个 verify.* 工具）
         register(VerifyExecTool())
         // v3.1.44: 删旧的 2 个 verify.* 工具 (已合并到 verify 大工具）
+        // fix3cy10: wifi 系统代理控制（AI 一键开/关 HTTP(S) 代理 → 本地 MITM，不断网抓包）
+        register(WifiProxyExecTool())
 
         // v3.1.34: inject 大工具 + 子命令 (合并 7 个 injection.* 工具）
         register(InjectionExecTool())
