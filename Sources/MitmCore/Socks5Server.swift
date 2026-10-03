@@ -288,7 +288,11 @@ public final class Socks5Server {
         var plen = socklen_t(MemoryLayout<sockaddr_in>.size)
         var sessionPeer = peer  // 记录客户端地址
         while runningFlag {
-            let n = recvfrom(ufd, &buf, 65536, 0, &peer, &plen)
+            let n = withUnsafeMutablePointer(to: &peer) { p -> Int in
+                p.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    recvfrom(ufd, &buf, 65536, 0, $0, &plen)
+                }
+            }
             if n <= 0 { continue }
             let data = Array(buf[0..<Int(n)])
             guard data.count >= 4, data[0] == 0, data[1] == 0, data[2] == 0 else { continue }
