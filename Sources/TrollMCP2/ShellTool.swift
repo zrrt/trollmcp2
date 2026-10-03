@@ -482,17 +482,18 @@ final class ShellExecTool: MCPTool {
         // fix3cl5: 排除"文件操作/签名/管理"类——这些 bin/ 原生版处理 iOS 路径，而 AI 惯用 Alpine
         // 路径（/root/... 等，经 iSH bind 映射）。误切原生会让 cp/mv/rm /root/x 回归失败。
         // 它们继续走原 Alpine/默认路由；通用路由只对分析/脚本类生效。
+        // fix3cu: 判断改为基于命令名(firstWord)而非整个命令——原 !iosCmd.contains("/") 会误伤所有
+        // 带路径参数的命令(如 kfd_helper /private/var/... 整条含 / → 跳过原生路由 → 落 Alpine
+        // Permission denied, iSH 跑不了 arm64 iOS 二进制)。命令名本身不含 / 且 bin 存在 → 原生直跑。
         let genRouteExcludes: Set<String> = ["cp", "mv", "rm", "mkdir", "chown", "install_name_tool",
                                               "ldid", "optool", "insert_dylib", "jtool2"]
-        if !iosCmd.contains("/"), !iosCmd.contains("..") {
-            let firstWord = iosCmd.split(separator: " ").first.map(String.init) ?? ""
-            if !firstWord.isEmpty, !genRouteExcludes.contains(firstWord) {
-                let bundledRoots = [Bundle.main.bundlePath + "/bin", Bundle.main.bundlePath + "/Resources/bin"]
-                if bundledRoots.contains(where: { FileManager.default.isExecutableFile(atPath: $0 + "/" + firstWord) }) {
-                    let result = ShellExecTool.runIOSNativeSegment(iosCmd)
-                    AuditLog.shared.log("shell.exec (ios bundled gen)", detail: String(trimmed.prefix(100)))
-                    return result
-                }
+        let firstWord = iosCmd.split(separator: " ").first.map(String.init) ?? ""
+        if !firstWord.isEmpty, !firstWord.contains("/"), !firstWord.contains(".."), !genRouteExcludes.contains(firstWord) {
+            let bundledRoots = [Bundle.main.bundlePath + "/bin", Bundle.main.bundlePath + "/Resources/bin"]
+            if bundledRoots.contains(where: { FileManager.default.isExecutableFile(atPath: $0 + "/" + firstWord) }) {
+                let result = ShellExecTool.runIOSNativeSegment(iosCmd)
+                AuditLog.shared.log("shell.exec (ios bundled gen)", detail: String(trimmed.prefix(100)))
+                return result
             }
         }
         
