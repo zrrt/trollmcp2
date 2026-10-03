@@ -341,14 +341,24 @@ fi
 #   Fuck 1.8.5 成品（全接管纯记录 → 断网）降级为 fallback 兜底。
 if [ -d "openssl-stage/lib" ] && [ -f "openssl-stage/lib/libssl.a" ]; then
     echo ">>> VPN appex: swift build 自研 VpnTunnel (P1 hev 转发内核: 全接管+转发+记录)"
-    echo ">>> swift build -c release --product VpnTunnel --triple arm64-apple-ios15.0"
-    # --triple 必须：SwiftPM 默认按 macOS destination 解析依赖，会把 HevSocks5Tunnel.xcframework
-    #   的 macOS slice 链接进 iOS 目标（ld: building for iOS but linking object built for macOS）。
-    #   --triple 让 SwiftPM 全程按 iOS triple 编译依赖并选 xcframework 的 iOS slice。
+    # fix3cy16：hev-socks5-tunnel iOS 真机 slice（Tun2SocksKit 5.16.0 release 的 xcframework）
+    #   手动下载解压 → hev-stage/lib/libhev-socks5-tunnel.a（避开 SwiftPM binaryTarget 平台选择：
+    #   SwiftPM 在 macOS host 默认按 macOS 解析，会把 macOS slice 链接进 iOS，ld 直接报错）
+    if [ ! -f "hev-stage/lib/libhev-socks5-tunnel.a" ]; then
+        echo ">>> downloading HevSocks5Tunnel.xcframework (Tun2SocksKit 5.16.0) for iOS arm64 slice"
+        mkdir -p hev-stage/lib
+        curl -sL --max-time 120 -o hev-stage/hev.zip \
+            "https://github.com/EbrahimTahernejad/Tun2SocksKit/releases/download/5.16.0/HevSocks5Tunnel.xcframework.zip"
+        unzip -o -q hev-stage/hev.zip -d hev-stage/xcf
+        cp hev-stage/xcf/HevSocks5Tunnel.xcframework/ios-arm64/libhev-socks5-tunnel.a hev-stage/lib/
+        echo ">>> hev lib: $(ls -la hev-stage/lib/ | grep hev)"
+    fi
+    echo ">>> swift build VpnTunnel appex"
     if swift build -c release --product VpnTunnel \
-        --triple arm64-apple-ios15.0 \
         -Xswiftc -sdk -Xswiftc "$SDK" \
-        -Xcc -isysroot -Xcc "$SDK" 2>&1 | tail -8; then
+        -Xswiftc -target -Xswiftc arm64-apple-ios15.0 \
+        -Xcc -isysroot -Xcc "$SDK" \
+        -Xcc -target -Xcc arm64-apple-ios15.0 2>&1 | tail -8; then
         VT_BIN=""
         for p in ".build/release/VpnTunnel" ".build/arm64-apple-ios15.0/release/VpnTunnel"; do
             [ -f "$p" ] && VT_BIN="$p"

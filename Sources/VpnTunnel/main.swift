@@ -9,8 +9,7 @@
 import Foundation
 import NetworkExtension
 import MitmCore
-import Tun2SocksKit
-import Tun2SocksKitC
+import CHev
 
 @objc public class TunnelProvider: NEPacketTunnelProvider {
 
@@ -58,7 +57,11 @@ import Tun2SocksKitC
                 let yaml = Self.makeConfig(port: Int(self.socks5Port),
                                            logPath: "/var/mobile/Documents/Workspace/logs/hev.log")
                 self.stopping = false
-                let code = Socks5Tunnel.run(withConfig: .string(content: yaml))
+                // 直接调 hev 内核（CHev 桥接；config 用字符串内存版，避免写文件）
+                let bytes = Array(yaml.utf8)
+                let code = bytes.withUnsafeBufferPointer { buf -> Int32 in
+                    hev_socks5_tunnel_main_from_str(buf.baseAddress, UInt32(bytes.count), fd ?? -1)
+                }
                 NSLog("[VpnTunnel] tunnel core exited code \(code)")
                 if !self.stopping {
                     self.cancelTunnelWithError(NSError(domain: "TrollAgent.VpnTunnel", code: Int(code),
@@ -72,7 +75,7 @@ import Tun2SocksKitC
     public override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
         NSLog("[VpnTunnel] stopTunnel reason \(reason.rawValue)")
         stopping = true
-        Socks5Tunnel.quit()
+        hev_socks5_tunnel_quit()
         Socks5Server.shared.stop()
         completionHandler()
     }
@@ -81,8 +84,9 @@ import Tun2SocksKitC
         let cmd = String(data: messageData, encoding: .utf8) ?? "stats"
         if cmd == "status" {
             let s5 = Socks5Server.shared.isRunning ? "socks5:running:\(Socks5Server.shared.port)" : "socks5:stopped"
-            let stats = Socks5Tunnel.stats
-            completionHandler?(Data("\(s5);up=\(stats.up.bytes)B;down=\(stats.down.bytes)B".utf8))
+            var txp: Int = 0, txb: Int = 0, rxp: Int = 0, rxb: Int = 0
+            hev_socks5_tunnel_stats(&txp, &txb, &rxp, &rxb)
+            completionHandler?(Data("\(s5);up=\(txb)B;down=\(rxb)B".utf8))
             return
         }
         completionHandler?(Data("unknown cmd".utf8))

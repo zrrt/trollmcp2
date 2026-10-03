@@ -9,10 +9,7 @@ let package = Package(
         // v2.9.370：RSKGrowingTextView——成熟开源聊天输入框，自动高度+占位符，替代手写 UIViewRepresentable
         .package(url: "https://github.com/ruslanskorb/RSKGrowingTextView.git", from: "7.0.0"),
         // v3.0.37：ZIPFoundation——iSH rootfs 首次启动解压（OpenMinis 同款）
-        .package(url: "https://github.com/weichsel/ZIPFoundation.git", from: "0.9.19"),
-        // fix3cy11 (P1)：Tun2SocksKit——hev-socks5-tunnel 预编译 xcframework（lwip 转发内核，
-        //   socksguard 同款）。全接管隧道的 TCP/UDP 状态机 + 出口转发。
-        .package(url: "https://github.com/EbrahimTahernejad/Tun2SocksKit.git", from: "5.16.0")
+        .package(url: "https://github.com/weichsel/ZIPFoundation.git", from: "0.9.19")
     ],
     targets: [
         // v3.0.37：iSH-ARM64 C 包装层。头文件由 CI 的 build_ish.sh 生成到 ish-stage/include，
@@ -56,10 +53,22 @@ let package = Package(
             dependencies: ["CMitm"],
             path: "Sources/MitmCore"
         ),
+        // fix3cy16 (P1)：CHev——hev-socks5-tunnel 桥接层（iOS 真机 slice 手动链接，
+        //   避开 SwiftPM binaryTarget 平台选择问题）。依赖 scripts/build-ipa.sh 下载解压的
+        //   hev-stage/lib/libhev-socks5-tunnel.a（ios-arm64 slice，Tun2SocksKit 5.16.0 release）
+        .target(
+            name: "CHev",
+            path: "CHev",
+            publicHeadersPath: "include",
+            linkerSettings: [
+                .unsafeFlags(["-L", "hev-stage/lib"]),
+                .linkedLibrary("hev-socks5-tunnel")
+            ]
+        ),
         // v3.3.0：VPN 抓包模式 appex（PacketTunnelProvider，P1 hev 转发内核）
         .executableTarget(
             name: "VpnTunnel",
-            dependencies: ["MitmCore", "CMitm", .product(name: "Tun2SocksKit", package: "Tun2SocksKit"), .product(name: "Tun2SocksKitC", package: "Tun2SocksKit")],
+            dependencies: ["MitmCore", "CMitm", "CHev"],
             path: "Sources/VpnTunnel",
             linkerSettings: [
                 .linkedFramework("NetworkExtension")
