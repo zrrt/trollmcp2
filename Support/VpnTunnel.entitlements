@@ -14,6 +14,11 @@
 	     Personal VPN 启动，卡 .connecting。 -->
 	<key>com.apple.developer.networking.vpn.api.personal-vpn</key>
 	<true/>
+	<!-- fix3ct: Fuck 1.8.5 appex 通过 AppGroup group.com.ai.iosxcode 读抓包配置 -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.ai.iosxcode</string>
+	</array>
 	<key>com.apple.private.security.no-sandbox</key>
 	<true/>
 	<key>com.apple.private.security.no-container</key>

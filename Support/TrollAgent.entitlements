@@ -230,5 +230,10 @@
 	     .connecting(表现为设置里有VPN但开不了)。 -->
 	<key>com.apple.developer.networking.vpn.api.personal-vpn</key>
 	<true/>
+	<!-- fix3ct: 与 VpnTunnel appex 共享 AppGroup（Fuck 1.8.5 引擎读配置） -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.ai.iosxcode</string>
+	</array>
 </dict>
 </plist>
