@@ -69,3 +69,16 @@
 - Alpine 跑不了 arm64 iOS 二进制
 - **kfd 自动注入 = 黑屏**（开 VPN 时机撞系统忙）
 - **kfd 手动注入（fix3cx 实测）= 仍黑屏**（引擎不稳定）
+
+## 6. 「权限 vs 注入目标」排查结论（2026-10-03 补充）
+
+用户提出「Fuck 权限比我们多所以他能注入成功」——排查后**排除**：
+
+- Fuck 多出的 TCC 权限（Liverpool/SpeechRecognition/Microphone/更多钥匙串组）是**用户态沙箱权限**，决定能否访问照片/麦克风/文件等，**与内核 panic 无关**。
+- **Fuck 原版 FuckKfdHelper 也是独立 Mach-O arm64 可执行**（`code.app/FuckKfdHelper`），形态与我们 `Resources/bin/fuck_helper` 一致。
+- **原版 Usage = `FuckKfdHelper <cdhash_hex>`**，与 kfd_helper 传给它的参数格式一致——**不是传参错误**。
+- 二进制内含 libkfd 标准组件：`landa.c / smith.c / physpuppet.c`、`pmap_image4_trust_caches`（FuckInject fork 的 libkfd）。
+
+**真正根因**：黑屏 = **kfd 漏洞利用（landa/smith/physpuppet）在该 iOS 16.3 build 上概率算错物理地址 → DMA 写内核静态区 → 内核 panic**。Fuck 1.8.5 引擎是为**特定 iOS build** 编译/适配的（编译路径 `FuckInject/kfd/libkfd/puaf/`），在 16.3 上 landa 利用不适配/不稳定。**不是权限多，是他针对的机型/系统不同**。
+
+**后续可行方向**：换适配 iOS 16.3 的 libkfd 利用（landa 偏 16.5+，smith/physpuppet 偏 15.x，16.0–16.4 中间段最不稳）；或 local proxy 兜底（零黑屏）。
