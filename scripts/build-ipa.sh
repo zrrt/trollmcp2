@@ -208,6 +208,14 @@ if [ -n "$XCF_DIR" ]; then
         else
             echo "!!! native-wheels not present — numpy/pandas 未进包 (iSH 版仍会段错误)" >&2
         fi
+        # fix3cn: 真机实测 _ios_support 未进包 → platform.uname() 走 ios_ver() 崩(import 失败) → pandas
+        # import 崩(traceback 实证)。os.uname() 真机可用(Darwin/iPhone14,3)——patch platform.py 的 ios
+        # 分支 try/except 保护, fallback 保留 os.uname 结果, pandas 即可正常 import。
+        PLATFORM_PY="$APP/python/lib/python3.14/platform.py"
+        if [ -f "$PLATFORM_PY" ]; then
+            perl -0pi -e "s/if sys\.platform == 'ios':\n\s+system, release, _, _ = ios_ver\(\)/if sys.platform == 'ios':\n        try:\n            system, release, _, _ = ios_ver()\n        except Exception:\n            pass/" "$PLATFORM_PY"
+            echo ">>> platform.py ios_ver try/except patched"
+        fi
         # 4. 编译 python3 CLI（嵌入式入口：PyConfig + PYTHONHOME + -c/-m/script）
         if [ -f "Sources/PythonCLI/main.c" ] && [ -f "$APP/Frameworks/Python.framework/Headers/Python.h" ]; then
             # fix3ck: 用户定案用动态版——动态 wrapper 链 Python.framework（官方 PEP 730 --enable-framework 产物，
