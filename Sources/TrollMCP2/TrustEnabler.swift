@@ -21,7 +21,94 @@ enum TrustPath {
     case fallback      // 都不满足 → 本地代理
 }
 
+/// 信任注入状态（fix3cv：改手动注入——注入成功后 VPN 才能起，替代"开 VPN 自动注入"的黑屏时机）
+enum InjectState {
+    case notInjected      // 未注入
+    case injecting        // 注入中
+    case injected         // 已注入成功（本次进程内有效；trust cache 是内核内存态，重启失效）
+    case failed(String)   // 上次失败 + 原因
+}
+
 enum TrustEnabler {
+
+    // MARK: - 注入状态（fix3cv）
+
+    /// 当前信任注入状态（UI / startVpn / MCP 共用查询）
+    private(set) static var injectState: InjectState = .notInjected
+
+    /// 已注入成功？（vpn.capture start 前置检查用）
+    static var isInjected: Bool {
+        if case .injected = injectState { return true }
+        return false
+    }
+
+    /// 注入状态的中文描述（UI / MCP 直接展示）
+    static var injectStateText: String {
+        switch injectState {
+        case .notInjected: return "未注入"
+        case .injecting:   return "注入中…"
+        case .injected:    return "已注入（本次运行有效）"
+        case .failed(let why): return "注入失败：\(why)"
+        }
+    }
+
+    // MARK: - 手动注入（复刻 Fuck 手动时机）
+
+    /// 手动注入信任——复刻 Fuck 工具箱的"手动空闲注入"：
+    /// ① 注入前等 5s，让系统完全空闲（避开开 VPN/UI 动画的瞬时负载窗口，降低 DMA halt 撞高负载概率）
+    /// ② 注入期间保持屏幕常亮/前台驻留（isIdleTimerDisabled）
+    /// ③ spawn kfd_helper（提取 cdhash → fuck_helper 写 trust cache）
+    /// ④ 校验 exit code，写入注入状态 + 中文结果
+    /// completion(Bool, String)：成功 / 中文说明
+    static func injectNow(completion: @escaping (Bool, String) -> Void) {
+        switch resolvePath() {
+        case .jailbreak:
+            guard let appex = vpnTunnelBinaryPath() else {
+                completion(false, "找不到 VpnTunnel.appex"); return
+            }
+            let ok = trustFileViaJailbreakd(appex)
+            injectState = ok ? .injected : .failed("jailbreakd trust 返回非 0")
+            completion(ok, ok ? "已通过 jailbreakd 注入信任" : "jailbreakd 注入失败（看系统日志）")
+
+        case .kfdInject:
+            guard let helper = kfdHelperPath() else {
+                completion(false, "找不到 kfd_helper 二进制（bin/ 目录缺失）"); return
+            }
+            guard let appex = vpnTunnelBinaryPath() else {
+                completion(false, "找不到 VpnTunnel.appex（PlugIns/ 缺失）"); return
+            }
+            if isInjected {
+                completion(true, "已在本次运行中注入过（trust cache 内存态有效）"); return
+            }
+            injectState = .injecting
+            DispatchQueue.global(qos: .userInitiated).async {
+                // ① 系统空闲等待（Fuck 手动注入成功的关键窗口）
+                usleep(5_000_000)
+                // ② 注入期间防熄屏（保持前台驻留，子进程环境稳定）
+                DispatchQueue.main.sync {
+                    UIApplication.shared.isIdleTimerDisabled = true
+                }
+                let start = Date()
+                let ok = spawn(helper, args: [appex])
+                let cost = Int(Date().timeIntervalSince(start))
+                DispatchQueue.main.sync {
+                    UIApplication.shared.isIdleTimerDisabled = false
+                }
+                let detail: String
+                if ok {
+                    injectState = .injected
+                    detail = "注入成功（耗时 \(cost)s）——现在可以连接 VPN 了"
+                } else {
+                    injectState = .failed("exit 非 0（耗时 \(cost)s）")
+                    detail = "注入失败（耗时 \(cost)s）——详情看 /var/mobile/Documents/kfd_helper.log；保持手机空闲 30s 后再试一次"
+                }
+                DispatchQueue.main.async { completion(ok, detail) }
+            }
+
+        case .fallback:
+            completion(false, "当前系统不支持 kfd 注入（iOS \(UIDevice.current.systemVersion)）——直接用本地代理抓包")
+        }
+    }
 
     // MARK: - 探测
 
@@ -82,19 +169,13 @@ enum TrustEnabler {
                 completion(ok)
             }
         case .kfdInject:
-            guard let helper = kfdHelperPath() else { completion(false); return }
-            guard let appex = vpnTunnelBinaryPath() else { completion(false); return }
-            // v4.4.10: 同一进程内已注入过 → 直接放行（trust cache 内核内存态, 重启失效; 进程重启后重置）
-            if trustInjectedOnce { completion(true); return }
-            // kfd 提权(10–60s)放后台执行，避免 waitpid 阻塞主线程导致按钮"点了没反应"
-            DispatchQueue.global(qos: .userInitiated).async {
-                // 注入前等 0.8s：让点按钮后的 UI/动画/系统瞬时负载过去, 降低 halt CPU 窗口撞高负载的概率
-                usleep(800_000)
-                let ok = spawn(helper, args: [appex])
-                if ok { trustInjectedOnce = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + (ok ? 0.8 : 0)) {
-                    completion(ok)
-                }
+            // fix3cv: 不再自动注入——自动注入（开 VPN 的同一瞬间）撞系统繁忙窗口，
+            // 正是黑屏重启根因（Fuck 引擎 DMA halt 对负载敏感）。改为检查手动注入状态：
+            // 已注入 → 放行起 VPN；未注入/失败 → 拒绝并提示先手动注入（UI 按钮 / vpn.capture command:inject）。
+            if isInjected {
+                completion(true)
+            } else {
+                completion(false)
             }
         case .fallback:
             // 无法注入 → 让上层回退本地代理
@@ -103,10 +184,6 @@ enum TrustEnabler {
     }
 
     // MARK: - 路径
-
-    /// v4.4.10: 同一次进程生命周期内 kfd 信任注入只做一次（trust cache 内核内存态, 重启失效;
-    /// 进程重启后该标志重置, 自然重新注入）。避免反复点 VPN 反复跑 kfd(每次都有崩率)。
-    private static var trustInjectedOnce = false
 
     /// kfd_helper 二进制：build-ipa.sh 把 Resources/bin 复制到 App bundle 的 bin/
     static func kfdHelperPath() -> String? {

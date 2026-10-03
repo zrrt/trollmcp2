@@ -54,8 +54,13 @@ final class VpnManager {
         //   iOS 16.x 非越狱 → kfd 临时注入 VpnTunnel cdhash 到内核 trust cache（免越狱）
         //   iOS 17.x 越狱   → jailbreakd 已常驻 hook csops+necp，无需注入
         //   都不满足       → 不注入，回退本地代理
-        // 注入结果不阻断起隧道：即使注入失败，下方 confirmConnected 仍会如实反馈状态。
-        TrustEnabler.injectIfNeeded { _ in
+        // fix3cv：注入结果【阻断】起隧道——未注入时盲目 start 只会得到 CS_VALID 拒绝/无效隧道；
+        // 且自动注入时机正是黑屏根因。改为：未注入 → 明确引导手动注入（UI 按钮 / vpn.capture command:inject）。
+        TrustEnabler.injectIfNeeded { injected in
+            guard injected else {
+                completion("需要先注入信任才能连 VPN：请到 抓包 VPN 页点「注入信任」，或运行 vpn.capture command:inject；注入成功后 trust cache 才放行 VpnTunnel（也可以用本地代理抓包，无需注入）")
+                return
+            }
             // v3.5.16f：对齐 Apple 可运行案例(100518/104280/661560)的启动流程——
             // ① 用 loadAllFromPreferences 拿系统"注册过"的 manager(而非新建 NETunnelProviderManager())；
             // ② saveToPreferences 之后必须再 loadFromPreferences 一次，把 manager 绑定到系统刚保存的

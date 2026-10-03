@@ -9,6 +9,8 @@ struct VpnCaptureView: View {
     @State private var caExists = false
     @State private var logFiles: [String] = []
     @State private var notice = ""
+    @State private var injectText = "未注入"
+    @State private var notice = ""
 
     var body: some View {
         List {
@@ -65,6 +67,12 @@ struct VpnCaptureView: View {
                                    icon: "doc.text.fill",
                                    color: logFiles.isEmpty ? .gray : .blue)
                     }
+                    // fix3cv: 信任注入状态（手动注入后才可连 VPN）
+                    HStack(spacing: 12) {
+                        statusCard("信任注入", injectText,
+                                   icon: injectText == "已注入（本次运行有效）" ? "checkmark.seal.fill" : "seal",
+                                   color: injectText == "已注入（本次运行有效）" ? .green : (injectText.hasPrefix("注入失败") ? .red : .gray))
+                    }
                 }
                 .padding(.vertical, 4)
             }
@@ -72,6 +80,8 @@ struct VpnCaptureView: View {
 
             // 操作
             Section(header: SettingSectionHeader(title: "操作")) {
+                actionRow(injectText == "已注入（本次运行有效）" ? "重新注入信任" : "注入信任（先做这步）",
+                          icon: "seal.fill", color: .purple) { injectTrust() }
                 actionRow("连接抓包 VPN", icon: "network", color: .blue) { connectVpn() }
                     .disabled(vpnStatusText == "connected")
                 actionRow("断开 VPN", icon: "stop.circle.fill", color: .red) {
@@ -221,6 +231,19 @@ struct VpnCaptureView: View {
         localProxyOn = VpnManager.shared.localProxyRunning
         caExists = VpnManager.shared.caExists
         logFiles = ((try? FileManager.default.contentsOfDirectory(atPath: VpnManager.shared.mitmLogDir)) ?? []).sorted().reversed()
+        injectText = TrustEnabler.injectStateText
+    }
+
+    /// fix3cv: 手动信任注入（复刻 Fuck 手动时机——先注入成功，再连 VPN；避免自动注入黑屏）
+    private func injectTrust() {
+        notice = "正在注入信任（约 5s 空闲等待 + 注入），期间请保持手机前台…"
+        TrustEnabler.injectNow { ok, detail in
+            injectText = TrustEnabler.injectStateText
+            notice = detail
+            if ok {
+                notice += " 现在点「连接抓包 VPN」"
+            }
+        }
     }
 
     private func connectVpn() {
