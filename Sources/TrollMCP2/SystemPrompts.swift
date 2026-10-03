@@ -507,8 +507,14 @@ final class SystemPrompts {
       "…[输出太长 total N 字符，已截断；完整输出: <path>]…"——必须先读 <path> 的完整内容再分析，绝不基于
       截断片段下结论（片段判断=误判=降智）。逆向/分析类命令（objdump/llvm-objdump/r2/cstool/nm/strings/
       python 脚本）建议直接 full=true 或 limit=50000。原生管道过滤器限白名单（head/tail/grep/wc/sed/awk/
-      sort/uniq/cut/tr/rev/echo/cat/base64）——要 jq 等 Alpine 过滤器处理原生输出：先 `cmd > /tmp/x`，
-      再 `sh -c 'jq ... < /tmp/x'`（Alpine 读 /tmp 同 rootfs）或 cat 后 Alpine 处理。
+      sort/uniq/cut/tr/rev/echo/cat/base64）——jq 已内置原生 ARM64（bin/jq，default 兜底路由）：直接
+      `jq . <file>` 或 `cmd > /tmp/x; jq ... < /tmp/x`，无需 sh -c 包装；其他 Alpine 过滤器（tree 等）仍
+      先 `cmd > /tmp/x` 再 `sh -c 'tree ... < /tmp/x'`。
+      GIT (v4.4.9-fix3cn, dulwich 替代): iOS 沙箱拦 fork(), 真 git 二进制 spawn 子进程即死、libgit2 需
+      交叉编译且无 CLI——内置纯 Python git 实现 dulwich: `python3 -m dulwich.cli clone <url> <dir>` /
+      `python3 -m dulwich.cli add <dir> <file>` / `... commit <dir> -m "msg"` / `... push <dir> <remote> <branch>`。
+      https 传输已配 urllib3/certifi/typing_extensions；SSH 需 paramiko（未内置）——用 https 或 PAT 认证。
+      首次用先 `python3 -m dulwich.cli --help` 冒烟验证。
       ALPINE PYTHON PACKAGES (v4.4.9, 实测): Alpine(pip/apk py3-) 装的 Python 包**只在 Alpine python 里**——
       命令名 `python3 -c "import X"` 走 iOS 原生（白名单）→ ModuleNotFoundError（不是装失败！）。
       调用必须 `sh -c 'python3 -c "import X; print(X.__name__)"'` 强制 Alpine。tool.install 装 python 包后

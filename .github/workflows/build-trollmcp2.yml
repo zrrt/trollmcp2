@@ -31,7 +31,9 @@ jobs:
           # fix3cg: v8——nodecli.c(setvbuf)/r2main.c(-v/-h fputs) 修复后强制全量重编（v7 缓存是旧的，
           #         实测 node/r2 空输出 = 旧 wrapper 进包）。重编后 node/r2 输出应正常。
           # fix3ch: v9——nodecli.c 加 C 层诊断(ndiag)、r2main.c -v/-h 加 fflush——强制再重编
-          key: native-tools-v14
+          # fix3cn: v15——v14 缓存在 jq 编译步骤加入前生成(缓存内无 jq), AI 调用 jq 报 Command not found;
+          #         bump 强制全量重编一次, 新缓存含 jq 1.7.1。与 native-wheels 的 dulwich 解包衔接同轮出包。
+          key: native-tools-v15
           save-always: false
 
       - name: Build lua 5.4 (iOS arm64)
@@ -1007,6 +1009,34 @@ jobs:
           # 直接下载 wheel 与 numpy/pandas 一起进 site-packages(build-ipa.sh 的 unzip 循环解包)。
           # 缺它 → 真机 import pandas 报 ModuleNotFoundError: dateutil(fix3cm 实证)。
           pip download --no-deps --only-binary :all: "python-dateutil==2.9.0" -d wheels-out
+          ls -la wheels-out/
+
+      - name: Bundle pure-python git (dulwich + urllib3 + certifi)
+        run: |
+          set -e
+          # git 替代方案：iOS 沙箱拦 fork()，真 git 二进制 spawn 子进程即死；libgit2 要交叉编译 C+CMake
+          # 且无 CLI。用纯 Python 的 dulwich(0.22, HTTP/SSH 传输, clone/commit/push/log 全支持)：
+          # ①PyPI wheel 带 C 扩展 _core(macOS .so, iOS 跑不了)→ 取 sdist 纯 Python 源码；
+          # ②urllib3+certifi 是 https 传输必需(纯 Python wheel)。
+          # 调用方式(环境提示词同步)：git 操作 = python3 -m dulwich.cli <git 子命令>
+          pip download --no-deps --no-binary :all: "dulwich==0.22.1" -d /tmp/dw
+          pip download --no-deps --only-binary :all: "urllib3" "certifi" "typing_extensions" -d wheels-out
+          mkdir -p /tmp/dw/unpack
+          tar -xzf /tmp/dw/dulwich-*.tar.gz -C /tmp/dw/unpack
+          cd /tmp/dw/unpack/dulwich-*
+          python3 -c "
+          import zipfile, os
+          whl = '/tmp/dw/dulwich_pure.whl'
+          with zipfile.ZipFile(whl, 'w') as z:
+              for root, dirs, files in os.walk('.'):
+                  for f in files:
+                      p = os.path.join(root, f)
+                      rel = os.path.relpath(p, '.')
+                      if rel.startswith('dulwich') and not rel.endswith(('.c','.h','.pxd','.pyx')):
+                          z.write(p, rel)
+          print('dulwich pure wheel done')
+          "
+          cp /tmp/dw/dulwich_pure.whl wheels-out/dulwich-0.22.1-py3-none-any.whl
           ls -la wheels-out/
 
       - name: Upload native wheels
