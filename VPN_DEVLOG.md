@@ -133,3 +133,17 @@
 - kfd 注入（injectNow/inject 子命令/UI 注入按钮）保留为独立高级能力（信任自己/dylib 注入），不与 VPN 耦合
 
 **真机验证点（恢复后必测）**：装 fix3cy → 直接点「连接抓包 VPN」（不注入）→ 观察是否**不再黑屏**、隧道是否起来、抓包是否闭环。
+
+## 10. 配置链路深挖（2026-10-03，抓包闭环的次生缺口）
+
+**发现：抓包配置链路是断的**（即使 VpnTunnel 靠 entitlements 能启动，也读不到配置抓不到包）：
+- VpnTunnel（复刻 Fuck PacketTunnel）硬编码读：`com.ai.iosxcode.packet-tunnel.start-state`（CFPreferences/UserDefaults suite=com.ai.iosxcode）+ `group.com.ai.iosxcode`（AppGroup）+ `MitmService`（TunnelServices 解密引擎，getDBPath/configureSharedDatabase/getStoreFolder）
+- **主 app 从未**：调 MitmService.configureSharedDatabase / 写 com.ai.iosxcode suite 的 start-state / 写共享 DB。主 app 全用 UserDefaults.standard（自己 bundle），没写 VpnTunnel 读的 suite
+- Fuck 主 app 则有：`MitmService.configureSharedDatabase(owner:)` + `_CFPreferencesSetValue` + `setObject:forKey:`（写 start-state）
+
+**复刻核心缺失**：只搬了 VpnTunnel.appex（隧道解密引擎）+ TunnelServices 框架，**没搬 Fuck 主 app 写配置给它的逻辑**。
+
+**下一步修法（P2 配置链路）**：
+1. 主 app 启动 VPN 前调 `MitmService.configureSharedDatabase(owner:)`（需链接 TunnelServices.framework）
+2. 主 app 写 `com.ai.iosxcode.packet-tunnel.start-state` 到 CFPreferences（suite com.ai.iosxcode，VpnTunnel 读的）
+3. 或本地代理闭环优先验证（local_start 已内置，无需隧道配置链路）
