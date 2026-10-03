@@ -2114,10 +2114,13 @@ final class ShellExecTool: MCPTool {
         if let serr = res.spawnError, !serr.isEmpty {
             out += "\n[spawn error: \(serr)]"
         }
-        // fix3ck/fix3cl: 读回文件重定向的输出 + 诊断（Workspace 优先，Documents//tmp/cwd 兜底）
-        if res.stdout.isEmpty, let d = try? String(contentsOfFile: pyOutPath, encoding: .utf8), !d.isEmpty {
+        // fix3cl/fix3cn: 无条件读回 TROLL_PY_OUT——main.c 把 sys.stdout/stderr 重定向到该文件；
+        // 调试期 os.write(1, "[PY-BIND-FILE]") 使 res.stdout 非空，旧代码 if res.stdout.isEmpty
+        // 跳过文件读回 → print 输出（版本号/结果/异常 traceback）全部丢失（真机实测 code PyRun ok 但
+        // PYVER 不可见）。无条件读：文件不存在时 try? 安全返回 nil；print 内容与 fd1 标记不重复。
+        if let d = try? String(contentsOfFile: pyOutPath, encoding: .utf8), !d.isEmpty {
             out += d
-        } else if res.stdout.isEmpty, let d = try? String(contentsOfFile: docsBase + "/troll_py_out.txt", encoding: .utf8), !d.isEmpty {
+        } else if let d = try? String(contentsOfFile: docsBase + "/troll_py_out.txt", encoding: .utf8), !d.isEmpty {
             out += d
         }
         for dpath in [pyDiagPath, docsBase + "/troll_py_diag.txt", "/tmp/troll_py_diag.txt", "troll_py_diag.txt"] {

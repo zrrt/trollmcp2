@@ -222,7 +222,14 @@ if [ -n "$XCF_DIR" ]; then
                     -o "$APP/bin/python3" Sources/PythonCLI/main.c \
                     python-ios/static-lib/libpython3.14.a \
                     -lpthread -ldl -lutil -lm || \
-                    { echo "!!! python3 CLI static build FAILED (native Python skipped)" >&2; rm -f "$APP/bin/python3"; }
+                    { echo "!!! python3 CLI static build FAILED" >&2; rm -f "$APP/bin/python3"; }
+            fi
+            # fix3cn: python3 是核心能力——两条路径都失败必须 exit 1（此前吞错继续 → 出
+            # "run success 但包内无 python3" 的残缺包, 真机 AI 调用 python3 报"未内置", 用户白装一轮）。
+            # 本地构建无 python artifact 时走外层 if 跳过, 不受影响；只有"有 artifact 却编不出来"才 fail。
+            if [ ! -f "$APP/bin/python3" ]; then
+                echo "!!! python3 CLI BOTH dynamic and static failed — failing build (no silent half-package)" >&2
+                exit 1
             fi
             if [ -f "$APP/bin/python3" ]; then
                 chmod +x "$APP/bin/python3"
