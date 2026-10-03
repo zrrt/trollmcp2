@@ -28,7 +28,9 @@ echo ">>> OpenSSL: $(du -sh openssl-stage/lib | cut -f1)"
 # 设备上以兼容模式运行，MobileIcons/CoreImage 在 compat 模式下处理图标异常 →
 # 分享面板 LICreateIconForImages SIGSEGV（与 TrollFools 双架构原生运行对比）。
 echo ">>> swift build (arm64-apple-ios15.0, release)"
-swift build -c release \
+# fix3cy18: --product TrollAgent——只构建主 app；VpnTunnel appex 由下方 P1 专属段构建
+#   （其链接需要先下载 hev-stage/lib；主 build 不带 product 会连 VpnTunnel 一起编，链接失败）
+swift build -c release --product TrollAgent \
     -Xswiftc -sdk -Xswiftc "$SDK" \
     -Xswiftc -target -Xswiftc arm64-apple-ios15.0 \
     -Xcc -isysroot -Xcc "$SDK" \
@@ -40,7 +42,7 @@ cp "$BIN" /tmp/TrollAgent-arm64 2>/dev/null || cp "$BIN" "$BIN.arm64"
 echo ">>> binary: $(du -h "$BIN" | cut -f1)"
 
 echo ">>> swift build (arm64e-apple-ios15.0, release)"
-swift build -c release --scratch-path .build-arm64e \
+swift build -c release --scratch-path .build-arm64e --product TrollAgent \
     -Xswiftc -sdk -Xswiftc "$SDK" \
     -Xswiftc -target -Xswiftc arm64e-apple-ios15.0 \
     -Xcc -isysroot -Xcc "$SDK" \
