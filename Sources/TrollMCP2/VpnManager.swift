@@ -50,24 +50,17 @@ final class VpnManager {
     // MARK: - VPN 模式
 
     func startVpn(completion: @escaping (String?) -> Void) {
-        // v3.5.26：起 VPN 前先做信任注入（对齐 Fuck 工具箱 FuckKfdHelper 机制）。
-        //   iOS 16.x 非越狱 → kfd 临时注入 VpnTunnel cdhash 到内核 trust cache（免越狱）
-        //   iOS 17.x 越狱   → jailbreakd 已常驻 hook csops+necp，无需注入
-        //   都不满足       → 不注入，回退本地代理
-        // fix3cv：注入结果【阻断】起隧道——未注入时盲目 start 只会得到 CS_VALID 拒绝/无效隧道；
-        // 且自动注入时机正是黑屏根因。改为：未注入 → 明确引导手动注入（UI 按钮 / vpn.capture command:inject）。
-        TrustEnabler.injectIfNeeded { injected in
-            guard injected else {
-                completion("需要先注入信任才能连 VPN：请到 抓包 VPN 页点「注入信任」，或运行 vpn.capture command:inject；注入成功后 trust cache 才放行 VpnTunnel（也可以用本地代理抓包，无需注入）")
-                return
-            }
-            // v3.5.16f：对齐 Apple 可运行案例(100518/104280/661560)的启动流程——
-            // ① 用 loadAllFromPreferences 拿系统"注册过"的 manager(而非新建 NETunnelProviderManager())；
-            // ② saveToPreferences 之后必须再 loadFromPreferences 一次，把 manager 绑定到系统刚保存的
-            //    配置，再 startVPNTunnel。此前"新建 manager + save 后直接 start"导致系统按 providerBundleIdentifier
-            //    建不出扩展("Failed to create an NSExtension with type …: (null)")→ NEVPNErrorConfigurationInvalid(1)。
-            self.startVpnViaRegisteredManager(retryLeft: 1, completion: completion)
-        }
+        // fix3cy（P1 修正方向 A）：VPN 隧道【剥离】kfd 注入。
+        //   已实证 fuck_helper 是"信任自己"的黑盒引擎，无法定向信任 VpnTunnel；且每次开 VPN
+        //   触发注入→目标不匹配→DMA panic 黑屏。VpnTunnel.appex 本身已有
+        //   no-sandbox / platform-application / task_for_pid entitlements，MITM 解密靠 entitlements 即可跑，
+        //   kfd 注入(fuck_helper)改作独立高级能力(信任自己/dylib注入)，不再绑定 VPN 启动。
+        // v3.5.16f：对齐 Apple 可运行案例(100518/104280/661560)的启动流程——
+        // ① 用 loadAllFromPreferences 拿系统"注册过"的 manager(而非新建 NETunnelProviderManager())；
+        // ② saveToPreferences 之后必须再 loadFromPreferences 一次，把 manager 绑定到系统刚保存的
+        //    配置，再 startVPNTunnel。此前"新建 manager + save 后直接 start"导致系统按 providerBundleIdentifier
+        //    建不出扩展("Failed to create an NSExtension with type …: (null)")→ NEVPNErrorConfigurationInvalid(1)。
+        self.startVpnViaRegisteredManager(retryLeft: 1, completion: completion)
     }
 
     /// 通过 loadAllFromPreferences 拿系统注册的 manager（找不到则新建），按需清失效配置后保存并启动。
