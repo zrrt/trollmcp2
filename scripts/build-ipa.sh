@@ -227,6 +227,24 @@ if [ -n "$XCF_DIR" ]; then
             if [ -f "$APP/bin/python3" ]; then
                 chmod +x "$APP/bin/python3"
                 echo ">>> native python3 CLI built ($(du -h "$APP/bin/python3" | cut -f1))"
+                # fix3cg: python3 是本脚本内后生成的——前面的 bin 签名循环(≈123-150 行)展开时它还不存在，
+                # 未签 no-sandbox entitlements → iOS 沙箱按每次 exec 的二进制签名计算 → 真机 spawn 套普通沙箱
+                # → 启动即被 SIGKILL(137)。编译成功后必须补签一次 no-sandbox（动态/静态两条路径都覆盖）。
+                if [ -f "Support/bin-entitlements.plist" ]; then
+                    if command -v ldid >/dev/null 2>&1; then
+                        ldid -S"Support/bin-entitlements.plist" "$APP/bin/python3" 2>/dev/null \
+                            && echo ">>> python3 re-signed no-sandbox (ldid)" \
+                            || echo "!!! python3 ldid re-sign failed" >&2
+                    elif command -v codesign >/dev/null 2>&1; then
+                        codesign -s - -f --entitlements "Support/bin-entitlements.plist" "$APP/bin/python3" 2>/dev/null \
+                            && echo ">>> python3 re-signed no-sandbox (codesign)" \
+                            || echo "!!! python3 codesign re-sign failed" >&2
+                    else
+                        echo "!!! no sign tool for python3 — stays sandboxed" >&2
+                    fi
+                else
+                    echo "!!! bin-entitlements.plist missing — python3 stays sandboxed" >&2
+                fi
             fi
         else
             echo "!!! PythonCLI/main.c or Python.h missing — native Python skipped" >&2
