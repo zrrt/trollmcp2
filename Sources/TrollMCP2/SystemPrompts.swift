@@ -555,6 +555,11 @@ final class SystemPrompts {
       iOS-native mode. Alpine has auto-configured DNS (network ready), and missing tools auto-install via `apk add`
       (python3/git/any package available). So an Alpine tool (python3/cat/grep/sqlite3/nm/strings/file) can directly operate
       on an iOS file via its rewritten /ios_* path.
+    - SCRIPT-PATH LIMIT (v4.4.10, on-device verified): auto-bind rewrites the COMMAND LINE only — it does NOT rewrite
+      paths INSIDE a script file. Running `sh /var/mobile/.../s.sh` mounts the script at /ios_workspace/... but the
+      script's own `cd /var/mobile/...` / `cat /var/...` lines still point at iOS paths that don't exist inside Alpine
+      and WILL fail. In any sh/heredoc script use /ios_workspace / /ios_containers / /ios_system paths directly; or avoid
+      `sh` entirely and run multi-step logic as a native python3 script (paths resolve natively).
     - PROVISION (auto): if an Alpine command reports "not found", the system auto-runs `apk add --no-cache <pkg>` and
       retries once. Don't pre-probe missing tools or ask. INSTALL PROGRESS (v4.3.75): every install shows a real-time
       progress bar in the UI (phase + package counter + latest line, e.g. "安装包 3/16"); a 60-240s install is NORMAL —
