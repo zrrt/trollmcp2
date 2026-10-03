@@ -1001,6 +1001,16 @@ jobs:
 
       - name: Upload native wheels
         uses: actions/upload-artifact@v4
+      - name: Download pandas deps (python-dateutil, pure-python wheel)
+        run: |
+          # pandas 3.0.6 依赖 python-dateutil(纯 Python, py2.py3-none-any)——无需交叉编译,
+          # 直接下载 wheel 与 numpy/pandas 一起进 site-packages(build-ipa.sh 的 unzip 循环解包)。
+          # 缺它 → 真机 import pandas 报 ModuleNotFoundError: dateutil(fix3cm 实证)。
+          pip download --no-deps --only-binary :all: "python-dateutil==2.9.0" -d wheels-out
+          ls -la wheels-out/
+
+      - name: Upload native wheels
+        uses: actions/upload-artifact@v4
         with:
           name: native-wheels
           path: wheels-out/*.whl
