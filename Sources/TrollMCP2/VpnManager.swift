@@ -13,6 +13,22 @@ import CMitm
 final class VpnManager {
     static let shared = VpnManager()
 
+    /// v4.4.11-dbg: VPN 链路诊断日志（写 Workspace/logs/vpn.log，远程可读，替代盲测）。
+    /// 记录 save/load/start/stop 每次关键回调的真实错误与状态，定位"连不上"根因。
+    static func vpnlog(_ msg: String) {
+        let fm = FileManager.default
+        let dir = "/var/mobile/Documents/Workspace/logs"
+        try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        let line = "[\(Date().timeIntervalSince1970)] \(msg)\n"
+        if let fh = FileHandle(forWritingAtPath: dir + "/vpn.log") {
+            fh.seekToEndOfFile()
+            fh.write(line.data(using: .utf8)!)
+            try? fh.close()
+        } else {
+            try? line.data(using: .utf8)?.write(to: URL(fileURLWithPath: dir + "/vpn.log"))
+        }
+    }
+
     // v3.5.2：packet-tunnel 网络扩展必须用 NETunnelProviderManager。
     // 之前用 NEVPNManager.shared()（IPSec/IKEv2 旧版 VPN 管理器）挂 NETunnelProviderProtocol，
     // 系统不会在"设置→VPN"注册、startVPNTunnel 也不生效——表现为"VPN 不显示、打不开"。
@@ -50,6 +66,7 @@ final class VpnManager {
     // MARK: - VPN 模式
 
     func startVpn(completion: @escaping (String?) -> Void) {
+        VpnManager.vpnlog("startVpn called")
         // fix3cy（P1 修正方向 A）：VPN 隧道【剥离】kfd 注入。
         //   已实证 fuck_helper 是"信任自己"的黑盒引擎，无法定向信任 VpnTunnel；且每次开 VPN
         //   触发注入→目标不匹配→DMA panic 黑屏。VpnTunnel.appex 本身已有
@@ -65,13 +82,16 @@ final class VpnManager {
 
     /// 通过 loadAllFromPreferences 拿系统注册的 manager（找不到则新建），按需清失效配置后保存并启动。
     private func startVpnViaRegisteredManager(retryLeft: Int, completion: @escaping (String?) -> Void) {
+        VpnManager.vpnlog("startVpnViaRegisteredManager retryLeft=\(retryLeft)")
         NETunnelProviderManager.loadAllFromPreferences { [weak self] managers, _ in
             guard let self = self else { return }
+            VpnManager.vpnlog("loadAllFromPreferences count=\(managers?.count ?? -1)")
             // 优先复用系统已注册的"TrollAgent 抓包 VPN"配置；没有则新建。
             self.manager = managers?.first(where: { $0.localizedDescription == "TrollAgent 抓包 VPN" })
                               ?? NETunnelProviderManager()
             self.manager.loadFromPreferences { [weak self] _ in
                 guard let self = self else { return }
+                VpnManager.vpnlog("loadFromPreferences status=\(self.manager.connection.status.rawValue) proto=\(self.manager.protocolConfiguration != nil)")
                 // 残留的是失效配置(非 packet-tunnel 协议)才清；正常直接保存。
                 let isStale = (self.manager.protocolConfiguration != nil)
                              && !(self.manager.protocolConfiguration is NETunnelProviderProtocol)
@@ -101,12 +121,15 @@ final class VpnManager {
         self.manager.protocolConfiguration = proto
         self.manager.isEnabled = true
         self.manager.localizedDescription = "TrollAgent 抓包 VPN"
+        VpnManager.vpnlog("saveAndStart: proto=\(proto.serverAddress ?? "nil") bundle=\(proto.providerBundleIdentifier ?? "nil")")
         self.manager.saveToPreferences { [weak self] err2 in
             guard let self = self else { return }
             if let e = err2 {
+                VpnManager.vpnlog("saveToPreferences FAILED: \(e.localizedDescription) code=\((e as NSError).code)")
                 completion("save failed: \(e.localizedDescription)")
                 return
             }
+            VpnManager.vpnlog("saveToPreferences OK")
             // v3.5.16g：等用户批准——saveToPreferences 会弹"TrollAgent 想添加VPN配置/允许/不允许"，
             // 但 save 的回调在用户点"允许"之前就返回。若立刻 startVPNTunnel，配置尚未批准生效
             // (connection.status==.invalid) → 系统报 NEVPNErrorConfigurationInvalid(1)。
@@ -121,6 +144,7 @@ final class VpnManager {
         self.manager.loadFromPreferences { [weak self] _ in
             guard let self = self else { return }
             let status = self.manager.connection.status
+            VpnManager.vpnlog("loadAndStartAfterApproval tick=\(waitTick) status=\(status.rawValue)")
             // .invalid = 配置未批准/无效；其余(.disconnected/.connecting/.connected)视为已批准可启动
             if status == .invalid {
                 if waitTick < 16 { // 16 * 0.5s = 8s 等待窗口
@@ -129,11 +153,13 @@ final class VpnManager {
                     }
                     return
                 }
+                VpnManager.vpnlog("approval wait TIMEOUT (16 ticks) status=invalid")
                 completion("请先在系统弹窗点「允许」后再连接 (NEVPNErrorConfigurationInvalid=1)")
                 return
             }
             do {
                 try self.manager.connection.startVPNTunnel()
+                VpnManager.vpnlog("startVPNTunnel OK, status=\(self.manager.connection.status.rawValue)")
                 // v3.5.16i：别报"假成功"——startVPNTunnel 没抛错≠真连上。若系统没弹批准窗/隧道没起来，
                 // 状态会停在 .disconnected/.invalid。等最多 3s 观察实际连接状态，真连上(.connecting/.connected)
                 // 才报成功；否则明确提示环境限制并建议用本地代理抓包。
@@ -141,6 +167,7 @@ final class VpnManager {
             } catch {
                 let ne = error as? NEVPNError
                 let code = ne.map { " NEVPNErrorCode=\($0.code.rawValue)" } ?? ""
+                VpnManager.vpnlog("startVPNTunnel THREW: \(error.localizedDescription)\(code)")
                 if retryLeft > 0 {
                     self.manager.removeFromPreferences { [weak self] _ in
                         self?.startVpnViaRegisteredManager(retryLeft: 0, completion: completion)
@@ -158,10 +185,12 @@ final class VpnManager {
             guard let self = self else { return }
             let status = self.manager.connection.status
             if status == .connecting || status == .connected {
+                VpnManager.vpnlog("confirmConnected OK tick=\(tick) status=\(status.rawValue)")
                 completion(nil)
             } else if tick < 8 { // 8 * 0.4s ≈ 3.2s
                 self.confirmConnected(retryLeft: retryLeft, tick: tick + 1, completion: completion)
             } else {
+                VpnManager.vpnlog("confirmConnected TIMEOUT status=\(status.rawValue) retryLeft=\(retryLeft)")
                 // 没真连上：状态仍是 disconnected/invalid → 系统批准窗没弹/隧道没起（TrollStore 环境限制）
                 completion("VPN 启动未生效：系统未弹「允许」窗或隧道未连接（TrollStore 环境限制），请改用「本地代理」抓包（WiFi 手动代理 127.0.0.1:18180）")
             }
