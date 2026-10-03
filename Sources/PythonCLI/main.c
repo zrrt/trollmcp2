@@ -10,25 +10,15 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-// fix3cg: 诊断文件——iOS 无 tty 时 stdout/stderr 均不可见，关键状态写诊断文件。
-// fix3ch: /tmp 在 python3 子进程沙盒可能只读 → 同时写相对 cwd（App 容器）+ /tmp，
-// Swift 侧自动读回附加到输出，AI 直接看到无需手动 cat。
-// fix3ck: 实测 fd 1/2 层彻底无效（os.write(1) 也丢），且 /tmp 与相对 cwd 的 diag 均未被 Swift 读到——
-// 改为优先写 Swift 传的 TROLL_PY_DIAG（App Documents，沙盒一定可写），Swift 读同一绝对路径。
-// fix3cl: 再兜底写 App 工作区 Workspace（/var/mobile/Documents/Workspace，App 数据容器一定可写可读）——
-// 四通道（env 指定 / Workspace / /tmp / cwd），Swift 端逐一读回，总有一个能到。
+// fix3cl: python3 转生产态——诊断收敛为 env 控制：
+// 仅当 Swift 传 TROLL_PY_DIAG（App Documents 绝对路径）时才写日志，正常使用零文件残留。
+// 调试期曾多路径 fallback（Workspace//tmp/cwd），已证明 env 通道稳定（Swift 读回），不再写固定路径。
 static void diag(const char *msg) {
     const char *envd = getenv("TROLL_PY_DIAG");
     if (envd && envd[0]) {
         FILE *f = fopen(envd, "a");
         if (f) { fprintf(f, "%s\n", msg); fclose(f); }
     }
-    FILE *f = fopen("/var/mobile/Documents/Workspace/troll_py_diag.txt", "a");
-    if (f) { fprintf(f, "%s\n", msg); fclose(f); }
-    f = fopen("/tmp/troll_py_diag.txt", "a");
-    if (f) { fprintf(f, "%s\n", msg); fclose(f); }
-    f = fopen("troll_py_diag.txt", "a");
-    if (f) { fprintf(f, "%s\n", msg); fclose(f); }
     fprintf(stderr, "%s\n", msg);
 }
 
@@ -42,34 +32,10 @@ static void derive_bundle(const char *argv0, char *buf, size_t size) {
     p = strrchr(buf, '/'); if (p) *p = '\0';        // .../TrollAgent.app
 }
 
-// fix3cl6: dyld 构造器诊断——在 main 之前由 dyld 无条件执行（若有）。写独立文件区分：
-// "构造器跑了" = dyld 已把控制权交给二进制（链接/加载 OK），问题在 main/入口；
-// "构造器没跑" = 进程在 dyld 加载阶段就被杀（framework 加载失败/被系统拦截），main 根本不会执行。
-__attribute__((constructor))
-static void pycli_ctor(void) {
-    FILE *cf = fopen("/var/mobile/Documents/Workspace/troll_py_ctor.txt", "w");
-    if (cf) { fprintf(cf, "ctor ran pid=%d\n", (int)getpid()); fclose(cf); }
-    cf = fopen("/tmp/troll_py_ctor.txt", "w");
-    if (cf) { fprintf(cf, "ctor ran pid=%d\n", (int)getpid()); fclose(cf); }
-}
-
 int main(int argc, char **argv) {
     // fix3cl4: 探针——`python3 --troll-probe` 立即 exit(42)。Swift 读回 exit_code，
-    // 42=main 执行了（问题在后续绑定/输出）；0=main 根本没跑（dyld/构造器层 exit）——确诊通道。
+    // 42=main 执行了；0=main 根本没跑（dyld/构造器层 exit）——巡检判据（调试期 ctor 文件残留已删，探针保留）。
     if (argc > 1 && strcmp(argv[1], "--troll-probe") == 0) return 42;
-    // fix3cl3: 无条件启动标记——在 diag 之前直接 fopen 多路径写，
-    // Swift 读回区分"main 根本没跑"(dyld/入口问题) vs "跑了但后面失败"(绑定/Py_Initialize)。
-    {
-        const char *paths[] = {
-            "/var/mobile/Documents/Workspace/troll_py_start.txt",
-            "/tmp/troll_py_start.txt",
-            "troll_py_start.txt"
-        };
-        for (int i = 0; i < 3; i++) {
-            FILE *sf = fopen(paths[i], "w");
-            if (sf) { fprintf(sf, "start argc=%d argv0=%s\n", argc, argv && argv[0] ? argv[0] : "?"); fclose(sf); }
-        }
-    }
     diag("=== python3 main start ===");
 
     // fix3cg: Py_Initialize 前保存 BuildRunner 重定向的 stdout/stderr fd。
