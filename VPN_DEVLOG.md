@@ -82,3 +82,23 @@
 **真正根因**：黑屏 = **kfd 漏洞利用（landa/smith/physpuppet）在该 iOS 16.3 build 上概率算错物理地址 → DMA 写内核静态区 → 内核 panic**。Fuck 1.8.5 引擎是为**特定 iOS build** 编译/适配的（编译路径 `FuckInject/kfd/libkfd/puaf/`），在 16.3 上 landa 利用不适配/不稳定。**不是权限多，是他针对的机型/系统不同**。
 
 **后续可行方向**：换适配 iOS 16.3 的 libkfd 利用（landa 偏 16.5+，smith/physpuppet 偏 15.x，16.0–16.4 中间段最不稳）；或 local proxy 兜底（零黑屏）。
+
+## 7. Fuck 注入链路拆解与"他可以我们就不行"根因（2026-10-03 深挖）
+
+**Fuck 真实结构（已解包 code.app 确认）**：
+- 隧道插件：`PlugIns/PacketTunnel.appex/PacketTunnel`（**不是 VpnTunnel**）
+- MITM 实现：`Frameworks/TunnelServices.framework` 的 `MitmService`（getStoreFolder/configureSharedDatabase/getDBPath）
+- 注入引擎：`FuckKfdHelper`（独立 arm64，原版 Usage=`FuckKfdHelper <cdhash_hex>`）
+- 主二进制 `code` 含 `stopVPNTunnel`——抓包主路径 = **VPN 隧道(PacketTunnel) + MitmService**，非纯 local proxy
+
+**FuckKfdHelper 内部机制（libkfd 组件）**：`proc_set_ucred`(提权到 root) + `pmap_image4_trust_caches`(加 trust cache) + **walking proc list looking for pid** —— 注入/提权目标按 pid 定位。
+
+**"他可以我们就不行"三大真实差异（证据支持）**：
+1. **注入目标插件不同**：他注入自己配套的 PacketTunnel.appex（签名/结构与他引擎匹配）；我们注入**改名重签后的 VpnTunnel.appex**——改名后 cdhash 变化，可能与 FuckKfdHelper 预期的镜像/信任结构不匹配 → 利用时地址/匹配算错 → panic
+2. **spawn 父进程环境不同**：他主 app（root+platform-application 完整权限）直接 spawn FuckKfdHelper；我们套了一层 kfd_helper 中转 spawn，父进程环境不同
+3. **kfd 利用版本适配**：他的 FuckKfdHelper 为他测试的 iOS build 调好；iOS 16.3 上 landa/smith/physpuppet 利用不稳
+
+**解决路径（按优先级）**：
+- **P1 还原 Fuck 注入链路 1:1**：用**原版 PacketTunnel.appex**（不重签名改名）+ 主 app 直接 spawn FuckKfdHelper + cdhash 取原版 PacketTunnel 的——若还原后仍黑屏 → 实锤 16.3 适配问题
+- **P2 换可适配 libkfd**：改用开源 libkfd + 针对 16.3 的 landa 参数重新编译（工作量中等，可控）
+- **P3 local proxy 兜底**：零黑屏，但抓不全（HTTPS 需 CA、QUIC 不解密）
