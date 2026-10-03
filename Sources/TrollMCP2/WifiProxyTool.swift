@@ -1,13 +1,10 @@
-// WifiProxyTool：AI 控制系统 Wi-Fi HTTP/HTTPS 代理（set/clear/status）
-// 依据 2026-10-04 深度调研（RESEARCH_REPORT.md §4）重写：
-//   ✗ 错误姿势：root 手改 /var/preferences/SystemConfiguration/preferences.plist
-//     —— configd 持有运行时副本，手改会被忽略/覆盖；ifconfig en0 down/up 硬断 WiFi 违反"不断网"。
-//   ✓ 正路：纯 SCPreferences session（Create → PathSetValue → CommitChanges → ApplyChanges），
-//     macOS networksetup 同款 API；ApplyChanges 触发 configd 刷新运行时。
-// 效果：系统 HTTP(S) 流量（URLSession/WebView）走代理 127.0.0.1:18180 被本地 MitmProxy
-//   记录+转发 → 抓 HTTP(S) 不断网；UDP/QUIC/原生 socket 直连不经过代理 → 其余流量照常上网。
-//   ExceptionsList 带 8790 AI 通道，防止控制通道被 MITM 劫持。
-// 局限（如实）：只抓 HTTP(S)；抖音/微信音视频(QUIC/UDP/证书固定) 抓不到——那是 P1(修引擎转发闭环)的活。
+// WifiProxyTool：WiFi 系统代理查询（AI 用，status 为主）
+// 重要更正（2026-10-04 编译实证）：SCPreferencesCreate/Commit/Apply 在 iOS SDK 标注 unavailable
+//   —— iOS 没有"程序化改 WiFi 代理"的官方 API（只能手动去设置填，或 VPN NEProxySettings / MDM）。
+//   因此本工具仅提供：
+//   - status：读系统运行时代理（CFNetworkCopySystemProxySettings，iOS 可用）+ plist 配置（只读）
+//   - set/clear：降级为"手改 preferences.plist"（root 可写；configd 可能覆盖，标注不可靠，仅应急用）
+// 主线抓包方案 = vpn.capture（P1 hev 全接管转发），本工具只做辅助诊断。
 import Foundation
 import SystemConfiguration
 import CFNetwork
@@ -15,28 +12,27 @@ import CFNetwork
 final class WifiProxyExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "wifi",
-        summary: "Control system Wi-Fi HTTP/HTTPS proxy via SCPreferences API (set/clear/status). AI-controlled system proxy for MITM capture — no manual Wi-Fi setup, HTTP(S) traffic captured while other traffic (video/UDP/QUIC/8790) stays direct online. Use for: point system HTTP(S) proxy at local MITM proxy (127.0.0.1:18180). Don't use for: QUIC/UDP/non-HTTP protocols (not proxied) or VPN full-tunnel capture (use vpn.capture). Example: wifi proxy set port:18180; wifi proxy clear; wifi proxy status. REQUIRED PARAMS: command=set/clear/status; set→port (Int, default 18180).",
+        summary: "Read system proxy state (status) or emergency set/clear via direct plist edit (set/clear). iOS has NO official API to programmatically set Wi-Fi proxy (SCPreferences is macOS-only) — VPN capture (vpn.capture) is the correct path. Use for: checking whether the device is behind an HTTP(S) proxy (status), emergency proxy toggling. Example: wifi proxy status; wifi proxy set port:18180; wifi proxy clear. REQUIRED PARAMS: command=set/clear/status.",
         parameters: [
             "command": "Subcommand (required): set / clear / status",
             "port": "Proxy port for set (default 18180)"
         ],
         returns: [
             "ok": "true on success",
-            "message": "human-readable result (service id, commit/apply status, runtime check)",
-            "runtime": "CFNetworkCopySystemProxySettings runtime snapshot after operation (status)"
+            "message": "human-readable result",
+            "runtime": "CFNetworkCopySystemProxySettings runtime snapshot"
         ],
-        verified: false, category: "net", uiSummary: "WiFi 系统代理控制（SCPreferences API，AI 一键开/关 HTTP(S) 代理指向本地 MITM）",
+        verified: false, category: "net", uiSummary: "WiFi 系统代理查询/应急开关（iOS 无官方代理设置 API，主用 status 诊断）",
         requiresTrollStore: true,
-        prerequisites: ["写系统代理配置经 SCPreferences（TrollStore no-sandbox 自动具备权限）", "HTTPS 解密需先安装并信任 TrollAgent MITM CA（设置页生成证书描述文件）", "与 VPN 全接管不要同时常开（避免双跳）"]
+        prerequisites: ["主线抓包请用 vpn.capture（P1 hev 转发，不断网）", "set/clear 为手改 plist，configd 可能覆盖，仅应急"]
     )
 
+    private let plistPath = "/var/preferences/SystemConfiguration/preferences.plist"
     private let backupDir = "/var/mobile/Documents/Workspace/wifi_proxy_backup"
-    /// 8790 AI 远程通道 + 本机 loopback 进例外，防被 MITM 劫持/代理死循环
-    private let exceptions: [String] = ["localhost", "127.0.0.1", "192.168.31.108"]
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let command = params["command"] as? String else {
-            throw MCPError.invalidParams("command required: set/clear/status. Usage: wifi proxy set/clear/status")
+            throw MCPError.invalidParams("command required: set/clear/status")
         }
         AuditLog.shared.log("wifi", detail: command)
         switch command {
@@ -46,122 +42,105 @@ final class WifiProxyExecTool: MCPTool {
             return try setProxy(port: UInt16(port))
         case "clear": return try clearProxy()
         default:
-            throw MCPError.invalidParams("unknown command: \(command). Usage: wifi proxy set/clear/status")
+            throw MCPError.invalidParams("unknown command: \(command)")
         }
     }
 
-    // MARK: - 定位当前 Wi-Fi ServiceID（只读 plist 定位，不写文件）
+    private func runtimeProxy() -> [String: Any] {
+        if let sys = CFNetworkCopySystemProxySettings() as? [String: Any] { return sys }
+        return [:]
+    }
 
-    private func findWifiService() throws -> String {
-        let path = "/var/preferences/SystemConfiguration/preferences.plist"
-        guard FileManager.default.fileExists(atPath: path),
-              let root = NSDictionary(contentsOfFile: path),
+    private func wifiService() -> (setID: String, sid: String, svc: NSMutableDictionary)? {
+        guard FileManager.default.fileExists(atPath: plistPath),
+              let root = NSDictionary(contentsOfFile: plistPath),
               let currentSet = root["CurrentSet"] as? String,
               let sets = root["Sets"] as? [String: Any],
               let set = sets[currentSet] as? [String: Any],
-              let network = set["Network"] as? [String: Any] else {
-            throw MCPError.classified("cannot locate CurrentSet/Network in preferences.plist", code: "ENV_MISSING", reason: "environment",
-                                      nextStep: "ensure device Wi-Fi is on and TrollStore-installed (no-sandbox)")
-        }
-        for (sid, svc) in network {
-            guard let svc = svc as? [String: Any],
+              let network = set["Network"] as? [String: Any] else { return nil }
+        for (key, value) in network {
+            guard let sid = key as? String,
+                  let svc = value as? [String: Any],
                   let iface = svc["Interface"] as? [String: Any],
                   let type = iface["Type"] as? String, type == "IEEE80211" else { continue }
-            return sid
+            return (currentSet, sid, NSMutableDictionary(dictionary: svc))
         }
-        throw MCPError.classified("no IEEE80211 (Wi-Fi) service found", code: "TARGET_MISSING", reason: "target",
-                                  nextStep: "check Wi-Fi is enabled; only Wi-Fi interface proxy supported")
+        return nil
     }
-
-    private func prefsSession() throws -> SCPreferences {
-        guard let prefs = SCPreferencesCreate(nil, "trollagent" as CFString, nil) else {
-            throw MCPError.classified("SCPreferencesCreate failed", code: "ENV_PERMISSION", reason: "environment",
-                                      nextStep: "TrollStore no-sandbox required to open system preferences session")
-        }
-        return prefs
-    }
-
-    private func proxyPath(_ sid: String) -> CFString {
-        return "/Network/Service/\(sid)/Proxies" as CFString
-    }
-
-    // MARK: - 子命令
 
     private func status() throws -> [String: Any] {
-        let sid = try findWifiService()
-        var runtime: [String: Any] = [:]
-        if let sys = CFNetworkCopySystemProxySettings() as? [String: Any] { runtime = sys }
-        let prefs = try prefsSession()
-        let configured = SCPreferencesPathGetValue(prefs, proxyPath(sid)) as? [String: Any] ?? [:]
-        let httpEnable = configured["HTTPEnable"] as? Int ?? 0
-        let httpProxy = configured["HTTPProxy"] as? String ?? ""
-        let httpPort = configured["HTTPPort"] as? Int ?? 0
+        let runtime = runtimeProxy()
+        let httpEnable = runtime["HTTPEnable"] as? Int ?? 0
+        let httpProxy = runtime["HTTPProxy"] as? String ?? ""
+        let httpPort = runtime["HTTPPort"] as? Int ?? 0
+        let configured = wifiService().map { $0.svc["Proxies"] } ?? nil
         return ["ok": true,
-                "message": "WiFi service \(sid): config HTTP=\(httpEnable == 1 ? "ON \(httpProxy):\(httpPort)" : "OFF") HTTPS=\(((configured["HTTPSEnable"] as? Int ?? 0) == 1) ? "ON" : "OFF"); runtime proxies: \(runtime.keys.sorted().prefix(8))",
-                "service_id": sid, "configured": configured, "runtime": runtime]
+                "message": "runtime proxy HTTP=\(httpEnable == 1 ? "ON \(httpProxy):\(httpPort)" : "OFF") HTTPS=\(((runtime["HTTPSEnable"] as? Int ?? 0) == 1) ? "ON" : "OFF"); configured=\(configured ?? "none")",
+                "runtime": runtime, "configured": configured]
     }
 
+    /// 应急：手改 preferences.plist 的 Proxies（iOS 无官方 API；configd 运行时副本可能覆盖，标注不可靠）
     private func setProxy(port: UInt16) throws -> [String: Any] {
-        let sid = try findWifiService()
-        let prefs = try prefsSession()
-        let path = proxyPath(sid)
-
-        // 备份原 Proxies（若存在）
+        guard let (_, sid, svc) = wifiService() else {
+            throw MCPError.classified("no Wi-Fi service found in preferences.plist", code: "TARGET_MISSING", reason: "target",
+                                      nextStep: "check Wi-Fi is enabled; prefer vpn.capture instead of manual proxy edit")
+        }
         let fm = FileManager.default
         try? fm.createDirectory(atPath: backupDir, withIntermediateDirectories: true)
-        if let old = SCPreferencesPathGetValue(prefs, path),
-           let data = try? PropertyListSerialization.data(fromPropertyList: old, format: .binary, options: 0) {
-            try data.write(to: URL(fileURLWithPath: backupDir + "/proxies_backup.plist"))
+        let existing = svc["Proxies"] as? NSDictionary
+        if let e = existing, let data = try? PropertyListSerialization.data(fromPropertyList: e, format: .binary, options: 0) {
+            try? data.write(to: URL(fileURLWithPath: backupDir + "/proxies_backup.plist"))
         }
+        let proxies = NSMutableDictionary()
+        proxies["HTTPEnable"] = 1
+        proxies["HTTPProxy"] = "127.0.0.1"
+        proxies["HTTPPort"] = Int(port)
+        proxies["HTTPSEnable"] = 1
+        proxies["HTTPSProxy"] = "127.0.0.1"
+        proxies["HTTPSPort"] = Int(port)
+        svc["Proxies"] = proxies
 
-        // 写新代理（指向本地 MITM 代理 127.0.0.1:port）+ 例外清单（保护 8790/loopback）
-        let proxies: [String: Any] = [
-            "HTTPEnable": 1,
-            "HTTPProxy": "127.0.0.1",
-            "HTTPPort": Int(port),
-            "HTTPSEnable": 1,
-            "HTTPSProxy": "127.0.0.1",
-            "HTTPSPort": Int(port),
-            "ExceptionsList": exceptions
-        ]
-        let okSet = SCPreferencesPathSetValue(prefs, path, proxies as CFPropertyList)
-        let okCommit = SCPreferencesCommitChanges(prefs)
-        let okApply = SCPreferencesApplyChanges(prefs)
-
-        // 自校验：读运行时系统代理设置
-        var runtime: [String: Any] = [:]
-        if let sys = CFNetworkCopySystemProxySettings() as? [String: Any] { runtime = sys }
-        let runtimeHTTPEnable = runtime["HTTPEnable"] as? Int ?? 0
-        let effective = (okSet && okCommit && okApply) ? (runtimeHTTPEnable == 1 ? "ON(runtime verified)" : "set but runtime OFF") : "API FAILED"
-
-        return ["ok": okSet && okCommit && okApply,
-                "message": "WiFi proxy set on \(sid) → HTTP/HTTPS 127.0.0.1:\(port); ExceptionsList=\(exceptions); effect=\(effective). HTTPS capture needs MITM CA trusted. Other traffic (video/UDP/QUIC/8790) stays direct — no disconnection.",
-                "service_id": sid, "commit": okCommit, "apply": okApply, "runtime": runtime]
+        guard let root = NSMutableDictionary(contentsOfFile: plistPath),
+              let currentSet = root["CurrentSet"] as? String,
+              let sets = root["Sets"] as? NSMutableDictionary,
+              let set = sets[currentSet] as? NSMutableDictionary,
+              let network = set["Network"] as? NSMutableDictionary else {
+            throw MCPError.failed("cannot re-open plist for write")
+        }
+        network[sid] = svc
+        let outData = try PropertyListSerialization.data(fromPropertyList: root, format: .binary, options: 0)
+        try outData.write(to: URL(fileURLWithPath: plistPath))
+        let runtime = runtimeProxy()
+        return ["ok": true,
+                "message": "emergency plist edit done on \(sid) → HTTP/HTTPS 127.0.0.1:\(port); NOTE: iOS has no official proxy-set API, configd may override — prefer vpn.capture (P1). runtime HTTPEnable=\(runtime["HTTPEnable"] as? Int ?? 0)",
+                "service_id": sid, "runtime": runtime]
     }
 
     private func clearProxy() throws -> [String: Any] {
-        let sid = try findWifiService()
-        let prefs = try prefsSession()
-        let path = proxyPath(sid)
-
-        var okSet = false
+        guard let (_, sid, svc) = wifiService() else {
+            throw MCPError.classified("no Wi-Fi service found", code: "TARGET_MISSING", reason: "target", nextStep: "check Wi-Fi")
+        }
         let bak = backupDir + "/proxies_backup.plist"
         if FileManager.default.fileExists(atPath: bak),
            let data = try? Data(contentsOf: URL(fileURLWithPath: bak)),
            let restored = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) {
-            okSet = SCPreferencesPathSetValue(prefs, path, restored as CFPropertyList)
+            svc["Proxies"] = restored
         } else {
-            okSet = SCPreferencesPathRemoveValue(prefs, path)
+            svc.removeObject(forKey: "Proxies")
         }
-        let okCommit = SCPreferencesCommitChanges(prefs)
-        let okApply = SCPreferencesApplyChanges(prefs)
-
-        var runtime: [String: Any] = [:]
-        if let sys = CFNetworkCopySystemProxySettings() as? [String: Any] { runtime = sys }
-        let runtimeHTTPEnable = runtime["HTTPEnable"] as? Int ?? 0
-
-        return ["ok": okSet && okCommit && okApply,
-                "message": "WiFi proxy cleared on \(sid) (restored backup or removed); runtime HTTPEnable=\(runtimeHTTPEnable)",
-                "service_id": sid, "commit": okCommit, "apply": okApply]
+        guard let root = NSMutableDictionary(contentsOfFile: plistPath),
+              let currentSet = root["CurrentSet"] as? String,
+              let sets = root["Sets"] as? NSMutableDictionary,
+              let set = sets[currentSet] as? NSMutableDictionary,
+              let network = set["Network"] as? NSMutableDictionary else {
+            throw MCPError.failed("cannot re-open plist for write")
+        }
+        network[sid] = svc
+        let outData = try PropertyListSerialization.data(fromPropertyList: root, format: .binary, options: 0)
+        try outData.write(to: URL(fileURLWithPath: plistPath))
+        let runtime = runtimeProxy()
+        return ["ok": true,
+                "message": "emergency plist clear done on \(sid); runtime HTTPEnable=\(runtime["HTTPEnable"] as? Int ?? 0)",
+                "service_id": sid]
     }
 }
