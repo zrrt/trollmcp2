@@ -118,6 +118,29 @@ final class VpnManager {
         proto.serverAddress = "127.0.0.1"
         proto.providerBundleIdentifier = "com.trollagent.app.VpnTunnel"
         proto.disconnectOnSleep = false
+        // fix3cy5（P2-配置链路补全）：主 App 从未把抓包配置传给隧道引擎——这是"Fuck 引擎搬过来
+        //   但抓不到包"的直接原因（引擎起来不知道抓什么/存哪）。这里一次性补两条：
+        //   ① providerConfiguration（随 startVPNTunnel 以 options 传入 appex）；
+        //   ② CFPreferences 写 appex bundle 域偏好 com.ai.iosxcode.packet-tunnel.start-state
+        //      （Fuck 引擎硬编码用 CFPropertyListCreateWithData 解析该键，结构对齐其配置项）。
+        //   配置项名对齐 TunnelServices 已知成员：localBindIP/storeFolder/getCertPath/wifiIsOpen。
+        let config: [String: Any] = [
+            "localBindIP": "127.0.0.1",
+            "storeFolder": "/var/mobile/Documents/Workspace/mitm",
+            "getCertPath": "/var/mobile/Documents/Workspace/certs/ca.pem",
+            "wifiIsOpen": false
+        ]
+        proto.providerConfiguration = config
+        // appex bundle 域偏好（Fuck 引擎启动时同步读）
+        if let data = try? PropertyListSerialization.data(fromPropertyList: config, format: .binary, options: 0) {
+            CFPreferencesSetValue("com.ai.iosxcode.packet-tunnel.start-state" as CFString,
+                                  data as CFData,
+                                  "com.trollagent.app.VpnTunnel" as CFString,
+                                  kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
+            CFPreferencesSynchronize("com.trollagent.app.VpnTunnel" as CFString,
+                                     kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
+            VpnManager.vpnlog("start-state written to com.trollagent.app.VpnTunnel (config: \(config.keys))")
+        }
         self.manager.protocolConfiguration = proto
         self.manager.isEnabled = true
         self.manager.localizedDescription = "TrollAgent 抓包 VPN"
