@@ -341,14 +341,19 @@ fi
 #   Fuck 1.8.5 成品（全接管纯记录 → 断网）降级为 fallback 兜底。
 if [ -d "openssl-stage/lib" ] && [ -f "openssl-stage/lib/libssl.a" ]; then
     echo ">>> VPN appex: swift build 自研 VpnTunnel (P1 hev 转发内核: 全接管+转发+记录)"
-    echo ">>> swift build VpnTunnel appex"
+    echo ">>> swift build -c release --product VpnTunnel --triple arm64-apple-ios15.0"
+    # --triple 必须：SwiftPM 默认按 macOS destination 解析依赖，会把 HevSocks5Tunnel.xcframework
+    #   的 macOS slice 链接进 iOS 目标（ld: building for iOS but linking object built for macOS）。
+    #   --triple 让 SwiftPM 全程按 iOS triple 编译依赖并选 xcframework 的 iOS slice。
     if swift build -c release --product VpnTunnel \
+        --triple arm64-apple-ios15.0 \
         -Xswiftc -sdk -Xswiftc "$SDK" \
-        -Xswiftc -target -Xswiftc arm64-apple-ios15.0 \
-        -Xcc -isysroot -Xcc "$SDK" \
-        -Xcc -target -Xcc arm64-apple-ios15.0 2>&1 | tail -8; then
-        VT_BIN=".build/release/VpnTunnel"
-        if [ -f "$VT_BIN" ]; then
+        -Xcc -isysroot -Xcc "$SDK" 2>&1 | tail -8; then
+        VT_BIN=""
+        for p in ".build/release/VpnTunnel" ".build/arm64-apple-ios15.0/release/VpnTunnel"; do
+            [ -f "$p" ] && VT_BIN="$p"
+        done
+        if [ -n "$VT_BIN" ]; then
             mkdir -p "$APP/PlugIns/VpnTunnel.appex"
             cp "$VT_BIN" "$APP/PlugIns/VpnTunnel.appex/VpnTunnel"
             cp "Support/VpnTunnel-Info.plist" "$APP/PlugIns/VpnTunnel.appex/Info.plist"
