@@ -161,7 +161,7 @@ import CHev
                         var a = in_addr(); var m = in_addr()
                         inet_pton(AF_INET, ipStr, &a)
                         inet_pton(AF_INET, maskStr, &m)
-                        let net = in_addr(s_addr: a.s_addr & m.s_addr)
+                        var net = in_addr(s_addr: a.s_addr & m.s_addr)
                         var nb = [CChar](repeating: 0, count: 16)
                         inet_ntop(AF_INET, &net, &nb, socklen_t(nb.count))
                         ip = String(cString: nb)
