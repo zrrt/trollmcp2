@@ -203,26 +203,26 @@ if [ -n "$XCF_DIR" ]; then
         fi
         # 4. 编译 python3 CLI（嵌入式入口：PyConfig + PYTHONHOME + -c/-m/script）
         if [ -f "Sources/PythonCLI/main.c" ] && [ -f "$APP/Frameworks/Python.framework/Headers/Python.h" ]; then
-            # fix3clc: 优先静态链接 libpython（绕开 iOS 子进程 dyld 加载 Python.framework 的 SIGKILL）。
-            # 静态库由 native-python job 交叉编译（--disable-shared），build-ipa.sh 兜底 framework 动态链接。
-            if [ -f "python-ios/static-lib/libpython3.14.a" ]; then
-                echo ">>> python3 CLI: STATIC linking libpython3.14.a"
+            # fix3ck: 用户定案用动态版——动态 wrapper 链 Python.framework（官方 PEP 730 --enable-framework 产物，
+            # node 同款 @rpath/NodeMobile.framework 方案已被验证可跑）。fix3cg 补签 no-sandbox 对两条路径都覆盖；
+            # 137 根因=签名(未签 no-sandbox)，与静态/动态无关。动态版省 ~5.8MB、升级 Python 只换 framework。
+            # 静态库分支仅作兜底（动态失败时）。
+            echo ">>> python3 CLI: dynamic link (primary, @rpath/Python.framework/Python)"
+            xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=13.0 \
+                -I"$APP/Frameworks/Python.framework/Headers" \
+                -F"$APP/Frameworks" -framework Python \
+                -Wl,-rpath,@executable_path/../Frameworks \
+                -o "$APP/bin/python3" Sources/PythonCLI/main.c || \
+                { echo "!!! python3 CLI dynamic build FAILED, fallback static" >&2; rm -f "$APP/bin/python3"; }
+            if [ ! -f "$APP/bin/python3" ] && [ -f "python-ios/static-lib/libpython3.14.a" ]; then
+                echo ">>> python3 CLI: static link (fallback)"
                 xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=13.0 \
                     -I"$APP/Frameworks/Python.framework/Headers" \
                     -I"python-ios/static-lib/include" \
                     -o "$APP/bin/python3" Sources/PythonCLI/main.c \
                     python-ios/static-lib/libpython3.14.a \
                     -lpthread -ldl -lutil -lm || \
-                    { echo "!!! python3 CLI static build FAILED, fallback dynamic" >&2; rm -f "$APP/bin/python3"; }
-            fi
-            if [ ! -f "$APP/bin/python3" ]; then
-                echo ">>> python3 CLI: dynamic link (fallback)"
-                xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=13.0 \
-                    -I"$APP/Frameworks/Python.framework/Headers" \
-                    -F"$APP/Frameworks" -framework Python \
-                    -Wl,-rpath,@executable_path/../Frameworks \
-                    -o "$APP/bin/python3" Sources/PythonCLI/main.c || \
-                    { echo "!!! python3 CLI build FAILED (native Python skipped)" >&2; rm -f "$APP/bin/python3"; }
+                    { echo "!!! python3 CLI static build FAILED (native Python skipped)" >&2; rm -f "$APP/bin/python3"; }
             fi
             if [ -f "$APP/bin/python3" ]; then
                 chmod +x "$APP/bin/python3"
