@@ -31,7 +31,7 @@ import CHev
         let (lanNet, lanMask, lanIPv6) = Self.localSubnet()
         var excl4: [NEIPv4Route] = []
         if let n = lanNet, let m = lanMask {
-            excl4.append(NEIPv4Route(address: n, networkMask: m))
+            excl4.append(NEIPv4Route(destinationAddress: n, subnetMask: m))
             NSLog("[VpnTunnel] excluded LAN \(n)/\(m) (keep 8790 online)")
         }
         ipv4.excludedRoutes = excl4
