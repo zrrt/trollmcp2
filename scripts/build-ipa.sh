@@ -216,6 +216,14 @@ if [ -n "$XCF_DIR" ]; then
             perl -0pi -e "s/if sys\.platform == 'ios':\n\s+system, release, _, _ = ios_ver\(\)/if sys.platform == 'ios':\n        try:\n            system, release, _, _ = ios_ver()\n        except Exception:\n            pass/" "$PLATFORM_PY"
             echo ">>> platform.py ios_ver try/except patched"
         fi
+        # fix3cn: python-ios dist 未生成 _sysconfigdata 模块 → sysconfig.get_config_var() import 崩 →
+        # pandas compat._constants 的 ISMUSL 检查崩(traceback 实证)。patch sysconfig._get_sysconfigdata
+        # try/except 返回空 dict——get_config_var 对缺失项返回 None(标准行为), 一次性覆盖任意缺失。
+        SYSCONFIG_PY="$APP/python/lib/python3.14/sysconfig/__init__.py"
+        if [ -f "$SYSCONFIG_PY" ]; then
+            perl -0pi -e "s/def _get_sysconfigdata\(\):\n    import importlib\n\n    name = _get_sysconfigdata_name\(\)\n    path = os\.environ\.get\('_PYTHON_SYSCONFIGDATA_PATH'\)\n    module = _import_from_directory\(path, name\) if path else importlib\.import_module\(name\)\n\n    return module\.build_time_vars/def _get_sysconfigdata():\n    import importlib\n\n    name = _get_sysconfigdata_name()\n    path = os.environ.get('_PYTHON_SYSCONFIGDATA_PATH')\n    try:\n        module = _import_from_directory(path, name) if path else importlib.import_module(name)\n        return module.build_time_vars\n    except Exception:\n        return {}/" "$SYSCONFIG_PY"
+            echo ">>> sysconfig _get_sysconfigdata fallback patched"
+        fi
         # 4. 编译 python3 CLI（嵌入式入口：PyConfig + PYTHONHOME + -c/-m/script）
         if [ -f "Sources/PythonCLI/main.c" ] && [ -f "$APP/Frameworks/Python.framework/Headers/Python.h" ]; then
             # fix3ck: 用户定案用动态版——动态 wrapper 链 Python.framework（官方 PEP 730 --enable-framework 产物，
