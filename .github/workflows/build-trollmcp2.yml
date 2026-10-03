@@ -1034,8 +1034,8 @@ jobs:
                           z.write(p, rel)
           print('dulwich pure wheel done')
           "
-          cp /tmp/dw/dulwich_pure.whl wheels-out/dulwich-0.22.1-py3-none-any.whl
-          ls -la wheels-out/
+          cp /tmp/dw/dulwich_pure.whl "$GITHUB_WORKSPACE/wheels-out/dulwich-0.22.1-py3-none-any.whl"
+          ls -la "$GITHUB_WORKSPACE/wheels-out/"
 
       - name: Upload native wheels
         uses: actions/upload-artifact@v4
