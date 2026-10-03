@@ -123,3 +123,13 @@
 - **B：local proxy 抓包闭环验证**（local_start，零黑屏）——HTTPS 需装 CA、QUIC 不解密的已知局限。
 
 **验证点**：改 startVpn 去掉注入拦截后，直接点「连接抓包 VPN」，观察是否不再黑屏、隧道是否起来。
+
+## 9. P1 方向 A 执行记录（fix3cy, 2c36b4f 已 push，CI 排队中）
+
+**已改代码**：`Sources/TrollMCP2/VpnManager.swift` startVpn —— **剥离 kfd 注入**：
+- 删除 `TrustEnabler.injectIfNeeded { guard injected else { 拒绝 } }` 整段 gate
+- startVpn 直接走 `startVpnViaRegisteredManager`（不再要求注入、不再拦截）
+- 依据：fuck_helper 信任自己、无法定向信任 VpnTunnel；VpnTunnel 已有 no-sandbox/platform/task_for_pid entitlements，MITM 靠 entitlements 可跑
+- kfd 注入（injectNow/inject 子命令/UI 注入按钮）保留为独立高级能力（信任自己/dylib 注入），不与 VPN 耦合
+
+**真机验证点（恢复后必测）**：装 fix3cy → 直接点「连接抓包 VPN」（不注入）→ 观察是否**不再黑屏**、隧道是否起来、抓包是否闭环。
