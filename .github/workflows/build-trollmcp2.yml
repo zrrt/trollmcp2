@@ -416,16 +416,15 @@ jobs:
           ln -sfn "$THEOS/sdks/iPhoneOS17.5.sdk" "$THEOS/sdks/iPhoneOS16.5.sdk" 2>/dev/null || true
           rm -rf /tmp/opainject && git clone --depth 1 -q https://github.com/opa334/opainject.git /tmp/opainject
           cd /tmp/opainject
-          # arm64.h 缺 stdint.h（新 clang 模块化检查严格，报 uint32_t must be imported）
-          # fix3ch: macOS BSD sed 不支持替换文本里的 \n（报 "command a expects"）→ 改用 perl -0pi
-          #（整文件单记录模式，s{^} 只在文件开头插入一次；每次 CI 都是新 clone，无重复插入问题）
-          perl -0pi -e 's{^}{#include <stdint.h>\n}' arm64.h 2>/dev/null || true
-          grep -q '#include <stdint.h>' arm64.h || echo "WARN: stdint.h not inserted"
+          # fix3ci: opainject 2026-10 重构为独立 makefile（"transition from theos to a standalone makefile"），
+          # 源码移到 src/（arm64.h/rop_inject.m 不再在根目录）、产物在根目录（不再 .theos）。
+          # arm64.h 缺 stdint.h（新 clang 模块化检查严格，报 uint32_t must be imported）——幂等插入
+          grep -q '#include <stdint.h>' src/arm64.h || perl -0pi -e 's{^}{#include <stdint.h>\n}' src/arm64.h
           # CoreSymbolication 私有框架 Xcode SDK 没有，且源码只 import 未调用 → 删 import + 去掉 -framework 链接
-          sed -i '' '/CoreSymbolication/d' rop_inject.m 2>/dev/null || sed -i '/CoreSymbolication/d' rop_inject.m
-          head -3 arm64.h
+          sed -i '' '/CoreSymbolication/d' src/rop_inject.m 2>/dev/null || sed -i '/CoreSymbolication/d' src/rop_inject.m
+          head -3 src/arm64.h
           make ARCHS="arm64" opainject_PRIVATE_FRAMEWORKS= || { echo "OPAINJECT BUILD FAILED, keeping old binary"; exit 0; }
-          OUT=$(find .theos -name opainject -type f | head -1)
+          OUT=$(find . -name opainject -type f | head -1)
           if [ -n "$OUT" ] && file "$OUT" | grep -q "arm64"; then
             cp "$OUT" "$GITHUB_WORKSPACE/Resources/bin/opainject"
             echo "opainject rebuilt:"; file "$GITHUB_WORKSPACE/Resources/bin/opainject"
