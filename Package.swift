@@ -9,7 +9,10 @@ let package = Package(
         // v2.9.370：RSKGrowingTextView——成熟开源聊天输入框，自动高度+占位符，替代手写 UIViewRepresentable
         .package(url: "https://github.com/ruslanskorb/RSKGrowingTextView.git", from: "7.0.0"),
         // v3.0.37：ZIPFoundation——iSH rootfs 首次启动解压（OpenMinis 同款）
-        .package(url: "https://github.com/weichsel/ZIPFoundation.git", from: "0.9.19")
+        .package(url: "https://github.com/weichsel/ZIPFoundation.git", from: "0.9.19"),
+        // fix3cy11 (P1)：Tun2SocksKit——hev-socks5-tunnel 预编译 xcframework（lwip 转发内核，
+        //   socksguard 同款）。全接管隧道的 TCP/UDP 状态机 + 出口转发。
+        .package(url: "https://github.com/EbrahimTahernejad/Tun2SocksKit.git", from: "5.16.0")
     ],
     targets: [
         // v3.0.37：iSH-ARM64 C 包装层。头文件由 CI 的 build_ish.sh 生成到 ish-stage/include，
@@ -53,10 +56,10 @@ let package = Package(
             dependencies: ["CMitm"],
             path: "Sources/MitmCore"
         ),
-        // v3.3.0：VPN 抓包模式 appex（PacketTunnelProvider）
+        // v3.3.0：VPN 抓包模式 appex（PacketTunnelProvider，P1 hev 转发内核）
         .executableTarget(
             name: "VpnTunnel",
-            dependencies: ["MitmCore", "CMitm"],
+            dependencies: ["MitmCore", "CMitm", .product(name: "Tun2SocksKit", package: "Tun2SocksKit")],
             path: "Sources/VpnTunnel",
             linkerSettings: [
                 .linkedFramework("NetworkExtension")

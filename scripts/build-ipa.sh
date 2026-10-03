@@ -335,40 +335,18 @@ fi
 
 # v3.0.41：ios_system 已删除，不再需要 @executable_path rpath 与 shellhelper 独立进程
 
-# fix3ct: VPN appex 优先使用 Fuck 工具箱 1.8.5 成品（用户实测其抓包 VPN 可用）——
-#   完整搬运 PacketTunnel.appex（改名为 VpnTunnel.appex + bundle id 改 com.trollagent.app.VpnTunnel）
-#   + TunnelServices/swift-nio 全家桶 Frameworks（20MB）。TrollStore 重签覆盖签名；
-#   AppGroup group.com.ai.iosxcode 已加入 entitlements，appex 可读共享配置。
-#   回退：Fuck 成品缺失时才走下方自研 swift build（系统代理模式半成品）。
-if [ -d "Resources/fuck_vpn/VpnTunnel.appex" ]; then
-    echo ">>> VPN appex: 使用 Fuck 1.8.5 成品 (Resources/fuck_vpn/VpnTunnel.appex)"
-    rm -rf "$APP/PlugIns/VpnTunnel.appex"
-    mkdir -p "$APP/PlugIns/VpnTunnel.appex"
-    cp -R "Resources/fuck_vpn/VpnTunnel.appex/." "$APP/PlugIns/VpnTunnel.appex/"
-    echo ">>> VPN Frameworks: 复制 TunnelServices + swift-nio 全家桶 (20MB)"
-    mkdir -p "$APP/Frameworks"
-    for fw in Resources/fuck_vpn/*.framework; do
-        [ -d "$fw" ] && cp -R "$fw" "$APP/Frameworks/"
-    done
-    if command -v ldid >/dev/null 2>&1; then
-        if ldid -S"Support/VpnTunnel.entitlements" "$APP/PlugIns/VpnTunnel.appex/VpnTunnel"; then
-            echo ">>> signed VpnTunnel appex (Fuck 引擎)"
-        else
-            echo "!!! VpnTunnel appex sign FAILED — removing (VPN mode unavailable)"
-            rm -rf "$APP/PlugIns/VpnTunnel.appex"
-        fi
-    else
-        echo "!!! ldid missing; VpnTunnel appex unsigned — removing"
-        rm -rf "$APP/PlugIns/VpnTunnel.appex"
-    fi
-elif [ -d "openssl-stage/lib" ] && [ -f "openssl-stage/lib/libssl.a" ]; then
-    echo ">>> fallback: swift build 自研 VpnTunnel appex (openssl-stage present)"
+# fix3cy11 (P1)：VPN appex 优先【自研 swift build】——全接管 + hev-socks5-tunnel 转发内核
+#   （Tun2SocksKit xcframework）→ 本机 Socks5Server(127.0.0.1:19080) 出网+记录 → 写回隧道。
+#   = 不断网全流量抓包（依据深度调研 RESEARCH_REPORT.md P1，socksguard 同款架构）。
+#   Fuck 1.8.5 成品（全接管纯记录 → 断网）降级为 fallback 兜底。
+if [ -d "openssl-stage/lib" ] && [ -f "openssl-stage/lib/libssl.a" ]; then
+    echo ">>> VPN appex: swift build 自研 VpnTunnel (P1 hev 转发内核: 全接管+转发+记录)"
     echo ">>> swift build VpnTunnel appex"
     if swift build -c release --product VpnTunnel \
         -Xswiftc -sdk -Xswiftc "$SDK" \
         -Xswiftc -target -Xswiftc arm64-apple-ios15.0 \
         -Xcc -isysroot -Xcc "$SDK" \
-        -Xcc -target -Xcc arm64-apple-ios15.0 2>&1 | tail -5; then
+        -Xcc -target -Xcc arm64-apple-ios15.0 2>&1 | tail -8; then
         VT_BIN=".build/release/VpnTunnel"
         if [ -f "$VT_BIN" ]; then
             mkdir -p "$APP/PlugIns/VpnTunnel.appex"
@@ -376,7 +354,7 @@ elif [ -d "openssl-stage/lib" ] && [ -f "openssl-stage/lib/libssl.a" ]; then
             cp "Support/VpnTunnel-Info.plist" "$APP/PlugIns/VpnTunnel.appex/Info.plist"
             if command -v ldid >/dev/null 2>&1; then
                 if ldid -S"Support/VpnTunnel.entitlements" "$APP/PlugIns/VpnTunnel.appex/VpnTunnel"; then
-                    echo ">>> signed VpnTunnel appex"
+                    echo ">>> signed VpnTunnel appex (自研 hev 引擎)"
                 else
                     echo "!!! VpnTunnel appex sign FAILED — removing (VPN mode unavailable)"
                     rm -rf "$APP/PlugIns/VpnTunnel.appex"
@@ -389,10 +367,31 @@ elif [ -d "openssl-stage/lib" ] && [ -f "openssl-stage/lib/libssl.a" ]; then
             echo "!!! VpnTunnel binary missing; VPN mode unavailable"
         fi
     else
-        echo "!!! VpnTunnel build FAILED — VPN mode unavailable (local proxy mode still works)"
+        echo "!!! VpnTunnel build FAILED — falling back to Fuck 成品 (local proxy mode still works)"
+    fi
+elif [ -d "Resources/fuck_vpn/VpnTunnel.appex" ]; then
+    echo ">>> VPN appex fallback: 使用 Fuck 1.8.5 成品 (全接管纯记录，抓包断网；仅自研不可用时兜底)"
+    rm -rf "$APP/PlugIns/VpnTunnel.appex"
+    mkdir -p "$APP/PlugIns/VpnTunnel.appex"
+    cp -R "Resources/fuck_vpn/VpnTunnel.appex/." "$APP/PlugIns/VpnTunnel.appex/"
+    echo ">>> VPN Frameworks: 复制 TunnelServices + swift-nio 全家桶 (20MB)"
+    mkdir -p "$APP/Frameworks"
+    for fw in Resources/fuck_vpn/*.framework; do
+        [ -d "$fw" ] && cp -R "$fw" "$APP/Frameworks/"
+    done
+    if command -v ldid >/dev/null 2>&1; then
+        if ldid -S"Support/VpnTunnel.entitlements" "$APP/PlugIns/VpnTunnel.appex/VpnTunnel"; then
+            echo ">>> signed VpnTunnel appex (Fuck 引擎 fallback)"
+        else
+            echo "!!! VpnTunnel appex sign FAILED — removing (VPN mode unavailable)"
+            rm -rf "$APP/PlugIns/VpnTunnel.appex"
+        fi
+    else
+        echo "!!! ldid missing; VpnTunnel appex unsigned — removing"
+        rm -rf "$APP/PlugIns/VpnTunnel.appex"
     fi
 else
-    echo "!!! fuck_vpn 与 openssl-stage 均缺失 — skipping VpnTunnel appex (VPN mode unavailable)"
+    echo "!!! openssl-stage 与 fuck_vpn 均缺失 — skipping VpnTunnel appex (VPN mode unavailable)"
 fi
 
 # 把特权 entitlements 签入主二进制，TrollStore 安装时才能继承 no-sandbox/no-container/task_for_pid 等权限
