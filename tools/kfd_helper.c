@@ -43,6 +43,7 @@
 #define CSSLOT_CODEDIRECTORY       0
 #define CS_HASHTYPE_SHA1           1
 #define CS_HASHTYPE_SHA256         2
+#define CS_HASHTYPE_SHA384         3
 
 /* ------------------------------------------------------------------ */
 /* cdhash 提取（读 Mach-O 的 LC_CODE_SIGNATURE → superblob → CD）      */
@@ -107,17 +108,19 @@ static int extract_cdhash(const uint8_t *macho, size_t len, uint8_t cdhash[20]) 
     if (len >= sizeof(struct fat_header) && ((struct fat_header *)macho)->magic == FAT_CIGAM) {
         struct fat_header *fh = (struct fat_header *)macho;
         uint32_t nfat = OSSwapBigToHostInt32(fh->nfat_arch);
+        if (nfat == 0 || nfat > 64) return -1;   /* 防御：异常架构数防越界 */
         struct fat_arch *ar = (struct fat_arch *)(macho + sizeof(struct fat_header));
         for (uint32_t i = 0; i < nfat; i++) {
             if (OSSwapBigToHostInt32(ar[i].cputype) == CPU_TYPE_ARM64) {
                 uint32_t off = OSSwapBigToHostInt32(ar[i].offset);
                 uint32_t sz  = OSSwapBigToHostInt32(ar[i].size);
+                if (off + sz > len || off + sizeof(struct mach_header_64) > len) return -1;
                 p = macho + off; plen = sz; break;
             }
         }
     }
     struct mach_header_64 *mh = (struct mach_header_64 *)p;
-    if (mh->magic != MH_MAGIC_64) return -1;
+    if (plen < sizeof(struct mach_header_64) || mh->magic != MH_MAGIC_64) return -1;
 
     /* 遍历 load commands 找 LC_CODE_SIGNATURE (0x1d) */
     const uint8_t *cmds = p + sizeof(struct mach_header_64);
@@ -125,19 +128,23 @@ static int extract_cdhash(const uint8_t *macho, size_t len, uint8_t cdhash[20]) 
     uint32_t sigoff = 0;
     uint32_t off = 0;
     for (uint32_t i = 0; i < ncmd; i++) {
+        if (off + sizeof(struct load_command) > plen) return -1;
         struct load_command *lc = (struct load_command *)(cmds + off);
         if (lc->cmd == LC_CODE_SIGNATURE) {
             sigoff = ((struct linkedit_data_command *)lc)->dataoff;
             break;
         }
         off += lc->cmdsize;
+        if (off >= plen) break;
     }
-    if (sigoff == 0 || sigoff + 4096 > plen) return -1;
+    /* v4.4.10 fix3cr: 去掉硬编码 4096——TrollStore ldid 的最小签名可能 <4KB,
+     * 只要 superblob + 一个 CD 能放下就允许继续解析。 */
+    if (sigoff == 0 || sigoff + sizeof(cs_superblob) + sizeof(cs_blobindex) > plen) return -1;
 
     cs_superblob *sb = (cs_superblob *)(p + sigoff);
     if (be32(sb->magic) != CSMAGIC_EMBEDDED_SIGNATURE) return -1;
     uint32_t sbcount = be32(sb->count);
-    if (sbcount > 0x1000) return -1; /* 防御：异常 count 防越界 */
+    if (sbcount == 0 || sbcount > 0x1000) return -1; /* 防御：异常 count 防越界 */
     cs_blobindex *idx = (cs_blobindex *)((uint8_t *)sb + sizeof(cs_superblob));
     for (uint32_t i = 0; i < sbcount; i++) {
         if (be32(idx[i].type) == CSSLOT_CODEDIRECTORY) {
@@ -157,6 +164,12 @@ static int extract_cdhash(const uint8_t *macho, size_t len, uint8_t cdhash[20]) 
                 return 0;
             } else if (cd->hashType == CS_HASHTYPE_SHA1) {
                 CC_SHA1((uint8_t *)cd, cdlen, cdhash);
+                return 0;
+            } else if (cd->hashType == CS_HASHTYPE_SHA384) {
+                /* v4.4.10 fix3cr: ldid 重签可能用 SHA384——补支持，取前 20 字节 */
+                uint8_t dig[CC_SHA384_DIGEST_LENGTH];
+                CC_SHA384((uint8_t *)cd, cdlen, dig);
+                memcpy(cdhash, dig, 20);
                 return 0;
             }
         }
