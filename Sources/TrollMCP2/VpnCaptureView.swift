@@ -10,7 +10,6 @@ struct VpnCaptureView: View {
     @State private var logFiles: [String] = []
     @State private var notice = ""
     @State private var injectText = "未注入"
-    @State private var notice = ""
 
     var body: some View {
         List {
