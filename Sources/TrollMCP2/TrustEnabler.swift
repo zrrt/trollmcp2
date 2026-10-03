@@ -57,11 +57,13 @@ enum TrustEnabler {
     /// 决定当前设备走哪条信任注入路径
     static func resolvePath() -> TrustPath {
         if isJailbroken { return .jailbreak }
-        // v3.6.19 止血：iOS 16.x 非越狱的 .kfdInject（复用 FuckKfdHelper 注入引擎）
-        // 会触发 iOS kernel panic → 点抓包 VPN 黑屏重启（FuckKfdHelper 用 DMA 物理写绕 PPL，
-        // 暂停 CPU 高负载写内核，iOS 16.3 上极易崩）。临时禁用该路径，VPN 回退纯 TrollStore
-        // 假签名启动（安全、不重启）。待确认 FuckKfdHelper 在真机安全可用后再恢复。
-        // if kfdAvailable { return .kfdInject }
+        // v4.4.10: 用户拍板恢复 kfd 注入实测（方案 A）。历史：v3.6.19 因 iOS 16.3 DMA 物理写
+        // (FuckKfdHelper halt CPU 绕 PPL) 实测黑屏重启而临时禁用；本轮恢复并加了两个降风险措施：
+        //  ① 注入前等待 0.8s 让系统 idle（避开点按钮后的瞬时高负载窗口, 降低 halt CPU 撞负载概率）
+        //  ② 同一进程内只注入一次（trustInjectedOnce 缓存——trust cache 是内核内存态, 重启失效,
+        //     进程重启后自然重新注入；避免用户反复点 VPN 反复 kfd, 每次 kfd 都有崩率）
+        // 实测仍可能黑屏重启（Fuck 引擎固有风险）；崩 = 仅重启不丢数据, 可撤回回退 fallback。
+        if kfdAvailable { return .kfdInject }
         return .fallback
     }
 
@@ -82,9 +84,14 @@ enum TrustEnabler {
         case .kfdInject:
             guard let helper = kfdHelperPath() else { completion(false); return }
             guard let appex = vpnTunnelBinaryPath() else { completion(false); return }
+            // v4.4.10: 同一进程内已注入过 → 直接放行（trust cache 内核内存态, 重启失效; 进程重启后重置）
+            if trustInjectedOnce { completion(true); return }
             // kfd 提权(10–60s)放后台执行，避免 waitpid 阻塞主线程导致按钮"点了没反应"
             DispatchQueue.global(qos: .userInitiated).async {
+                // 注入前等 0.8s：让点按钮后的 UI/动画/系统瞬时负载过去, 降低 halt CPU 窗口撞高负载的概率
+                usleep(800_000)
                 let ok = spawn(helper, args: [appex])
+                if ok { trustInjectedOnce = true }
                 DispatchQueue.main.asyncAfter(deadline: .now() + (ok ? 0.8 : 0)) {
                     completion(ok)
                 }
@@ -96,6 +103,10 @@ enum TrustEnabler {
     }
 
     // MARK: - 路径
+
+    /// v4.4.10: 同一次进程生命周期内 kfd 信任注入只做一次（trust cache 内核内存态, 重启失效;
+    /// 进程重启后该标志重置, 自然重新注入）。避免反复点 VPN 反复跑 kfd(每次都有崩率)。
+    private static var trustInjectedOnce = false
 
     /// kfd_helper 二进制：build-ipa.sh 把 Resources/bin 复制到 App bundle 的 bin/
     static func kfdHelperPath() -> String? {
