@@ -38,6 +38,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         LocationProvider.shared.start()
         // v2.9.10：网络与生命周期监控（切后台重连 / 网络恢复提示）
         AppLifecycleMonitor.shared.start()
+        // fix3cy8：启动即清理残留 VPN 配置（上次异常退出/旧版关 VPN 没删配置 → 残留隧道路由
+        // 会把局域网 8790 黑洞；启动时后台查一次，存在残留即删，保证远程通道可靠）
+        DispatchQueue.global(qos: .utility).async {
+            VpnManager.cleanupStaleConfig()
+        }
         // v4.3.39：启动静默检查更新——后台跑，不打扰；发现新版点亮设置页"检查更新"红点
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 3) {
             let ver = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? ""

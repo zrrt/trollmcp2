@@ -275,6 +275,31 @@ final class VpnManager {
 
     func stopVpn() {
         manager.connection.stopVPNTunnel()
+        // fix3cy8：关闭时彻底清理系统 VPN 配置（stopVPNTunnel 只停隧道，NEVPNManager 配置会残留，
+        //   残留配置让 App 下次启动 loadFromPreferences 卡在 invalid 状态 → 8790 服务失效、
+        //   局域网/HTTP 全连不上。这里连配置一起删，隧道+代理+路由一起清掉）。
+        VpnManager.vpnlog("stopVpn: stopping tunnel + removing preferences")
+        manager.removeFromPreferences { err in
+            if let e = err {
+                VpnManager.vpnlog("stopVpn removeFromPreferences FAILED: \(e.localizedDescription)")
+            } else {
+                VpnManager.vpnlog("stopVpn removeFromPreferences OK (config removed)")
+            }
+        }
+    }
+
+    /// fix3cy8：App 启动时清理残留 VPN 配置。
+    /// 上次开 VPN 后异常退出 / 旧版本关 VPN 只停隧道没删配置 → 系统里残留"TrollAgent 抓包 VPN"配置，
+    /// 其隧道路由没撤销 → 局域网入站（8790）被残留 utun 路由黑洞 → 远程连不上。
+    /// 这里启动即查：存在我们的配置且不在 connected 状态 → 删掉（路由随配置撤销）。
+    static func cleanupStaleConfig() {
+        NETunnelProviderManager.loadAllFromPreferences { managers, _ in
+            guard let stale = managers?.first(where: { $0.localizedDescription == "TrollAgent 抓包 VPN" }),
+                  stale.connection.status != .connected else { return }
+            stale.removeFromPreferences { err in
+                VpnManager.vpnlog("cleanupStaleConfig: removed stale config, status was \(stale.connection.status.rawValue) err=\(err?.localizedDescription ?? "nil")")
+            }
+        }
     }
 
     // MARK: - 本地代理模式
