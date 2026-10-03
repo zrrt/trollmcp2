@@ -127,20 +127,48 @@ final class VpnManager {
         //   不同 → 三个可能被读的域【全部写入】，键用 appex 硬编码全名；值内同时提供
         //   host/port（NEProxyServer 所需）与 TunnelServices 配置项（localBindIP/storeFolder/certPath 等），
         //   多写键无副作用，appex 只取它认识的。
+        // fix3cy7（P2-配置键补全）：按 Fuck 引擎(TunnelServices/MitmService)还原出的【属性名全集】
+        //   补齐 start-state 键。此前版本只写 host/port/localBindIP 等，缺 localEnable/localPort/wifiEnable
+        //   等【监听开关+端口】键 → MitmService.openLocalServer 不执行 → 隧道 connected 但无数据。
+        //   键名 = MitmService @objc 属性名（localEnable:NSNumber / localPort:NSNumber / localAddress:String …
+        //   证据：TunnelServices 符号 $s14TunnelServices11MitmServiceC…localEnableSo8NSNumberCv /
+        //   localPortSo8NSNumberCv / wifiEnableSo8NSNumberCv / wifiPortSo8NSNumberCv，
+        //   appex startTunnel 读 start-state(com.ai.iosxcode.packet-tunnel.start-state, CFPropertyListCreateWithData)
+        //   → MitmService.prepare/run → openLocalServer(ip:port:) 消费。值类型与 plist 互转兼容。
         let startState: [String: Any] = [
-            // NEProxyServer 地址（appex setHTTPServer:/setHTTPSServer: 用）
+            // NEProxyServer 地址（appex setHTTPServer:/setHTTPSServer: 配系统代理用）
             "host": "127.0.0.1",
             "port": 18180,
             "proxyHost": "127.0.0.1",
             "proxyPort": 18180,
-            // TunnelServices 配置项（MitmService / wifi 模式）
+            // MitmService 本地代理（local server）：开启监听的关键键
+            "localEnable": true,
+            "localAddress": "127.0.0.1",
+            "localIP": "127.0.0.1",
+            "localPort": 18180,
             "localBindIP": "127.0.0.1",
-            "storeFolder": "/var/mobile/Documents/Workspace/mitm",
-            "getCertPath": "/var/mobile/Documents/Workspace/certs/ca.pem",
-            "wifiIsOpen": false,
+            "localBindPort": 18180,
+            "localStarted": false,
+            "localState": 0,
+            // MitmService WiFi 代理（wifi server：局域网抓包，默认关）
+            "wifiEnable": false,
+            "wifiIP": "192.169.89.1",
+            "wifiPort": 8080,
             "wifiBindIP": "192.169.89.1",
+            "wifiBindPort": 8080,
+            "wifiIsOpen": false,
             "wifiChannel": 1,
-            "wifiStarted": false
+            "wifiStarted": false,
+            "wifiState": 0,
+            // 存储 / 证书 / DB
+            "storeFolder": "/var/mobile/Documents/Workspace/mitm",
+            "fileFolder": "/var/mobile/Documents/Workspace/mitm",
+            "dbName": "trollagent.db",
+            "getCertPath": "/var/mobile/Documents/Workspace/certs/ca.pem",
+            // 抓包任务元数据（task 表记录用；taskID 由引擎生成，这里给个初始标识）
+            "taskID": "trollagent-capture",
+            "ruleName": "默认抓包",
+            "hostFilters": []
         ]
         let config: [String: Any] = startState
         proto.providerConfiguration = config
