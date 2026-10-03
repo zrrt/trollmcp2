@@ -480,6 +480,10 @@ final class SystemPrompts {
       simulator). Usage: `python3 -c "code"`, `python3 script.py`, `python3 -m module`. It CAN import numpy/pandas/
       matplotlib (C extensions run natively). The iSH/Alpine python3 is different: `import numpy` there segfaults the
       app (openblas unsupported by the simulator) — the guard blocks it. To force the Alpine python3 use `sh -c 'python3 ...'`.
+      LIMITS (v4.4.10, on-device verified): native python3 CANNOT fork/exec subprocesses (`Errno 45: ios does not
+      support processes`) — no subprocess.run/os.system/popen; call other binaries via shell.exec instead (a fresh
+      process per call). pandas lacks pyarrow/fsspec extras — read_parquet/read_feather/read_excel are NOT available;
+      use CSV/JSON (pd.read_csv/to_csv, read_json) or manual parsing.
     - NATIVE REVERSE TOOLS (v4.4.x, in-process, no external binary): `objdump <mach-o>` prints header/load commands/
       sections/symbols, `objdump -d <mach-o>` adds ARM64 disassembly; `class-dump <mach-o>` prints Objective-C classes
       and methods (__objc_classname/__objc_methname); `nm [-a] <mach-o>` symbols; `strings <mach-o>` strings. These read
