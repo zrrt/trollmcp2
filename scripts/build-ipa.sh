@@ -120,6 +120,13 @@ if [ -d "Resources/bin" ]; then
             echo ">>> native $t bundled ($(du -h "$APP/bin/$t" | cut -f1))"
         fi
     done
+    # v4.4.9-fix3cn: git 替代——iOS 拦 fork() 真 git 跑不了；dulwich 纯 Python 在 site-packages,
+    # 此封装脚本(porcelain API, 绕开 dulwich CLI 的 add bug)进 bin/, AI 调用 python3 <app>/bin/git.py ...
+    if [ -f "scripts/git.py" ]; then
+        cp "scripts/git.py" "$APP/bin/git.py"
+        chmod +x "$APP/bin/git.py"
+        echo ">>> git.py bundled"
+    fi
     # v2.9.38: 给注入工具签 no-sandbox entitlements
     # iOS 沙箱按每次 exec 的新二进制签名计算：工具不签 no-sandbox 则即使被 root spawn 也仍套普通沙箱，
     # 写其他 App bundle（/private/var/containers/Bundle/Application/...）会 Permission denied。

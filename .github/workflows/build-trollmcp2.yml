@@ -1001,8 +1001,6 @@ jobs:
           ls -la wheels-out/
           for w in wheels-out/*pandas*.whl; do unzip -p "$w" "*/METADATA" 2>/dev/null | head -3; echo "--- $w"; done
 
-      - name: Upload native wheels
-        uses: actions/upload-artifact@v4
       - name: Download pandas deps (python-dateutil, pure-python wheel)
         run: |
           # pandas 3.0.6 依赖 python-dateutil(纯 Python, py2.py3-none-any)——无需交叉编译,

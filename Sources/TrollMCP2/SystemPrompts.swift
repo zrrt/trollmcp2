@@ -510,11 +510,13 @@ final class SystemPrompts {
       sort/uniq/cut/tr/rev/echo/cat/base64）——jq 已内置原生 ARM64（bin/jq，default 兜底路由）：直接
       `jq . <file>` 或 `cmd > /tmp/x; jq ... < /tmp/x`，无需 sh -c 包装；其他 Alpine 过滤器（tree 等）仍
       先 `cmd > /tmp/x` 再 `sh -c 'tree ... < /tmp/x'`。
-      GIT (v4.4.9-fix3cn, dulwich 替代): iOS 沙箱拦 fork(), 真 git 二进制 spawn 子进程即死、libgit2 需
-      交叉编译且无 CLI——内置纯 Python git 实现 dulwich: `python3 -m dulwich.cli clone <url> <dir>` /
-      `python3 -m dulwich.cli add <dir> <file>` / `... commit <dir> -m "msg"` / `... push <dir> <remote> <branch>`。
-      https 传输已配 urllib3/certifi/typing_extensions；SSH 需 paramiko（未内置）——用 https 或 PAT 认证。
-      首次用先 `python3 -m dulwich.cli --help` 冒烟验证。
+      GIT (v4.4.9-fix3cn, dulwich 替代): iOS 沙箱拦 fork(), 真 git 二进制跑不了、libgit2 无 CLI——
+      内置纯 Python git(dulwich 在 site-packages) + 封装脚本 git.py(porcelain API; dulwich 官方 CLI 的
+      add 有上游 bug 勿用): `python3 <app>/bin/git.py clone <url> [dir]` 克隆、
+      init/add/commit/log/status 在仓库目录内 `python3 <app>/bin/git.py init|add [path]|commit -m <msg>|log|status`、
+      push 用 `python3 <app>/bin/git.py push [remote] [refspec]`(默认 origin refs/heads/main)。
+      https 传输已配 urllib3/certifi/typing_extensions；SSH 需 paramiko（未内置）——用 https 或 PAT。
+      首次用 `python3 <app>/bin/git.py clone https://github.com/x/y.git /tmp/t` 冒烟。
       ALPINE PYTHON PACKAGES (v4.4.9, 实测): Alpine(pip/apk py3-) 装的 Python 包**只在 Alpine python 里**——
       命令名 `python3 -c "import X"` 走 iOS 原生（白名单）→ ModuleNotFoundError（不是装失败！）。
       调用必须 `sh -c 'python3 -c "import X; print(X.__name__)"'` 强制 Alpine。tool.install 装 python 包后
