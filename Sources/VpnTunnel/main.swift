@@ -27,9 +27,11 @@ import MitmCore
         let dns = NEDNSSettings(servers: ["1.1.1.1", "8.8.8.8"])
         settings.dnsSettings = dns
 
+        // fix3cy9：纯代理模式——不设默认路由全接管（去掉 includedRoutes default）。
+        // 系统只把 HTTP(S) 流量经 NEProxySettings 导进隧道（appex 内 MitmProxy 记录+转发），
+        // 其余流量（视频流/局域网/8790 远程通道）走原网卡直连 → 不断网 + AI 通道在线。
+        // 之前设 defaultRoute 全接管 + 引擎不转发 = 断网（与 Fuck 引擎同病）。
         let ipv4 = NEIPv4Settings(addresses: ["172.16.0.2"], subnetMasks: ["255.255.255.0"])
-        ipv4.includedRoutes = [NEIPv4Route.default()]
-        ipv4.excludedRoutes = [NEIPv4Route(destinationAddress: "127.0.0.1", subnetMask: "255.0.0.0")]
         settings.ipv4Settings = ipv4
 
         // 先完成隧道启动，再异步设置网络参数（系统代理生效）
