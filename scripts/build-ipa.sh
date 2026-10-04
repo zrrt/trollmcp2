@@ -355,12 +355,19 @@ if [ -d "openssl-stage/lib" ] && [ -f "openssl-stage/lib/libssl.a" ]; then
         cp hev-stage/xcf/HevSocks5Tunnel.xcframework/ios-arm64/libhev-socks5-tunnel.a hev-stage/lib/
         echo ">>> hev lib: $(ls -la hev-stage/lib/ | grep hev)"
     fi
-    echo ">>> swift build VpnTunnel appex"
+    echo ">>> swift build VpnTunnel appex (fix3cy24: -e _NSExtensionMain 扩展入口)"
+    # fix3cy24（根因修复）：iOS App Extension 进程入口必须是 _NSExtensionMain（Foundation 的
+    #   扩展 XPC 引导：注册 NSXPCListener + 实例化 NSExtensionPrincipalClass）。
+    #   swift build 默认把入口设成普通 _main（进程跑完 main 即退出、不注册 XPC），
+    #   NE 系统拉起扩展后永远等不到响应 → 状态卡 .connecting → App 侧 confirmConnected 超时。
+    #   对照 Fuck 1.8.5 成品 appex 二进制含 _NSExtensionMain 符号（Xcode 编译自动 -e），
+    #   自研产物无此符号 → 实锤。用 -Xlinker -e _NSExtensionMain 对齐 Xcode 行为。
     if swift build -c release --product VpnTunnel \
         -Xswiftc -sdk -Xswiftc "$SDK" \
         -Xswiftc -target -Xswiftc arm64-apple-ios15.0 \
         -Xcc -isysroot -Xcc "$SDK" \
-        -Xcc -target -Xcc arm64-apple-ios15.0 2>&1 | tail -8; then
+        -Xcc -target -Xcc arm64-apple-ios15.0 \
+        -Xlinker -e -Xlinker _NSExtensionMain 2>&1 | tail -8; then
         VT_BIN=""
         for p in ".build/release/VpnTunnel" ".build/arm64-apple-ios15.0/release/VpnTunnel"; do
             [ -f "$p" ] && VT_BIN="$p"
