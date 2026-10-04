@@ -2,30 +2,27 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>application-identifier</key>
-	<string>TROLLTROLL.com.trollagent.app.VpnTunnel</string>
-	<key>com.apple.developer.team-identifier</key>
-	<string>TROLLTROLL</string>
 	<key>com.apple.developer.networking.networkextension</key>
 	<array>
 		<string>packet-tunnel-provider</string>
 	</array>
-	<!-- v3.5.2: Personal VPN 授权（与主 App 同步）——无此 entitlement 则 tunnel 无法随
-	     Personal VPN 启动，卡 .connecting。 -->
-	<key>com.apple.developer.networking.vpn.api.personal-vpn</key>
-	<true/>
-	<!-- fix3ct: Fuck 1.8.5 appex 通过 AppGroup group.com.ai.iosxcode 读抓包配置 -->
+	<!-- fix3cy25o: entitlements 与 Fuck 原版 PacketTunnel.appex 完全对齐（已逆向确认）：
+	     vpn.api allow-vpn + container-required 字符串 + application-groups + network.client/server。
+	     自研此前用 no-sandbox/platform-application/personal-vpn——Fuck 原版都没有，
+	     NE(neagent) 可能因 entitlement 形态差异拒绝加载扩展。 -->
+	<key>com.apple.developer.networking.vpn.api</key>
+	<array>
+		<string>allow-vpn</string>
+	</array>
+	<key>com.apple.private.security.container-required</key>
+	<string>com.trollagent.app.VpnTunnel</string>
 	<key>com.apple.security.application-groups</key>
 	<array>
 		<string>group.com.ai.iosxcode</string>
 	</array>
-	<key>com.apple.private.security.no-sandbox</key>
+	<key>com.apple.security.network.client</key>
 	<true/>
-	<key>com.apple.private.security.no-container</key>
-	<true/>
-	<key>com.apple.private.security.container-required</key>
-	<false/>
-	<key>platform-application</key>
+	<key>com.apple.security.network.server</key>
 	<true/>
 </dict>
 </plist>
