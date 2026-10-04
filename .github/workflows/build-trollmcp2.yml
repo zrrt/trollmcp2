@@ -598,11 +598,11 @@ jobs:
       - name: Build IPA (with native Python integration)
         run: |
           ls -la python-ios/ 2>/dev/null | head -5 || true
-          # fix3cy25o: 诊断期强制 C 空壳分支（MINIMAL_C）——Organizer 的 Xcode 分支
-          # (XCODE_APPEX+vpnxcode) 会因 CI 存在 xcodegen 被优先选中且失败后不留 appex，
-          # 导致空壳实验被跳过。诊断完成后移除本行。
-          unset XCODE_APPEX || true
-          export MINIMAL_C=1
+          # fix3cy26c (P1 主线): 诊断期开关已移除——默认走 Xcode app-extension 形态。
+          # XCODE_APPEX=1 → build-ipa.sh 走 Xcode 分支（vpnxcode/ 工程 xcodegen 构建 +
+          # ldid-procursus 签名 + entitlements 校验后进包）。C 空壳诊断(MINIMAL_C)已结束，
+          # 不再强制覆盖；本轮验证点 = NE 能否拉起 Xcode 标准扩展形态的 appex。
+          export XCODE_APPEX=1
           bash scripts/build-ipa.sh
 
       # v4.4.8-fix3x: 进包断言——实测发现 job 绿但工具缺失（缓存劫持/吞错），
@@ -623,6 +623,18 @@ jobs:
           for p in numpy pandas; do
             if ls "$SP" 2>/dev/null | grep -q "^$p"; then echo "IN   : $p"; else echo "MISSING: $p"; fi
           done
+          # fix3cy26c: VpnTunnel.appex 进包断言——Xcode 形态 appex 是 P1 主线修复的验证点，
+          #   必须实际存在于 PlugIns 且二进制非空，否则 NE 拉起测试无从谈起。
+          echo "=== VpnTunnel.appex 断言 ==="
+          APX="$APP/PlugIns/VpnTunnel.appex"
+          if [ -d "$APX" ]; then
+            echo "IN   : PlugIns/VpnTunnel.appex"
+            ls -la "$APX"
+            BIN="$APX/VpnTunnel"
+            [ -f "$BIN" ] && { echo "appex 二进制: $(ls -la "$BIN" | awk '{print $5"B"}')"; file "$BIN" || true; }
+          else
+            echo "MISSING: PlugIns/VpnTunnel.appex（Xcode 分支未产出 appex，P1 主线未生效）"
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

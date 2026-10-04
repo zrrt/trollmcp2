@@ -8,13 +8,11 @@ cd "$(dirname "$0")/.."
 SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
 echo ">>> iphoneos SDK: $SDK"
 
-# fix3cy26 (P1 Step A) 诊断期开关：Xcode app-extension 形态 appex（Xcode 自动 -e _NSExtensionMain）
-#   验证 NE 能否拉起标准扩展形态。确认后可关（XCODE_APPEX 留空走 swift build 或 Fuck fallback）。
-# fix3cy25p: MINIMAL_C 诊断开关优先于 XCODE_APPEX（判定 NE spawn 是当前硬卡点，不能被 Xcode 分支跳过）
-if [ -n "$MINIMAL_C" ]; then unset XCODE_APPEX || true; fi
-export XCODE_APPEX=1
-# fix3cy25l 诊断期临时开关：C 纯空壳 appex（判定 NE 是否能拉起进程，排除 Swift runtime）
-export MINIMAL_C=1
+# P1 Step A (fix3cy26c)：默认走 Xcode app-extension 形态（Xcode 自动 -e _NSExtensionMain，
+#   生成标准扩展 Mach-O，对照 Fuck 1.8.5 同形态）。诊断期 MINIMAL_C / MINIMAL_APPEX 开关
+#   已改为 workflow 显式控制，此处不再硬编码，避免覆盖 workflow 意图。
+: "${XCODE_APPEX:=1}"   # 未显式指定则默认启用 Xcode 形态（P1 主线）
+if [ -n "$MINIMAL_C" ]; then unset XCODE_APPEX || true; fi  # 空壳诊断仅在 workflow 显式传入时覆盖
 
 # v3.0.37: iSH 引擎依赖——CI 已由 workflow 的 "Build iSH engine" 步骤生成 ish-stage/
 # （libs/include/resources + alpine-rootfs.zip）；本地构建需先跑 scripts/ish-build/*.sh
