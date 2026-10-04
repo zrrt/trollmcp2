@@ -598,6 +598,11 @@ jobs:
       - name: Build IPA (with native Python integration)
         run: |
           ls -la python-ios/ 2>/dev/null | head -5 || true
+          # fix3cy25o: 诊断期强制 C 空壳分支（MINIMAL_C）——Organizer 的 Xcode 分支
+          # (XCODE_APPEX+vpnxcode) 会因 CI 存在 xcodegen 被优先选中且失败后不留 appex，
+          # 导致空壳实验被跳过。诊断完成后移除本行。
+          unset XCODE_APPEX || true
+          export MINIMAL_C=1
           bash scripts/build-ipa.sh
 
       # v4.4.8-fix3x: 进包断言——实测发现 job 绿但工具缺失（缓存劫持/吞错），
