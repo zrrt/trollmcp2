@@ -32,6 +32,13 @@ func appexLog(_ msg: String) {
 appexLog("=== appex process begin pid=\(getpid()) ===")
 appexLog("top-level code reached")
 
+// fix3cy25j 诊断实验：MINIMAL_APPEX 空壳——只写日志退出，不调 NSExtensionMain。
+//   用于区分「NE 没拉起进程」vs「进程启动后入口问题」。
+#if MINIMAL_APPEX
+appexLog("MINIMAL mode: skipping NSExtensionMain, exit(0)")
+exit(0)
+#endif
+
 let RTLD_DEFAULT = UnsafeMutableRawPointer(bitPattern: -2)!
 guard let sym = dlsym(RTLD_DEFAULT, "_NSExtensionMain") else {
     appexLog("FAIL: dlsym _NSExtensionMain not found")
