@@ -10,6 +10,8 @@ echo ">>> iphoneos SDK: $SDK"
 
 # fix3cy26 (P1 Step A) 诊断期开关：Xcode app-extension 形态 appex（Xcode 自动 -e _NSExtensionMain）
 #   验证 NE 能否拉起标准扩展形态。确认后可关（XCODE_APPEX 留空走 swift build 或 Fuck fallback）。
+# fix3cy25p: MINIMAL_C 诊断开关优先于 XCODE_APPEX（判定 NE spawn 是当前硬卡点，不能被 Xcode 分支跳过）
+if [ -n "$MINIMAL_C" ]; then unset XCODE_APPEX || true; fi
 export XCODE_APPEX=1
 # fix3cy25l 诊断期临时开关：C 纯空壳 appex（判定 NE 是否能拉起进程，排除 Swift runtime）
 export MINIMAL_C=1
