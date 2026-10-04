@@ -12,7 +12,7 @@ echo ">>> iphoneos SDK: $SDK"
 #   生成标准扩展 Mach-O，对照 Fuck 1.8.5 同形态）。诊断期 MINIMAL_C / MINIMAL_APPEX 开关
 #   已改为 workflow 显式控制，此处不再硬编码，避免覆盖 workflow 意图。
 : "${XCODE_APPEX:=1}"   # 未显式指定则默认启用 Xcode 形态（P1 主线）
-if [ -n "$MINIMAL_C" ]; then unset XCODE_APPEX || true; fi  # 空壳诊断仅在 workflow 显式传入时覆盖
+if [ -n "${MINIMAL_C:-}" ]; then unset XCODE_APPEX || true; fi  # 空壳诊断仅在 workflow 显式传入时覆盖
 
 # v3.0.37: iSH 引擎依赖——CI 已由 workflow 的 "Build iSH engine" 步骤生成 ish-stage/
 # （libs/include/resources + alpine-rootfs.zip）；本地构建需先跑 scripts/ish-build/*.sh
@@ -363,7 +363,7 @@ if [ -n "$XCODE_APPEX" ] && command -v xcodegen >/dev/null 2>&1; then
         echo "!!! Xcode appex build FAILED (rc=$XC_RC) — VPN mode unavailable"
         rm -rf "$APP/PlugIns/VpnTunnel.appex"
     fi
-elif [ -n "$MINIMAL_C" ]; then
+elif [ -n "${MINIMAL_C:-}" ]; then
     # fix3cy25l：C 纯空壳诊断——排除 Swift runtime。进程 main 只写一行日志退出。
     #   判定：NE 能否拉起进程（Swift 26.5 产物在 iOS 16.3 dyld 的兼容性是否背锅）。
     echo ">>> VPN appex: C 空壳诊断 (MINIMAL_C=1)"
