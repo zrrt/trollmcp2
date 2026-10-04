@@ -2,8 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>BuildMachineOSBuild</key>
+	<string>25C56</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>VpnTunnel</string>
 	<key>CFBundleExecutable</key>
 	<string>VpnTunnel</string>
 	<key>CFBundleIdentifier</key>
@@ -14,12 +18,23 @@
 	<string>VpnTunnel</string>
 	<key>CFBundlePackageType</key>
 	<string>XPC!</string>
-	<key>MinimumOSVersion</key>
-	<string>14.0</string>
 	<key>CFBundleShortVersionString</key>
 	<string>3.5.16</string>
+	<!-- fix3cy23：补全扩展 bundle 结构键（对照 Fuck 1.8.5 成品 appex Info.plist）。
+	     NE 系统(neagent)加载扩展前校验 CFBundleSupportedPlatforms/UIDeviceFamily 等；
+	     缺失 → 扩展视为无效 bundle → 静默拒绝加载（无崩溃、隧道连不上，本次根因）。 -->
+	<key>CFBundleSupportedPlatforms</key>
+	<array>
+		<string>iPhoneOS</string>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>DTCompiler</key>
+	<string>com.apple.compilers.llvm.clang.1_0</string>
+	<key>DTPlatformName</key>
+	<string>iphoneos</string>
+	<key>MinimumOSVersion</key>
+	<string>15.0</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key>
@@ -27,5 +42,14 @@
 		<key>NSExtensionPrincipalClass</key>
 		<string>VpnTunnel.TunnelProvider</string>
 	</dict>
+	<key>UIDeviceFamily</key>
+	<array>
+		<integer>1</integer>
+		<integer>2</integer>
+	</array>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
 </dict>
 </plist>
