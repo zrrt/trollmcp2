@@ -9,12 +9,20 @@ import Foundation
 import NetworkExtension
 
 func appexLog(_ msg: String) {
-    let path = "/var/mobile/Documents/Workspace/logs/appex.log"
     let ts = String(Int(Date().timeIntervalSince1970))
     let line = "[\(ts)] \(msg)\n"
-    if let h = fopen(path, "a") {
-        fputs(line, h)
-        fclose(h)
+    // 沙盒内可写路径：appex 自己 Documents + AppGroup 共享容器（对齐 Fuck 形态后无 no-sandbox，
+    //   主 App 容器 /var/mobile/Documents/ 写不进去——改用沙盒可写位置）
+    let docs = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first
+    let groupURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.ai.iosxcode")
+    var paths: [String] = []
+    if let d = docs { paths.append(d + "/appex.log") }
+    if let g = groupURL { paths.append(g.path + "/appex.log") }
+    for p in paths {
+        if let h = fopen(p, "a") {
+            fputs(line, h)
+            fclose(h)
+        }
     }
 }
 
