@@ -11,6 +11,19 @@ import NetworkExtension
 import MitmCore
 import CHev
 
+// fix3cy25（治本）：App Extension 进程入口必须是 Foundation 的 NSExtensionMain（注册 XPC
+//   + 实例化 NSExtensionPrincipalClass）。
+//   swift build 编译的可执行带 __TEXT.__swift5_entry（Swift 入口标记，指向编译器生成的
+//   main/_main），dyld 检测到它时用它覆盖 LC_MAIN——所以仅改 LC_MAIN(-e _NSExtensionMain)
+//   无效，进程实际入口仍是 _main，跑完即退、不注册 XPC → NE 永远等不到响应（卡 .connecting）。
+//   对照 Fuck 1.8.5 成品 appex（Xcode 编译）无 __swift5_entry → 能连；自研产物有 → 不能连。
+//   修复：显式定义 C 入口 main() 直接调用 NSExtensionMain()，无论 dyld 从 LC_MAIN 还是
+//   __swift5_entry 进入，最终都进入扩展引导。
+@_cdecl("main")
+public func main() -> Int32 {
+    return NSExtensionMain()
+}
+
 @objc public class TunnelProvider: NEPacketTunnelProvider {
 
     private var stopping = false
