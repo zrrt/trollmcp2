@@ -8,6 +8,9 @@ cd "$(dirname "$0")/.."
 SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
 echo ">>> iphoneos SDK: $SDK"
 
+# fix3cy25l 诊断期临时开关：C 纯空壳 appex（判定 NE 是否能拉起进程，排除 Swift runtime）
+export MINIMAL_C=1
+
 # v3.0.37: iSH 引擎依赖——CI 已由 workflow 的 "Build iSH engine" 步骤生成 ish-stage/
 # （libs/include/resources + alpine-rootfs.zip）；本地构建需先跑 scripts/ish-build/*.sh
 if [ ! -f "ish-stage/libs/libish.a" ]; then
