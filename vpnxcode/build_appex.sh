@@ -2,9 +2,16 @@
 # P1 Step A：Xcode app-extension 构建 + ldid-procursus 签名 + entitlements 校验
 # 用法：bash vpnxcode/build_appex.sh <输出目录>（把 VpnTunnel.appex 放到指定目录）
 set -euo pipefail
-cd "$(dirname "$0")"
 
 OUT="${1:-out}"
+# fix3cy27c: 先把 OUT 解析为绝对路径（按调用方 cwd 解析），再 cd 进本目录——
+#   本脚本 cd "$(dirname "$0")"（vpnxcode/）后，相对 OUT 会落到 vpnxcode/TrollAgent.app/PlugIns/，
+#   而调用方 build-ipa.sh 检查的是仓库根的 TrollAgent.app/PlugIns，导致"复制成功但检查 MISSING→被删"。
+if [[ "$OUT" != /* ]]; then
+    OUT="$(pwd)/$OUT"
+fi
+cd "$(dirname "$0")"
+
 mkdir -p "$OUT"
 
 for tool in xcodegen xcodebuild ldid; do
