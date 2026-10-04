@@ -18,20 +18,32 @@ import CHev
 //   彻底绕开链接：Swift top-level code 生成唯一 main（无 duplicate symbol），
 //   运行时用 dlsym(RTLD_DEFAULT) 从已加载的系统 Foundation 动态解析 _NSExtensionMain
 //   再调用——零链接依赖，iOS 16.3 系统 Foundation 必有该符号。
-import Foundation
-import Darwin
-import NetworkExtension
-import MitmCore
-import CHev
+// fix3cy25i：启动全链路写日志（appex 沙盒 no-sandbox，直接写主 App Workspace 日志目录），
+//   用于真机诊断 NE 拉起失败的确切环节。
+func appexLog(_ msg: String) {
+    let path = "/var/mobile/Documents/Workspace/logs/appex.log"
+    let ts = String(Int(Date().timeIntervalSince1970))
+    let line = "[\(ts)] \(msg)\n"
+    if let h = fopen(path, "a") {
+        fputs(line, h)
+        fclose(h)
+    }
+}
+appexLog("=== appex process begin pid=\(getpid()) ===")
+appexLog("top-level code reached")
 
 let RTLD_DEFAULT = UnsafeMutableRawPointer(bitPattern: -2)!
 guard let sym = dlsym(RTLD_DEFAULT, "_NSExtensionMain") else {
+    appexLog("FAIL: dlsym _NSExtensionMain not found")
     fputs("VpnTunnel: _NSExtensionMain not found in system Foundation\n", stderr)
     exit(-1)
 }
+appexLog("dlsym _NSExtensionMain OK @ \(sym)")
 typealias NSExtensionMainFunc = @convention(c) () -> Int32
 let fn = unsafeBitCast(sym, to: NSExtensionMainFunc.self)
+appexLog("calling NSExtensionMain()...")
 let rc = fn()
+appexLog("NSExtensionMain returned rc=\(rc) (should never return)")
 if rc != 0 { exit(rc) }
 
 @objc public class TunnelProvider: NEPacketTunnelProvider {
@@ -40,6 +52,7 @@ if rc != 0 { exit(rc) }
     private let socks5Port: UInt16 = 19080
 
     public override func startTunnel(options: [String: NSObject]?, completionHandler: @escaping (Error?) -> Void) {
+        appexLog("startTunnel begin (options=\(options?.keys.count ?? 0))")
         NSLog("[VpnTunnel] startTunnel begin (P1 hev forward engine)")
         // 1) 起本机 SOCKS5 server（hev 的出口：出网 + 记录）
         let s5 = Socks5Server.shared.start(port: socks5Port)
