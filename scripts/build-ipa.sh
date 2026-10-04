@@ -354,10 +354,17 @@ if [ -n "$MINIMAL_C" ]; then
 #include <time.h>
 #include <unistd.h>
 int main(int argc, char **argv) {
-    FILE *f = fopen("/var/mobile/Documents/Workspace/logs/appex.log", "a");
-    if (f) {
-        fprintf(f, "[%ld] C-minimal appex REACHED argc=%d pid=%d\n", (long)time(NULL), argc, (int)getpid());
-        fclose(f);
+    time_t t = time(NULL);
+    FILE *f;
+    const char *paths[] = {
+        "/var/mobile/Documents/Workspace/logs/appex.log",   // 主App容器（需no-sandbox）
+        "/tmp/appex.log",                                   // 系统tmp（需no-sandbox）
+        "/var/mobile/Documents/appex.log",                  // 主App Documents
+        NULL
+    };
+    for (int i = 0; paths[i]; i++) {
+        f = fopen(paths[i], "a");
+        if (f) { fprintf(f, "[%ld] C-minimal appex REACHED argc=%d pid=%d\n", (long)t, argc, (int)getpid()); fclose(f); }
     }
     return 0;
 }
