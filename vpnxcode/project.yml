@@ -3,6 +3,9 @@
 #   （LC_MAIN→stub→non-lazy GOT→_NSExtensionMain，无 __swift5_entry、无用户 main）。
 #   这就是 Fuck 能跑而 SwiftPM 直编产物被 NE 拒载的形态差异。构建=无签名，
 #   build_appex.sh 用 ldid-procursus 后签名 + grep 校验 entitlements。
+# Step B：在标准扩展形态上集成 hev 转发内核——Socks5Server(Sources/Socks5Server/) +
+#   CHev(CHev/) 桥接层 + libhev-socks5-tunnel.a(../hev-stage/lib, build_appex.sh 下载)。
+#   Bridging.h 把 CHev.h 暴露给 Swift（hev_* 函数 + utun 需要的 ctl_info/sockaddr_ctl/CTLIOCGINFO）。
 name: VpnTunnelX
 options:
   bundleIdPrefix: com.trollagent
@@ -23,6 +26,8 @@ targets:
     platform: iOS
     sources:
       - path: Sources/VpnTunnel
+      - path: Sources/Socks5Server/Socks5Server.swift
+      - path: CHev/CHev.c
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.trollagent.app.VpnTunnel
@@ -30,5 +35,9 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         SKIP_INSTALL: YES
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
-        OTHER_LDFLAGS: "-ObjC"
+        # Step B: 链接 hev 静态库（-ObjC 拉入所有成员），搜索路径指向 ../hev-stage/lib
+        OTHER_LDFLAGS: "-ObjC -lhev-socks5-tunnel"
+        HEADER_SEARCH_PATHS: "$(inherited) CHev/include"
+        LIBRARY_SEARCH_PATHS: "$(inherited) ../hev-stage/lib"
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/VpnTunnel/Bridging.h
         GCC_PREPROCESSOR_DEFINITIONS: "$(inherited) MINIMAL_XCODE_APPEX=1"
