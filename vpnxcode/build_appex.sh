@@ -20,7 +20,7 @@ xcodegen
 echo "==> xcodebuild (unsigned)"
 rm -rf DerivedData
 xcodebuild -project VpnTunnelX.xcodeproj \
-    -target VpnTunnel \
+    -scheme VpnTunnel \
     -configuration Release \
     -sdk iphoneos \
     -derivedDataPath DerivedData \
@@ -43,7 +43,8 @@ DUMP=$(mktemp)
 ldid -e "$BIN" > "$DUMP" 2>/dev/null || true
 cat "$DUMP"
 grep -q packet-tunnel-provider "$DUMP" || { echo "ERROR: packet-tunnel-provider missing after sign"; exit 1; }
-grep -q no-sandbox "$DUMP" || { echo "ERROR: no-sandbox missing after sign"; exit 1; }
+grep -q "allow-vpn" "$DUMP" || { echo "ERROR: vpn.api allow-vpn missing after sign"; exit 1; }
+grep -q "container-required" "$DUMP" || { echo "ERROR: container-required missing after sign"; exit 1; }
 echo "==> entitlements OK"
 
 rm -rf "$OUT/VpnTunnel.appex"
