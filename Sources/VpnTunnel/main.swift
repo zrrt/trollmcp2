@@ -12,23 +12,27 @@ import NetworkExtension
 import MitmCore
 import CHev
 
-// fix3cy25g（根治链接问题）：_NSExtensionMain 是 iOS Foundation 私有符号——
-//   SDK 的 Foundation.tbd 不导出（链接器报 Undefined），且 -e/-U/-syslibroot 组合
-//   均与 swiftc 的链接器行为冲突（entry 不能 -U；-Xlinker 参数经 clang 被吞/被拒）。
-//   彻底绕开链接：入口用自研 main（@_cdecl），运行时用 dlsym(RTLD_DEFAULT) 从
-//   已加载的系统 Foundation 动态解析 _NSExtensionMain 再调用——零链接依赖，
-//   iOS 16.3 系统 Foundation 必有该符号（App Extension 引导机制核心）。
-@_cdecl("main")
-public func main() -> Int32 {
-    let RTLD_DEFAULT = UnsafeMutableRawPointer(bitPattern: -2)!
-    guard let sym = dlsym(RTLD_DEFAULT, "_NSExtensionMain") else {
-        fputs("VpnTunnel: _NSExtensionMain not found in system Foundation\n", stderr)
-        return -1
-    }
-    typealias NSExtensionMainFunc = @convention(c) () -> Int32
-    let fn = unsafeBitCast(sym, to: NSExtensionMainFunc.self)
-    return fn()
+// fix3cy25h（链接根治）：_NSExtensionMain 是 iOS Foundation 私有符号——SDK 的
+//   Foundation.tbd 不导出（链接报 Undefined）；-e/-U/-Wl 组合均与 swiftc 链接器
+//   行为冲突（entry 不能 -U；-Wl, 被 ld 拒；-e 与自动生成的 _main 冲突 duplicate）。
+//   彻底绕开链接：Swift top-level code 生成唯一 main（无 duplicate symbol），
+//   运行时用 dlsym(RTLD_DEFAULT) 从已加载的系统 Foundation 动态解析 _NSExtensionMain
+//   再调用——零链接依赖，iOS 16.3 系统 Foundation 必有该符号。
+import Foundation
+import Darwin
+import NetworkExtension
+import MitmCore
+import CHev
+
+let RTLD_DEFAULT = UnsafeMutableRawPointer(bitPattern: -2)!
+guard let sym = dlsym(RTLD_DEFAULT, "_NSExtensionMain") else {
+    fputs("VpnTunnel: _NSExtensionMain not found in system Foundation\n", stderr)
+    exit(-1)
 }
+typealias NSExtensionMainFunc = @convention(c) () -> Int32
+let fn = unsafeBitCast(sym, to: NSExtensionMainFunc.self)
+let rc = fn()
+if rc != 0 { exit(rc) }
 
 @objc public class TunnelProvider: NEPacketTunnelProvider {
 
