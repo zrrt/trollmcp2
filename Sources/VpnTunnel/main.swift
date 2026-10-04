@@ -7,18 +7,27 @@
 //   socksguard 标准架构；断网根因是只收不转，hev 内核补齐转发闭环。
 // 注意：TrollStore 首次开 VPN 会弹一次"允许"；system proxy 与 VPN 不要同时开。
 import Foundation
+import Darwin
 import NetworkExtension
 import MitmCore
 import CHev
 
-// fix3cy25b：Foundation 的 Swift 模块不导出 NSExtensionMain（ObjC 头私有），
-//   用 @_silgen_name 绑定 C 符号 _NSExtensionMain（Foundation 库导出）。
-@_silgen_name("_NSExtensionMain")
-public func NSExtensionMain() -> Int32
-
+// fix3cy25g（根治链接问题）：_NSExtensionMain 是 iOS Foundation 私有符号——
+//   SDK 的 Foundation.tbd 不导出（链接器报 Undefined），且 -e/-U/-syslibroot 组合
+//   均与 swiftc 的链接器行为冲突（entry 不能 -U；-Xlinker 参数经 clang 被吞/被拒）。
+//   彻底绕开链接：入口用自研 main（@_cdecl），运行时用 dlsym(RTLD_DEFAULT) 从
+//   已加载的系统 Foundation 动态解析 _NSExtensionMain 再调用——零链接依赖，
+//   iOS 16.3 系统 Foundation 必有该符号（App Extension 引导机制核心）。
 @_cdecl("main")
 public func main() -> Int32 {
-    return NSExtensionMain()
+    let RTLD_DEFAULT = UnsafeMutableRawPointer(bitPattern: -2)!
+    guard let sym = dlsym(RTLD_DEFAULT, "_NSExtensionMain") else {
+        fputs("VpnTunnel: _NSExtensionMain not found in system Foundation\n", stderr)
+        return -1
+    }
+    typealias NSExtensionMainFunc = @convention(c) () -> Int32
+    let fn = unsafeBitCast(sym, to: NSExtensionMainFunc.self)
+    return fn()
 }
 
 @objc public class TunnelProvider: NEPacketTunnelProvider {
