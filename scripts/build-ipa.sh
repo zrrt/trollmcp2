@@ -375,16 +375,21 @@ elif [ -n "$MINIMAL_C" ]; then
 int main(int argc, char **argv) {
     time_t t = time(NULL);
     FILE *f;
-    const char *paths[] = {
-        "/var/mobile/Documents/Workspace/logs/appex.log",   // 主App容器（需no-sandbox）
-        "/tmp/appex.log",                                   // 系统tmp（需no-sandbox）
-        "/var/mobile/Documents/appex.log",                  // 主App Documents
-        NULL
-    };
-    for (int i = 0; paths[i]; i++) {
+    char home[1024];
+    const char *paths[8];
+    int n = 0;
+    paths[n++] = "/var/mobile/Documents/Workspace/logs/appex.log";   // 主App容器（需no-sandbox）
+    paths[n++] = "/tmp/appex.log";                                   // 系统tmp（需no-sandbox）
+    paths[n++] = "/var/mobile/Documents/appex.log";                  // 主App Documents
+    if (getenv("HOME")) {
+        snprintf(home, sizeof(home), "%s/appex.log", getenv("HOME"));
+        paths[n++] = home;
+    }
+    for (int i = 0; i < n; i++) {
         f = fopen(paths[i], "a");
         if (f) { fprintf(f, "[%ld] C-minimal appex REACHED argc=%d pid=%d\n", (long)t, argc, (int)getpid()); fclose(f); }
     }
+    sleep(600);  // 挂住10分钟：远程 ps 抓进程（比日志更可靠）
     return 0;
 }
 CEOF
