@@ -361,14 +361,17 @@ if [ -d "openssl-stage/lib" ] && [ -f "openssl-stage/lib/libssl.a" ]; then
     #   swift build 默认把入口设成普通 _main（进程跑完 main 即退出、不注册 XPC），
     #   NE 系统拉起扩展后永远等不到响应 → 状态卡 .connecting → App 侧 confirmConnected 超时。
     #   对照 Fuck 1.8.5 成品 appex 二进制含 _NSExtensionMain 符号（Xcode 编译自动 -e），
-    #   自研产物无此符号 → 实锤。用 -Xlinker -e _NSExtensionMain 对齐 Xcode 行为。
+    #   自研产物无此符号 → 实锤。入口组合：LC_MAIN=自己的 main（@_cdecl("main") 已定义），
+    #   main 内部调 NSExtensionMain；_NSExtensionMain 是私有符号（SDK tbd 不导出）→
+    #   -U 允许 undefined（dyld 运行时从系统 Foundation 解析），且 entry 不是该符号、
+    #   不与 -U 冲突（fix3cy25e）。
     if swift build -c release --product VpnTunnel \
         -Xswiftc -sdk -Xswiftc "$SDK" \
         -Xswiftc -target -Xswiftc arm64-apple-ios15.0 \
         -Xcc -isysroot -Xcc "$SDK" \
         -Xcc -target -Xcc arm64-apple-ios15.0 \
-        -Xlinker -e -Xlinker _NSExtensionMain \
-        -Xlinker -syslibroot -Xlinker "$SDK" 2>&1 | tail -8; then
+        -Xlinker -syslibroot -Xlinker "$SDK" \
+        -Xlinker -U -Xlinker _NSExtensionMain 2>&1 | tail -8; then
         VT_BIN=""
         for p in ".build/release/VpnTunnel" ".build/arm64-apple-ios15.0/release/VpnTunnel"; do
             [ -f "$p" ] && VT_BIN="$p"
