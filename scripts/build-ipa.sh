@@ -341,7 +341,36 @@ fi
 #   （Tun2SocksKit xcframework）→ 本机 Socks5Server(127.0.0.1:19080) 出网+记录 → 写回隧道。
 #   = 不断网全流量抓包（依据深度调研 RESEARCH_REPORT.md P1，socksguard 同款架构）。
 #   Fuck 1.8.5 成品（全接管纯记录 → 断网）降级为 fallback 兜底。
-if [ -d "openssl-stage/lib" ] && [ -f "openssl-stage/lib/libssl.a" ]; then
+if [ -n "$MINIMAL_C" ]; then
+    # fix3cy25l：C 纯空壳诊断——排除 Swift runtime。进程 main 只写一行日志退出。
+    #   判定：NE 能否拉起进程（Swift 26.5 产物在 iOS 16.3 dyld 的兼容性是否背锅）。
+    echo ">>> VPN appex: C 空壳诊断 (MINIMAL_C=1)"
+    mkdir -p "$APP/PlugIns/VpnTunnel.appex"
+    cat > /tmp/appex_min.c <<'CEOF'
+#include <stdio.h>
+#include <time.h>
+#include <unistd.h>
+int main(int argc, char **argv) {
+    FILE *f = fopen("/var/mobile/Documents/Workspace/logs/appex.log", "a");
+    if (f) {
+        fprintf(f, "[%ld] C-minimal appex REACHED argc=%d pid=%d\n", (long)time(NULL), argc, (int)getpid());
+        fclose(f);
+    }
+    return 0;
+}
+CEOF
+    if xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" -miphoneos-version-min=15.0 \
+        /tmp/appex_min.c -o "$APP/PlugIns/VpnTunnel.appex/VpnTunnel" 2>&1 | tail -5; then
+        cp "Support/VpnTunnel-Info.plist" "$APP/PlugIns/VpnTunnel.appex/Info.plist"
+        if command -v ldid >/dev/null 2>&1 && ldid -S"Support/VpnTunnel.entitlements" "$APP/PlugIns/VpnTunnel.appex/VpnTunnel"; then
+            echo ">>> signed C-minimal appex (diagnostic)"
+        else
+            echo "!!! C appex sign FAILED" >&2
+        fi
+    else
+        echo "!!! C appex build FAILED" >&2
+    fi
+elif [ -d "openssl-stage/lib" ] && [ -f "openssl-stage/lib/libssl.a" ]; then
     echo ">>> VPN appex: swift build 自研 VpnTunnel (P1 hev 转发内核: 全接管+转发+记录)"
     # fix3cy16：hev-socks5-tunnel iOS 真机 slice（Tun2SocksKit 5.16.0 release 的 xcframework）
     #   手动下载解压 → hev-stage/lib/libhev-socks5-tunnel.a（避开 SwiftPM binaryTarget 平台选择：
