@@ -369,7 +369,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install tools
-        run: brew install ldid dpkg >/dev/null 2>&1 || true
+        # fix3cy26：ldid-procursus（TrollStore 社区版）——saurik ldid 会静默嵌空 entitlements，
+        #   packet-tunnel-provider 丢失 → NE 拒载 appex。加 xcodegen（P1 Xcode appex 形态）。
+        run: brew install ldid-procursus xcodegen dpkg >/dev/null 2>&1 || true
 
       - name: Checkout theos
         uses: actions/checkout@v4

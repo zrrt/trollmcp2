@@ -1,0 +1,34 @@
+# P1: VpnTunnel appex —— Xcode 标准 app-extension 形态（对照 Fuck 1.8.5 / socksguard）
+# 关键：Xcode 对 app-extension target 自动 -e _NSExtensionMain 布线 + 生成标准扩展 Mach-O
+#   （LC_MAIN→stub→non-lazy GOT→_NSExtensionMain，无 __swift5_entry、无用户 main）。
+#   这就是 Fuck 能跑而 SwiftPM 直编产物被 NE 拒载的形态差异。构建=无签名，
+#   build_appex.sh 用 ldid-procursus 后签名 + grep 校验 entitlements。
+name: VpnTunnelX
+options:
+  bundleIdPrefix: com.trollagent
+  deploymentTarget:
+    iOS: "15.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    CODE_SIGNING_ALLOWED: NO
+    CODE_SIGNING_REQUIRED: NO
+    CODE_SIGN_IDENTITY: ""
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+
+targets:
+  VpnTunnel:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Sources/VpnTunnel
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.trollagent.app.VpnTunnel
+        INFOPLIST_FILE: Sources/VpnTunnel/Info.plist
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SKIP_INSTALL: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
+        OTHER_LDFLAGS: "-ObjC"
+        GCC_PREPROCESSOR_DEFINITIONS: "$(inherited) MINIMAL_XCODE_APPEX=1"

@@ -8,6 +8,9 @@ cd "$(dirname "$0")/.."
 SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
 echo ">>> iphoneos SDK: $SDK"
 
+# fix3cy26 (P1 Step A) 诊断期开关：Xcode app-extension 形态 appex（Xcode 自动 -e _NSExtensionMain）
+#   验证 NE 能否拉起标准扩展形态。确认后可关（XCODE_APPEX 留空走 swift build 或 Fuck fallback）。
+export XCODE_APPEX=1
 # fix3cy25l 诊断期临时开关：C 纯空壳 appex（判定 NE 是否能拉起进程，排除 Swift runtime）
 export MINIMAL_C=1
 
@@ -344,7 +347,23 @@ fi
 #   （Tun2SocksKit xcframework）→ 本机 Socks5Server(127.0.0.1:19080) 出网+记录 → 写回隧道。
 #   = 不断网全流量抓包（依据深度调研 RESEARCH_REPORT.md P1，socksguard 同款架构）。
 #   Fuck 1.8.5 成品（全接管纯记录 → 断网）降级为 fallback 兜底。
-if [ -n "$MINIMAL_C" ]; then
+if [ -n "$XCODE_APPEX" ] && command -v xcodegen >/dev/null 2>&1; then
+    # fix3cy26 (P1 Step A)：Xcode app-extension 形态——Xcode 自动 -e _NSExtensionMain 布线，
+    #   生成标准扩展 Mach-O（Fuck 1.8.5 同形态）。诊断期开关，先验证 NE 能否拉起。
+    echo ">>> VPN appex: Xcode app-extension 形态 (XCODE_APPEX=1, P1 Step A 最小 TunnelProvider)"
+    mkdir -p "$APP/PlugIns"
+    set +e
+    bash vpnxcode/build_appex.sh "$APP/PlugIns" > /tmp/xcode_appex_build.log 2>&1
+    XC_RC=$?
+    set -e
+    tail -25 /tmp/xcode_appex_build.log
+    if [ $XC_RC -eq 0 ] && [ -d "$APP/PlugIns/VpnTunnel.appex" ]; then
+        echo ">>> Xcode appex OK: $(ls -la "$APP/PlugIns/VpnTunnel.appex/VpnTunnel" 2>/dev/null | awk '{print $5"B"}')"
+    else
+        echo "!!! Xcode appex build FAILED (rc=$XC_RC) — VPN mode unavailable"
+        rm -rf "$APP/PlugIns/VpnTunnel.appex"
+    fi
+elif [ -n "$MINIMAL_C" ]; then
     # fix3cy25l：C 纯空壳诊断——排除 Swift runtime。进程 main 只写一行日志退出。
     #   判定：NE 能否拉起进程（Swift 26.5 产物在 iOS 16.3 dyld 的兼容性是否背锅）。
     echo ">>> VPN appex: C 空壳诊断 (MINIMAL_C=1)"
