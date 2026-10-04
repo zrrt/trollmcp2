@@ -25,6 +25,10 @@ private func appexLog(_ msg: String) {
     if let d = docs { paths.append(d + "/appex.log") }
     if let g = appGroupContainer() { paths.append(g + "/logs/appex.log") }
     for p in paths {
+        // fix3cy30: 此前 appex.log 目标目录 AppGroup/logs/ 从未创建 → fopen 静默失败，
+        //   "startTunnel 没写日志"被误判为 appex 没被拉起（实际可能跑了但日志全丢）。先建目录再写。
+        let dir = (p as NSString).deletingLastPathComponent
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         if let h = fopen(p, "a") { fputs(line, h); fclose(h) }
     }
 }
@@ -34,11 +38,19 @@ private func appexLog(_ msg: String) {
     private var stopping = false
     private let socks5Port: UInt16 = 19080
 
+    // fix3cy30: 在类 init 打日志，区分"NE 压根没拉起 appex"(无 init 日志) vs "拉起但 startTunnel 前崩/没被调"。
+    public override init() {
+        super.init()
+        appexLog("TunnelProvider init")
+        NSLog("[VpnTunnel] TunnelProvider init")
+    }
+
     public override func startTunnel(options: [String: NSObject]?, completionHandler: @escaping (Error?) -> Void) {
         appexLog("startTunnel begin (P1 Step B hev forward engine)")
         NSLog("[VpnTunnel] startTunnel begin (P1 Step B hev forward engine)")
         // 1) 起本机 SOCKS5 server（hev 的出口：出网 + hexlog 记录）——AppGroup 容器日志
         let s5 = Socks5Server.shared.start(port: socks5Port)
+        appexLog("socks5 server started=\(s5) port=\(socks5Port)")
         NSLog("[VpnTunnel] socks5 server started=\(s5) on \(socks5Port) logDir=\(Socks5Server.shared.logDir)")
 
         // 2) 全接管网络设置（抄 socksguard：IPv4+IPv6 default，防止泄漏）
@@ -64,16 +76,20 @@ private func appexLog(_ msg: String) {
         ipv6.excludedRoutes = excl6
         settings.ipv6Settings = ipv6
         settings.dnsSettings = NEDNSSettings(servers: ["1.1.1.1", "8.8.8.8"])
-        settings.mtu = 9000
+        // fix3cy30: MTU 9000 疑似被 iOS NE 拒绝（NE 隧道 MTU 上限 1500），
+        //   setTunnelNetworkSettings 报错 → 隧道起不来（症状=一直 .disconnected）。降到标准 1500。
+        settings.mtu = 1500
 
         // 3) 隧道设置生效后启动 hev 内核（阻塞线程，quit 或致命错误才返回）
         setTunnelNetworkSettings(settings) { [weak self] error in
             guard let self = self else { return }
             if let e = error {
                 NSLog("[VpnTunnel] setTunnelNetworkSettings error: \(e.localizedDescription)")
+                appexLog("setTunnelNetworkSettings ERROR: \(e.localizedDescription)")
                 completionHandler(e)
                 return
             }
+            appexLog("network settings applied OK, starting hev core")
             NSLog("[VpnTunnel] network settings applied, starting hev core")
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 guard let self = self else { return }
@@ -85,6 +101,7 @@ private func appexLog(_ msg: String) {
                     Thread.sleep(forTimeInterval: 0.5)
                 }
                 NSLog("[VpnTunnel] utun fd \(fd ?? -1)")
+                appexLog("utun fd \(fd ?? -1)")
                 let hevLog = (appGroupContainer() ?? "/tmp") + "/logs/hev.log"
                 let yaml = Self.makeConfig(port: Int(self.socks5Port), logPath: hevLog)
                 self.stopping = false
@@ -94,12 +111,14 @@ private func appexLog(_ msg: String) {
                     hev_socks5_tunnel_main_from_str(buf.baseAddress, UInt32(bytes.count), fd ?? -1)
                 }
                 NSLog("[VpnTunnel] tunnel core exited code \(code)")
+                appexLog("tunnel core exited code \(code) stopping=\(self.stopping)")
                 if !self.stopping {
                     self.cancelTunnelWithError(NSError(domain: "TrollAgent.VpnTunnel", code: Int(code),
                                                        userInfo: [NSLocalizedDescriptionKey: "tunnel core exited"]))
                 }
             }
             completionHandler(nil)
+            appexLog("tunnel setup complete (completionHandler nil)")
         }
     }
 
@@ -205,7 +224,7 @@ private func appexLog(_ msg: String) {
     private static func makeConfig(port: Int, logPath: String) -> String {
         return """
         tunnel:
-          mtu: 9000
+          mtu: 1500
           ipv4: 198.18.0.1
           ipv6: 'fc00::1'
 
