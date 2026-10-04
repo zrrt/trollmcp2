@@ -371,7 +371,7 @@ if [ -d "openssl-stage/lib" ] && [ -f "openssl-stage/lib/libssl.a" ]; then
         -Xcc -isysroot -Xcc "$SDK" \
         -Xcc -target -Xcc arm64-apple-ios15.0 \
         -Xlinker -syslibroot -Xlinker "$SDK" \
-        -Xlinker -U -Xlinker _NSExtensionMain 2>&1 | tail -8; then
+        -Xlinker -Wl,-U,_NSExtensionMain 2>&1 | tail -8; then
         VT_BIN=""
         for p in ".build/release/VpnTunnel" ".build/arm64-apple-ios15.0/release/VpnTunnel"; do
             [ -f "$p" ] && VT_BIN="$p"
