@@ -18,6 +18,21 @@ public final class Socks5Server {
     // fix3cy31: C->S 与 S->C 两个线程共享同一 FILE* 句柄写日志，用互斥锁串行化，避免并发 fwrite 损坏/崩溃
     private var logLock = pthread_mutex_t()
 
+    // fix3cy32: Socks5Server 诊断日志（写 AppGroup，主 App 与 appex 都能读），定位"accept/握手/connectTo/pump"卡点。
+    //   现象：hev 反复连 127.0.0.1:19080 但抓包目录空 → 转发未打通，需看每步走到哪。
+    private func s5log(_ msg: String) {
+        let g = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.ai.iosxcode")
+        guard let base = g?.path else { return }
+        let p = base + "/socks5_debug.log"
+        try? FileManager.default.createDirectory(atPath: (p as NSString).deletingLastPathComponent,
+                                                 withIntermediateDirectories: true)
+        if let h = fopen(p, "a") {
+            let line = "[\(Int(Date().timeIntervalSince1970))] \(msg)\n"
+            line.withCString { fwrite($0, 1, strlen($0), h) }
+            fclose(h)
+        }
+    }
+
     // Step B: appex 无 no-sandbox，日志写不进主 App 容器(/var/mobile/Documents/Workspace)。
     //   改写入 AppGroup 共享容器 (group.com.ai.iosxcode)——主 App 与 appex 都能读。
     public init(workspace: String? = nil) {
@@ -77,7 +92,11 @@ public final class Socks5Server {
                     accept(listenFD, $0, &len)
                 }
             }
-            guard cfd >= 0 else { continue }
+            if cfd < 0 {
+                s5log("accept FAILED errno=\(errno)")
+                continue
+            }
+            s5log("accept fd=\(cfd)")
             queue.async { [weak self] in self?.handleConnection(cfd) }
         }
     }
@@ -86,25 +105,32 @@ public final class Socks5Server {
 
     private func handleConnection(_ cfd: Int32) {
         defer { close(cfd) }
+        s5log("handleConnection fd=\(cfd)")
         // 1) SOCKS5 握手
-        guard let (ver, methods) = readGreeting(cfd), ver == 5 else { return }
+        guard let (ver, methods) = readGreeting(cfd) else { s5log("GREETING FAIL fd=\(cfd)"); return }
+        s5log("greeting ok ver=\(ver) methods=\(methods)")
         _ = methods
         let ok: [UInt8] = [0x05, 0x00]  // 无需认证
         writeBytes(cfd, ok)
         // 2) 请求
-        guard let req = readRequest(cfd) else { return }
+        guard let req = readRequest(cfd) else { s5log("REQUEST FAIL fd=\(cfd)"); return }
+        s5log("request cmd=\(req.cmd) host=\(req.host):\(req.port)")
         switch req.cmd {
         case 0x01: // CONNECT
             guard let upfd = connectTo(host: req.host, port: req.port) else {
+                s5log("connectTo FAIL \(req.host):\(req.port)")
                 writeReply(cfd, rep: 0x05)  // 连接拒绝
                 return
             }
+            s5log("connectTo OK \(req.host):\(req.port) upfd=\(upfd)")
             defer { close(upfd) }
             writeReply(cfd, rep: 0x00)  // 成功
             pumpBidirectional(cfd, upfd, host: req.host, port: req.port)
+            s5log("pump done \(req.host):\(req.port)")
         case 0x03: // UDP ASSOCIATE
             handleUdpAssociate(cfd, clientAddr: req.client)
         default:
+            s5log("unsupported cmd=\(req.cmd)")
             writeReply(cfd, rep: 0x07)  // 不支持的 CMD
         }
     }
@@ -250,9 +276,11 @@ public final class Socks5Server {
 
     private func pump(from src: Int32, to dst: Int32, log: UnsafeMutablePointer<FILE>?, dir: String) {
         var buf = [UInt8](repeating: 0, count: 16384)
+        var total: Int64 = 0
         while runningFlag {
             let n = read(src, &buf, 16384)
             if n <= 0 { break }
+            total += Int64(n)
             var off = 0
             while off < Int(n) {
                 let w = write(dst, &buf[off], Int(n) - off)
@@ -262,6 +290,7 @@ public final class Socks5Server {
             if off < Int(n) { break }
             logData(log, dir: dir, data: Array(buf[0..<Int(n)]))
         }
+        s5log("pump \(dir) done total=\(total)")
         // 半关闭，让对端尽快退出
         shutdown(dst, SHUT_WR)
     }
@@ -292,6 +321,7 @@ public final class Socks5Server {
             }
         }
         let bport = UInt16(bound.sin_port.bigEndian)
+        s5log("UDP ASSOCIATE bound 127.0.0.1:\(bport) fd=\(cfd)")
         // 回 BND（127.0.0.1:bport）
         var r: [UInt8] = [0x05, 0x00, 0x00, 0x01, 127, 0, 0, 1, UInt8(bport >> 8), UInt8(bport & 0xff)]
         writeBytes(cfd, r)
@@ -302,6 +332,7 @@ public final class Socks5Server {
         var peer = sockaddr_in()
         var plen = socklen_t(MemoryLayout<sockaddr_in>.size)
         var sessionPeer = peer  // 记录客户端地址
+        var dgramCount = 0
         while runningFlag {
             let n = withUnsafeMutablePointer(to: &peer) { p -> Int in
                 p.withMemoryRebound(to: sockaddr.self, capacity: 1) {
@@ -309,6 +340,8 @@ public final class Socks5Server {
                 }
             }
             if n <= 0 { continue }
+            dgramCount += 1
+            s5log("udp dgram #\(dgramCount) n=\(n)")
             let data = Array(buf[0..<Int(n)])
             guard data.count >= 4, data[0] == 0, data[1] == 0, data[2] == 0 else { continue }
             let atyp = data[3]
