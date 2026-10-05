@@ -275,7 +275,7 @@ public final class Socks5Server {
 
     private func bindToLan(_ fd: Int32, _ ip: String) {
         var sa = sockaddr_in()
-        sa.sin_family = AF_INET
+        sa.sin_family = sa_family_t(AF_INET)
         sa.sin_port = 0
         ip.withCString { cs in
             if inet_pton(AF_INET, cs, &sa.sin_addr) == 1 {
