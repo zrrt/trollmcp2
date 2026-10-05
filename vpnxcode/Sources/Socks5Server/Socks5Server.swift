@@ -20,16 +20,20 @@ public final class Socks5Server {
 
     // fix3cy32: Socks5Server 诊断日志（写 AppGroup，主 App 与 appex 都能读），定位"accept/握手/connectTo/pump"卡点。
     //   现象：hev 反复连 127.0.0.1:19080 但抓包目录空 → 转发未打通，需看每步走到哪。
+    // fix3cy37: 高频并发下 fopen("a") 竞态丢日志(accept 洪流时 handleConnection 日志大量丢失)→ 改串行队列写，保证诊断可靠。
+    private let logQ = DispatchQueue(label: "socks5.log", qos: .utility)
     private func s5log(_ msg: String) {
-        let g = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.ai.iosxcode")
-        guard let base = g?.path else { return }
-        let p = base + "/socks5_debug.log"
-        try? FileManager.default.createDirectory(atPath: (p as NSString).deletingLastPathComponent,
-                                                 withIntermediateDirectories: true)
-        if let h = fopen(p, "a") {
-            let line = "[\(Int(Date().timeIntervalSince1970))] \(msg)\n"
-            line.withCString { fwrite($0, 1, strlen($0), h) }
-            fclose(h)
+        logQ.sync {
+            let g = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.ai.iosxcode")
+            guard let base = g?.path else { return }
+            let p = base + "/socks5_debug.log"
+            try? FileManager.default.createDirectory(atPath: (p as NSString).deletingLastPathComponent,
+                                                     withIntermediateDirectories: true)
+            if let h = fopen(p, "a") {
+                let line = "[\(Int(Date().timeIntervalSince1970))] \(msg)\n"
+                line.withCString { fwrite($0, 1, strlen($0), h) }
+                fclose(h)
+            }
         }
     }
 
@@ -158,6 +162,7 @@ public final class Socks5Server {
     private func readRequest(_ fd: Int32) -> SocksRequest? {
         var hdr = [UInt8](repeating: 0, count: 4)
         guard readExact(fd, &hdr, 4) else { return nil }
+        s5log("req hdr=\(hdr.map { String(format: "%02x", $0) }.joined())")  // fix3cy37: 原始 CONNECT 字节，看 hev 到底发什么
         guard hdr[0] == 5, hdr[2] == 0 else { return nil }
         let cmd = hdr[1]
         let atyp = hdr[3]
@@ -180,8 +185,10 @@ public final class Socks5Server {
             guard readExact(fd, &ip, 16) else { return nil }
             host = ip.map { String(format: "%02x", $0) }.joined(separator: ":")
         default:
+            s5log("req atyp=\(atyp) UNSUPPORTED")
             return nil
         }
+        s5log("req cmd=\(cmd) atyp=\(atyp) host='\(host)' hlen=\(host.utf8.count)")
         var portB = [UInt8](repeating: 0, count: 2)
         guard readExact(fd, &portB, 2) else { return nil }
         let port = UInt16(portB[0]) << 8 | UInt16(portB[1])
