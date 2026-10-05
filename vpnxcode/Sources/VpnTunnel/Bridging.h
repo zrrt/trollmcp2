@@ -4,5 +4,6 @@
 #define VpnTunnel_Bridging_h
 
 #include "CHev.h"
+#include "MitmC.h"
 
 #endif /* VpnTunnel_Bridging_h */

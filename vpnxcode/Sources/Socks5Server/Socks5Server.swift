@@ -60,6 +60,13 @@ public final class Socks5Server {
         let fm = FileManager.default
         try? fm.createDirectory(atPath: logDir, withIntermediateDirectories: true)
 
+        // fix3cy40: MITM 引擎初始化——加载 AppGroup/Cert 的 CA(证书+私钥) 用于为域名签发 MITM 证书
+        if let g = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.ai.iosxcode") {
+            let certDir = g.path + "/Cert"
+            let rc = mitm_init(certDir + "/cacert.pem", certDir + "/cakey.pem")
+            s5log("mitm_init rc=\(rc)")
+        }
+
         let fd = socket(AF_INET, SOCK_STREAM, 0)
         guard fd >= 0 else { return false }
         var opt: Int32 = 1
@@ -130,6 +137,13 @@ public final class Socks5Server {
         s5log("request cmd=\(req.cmd) host=\(req.host):\(req.port)")
         switch req.cmd {
         case 0x01: // CONNECT
+            // fix3cy40: HTTPS(443) → MITM 解密（CA 签发域名证书 + 双向 TLS 劫持，解出明文转发；Step 2 再解析 HTTP 落库）
+            if req.port == 443 {
+                s5log("MITM CONNECT \(req.host):\(req.port)")
+                mitm_handle(cfd, req.host, Int32(req.port))
+                s5log("MITM done \(req.host):\(req.port)")
+                return
+            }
             guard let upfd = connectTo(host: req.host, port: req.port) else {
                 s5log("connectTo FAIL \(req.host):\(req.port)")
                 writeReply(cfd, rep: 0x05)  // 连接拒绝

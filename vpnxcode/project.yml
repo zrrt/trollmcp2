@@ -29,6 +29,7 @@ targets:
       - path: Sources/Socks5Server/Socks5Server.swift
       - path: Sources/Socks5Server/CaptureDB.swift
       - path: CHev/CHev.c
+      - path: Mitm/MitmC.c
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.trollagent.app.VpnTunnel
@@ -38,8 +39,9 @@ targets:
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
         # Step B: 链接 hev 静态库（-ObjC 拉入所有成员），搜索路径指向 ../hev-stage/lib
         # fix3cy33: 加 -lsqlite3（系统稳定 dylib），用于结构化抓包存储(CaptureDB)。
-        OTHER_LDFLAGS: "-ObjC -lhev-socks5-tunnel -lsqlite3"
-        HEADER_SEARCH_PATHS: "$(inherited) CHev/include"
-        LIBRARY_SEARCH_PATHS: "$(inherited) ../hev-stage/lib"
+        # fix3cy40: 加 OpenSSL(-lssl -lcrypto) —— MITM 引擎(Mitm/MitmC.c)用 OpenSSL 3.x 做 TLS 劫持+CA 签发域名证书
+        OTHER_LDFLAGS: "-ObjC -lhev-socks5-tunnel -lsqlite3 -lssl -lcrypto"
+        HEADER_SEARCH_PATHS: "$(inherited) CHev/include Mitm/include ../openssl-stage/include"
+        LIBRARY_SEARCH_PATHS: "$(inherited) ../hev-stage/lib ../openssl-stage/lib"
         SWIFT_OBJC_BRIDGING_HEADER: Sources/VpnTunnel/Bridging.h
         GCC_PREPROCESSOR_DEFINITIONS: "$(inherited) MINIMAL_XCODE_APPEX=1"
