@@ -15,6 +15,8 @@ public final class Socks5Server {
     private let queue = DispatchQueue(label: "socks5.proxy", qos: .default, attributes: .concurrent)
     public private(set) var port: UInt16 = 19080
     public let logDir: String
+    // fix3cy31: C->S 与 S->C 两个线程共享同一 FILE* 句柄写日志，用互斥锁串行化，避免并发 fwrite 损坏/崩溃
+    private var logLock = pthread_mutex_t()
 
     // Step B: appex 无 no-sandbox，日志写不进主 App 容器(/var/mobile/Documents/Workspace)。
     //   改写入 AppGroup 共享容器 (group.com.ai.iosxcode)——主 App 与 appex 都能读。
@@ -26,6 +28,7 @@ public final class Socks5Server {
         } else {
             logDir = "/var/mobile/Documents/Workspace/network_capture/socks5"
         }
+        pthread_mutex_init(&logLock, nil)
     }
 
     public var isRunning: Bool { runningFlag }
@@ -226,22 +229,26 @@ public final class Socks5Server {
 
     private func pumpBidirectional(_ cfd: Int32, _ upfd: Int32, host: String, port: UInt16) {
         let logPath = logFile(host: host, port: port)
+        // fix3cy31: 日志句柄每连接只打开一次，写入走 stdio 缓冲区（fwrite 不落盘），
+        //   连接结束才 fclose flush——消除原"每 16KB fopen/fwrite/fclose"导致的同步磁盘写卡死大流量。
+        let logHandle = fopen(logPath, "ab")
         let q = DispatchQueue.global(qos: .default)
         let group = DispatchGroup()
         group.enter()
-        q.async {
-            self.pump(from: cfd, to: upfd, logPath: logPath, dir: "C->S")
+        q.async { [weak self] in
+            self?.pump(from: cfd, to: upfd, log: logHandle, dir: "C->S")
             group.leave()
         }
         group.enter()
-        q.async {
-            self.pump(from: upfd, to: cfd, logPath: logPath, dir: "S->C")
+        q.async { [weak self] in
+            self?.pump(from: upfd, to: cfd, log: logHandle, dir: "S->C")
             group.leave()
         }
         group.wait()
+        if let h = logHandle { fclose(h) }
     }
 
-    private func pump(from src: Int32, to dst: Int32, logPath: String, dir: String) {
+    private func pump(from src: Int32, to dst: Int32, log: UnsafeMutablePointer<FILE>?, dir: String) {
         var buf = [UInt8](repeating: 0, count: 16384)
         while runningFlag {
             let n = read(src, &buf, 16384)
@@ -253,7 +260,7 @@ public final class Socks5Server {
                 off += Int(w)
             }
             if off < Int(n) { break }
-            logData(logPath, dir: dir, data: Array(buf[0..<Int(n)]))
+            logData(log, dir: dir, data: Array(buf[0..<Int(n)]))
         }
         // 半关闭，让对端尽快退出
         shutdown(dst, SHUT_WR)
@@ -358,15 +365,23 @@ public final class Socks5Server {
         return logDir + "/" + df.string(from: Date()) + "_" + safe + "_" + String(port) + ".log"
     }
 
-    private func logData(_ path: String, dir: String, data: [UInt8]) {
+    private func logData(_ h: UnsafeMutablePointer<FILE>?, dir: String, data: [UInt8]) {
+        guard let h = h else { return }
         let ts = String(format: "%.3f", Date().timeIntervalSince1970)
         let hex = data.prefix(256).map { String(format: "%02x", $0) }.joined(separator: " ")
         let text = String(data: Data(data.prefix(512)), encoding: .utf8)?
             .replacingOccurrences(of: "\n", with: "\\n")
             .replacingOccurrences(of: "\r", with: "\\r") ?? ""
-        var line = "[\(ts)] \(dir) len=\(data.count)\nHEX: \(hex)\nTXT: \(text)\n"
+        let line = "[\(ts)] \(dir) len=\(data.count)\nHEX: \(hex)\nTXT: \(text)\n"
+        pthread_mutex_lock(&logLock)
+        line.withCString { fwrite($0, 1, strlen($0), h) }
+        pthread_mutex_unlock(&logLock)
+    }
+
+    // UDP 路径沿用（数据报较小，逐包打开可接受）
+    private func logData(_ path: String, dir: String, data: [UInt8]) {
         if let h = fopen(path, "ab") {
-            line.withCString { fwrite($0, 1, strlen($0), h) }
+            logData(h, dir: dir, data: data)
             fclose(h)
         }
     }
