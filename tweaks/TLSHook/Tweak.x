@@ -149,5 +149,7 @@ static void tlsHookInit() {
     binds[3].replaced = (void **)&orig_ssl_get_psk_identity;
 
     int rc = rebind_symbols(binds, 4);
-    tls_log("rebind_symbols done");
+    char rb[64];
+    snprintf(rb, sizeof rb, "rebind_symbols rc=%d", rc);
+    tls_log(rb);
 }
