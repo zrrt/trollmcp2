@@ -40,14 +40,20 @@ xcodegen
 
 echo "==> xcodebuild (unsigned)"
 rm -rf DerivedData
-xcodebuild -project VpnTunnelX.xcodeproj \
+if ! xcodebuild -project VpnTunnelX.xcodeproj \
     -scheme VpnTunnel \
     -configuration Release \
     -sdk iphoneos \
     -derivedDataPath DerivedData \
     CODE_SIGNING_ALLOWED=NO \
     CODE_SIGNING_REQUIRED=NO \
-    build 2>&1 | tail -30
+    build > /tmp/xcode_build_full.log 2>&1; then
+    echo "!!! xcodebuild FAILED — 完整日志尾部:"
+    tail -80 /tmp/xcode_build_full.log
+    echo "!!! 编译/链接错误行:"
+    grep -nE "error:|ld: |Undefined symbol|duplicate symbol|fatal error|cannot find" /tmp/xcode_build_full.log | head -60 || true
+    exit 1
+fi
 
 APPEX=$(find DerivedData -name "VpnTunnel.appex" -type d | head -1)
 if [ -z "$APPEX" ]; then
