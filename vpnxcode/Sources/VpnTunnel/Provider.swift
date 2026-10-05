@@ -52,6 +52,8 @@ private func appexLog(_ msg: String) {
         let s5 = Socks5Server.shared.start(port: socks5Port)
         appexLog("socks5 server started=\(s5) port=\(socks5Port)")
         NSLog("[VpnTunnel] socks5 server started=\(s5) on \(socks5Port) logDir=\(Socks5Server.shared.logDir)")
+        // fix3cy33: 开一条结构化抓包任务(capture_task)
+        CaptureDB.shared.beginTask(ruleName: "full")
 
         // 2) 全接管网络设置（抄 socksguard：IPv4+IPv6 default，防止泄漏）
         let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "127.0.0.1")

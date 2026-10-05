@@ -27,6 +27,7 @@ targets:
     sources:
       - path: Sources/VpnTunnel
       - path: Sources/Socks5Server/Socks5Server.swift
+      - path: Sources/Socks5Server/CaptureDB.swift
       - path: CHev/CHev.c
     settings:
       base:
@@ -36,7 +37,8 @@ targets:
         SKIP_INSTALL: YES
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
         # Step B: 链接 hev 静态库（-ObjC 拉入所有成员），搜索路径指向 ../hev-stage/lib
-        OTHER_LDFLAGS: "-ObjC -lhev-socks5-tunnel"
+        # fix3cy33: 加 -lsqlite3（系统稳定 dylib），用于结构化抓包存储(CaptureDB)。
+        OTHER_LDFLAGS: "-ObjC -lhev-socks5-tunnel -lsqlite3"
         HEADER_SEARCH_PATHS: "$(inherited) CHev/include"
         LIBRARY_SEARCH_PATHS: "$(inherited) ../hev-stage/lib"
         SWIFT_OBJC_BRIDGING_HEADER: Sources/VpnTunnel/Bridging.h

@@ -254,27 +254,31 @@ public final class Socks5Server {
     // MARK: - 转发 + 记录
 
     private func pumpBidirectional(_ cfd: Int32, _ upfd: Int32, host: String, port: UInt16) {
-        let logPath = logFile(host: host, port: port)
-        // fix3cy31: 日志句柄每连接只打开一次，写入走 stdio 缓冲区（fwrite 不落盘），
-        //   连接结束才 fclose flush——消除原"每 16KB fopen/fwrite/fclose"导致的同步磁盘写卡死大流量。
-        let logHandle = fopen(logPath, "ab")
+        // fix3cy33: 去掉逐块 hexlog（52MB 存储元凶），改会话结束时写一行 SQLite。
+        //   中继热路径只做 read→write，字节数累加，结束后 CaptureDB.logSession 一次落库。
+        let start = Int64(Date().timeIntervalSince1970 * 1000)
         let q = DispatchQueue.global(qos: .default)
         let group = DispatchGroup()
+        var upTotal: Int64 = 0
+        var downTotal: Int64 = 0
         group.enter()
-        q.async { [weak self] in
-            self?.pump(from: cfd, to: upfd, log: logHandle, dir: "C->S")
+        q.async {
+            upTotal = self.pump(from: cfd, to: upfd, dir: "C->S")
             group.leave()
         }
         group.enter()
-        q.async { [weak self] in
-            self?.pump(from: upfd, to: cfd, log: logHandle, dir: "S->C")
+        q.async {
+            downTotal = self.pump(from: upfd, to: cfd, dir: "S->C")
             group.leave()
         }
         group.wait()
-        if let h = logHandle { fclose(h) }
+        let end = Int64(Date().timeIntervalSince1970 * 1000)
+        s5log("session \(host):\(port) up=\(upTotal) down=\(downTotal)")
+        CaptureDB.shared.logSession(proto: "tcp", host: host, port: port,
+                                    up: upTotal, down: downTotal, start: start, end: end)
     }
 
-    private func pump(from src: Int32, to dst: Int32, log: UnsafeMutablePointer<FILE>?, dir: String) {
+    private func pump(from src: Int32, to dst: Int32, dir: String) -> Int64 {
         var buf = [UInt8](repeating: 0, count: 16384)
         var total: Int64 = 0
         while runningFlag {
@@ -288,11 +292,10 @@ public final class Socks5Server {
                 off += Int(w)
             }
             if off < Int(n) { break }
-            logData(log, dir: dir, data: Array(buf[0..<Int(n)]))
         }
-        s5log("pump \(dir) done total=\(total)")
         // 半关闭，让对端尽快退出
         shutdown(dst, SHUT_WR)
+        return total
     }
 
     private func handleUdpAssociate(_ cfd: Int32, clientAddr: sockaddr_in) {
