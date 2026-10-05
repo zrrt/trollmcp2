@@ -9,6 +9,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
+#include <time.h>
 #include <unistd.h>
 #include <errno.h>
 #include <netdb.h>
@@ -29,6 +31,17 @@
 
 static X509 *g_ca_cert = NULL;
 static EVP_PKEY *g_ca_key = NULL;
+
+// 诊断日志(写 AppGroup/mitm_debug.log)——区分 SSL_accept 失败根因(gen_cert 失败 vs App 拒证书 vs 超时)
+static void mitm_dbg(const char *fmt, ...) {
+    char buf[512];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof buf, fmt, ap);
+    va_end(ap);
+    FILE *f = fopen("/var/mobile/Containers/Shared/AppGroup/1FAA4F33-8923-4681-8243-CDADD323D990/mitm_debug.log", "a");
+    if (f) { fprintf(f, "[%ld] %s\n", (long)time(NULL), buf); fclose(f); }
+}
 
 int mitm_init(const char *ca_pem, const char *ca_key_pem) {
     SSL_library_init();
@@ -98,9 +111,14 @@ static int mitm_client_hello_cb(SSL *s, int *al, void *arg) {
     if (!host || !host[0]) return 1;  // 无 SNI 用默认证书
     EVP_PKEY *key = NULL;
     X509 *x = gen_cert(host, &key);
-    if (!x || !key) return 0;
-    SSL_use_certificate(s, x);
-    SSL_use_PrivateKey(s, key);
+    if (!x || !key) {
+        mitm_dbg("client_hello gen_cert FAIL host=%s (x=%p key=%p)", host, (void*)x, (void*)key);
+        return 0;
+    }
+    if (SSL_use_certificate(s, x) != 1 || SSL_use_PrivateKey(s, key) != 1) {
+        mitm_dbg("client_hello use_cert FAIL host=%s", host);
+        X509_free(x); EVP_PKEY_free(key); return 0;
+    }
     X509_free(x);
     EVP_PKEY_free(key);
     return 1;
@@ -220,8 +238,10 @@ int mitm_handle(int cfd, const char *host, int port) {
     SSL *ssr = SSL_new(sctx);
     SSL_set_fd(ssr, cfd);
 
-    // 2) accept：触发 SNI 回调签发 CN=域名 的证书；同时拿到真实域名
+    // 2) accept：触发 client_hello_cb 签发 CN=域名 的证书；同时拿到真实域名
     if (SSL_accept(ssr) != 1) {
+        int err = SSL_get_error(ssr, -1);
+        mitm_dbg("SSL_accept FAIL host=%s ssl_err=%d errno=%d", host, err, errno);
         SSL_free(ssr); SSL_CTX_free(sctx); return -4;
     }
     // SNI 用于签发证书(client_hello_cb 已用) + 客户端 TLS 的 SNI；连接真实服务器用 hev 传的 host(IP,已验证,无 DNS 卡)
