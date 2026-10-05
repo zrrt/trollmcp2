@@ -311,7 +311,7 @@ private func appexLog(_ msg: String) {
           tcp-read-write-timeout: 60000
           udp-read-write-timeout: 60000
           log-file: \(logPath)
-          log-level: debug
+          log-level: warn
           limit-nofile: 65535
         """
     }

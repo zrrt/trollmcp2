@@ -233,6 +233,7 @@ public final class Socks5Server {
     }
 
     // MARK: - 出网连接（复用与 MitmProxy 相同的 getaddrinfo 逻辑）
+    // fix3cy38: 出网 socket 绑定 en0 LAN IP（源/回包都走 NE excludedRoutes，绕开隧道，否则 download=0）
 
     private func connectTo(host: String, port: UInt16) -> Int32? {
         var hints = addrinfo()
@@ -242,13 +243,22 @@ public final class Socks5Server {
         let portStr = String(port)
         guard getaddrinfo(host, portStr, &hints, &res) == 0, let r = res else { return nil }
         defer { freeaddrinfo(r) }
+        let lanIP = getLanIPv4()
         var fd: Int32 = -1
         var cur: UnsafeMutablePointer<addrinfo>? = r
         while let c = cur {
             let f = socket(c.pointee.ai_family, c.pointee.ai_socktype, c.pointee.ai_protocol)
             if f >= 0 {
-                if connect(f, c.pointee.ai_addr, c.pointee.ai_addrlen) == 0 {
+                if let ip = lanIP, c.pointee.ai_family == AF_INET {
+                    bindToLan(f, ip)
+                }
+                if connectWithTimeout(f, c.pointee.ai_addr, c.pointee.ai_addrlen, timeout: 8) == 0 {
                     fd = f
+                    var local = sockaddr_in(); var llen = socklen_t(MemoryLayout<sockaddr_in>.size)
+                    getsockname(f, withUnsafeMutablePointer(to: &local) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { $0 } }, &llen)
+                    var srcIP = [CChar](repeating: 0, count: 64)
+                    inet_ntop(AF_INET, &local.sin_addr, &srcIP, 64)
+                    s5log("connectTo OK src=\(String(cString: srcIP)) -> \(host):\(port)")
                     break
                 }
                 close(f)
@@ -256,6 +266,59 @@ public final class Socks5Server {
             cur = c.pointee.ai_next
         }
         return fd >= 0 ? fd : nil
+    }
+
+    private func bindToLan(_ fd: Int32, _ ip: String) {
+        var sa = sockaddr_in()
+        sa.sin_family = AF_INET
+        sa.sin_port = 0
+        if inet_pton(AF_INET, ip, &sa.sin_addr) == 1 {
+            withUnsafePointer(to: &sa) { p in
+                p.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    _ = Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+        }
+    }
+
+    private func connectWithTimeout(_ fd: Int32, _ addr: UnsafePointer<sockaddr>, _ len: socklen_t, timeout: Int) -> Int32 {
+        let flags = fcntl(fd, F_GETFL, 0)
+        _ = fcntl(fd, F_SETFL, flags | O_NONBLOCK)
+        let r = Darwin.connect(fd, addr, len)
+        if r == 0 { return 0 }
+        if errno != EINPROGRESS { return -1 }
+        var pfd = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
+        let pr = poll(&pfd, 1, Int32(timeout * 1000))
+        if pr <= 0 { return -1 }
+        var soerr: Int32 = 0
+        var len2 = socklen_t(MemoryLayout<Int32>.size)
+        getsockopt(fd, SOL_SOCKET, SO_ERROR, &soerr, &len2)
+        return soerr == 0 ? 0 : -1
+    }
+
+    private func getLanIPv4() -> String? {
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddr) == 0, let first = ifaddr else { return nil }
+        defer { freeifaddrs(ifaddr) }
+        var ptr: UnsafeMutablePointer<ifaddrs>? = first
+        while let ifa = ptr {
+            let family = ifa.pointee.ifa_addr.pointee.sa_family
+            if family == AF_INET {
+                let name = String(cString: ifa.pointee.ifa_name)
+                if name != "lo0" {
+                    var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                    if getnameinfo(ifa.pointee.ifa_addr, socklen_t(ifa.pointee.ifa_addr.pointee.sa_len),
+                                   &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 {
+                        let ip = String(cString: host)
+                        if !ip.hasPrefix("198.18.") && !ip.hasPrefix("fc00:") && ip != "127.0.0.1" {
+                            return ip
+                        }
+                    }
+                }
+            }
+            ptr = ifa.pointee.ifa_next
+        }
+        return nil
     }
 
     // MARK: - 转发 + 记录
