@@ -5,6 +5,7 @@
 //       本探针在 TLS 层拿明文，先验证"能不能拿到数据"，再迭代做 HTTP 解析。
 
 #import <Foundation/Foundation.h>
+#import <time.h>
 #import "fishhook.h"
 
 static NSString *kTlsDir = @"/var/mobile/Documents/Workspace/network_capture/tls";
@@ -87,6 +88,21 @@ static int my_ssl_write(void *ssl, const void *buf, int num) {
     return orig_ssl_write(ssl, buf, num);
 }
 
+// ==== 验证日志（写 /tmp/tls_hook.log + 本 App Documents）====
+static void tls_log(const char *msg) {
+    FILE *f = fopen("/tmp/tls_hook.log", "a");
+    if (f) { fprintf(f, "[%lld] %s\n", (long long)time(NULL), msg); fclose(f); }
+    @autoreleasepool {
+        NSString *home = NSHomeDirectory();
+        if (home) {
+            NSString *p = [home stringByAppendingPathComponent:@"Documents/tls_hook.log"];
+            NSString *line = [NSString stringWithFormat:@"[%lld] %s\n", (long long)time(NULL), msg];
+            NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:p];
+            if (fh) { [fh seekToEndOfFile]; [fh writeData:[line dataUsingEncoding:NSUTF8StringEncoding]]; [fh closeFile]; }
+        }
+    }
+}
+
 // ==== 反 SSL Pinning（抄 SSL Kill Switch 2 的 iOS 13+ BoringSSL hook）====
 // 关键：抖音/小红书等有证书 Pinning，即使 CA 被系统信任也会拒 MITM 证书(握手 SSL_accept rc=-4)。
 //   抄 ssl-kill-switch2：hook BoringSSL 的 SSL_set_custom_verify，强制用不校验的回调(SSL_VERIFY_NONE)，
@@ -99,10 +115,12 @@ static void (*orig_ssl_set_custom_verify)(void *ssl, int mode,
                                           int (*cb)(void *ssl, uint8_t *out_alert));
 static void my_ssl_set_custom_verify(void *ssl, int mode,
                                      int (*cb)(void *ssl, uint8_t *out_alert)) {
+    tls_log("hook SSL_set_custom_verify CALLED");
     if (orig_ssl_set_custom_verify) orig_ssl_set_custom_verify(ssl, SSL_VERIFY_NONE, no_verify_cb);
 }
 static char *(*orig_ssl_get_psk_identity)(void *ssl);
 static char *my_ssl_get_psk_identity(void *ssl) {
+    tls_log("hook SSL_get_psk_identity CALLED");
     return "notarealPSKidentity";
 }
 
@@ -115,6 +133,7 @@ static void tlsHookInit() {
     [[NSFileManager defaultManager] createDirectoryAtPath:kTlsDir
                               withIntermediateDirectories:YES attributes:nil error:nil];
 
+    tls_log("TLSHook constructor EXECUTED");
     struct rebinding binds[4];
     binds[0].name = "SSL_read";
     binds[0].replacement = (void *)my_ssl_read;
@@ -129,5 +148,6 @@ static void tlsHookInit() {
     binds[3].replacement = (void *)my_ssl_get_psk_identity;
     binds[3].replaced = (void **)&orig_ssl_get_psk_identity;
 
-    rebind_symbols(binds, 4);
+    int rc = rebind_symbols(binds, 4);
+    tls_log("rebind_symbols done");
 }
