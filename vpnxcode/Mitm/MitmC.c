@@ -89,17 +89,18 @@ static X509 *gen_cert(const char *host, EVP_PKEY **out_key) {
 }
 
 // ClientHello 回调：App 的 ClientHello 到后、握手继续前，用 SNI 域名动态签发证书并应用到该 SSL
+// 返回值用字面量(1=OK, 0=ERROR)——SSL_CLIENT_HELLO_OK/ERROR 宏在部分 OpenSSL 头缺失，避免依赖
 static int mitm_client_hello_cb(SSL *s, int *al, void *arg) {
     const char *host = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
-    if (!host || !host[0]) return SSL_CLIENT_HELLO_OK;  // 无 SNI 用默认证书
+    if (!host || !host[0]) return 1;  // 无 SNI 用默认证书
     EVP_PKEY *key = NULL;
     X509 *x = gen_cert(host, &key);
-    if (!x || !key) return SSL_CLIENT_HELLO_ERROR;
+    if (!x || !key) return 0;
     SSL_use_certificate(s, x);
     SSL_use_PrivateKey(s, key);
     X509_free(x);
     EVP_PKEY_free(key);
-    return SSL_CLIENT_HELLO_OK;
+    return 1;
 }
 
 // 非阻塞双向明文转发：c(服务端/客户端侧) <-> s(真实服务器侧)
