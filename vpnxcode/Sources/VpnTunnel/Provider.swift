@@ -107,7 +107,10 @@ private func appexLog(_ msg: String) {
                 NSLog("[VpnTunnel] utun fd \(fd ?? -1)")
                 appexLog("utun fd \(fd ?? -1)")
                 let hevLog = (appGroupContainer() ?? "/tmp") + "/logs/hev.log"
-                let yaml = Self.makeConfig(port: Int(self.socks5Port), logPath: hevLog)
+                // fix3cy36: hev 连本机 LAN IP(被 NE exclude、不进隧道)——127.0.0.1 会被 NE include default 劫持进 utun 死循环
+                let lanIP = Self.lanIPv4Address() ?? "127.0.0.1"
+                let yaml = Self.makeConfig(socks5Address: lanIP, port: Int(self.socks5Port), logPath: hevLog)
+                appexLog("hev socks5 target=\(lanIP):\(self.socks5Port)")
                 self.stopping = false
                 // 直接调 hev 内核（CHev 桥接；config 用字符串内存版，避免写文件）
                 let bytes = Array(yaml.utf8)
@@ -218,6 +221,31 @@ private func appexLog(_ msg: String) {
 
     // MARK: - 本机 LAN 子网（getifaddrs 读 en0，excludedRoutes 保 8790 用）
 
+    /// fix3cy36: 返回 en0 的接口 IPv4(非 loopback、非隧道)——hev 连此地址(被 NE exclude)直达本地 Socks5Server
+    private static func lanIPv4Address() -> String? {
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddr) == 0, let first = ifaddr else { return nil }
+        defer { freeifaddrs(first) }
+        var cur: UnsafeMutablePointer<ifaddrs>? = first
+        while let c = cur {
+            let family = c.pointee.ifa_addr.pointee.sa_family
+            let name = String(cString: c.pointee.ifa_name)
+            if (name == "en0" || name == "en1") && family == sa_family_t(AF_INET) {
+                var addr = c.pointee.ifa_addr.pointee
+                var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                if getnameinfo(&addr, socklen_t(MemoryLayout<sockaddr_in>.size), &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 {
+                    let s = String(cString: host)
+                    // 排除 loopback 和 hev 隧道内部网段
+                    if !s.hasPrefix("127.") && !s.hasPrefix("198.18.") && !s.hasPrefix("fc00:") {
+                        return s
+                    }
+                }
+            }
+            cur = c.pointee.ifa_next
+        }
+        return nil
+    }
+
     private static func localSubnet() -> (net: String?, mask: String?, ip6: String?) {
         var ifaddr: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&ifaddr) == 0, let first = ifaddr else { return (nil, nil, nil) }
@@ -263,7 +291,7 @@ private func appexLog(_ msg: String) {
 
     // MARK: - hev-socks5-tunnel 配置（低内存 profile，抄 socksguard）
 
-    private static func makeConfig(port: Int, logPath: String) -> String {
+    private static func makeConfig(socks5Address: String, port: Int, logPath: String) -> String {
         return """
         tunnel:
           mtu: 1500
@@ -271,7 +299,7 @@ private func appexLog(_ msg: String) {
           ipv6: 'fc00::1'
 
         socks5:
-          address: 127.0.0.1
+          address: \(socks5Address)
           port: \(port)
           udp: 'udp'
 

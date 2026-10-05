@@ -60,7 +60,7 @@ public final class Socks5Server {
         var addr = sockaddr_in()
         addr.sin_family = sa_family_t(AF_INET)
         addr.sin_port = port.bigEndian
-        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+        addr.sin_addr.s_addr = INADDR_ANY  // fix3cy36: 监听 0.0.0.0——hev 走 LAN IP(被 NE exclude)直达；127.0.0.1 会被隧道劫持
         let bindOK = withUnsafePointer(to: &addr) { p -> Bool in
             p.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                 bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) == 0
