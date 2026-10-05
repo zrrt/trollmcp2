@@ -12,6 +12,9 @@ public final class Socks5Server {
 
     private var listenFD: Int32 = -1
     private var runningFlag = false
+    // fix3cy39: 并发处理上限——hev 洪流(瞬间大量 accept)会堆积处理线程(实测 202 线程耗资源)；
+    //   超出 256 的连接在信号量排队，防止线程无限膨胀
+    private let connSem = DispatchSemaphore(value: 256)
     private let queue = DispatchQueue(label: "socks5.proxy", qos: .default, attributes: .concurrent)
     public private(set) var port: UInt16 = 19080
     public let logDir: String
@@ -108,7 +111,13 @@ public final class Socks5Server {
     // MARK: - 连接处理
 
     private func handleConnection(_ cfd: Int32) {
+        connSem.wait()
+        defer { connSem.signal() }
         defer { close(cfd) }
+        // fix3cy39: 握手加超时——大量连接卡在 readGreeting(阻塞 read 等 greeting, 不发数据) 导致处理线程堆积(实测 202 线程)
+        //   → SO_RCVTIMEO 5s，超时 read 返回 EAGAIN → readExact false → 连接关闭释放线程
+        var tv = timeval(tv_sec: 5, tv_usec: 0)
+        setsockopt(cfd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
         s5log("handleConnection fd=\(cfd)")
         // 1) SOCKS5 握手
         guard let (ver, methods) = readGreeting(cfd) else { s5log("GREETING FAIL fd=\(cfd)"); return }
@@ -129,6 +138,10 @@ public final class Socks5Server {
             s5log("connectTo OK \(req.host):\(req.port) upfd=\(upfd)")
             defer { close(upfd) }
             writeReply(cfd, rep: 0x00)  // 成功
+            // fix3cy39: 转发阶段把接收超时放宽到 60s(与 hev tcp-read-write-timeout 一致)——空闲连接 60s 无数据自动关闭释放线程
+            var tv60 = timeval(tv_sec: 60, tv_usec: 0)
+            setsockopt(cfd, SOL_SOCKET, SO_RCVTIMEO, &tv60, socklen_t(MemoryLayout<timeval>.size))
+            setsockopt(upfd, SOL_SOCKET, SO_RCVTIMEO, &tv60, socklen_t(MemoryLayout<timeval>.size))
             pumpBidirectional(cfd, upfd, host: req.host, port: req.port)
             s5log("pump done \(req.host):\(req.port)")
         case 0x03: // UDP ASSOCIATE
