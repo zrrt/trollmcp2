@@ -623,8 +623,7 @@ jobs:
           for p in numpy pandas; do
             if ls "$SP" 2>/dev/null | grep -q "^$p"; then echo "IN   : $p"; else echo "MISSING: $p"; fi
           done
-          # fix3cy26c: VpnTunnel.appex 进包断言——Xcode 形态 appex 是 P1 主线修复的验证点，
-          #   必须实际存在于 PlugIns 且二进制非空，否则 NE 拉起测试无从谈起。
+          # fix3cy35c: PlugIns 断言改为硬失败——appex 未进包=VPN 主线未生效，绝不允许产出"success 坏包"
           echo "=== VpnTunnel.appex 断言 ==="
           APX="$APP/PlugIns/VpnTunnel.appex"
           if [ -d "$APX" ]; then
@@ -634,6 +633,8 @@ jobs:
             [ -f "$BIN" ] && { echo "appex 二进制: $(ls -la "$BIN" | awk '{print $5"B"}')"; file "$BIN" || true; }
           else
             echo "MISSING: PlugIns/VpnTunnel.appex（Xcode 分支未产出 appex，P1 主线未生效）"
+            echo "::error::PlugIns/VpnTunnel.appex MISSING — VPN appex not packaged, FAILING build"
+            exit 1
           fi
 
       - name: Upload artifact

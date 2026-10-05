@@ -163,46 +163,29 @@ private func appexLog(_ msg: String) {
         let fd = socket(AF_INET, SOCK_STREAM, 0)
         guard fd >= 0 else { appexLog("self-test socket fail errno=\(errno)"); return }
         defer { close(fd) }
+        // fix3cy35b: 不用 select/FD_SET(C 宏在 Swift 导入易编译失败)，改阻塞 connect + SO_SNDTIMEO 超时
+        var timeout = timeval(tv_sec: 2, tv_usec: 0)
+        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
         var addr = sockaddr_in()
         addr.sin_family = sa_family_t(AF_INET)
         addr.sin_port = port.bigEndian
         addr.sin_addr.s_addr = inet_addr("127.0.0.1")
-        let flags = fcntl(fd, F_GETFL, 0)
-        fcntl(fd, F_SETFL, flags | O_NONBLOCK)
         let rc = withUnsafePointer(to: &addr) { p -> Int32 in
             p.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                 connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
             }
         }
         if rc == 0 {
-            appexLog("self-test connect immediate OK")
-        } else if errno == EINPROGRESS {
-            var fds = fd_set()
-            FD_ZERO(&fds)
-            FD_SET(fd, &fds)
-            var tv = timeval(tv_sec: 3, tv_usec: 0)
-            let s = select(fd + 1, nil, &fds, nil, &tv)
-            if s > 0 && FD_ISSET(fd, &fds) {
-                var err: Int32 = 0
-                var len = socklen_t(MemoryLayout<Int32>.size)
-                getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len)
-                if err == 0 {
-                    appexLog("self-test connect OK")
-                    let g: [UInt8] = [0x05, 0x01, 0x00]
-                    let w = g.withUnsafeBytes { send(fd, $0.baseAddress, 3, 0) }
-                    var buf = [UInt8](repeating: 0, count: 2)
-                    let r = read(fd, &buf, 2)
-                    appexLog("self-test handshake w=\(w) r=\(r) reply=\(buf.map { String(format:"%02x", $0) }.joined())")
-                } else {
-                    appexLog("self-test connect SO_ERROR=\(err)")
-                }
-            } else {
-                appexLog("self-test connect TIMEOUT select=\(s) errno=\(errno)")
-            }
+            appexLog("self-test connect OK")
+            let g: [UInt8] = [0x05, 0x01, 0x00]
+            let w = g.withUnsafeBytes { send(fd, $0.baseAddress, 3, 0) }
+            var buf = [UInt8](repeating: 0, count: 2)
+            let r = read(fd, &buf, 2)
+            appexLog("self-test handshake w=\(w) r=\(r) reply=\(buf.map { String(format:"%02x", $0) }.joined())")
         } else {
-            appexLog("self-test connect fail errno=\(errno)")
+            appexLog("self-test connect FAIL errno=\(errno)")
         }
-        fcntl(fd, F_SETFL, flags)
     }
 
     // MARK: - utun fd 探测（Tun2SocksKit 内部同款，CHev.h 提供 ctl_info/sockaddr_ctl/CTLIOCGINFO）
