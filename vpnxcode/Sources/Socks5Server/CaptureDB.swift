@@ -35,11 +35,20 @@ final class CaptureDB {
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               task_id INTEGER, proto TEXT, host TEXT, port INTEGER,
               upload_bytes INTEGER, download_bytes INTEGER,
-              start_time INTEGER, end_time INTEGER);
+              start_time INTEGER, end_time INTEGER,
+              is_tls INTEGER DEFAULT 0,
+              method TEXT, path TEXT, status_code INTEGER,
+              content_type TEXT, app_hint TEXT);
             """
             var err: UnsafeMutablePointer<CChar>?
             sqlite3_exec(db, sql, nil, nil, &err)
             if err != nil { sqlite3_free(err) }
+            // 兼容旧表：补新列（存在则 ALTER 报 duplicate，忽略）
+            for col in ["is_tls","method","path","status_code","content_type","app_hint"] {
+                var e2: UnsafeMutablePointer<CChar>?
+                sqlite3_exec(db, "ALTER TABLE capture_session ADD COLUMN \(col) TEXT", nil, nil, &e2)
+                if e2 != nil { sqlite3_free(e2) }
+            }
         }
     }
 
@@ -62,13 +71,16 @@ final class CaptureDB {
     }
 
     /// 会话结束时写一条流量记录（离热路径，一次一行）
+    /// - method/path/status：明文 HTTP 或 MITM 后才有；HTTPS 未解密时为 nil
     func logSession(proto: String, host: String, port: UInt16,
-                    up: Int64, down: Int64, start: Int64, end: Int64) {
+                    up: Int64, down: Int64, start: Int64, end: Int64,
+                    method: String? = nil, path: String? = nil, status: Int? = nil,
+                    isTls: Bool = true, contentType: String? = nil) {
         dbQueue.async { [weak self] in
             guard let self = self, let db = self.db else { return }
             let task = self.currentTaskId
             var stmt: OpaquePointer?
-            let sql = "INSERT INTO capture_session(task_id,proto,host,port,upload_bytes,download_bytes,start_time,end_time) VALUES(?,?,?,?,?,?,?,?)"
+            let sql = "INSERT INTO capture_session(task_id,proto,host,port,upload_bytes,download_bytes,start_time,end_time,is_tls,method,path,status_code,content_type) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)"
             if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
                 sqlite3_bind_int64(stmt, 1, task)
                 sqlite3_bind_text(stmt, 2, proto, -1, nil)
@@ -78,6 +90,11 @@ final class CaptureDB {
                 sqlite3_bind_int64(stmt, 6, down)
                 sqlite3_bind_int64(stmt, 7, start)
                 sqlite3_bind_int64(stmt, 8, end)
+                sqlite3_bind_int(stmt, 9, isTls ? 1 : 0)
+                if let m = method { sqlite3_bind_text(stmt, 10, m, -1, nil) } else { sqlite3_bind_null(stmt, 10) }
+                if let p = path { sqlite3_bind_text(stmt, 11, p, -1, nil) } else { sqlite3_bind_null(stmt, 11) }
+                if let s = status { sqlite3_bind_int(stmt, 12, Int32(s)) } else { sqlite3_bind_null(stmt, 12) }
+                if let ct = contentType { sqlite3_bind_text(stmt, 13, ct, -1, nil) } else { sqlite3_bind_null(stmt, 13) }
                 sqlite3_step(stmt)
             }
             sqlite3_finalize(stmt)
@@ -86,5 +103,70 @@ final class CaptureDB {
                 CFNotificationCenterGetDarwinNotifyCenter(),
                 CFNotificationName("com.trollagent.app.db.changed" as CFString), nil, nil, true)
         }
+    }
+
+    /// HAR 导出（fix3cy34）：把 capture_session 导出为 HTTP Archive JSON，写到 AppGroup/capture_export.har。
+    ///   HTTPS 未解密时 request/response body 标 unavailable，AI 仍能看到请求地图(method/host/大小/耗时)。
+    ///   AI 消费路径：shell.exec 把该文件 cp 到 Workspace 后经 /api/file 拉回，或主 App 直接读。
+    func exportHAR() -> String {
+        var entries: [[String: Any]] = []
+        dbQueue.sync {
+            guard let db = self.db else { return }
+            var stmt: OpaquePointer?
+            if sqlite3_prepare_v2(db, "SELECT host,port,upload_bytes,download_bytes,start_time,end_time,method,path,status_code,is_tls FROM capture_session ORDER BY start_time", -1, &stmt, nil) == SQLITE_OK {
+                while sqlite3_step(stmt) == SQLITE_ROW {
+                    let host = String(cString: sqlite3_column_text(stmt, 0))
+                    let port = Int(sqlite3_column_int(stmt, 1))
+                    let up = sqlite3_column_int64(stmt, 2)
+                    let down = sqlite3_column_int64(stmt, 3)
+                    let startMs = sqlite3_column_int64(stmt, 4)
+                    let endMs = sqlite3_column_int64(stmt, 5)
+                    var method = "UNKNOWN"; if let c = sqlite3_column_text(stmt, 6) { method = String(cString: c) }
+                    var path = "/"; if let c = sqlite3_column_text(stmt, 7) { path = String(cString: c) }
+                    let status = sqlite3_column_int(stmt, 8)
+                    let isTls = sqlite3_column_int(stmt, 9) == 1
+                    let scheme = isTls ? "https" : "http"
+                    let url = "\(scheme)://\(host):\(port)\(path)"
+                    let startDate = Date(timeIntervalSince1970: Double(startMs)/1000.0)
+                    let iso = ISO8601DateFormatter().string(from: startDate)
+                    let dur = max(0, Int((endMs - startMs)))
+                    entries.append([
+                        "startedDateTime": iso,
+                        "time": dur,
+                        "request": [
+                            "method": method, "url": url, "httpVersion": "HTTP/1.1",
+                            "headers": [], "queryString": [], "cookies": [],
+                            "headersSize": -1, "bodySize": Int(up),
+                            "postData": ["mimeType": "", "text": isTls ? "(encrypted)" : "(not captured)"]
+                        ],
+                        "response": [
+                            "status": Int(status), "statusText": "", "httpVersion": "HTTP/1.1",
+                            "headers": [], "cookies": [], "redirectURL": "",
+                            "headersSize": -1, "bodySize": Int(down),
+                            "content": ["size": Int(down), "mimeType": "", "text": isTls ? "(encrypted)" : "(not captured)"]
+                        ],
+                        "cache": [:],
+                        "timings": ["send": 0, "wait": dur, "receive": 0],
+                        "comment": "is_tls=\(isTls)"
+                    ])
+                }
+            }
+            sqlite3_finalize(stmt)
+        }
+        let har: [String: Any] = [
+            "log": [
+                "version": "1.2", "creator": ["name": "trollagent-vpn", "version": "0.1"],
+                "entries": entries
+            ]
+        ]
+        let jsonData = (try? JSONSerialization.data(withJSONObject: har, options: [.prettyPrinted, .sortedKeys])) ?? Data()
+        var outPath = ""
+        if let g = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupId) {
+            outPath = g.path + "/capture_export.har"
+            try? FileManager.default.createDirectory(atPath: (outPath as NSString).deletingLastPathComponent,
+                                                     withIntermediateDirectories: true)
+            try? jsonData.write(to: URL(fileURLWithPath: outPath))
+        }
+        return outPath
     }
 }

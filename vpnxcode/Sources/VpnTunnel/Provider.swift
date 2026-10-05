@@ -130,6 +130,9 @@ private func appexLog(_ msg: String) {
         stopping = true
         hev_socks5_tunnel_quit()
         Socks5Server.shared.stop()
+        // fix3cy34: VPN 停止时导出 HAR（AI/主 App 消费路径），失败不影响停止
+        let har = CaptureDB.shared.exportHAR()
+        appexLog("har exported to \(har)")
         completionHandler()
     }
 
