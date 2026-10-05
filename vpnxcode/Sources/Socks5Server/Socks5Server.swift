@@ -254,11 +254,16 @@ public final class Socks5Server {
                 }
                 if connectWithTimeout(f, c.pointee.ai_addr, c.pointee.ai_addrlen, timeout: 8) == 0 {
                     fd = f
-                    var local = sockaddr_in(); var llen = socklen_t(MemoryLayout<sockaddr_in>.size)
-                    getsockname(f, withUnsafeMutablePointer(to: &local) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { $0 } }, &llen)
+                    var local = sockaddr_in()
+                    var llen = socklen_t(MemoryLayout<sockaddr_in>.size)
+                    withUnsafeMutablePointer(to: &local) { lp in
+                        lp.withMemoryRebound(to: sockaddr.self, capacity: 1) { sp in
+                            getsockname(f, sp, &llen)
+                        }
+                    }
                     var srcIP = [CChar](repeating: 0, count: 64)
                     inet_ntop(AF_INET, &local.sin_addr, &srcIP, 64)
-                    s5log("connectTo OK src=\(String(cString: srcIP)) -> \(host):\(port)")
+                    s5log("connectTo OK src=\(String(cString: srcIP))")
                     break
                 }
                 close(f)
@@ -272,10 +277,12 @@ public final class Socks5Server {
         var sa = sockaddr_in()
         sa.sin_family = AF_INET
         sa.sin_port = 0
-        if inet_pton(AF_INET, ip, &sa.sin_addr) == 1 {
-            withUnsafePointer(to: &sa) { p in
-                p.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                    _ = Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+        ip.withCString { cs in
+            if inet_pton(AF_INET, cs, &sa.sin_addr) == 1 {
+                withUnsafePointer(to: &sa) { p in
+                    p.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                        _ = Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+                    }
                 }
             }
         }
@@ -287,12 +294,15 @@ public final class Socks5Server {
         let r = Darwin.connect(fd, addr, len)
         if r == 0 { return 0 }
         if errno != EINPROGRESS { return -1 }
-        var pfd = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
+        var pfd = pollfd()
+        pfd.fd = fd
+        pfd.events = Int16(POLLOUT)
+        pfd.revents = 0
         let pr = poll(&pfd, 1, Int32(timeout * 1000))
         if pr <= 0 { return -1 }
         var soerr: Int32 = 0
-        var len2 = socklen_t(MemoryLayout<Int32>.size)
-        getsockopt(fd, SOL_SOCKET, SO_ERROR, &soerr, &len2)
+        var sl = socklen_t(MemoryLayout<Int32>.size)
+        getsockopt(fd, SOL_SOCKET, SO_ERROR, &soerr, &sl)
         return soerr == 0 ? 0 : -1
     }
 
@@ -302,12 +312,11 @@ public final class Socks5Server {
         defer { freeifaddrs(ifaddr) }
         var ptr: UnsafeMutablePointer<ifaddrs>? = first
         while let ifa = ptr {
-            let family = ifa.pointee.ifa_addr.pointee.sa_family
-            if family == AF_INET {
+            if let ia = ifa.pointee.ifa_addr, ia.pointee.sa_family == AF_INET {
                 let name = String(cString: ifa.pointee.ifa_name)
                 if name != "lo0" {
                     var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                    if getnameinfo(ifa.pointee.ifa_addr, socklen_t(ifa.pointee.ifa_addr.pointee.sa_len),
+                    if getnameinfo(ia, socklen_t(ia.pointee.sa_len),
                                    &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 {
                         let ip = String(cString: host)
                         if !ip.hasPrefix("198.18.") && !ip.hasPrefix("fc00:") && ip != "127.0.0.1" {
