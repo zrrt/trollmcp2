@@ -12,8 +12,11 @@
 #include <unistd.h>
 #include <errno.h>
 #include <netdb.h>
+#include <fcntl.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
@@ -142,6 +145,71 @@ static void mitm_pump(SSL *c, SSL *s) {
     }
 }
 
+// 非阻塞连接真实服务器：host 优先按 IP 直连(inet_pton，无 DNS 卡)，非阻塞 connect + poll 8s 超时
+// 关键：hev 的 SOCKS5 CONNECT 传的是 IP(已 DNS 解析)——直接用 IP 连真实服务器，不再 getaddrinfo 解析 SNI 域名(避免 DNS 卡住连接堆积)
+static int connect_nb(const char *host, int port) {
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof addr);
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons((unsigned short)port);
+    int fd = -1;
+    if (inet_pton(AF_INET, host, &addr.sin_addr) == 1) {
+        fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (fd < 0) return -1;
+        int fl = fcntl(fd, F_GETFL, 0);
+        fcntl(fd, F_SETFL, fl | O_NONBLOCK);
+        int rc = connect(fd, (struct sockaddr *)&addr, sizeof addr);
+        if (rc == 0) {
+            int fl2 = fcntl(fd, F_GETFL, 0);
+            fcntl(fd, F_SETFL, fl2 & ~O_NONBLOCK);
+            return fd;
+        }
+        if (errno == EINPROGRESS) {
+            struct pollfd pf;
+            pf.fd = fd; pf.events = POLLOUT; pf.revents = 0;
+            if (poll(&pf, 1, 8000) > 0 && (pf.revents & POLLOUT)) {
+                int e = 0; socklen_t el = sizeof e;
+                if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &e, &el) == 0 && e == 0) {
+                    int fl2 = fcntl(fd, F_GETFL, 0);
+                    fcntl(fd, F_SETFL, fl2 & ~O_NONBLOCK);
+                    return fd;
+                }
+            }
+        }
+        close(fd);
+        return -1;
+    }
+    // 域名兜底(getaddrinfo)——host 通常为 IP，仅在非 IP 时走这里
+    char pstr[16];
+    snprintf(pstr, sizeof pstr, "%d", port);
+    struct addrinfo h, *res = NULL;
+    memset(&h, 0, sizeof h);
+    h.ai_family = AF_UNSPEC;
+    h.ai_socktype = SOCK_STREAM;
+    if (getaddrinfo(host, pstr, &h, &res) == 0 && res) {
+        for (struct addrinfo *rp = res; rp; rp = rp->ai_next) {
+            int s = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+            if (s < 0) continue;
+            int fl = fcntl(s, F_GETFL, 0);
+            fcntl(s, F_SETFL, fl | O_NONBLOCK);
+            int rc = connect(s, rp->ai_addr, rp->ai_addrlen);
+            if (rc == 0) { fcntl(s, F_SETFL, fl); freeaddrinfo(res); return s; }
+            if (errno == EINPROGRESS) {
+                struct pollfd pf; pf.fd = s; pf.events = POLLOUT; pf.revents = 0;
+                if (poll(&pf, 1, 8000) > 0 && (pf.revents & POLLOUT)) {
+                    int e = 0; socklen_t el = sizeof e;
+                    if (getsockopt(s, SOL_SOCKET, SO_ERROR, &e, &el) == 0 && e == 0) {
+                        fcntl(s, F_SETFL, fl); freeaddrinfo(res); return s;
+                    }
+                }
+            }
+            close(s);
+        }
+        freeaddrinfo(res);
+    }
+    return -1;
+}
+
 int mitm_handle(int cfd, const char *host, int port) {
     if (!g_ca_cert || !g_ca_key) return -100;
 
@@ -156,32 +224,17 @@ int mitm_handle(int cfd, const char *host, int port) {
     if (SSL_accept(ssr) != 1) {
         SSL_free(ssr); SSL_CTX_free(sctx); return -4;
     }
+    // SNI 用于签发证书(client_hello_cb 已用) + 客户端 TLS 的 SNI；连接真实服务器用 hev 传的 host(IP,已验证,无 DNS 卡)
     const char *sni = SSL_get_servername(ssr, TLSEXT_NAMETYPE_host_name);
-    const char *real = (sni && sni[0]) ? sni : host;
+    const char *sni_name = (sni && sni[0]) ? sni : host;
 
-    // 3) 连真实服务器（用 SNI 域名）
-    char pstr[16];
-    snprintf(pstr, sizeof pstr, "%d", port);
-    struct addrinfo h, *res = NULL;
-    memset(&h, 0, sizeof h);
-    h.ai_family = AF_UNSPEC;
-    h.ai_socktype = SOCK_STREAM;
-    int sfd = -1;
-    if (getaddrinfo(real, pstr, &h, &res) == 0 && res) {
-        for (struct addrinfo *rp = res; rp; rp = rp->ai_next) {
-            sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-            if (sfd < 0) continue;
-            if (connect(sfd, rp->ai_addr, rp->ai_addrlen) == 0) break;
-            close(sfd);
-            sfd = -1;
-        }
-        freeaddrinfo(res);
-    }
+    // 3) 连真实服务器：用 hev 传的 host(IP) 非阻塞直连，避免 getaddrinfo 解析 SNI 域名导致 DNS 卡住连接堆积
+    int sfd = connect_nb(host, port);
     if (sfd < 0) {
         SSL_free(ssr); SSL_CTX_free(sctx); return -1;
     }
 
-    // 4) 客户端角色 TLS（连真实服务器，忽略其证书校验）
+    // 4) 客户端角色 TLS（连真实服务器，忽略其证书校验；SNI 用 App 的真实域名）
     SSL_CTX *cctx = SSL_CTX_new(TLS_client_method());
     if (!cctx) {
         close(sfd); SSL_free(ssr); SSL_CTX_free(sctx); return -2;
@@ -189,7 +242,7 @@ int mitm_handle(int cfd, const char *host, int port) {
     SSL *scl = SSL_new(cctx);
     SSL_set_fd(scl, sfd);
     SSL_set_verify(scl, SSL_VERIFY_NONE, NULL);
-    SSL_set_tlsext_host_name(scl, real);
+    SSL_set_tlsext_host_name(scl, sni_name);
     if (SSL_connect(scl) != 1) {
         SSL_free(scl); SSL_CTX_free(cctx);
         SSL_free(ssr); SSL_CTX_free(sctx); close(sfd); return -5;
