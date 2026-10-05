@@ -87,6 +87,25 @@ static int my_ssl_write(void *ssl, const void *buf, int num) {
     return orig_ssl_write(ssl, buf, num);
 }
 
+// ==== 反 SSL Pinning（抄 SSL Kill Switch 2 的 iOS 13+ BoringSSL hook）====
+// 关键：抖音/小红书等有证书 Pinning，即使 CA 被系统信任也会拒 MITM 证书(握手 SSL_accept rc=-4)。
+//   抄 ssl-kill-switch2：hook BoringSSL 的 SSL_set_custom_verify，强制用不校验的回调(SSL_VERIFY_NONE)，
+//   + SSL_get_psk_identity 返回假值 —— App 接受任意 MITM 证书 → 我们 VpnTunnel 的 TLS 劫持能解。
+#define SSL_VERIFY_NONE 0
+static int no_verify_cb(void *ssl, uint8_t *out_alert) {
+    return 0;  // ssl_verify_ok：证书 100% 有效
+}
+static void (*orig_ssl_set_custom_verify)(void *ssl, int mode,
+                                          int (*cb)(void *ssl, uint8_t *out_alert));
+static void my_ssl_set_custom_verify(void *ssl, int mode,
+                                     int (*cb)(void *ssl, uint8_t *out_alert)) {
+    if (orig_ssl_set_custom_verify) orig_ssl_set_custom_verify(ssl, SSL_VERIFY_NONE, no_verify_cb);
+}
+static char *(*orig_ssl_get_psk_identity)(void *ssl);
+static char *my_ssl_get_psk_identity(void *ssl) {
+    return "notarealPSKidentity";
+}
+
 __attribute__((constructor))
 static void tlsHookInit() {
     g_tlsQueue = dispatch_queue_create("trollagent.tls", NULL);
@@ -96,13 +115,19 @@ static void tlsHookInit() {
     [[NSFileManager defaultManager] createDirectoryAtPath:kTlsDir
                               withIntermediateDirectories:YES attributes:nil error:nil];
 
-    struct rebinding binds[2];
+    struct rebinding binds[4];
     binds[0].name = "SSL_read";
     binds[0].replacement = (void *)my_ssl_read;
     binds[0].replaced = (void **)&orig_ssl_read;
     binds[1].name = "SSL_write";
     binds[1].replacement = (void *)my_ssl_write;
     binds[1].replaced = (void **)&orig_ssl_write;
+    binds[2].name = "SSL_set_custom_verify";
+    binds[2].replacement = (void *)my_ssl_set_custom_verify;
+    binds[2].replaced = (void **)&orig_ssl_set_custom_verify;
+    binds[3].name = "SSL_get_psk_identity";
+    binds[3].replacement = (void *)my_ssl_get_psk_identity;
+    binds[3].replaced = (void **)&orig_ssl_get_psk_identity;
 
-    rebind_symbols(binds, 2);
+    rebind_symbols(binds, 4);
 }
