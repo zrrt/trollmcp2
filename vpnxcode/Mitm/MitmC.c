@@ -88,18 +88,18 @@ static X509 *gen_cert(const char *host, EVP_PKEY **out_key) {
     return x;
 }
 
-// SNI 回调：根据 App ClientHello 的 SNI 域名动态签发证书并应用到该 SSL
-static int mitm_sni_cb(SSL *s, int *al, void *arg) {
+// ClientHello 回调：App 的 ClientHello 到后、握手继续前，用 SNI 域名动态签发证书并应用到该 SSL
+static int mitm_client_hello_cb(SSL *s, int *al, void *arg) {
     const char *host = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
-    if (!host || !host[0]) return SSL_TLSEXT_ERR_OK;  // 无 SNI 用默认证书
+    if (!host || !host[0]) return SSL_CLIENT_HELLO_OK;  // 无 SNI 用默认证书
     EVP_PKEY *key = NULL;
     X509 *x = gen_cert(host, &key);
-    if (!x || !key) return SSL_TLSEXT_ERR_ALERT_FATAL;
+    if (!x || !key) return SSL_CLIENT_HELLO_ERROR;
     SSL_use_certificate(s, x);
     SSL_use_PrivateKey(s, key);
     X509_free(x);
     EVP_PKEY_free(key);
-    return SSL_TLSEXT_ERR_OK;
+    return SSL_CLIENT_HELLO_OK;
 }
 
 // 非阻塞双向明文转发：c(服务端/客户端侧) <-> s(真实服务器侧)
@@ -147,7 +147,7 @@ int mitm_handle(int cfd, const char *host, int port) {
     // 1) 服务端角色 ctx：SNI 回调动态签证书（对 hev 客户端）
     SSL_CTX *sctx = SSL_CTX_new(TLS_server_method());
     if (!sctx) return -3;
-    SSL_CTX_set_tlsext_servername_callback(sctx, mitm_sni_cb, NULL);
+    SSL_CTX_set_client_hello_cb(sctx, mitm_client_hello_cb, NULL);
     SSL *ssr = SSL_new(sctx);
     SSL_set_fd(ssr, cfd);
 
