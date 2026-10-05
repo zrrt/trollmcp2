@@ -54,6 +54,8 @@ private func appexLog(_ msg: String) {
         NSLog("[VpnTunnel] socks5 server started=\(s5) on \(socks5Port) logDir=\(Socks5Server.shared.logDir)")
         // fix3cy33: 开一条结构化抓包任务(capture_task)
         CaptureDB.shared.beginTask(ruleName: "full")
+        // fix3cy35: 回环自检——确认 appex 能否连到自己的 Socks5Server(定位 hev 到不了本地代理)
+        loopbackSelfTest()
 
         // 2) 全接管网络设置（抄 socksguard：IPv4+IPv6 default，防止泄漏）
         let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "127.0.0.1")
@@ -150,6 +152,58 @@ private func appexLog(_ msg: String) {
 
     public override func sleep(completionHandler: @escaping () -> Void) { completionHandler() }
     public override func wake() {}
+
+    // MARK: - 回环自检（fix3cy35）
+    //   现象：hev 疯狂连 127.0.0.1:19080 但 Socks5Server.accept 全程空 → hev 到不了本地代理。
+    //   自检直接连 127.0.0.1:19080 + SOCKS5 握手，一锤定音：
+    //     连上+握手OK = 回环/accept/握手都正常，问题在 hev 侧(可能隧道路由循环/库行为)
+    //     连不上(timeout/refused) = appex 自身回环被隧道路由劫持，需修路由
+    private func loopbackSelfTest() {
+        let port = socks5Port
+        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        guard fd >= 0 else { appexLog("self-test socket fail errno=\(errno)"); return }
+        defer { close(fd) }
+        var addr = sockaddr_in()
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = port.bigEndian
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+        let flags = fcntl(fd, F_GETFL, 0)
+        fcntl(fd, F_SETFL, flags | O_NONBLOCK)
+        let rc = withUnsafePointer(to: &addr) { p -> Int32 in
+            p.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        if rc == 0 {
+            appexLog("self-test connect immediate OK")
+        } else if errno == EINPROGRESS {
+            var fds = fd_set()
+            FD_ZERO(&fds)
+            FD_SET(fd, &fds)
+            var tv = timeval(tv_sec: 3, tv_usec: 0)
+            let s = select(fd + 1, nil, &fds, nil, &tv)
+            if s > 0 && FD_ISSET(fd, &fds) {
+                var err: Int32 = 0
+                var len = socklen_t(MemoryLayout<Int32>.size)
+                getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len)
+                if err == 0 {
+                    appexLog("self-test connect OK")
+                    let g: [UInt8] = [0x05, 0x01, 0x00]
+                    let w = g.withUnsafeBytes { send(fd, $0.baseAddress, 3, 0) }
+                    var buf = [UInt8](repeating: 0, count: 2)
+                    let r = read(fd, &buf, 2)
+                    appexLog("self-test handshake w=\(w) r=\(r) reply=\(buf.map { String(format:"%02x", $0) }.joined())")
+                } else {
+                    appexLog("self-test connect SO_ERROR=\(err)")
+                }
+            } else {
+                appexLog("self-test connect TIMEOUT select=\(s) errno=\(errno)")
+            }
+        } else {
+            appexLog("self-test connect fail errno=\(errno)")
+        }
+        fcntl(fd, F_SETFL, flags)
+    }
 
     // MARK: - utun fd 探测（Tun2SocksKit 内部同款，CHev.h 提供 ctl_info/sockaddr_ctl/CTLIOCGINFO）
 
