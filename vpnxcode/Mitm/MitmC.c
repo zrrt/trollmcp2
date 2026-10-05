@@ -1,7 +1,9 @@
-// MitmC.c —— OpenSSL TLS MITM 引擎（Step 1 MVP：隧道打通 + 明文可见）
-// 链路：hev 客户端 --TCP cfd--> [TLS 服务端角色] --明文--> [TLS 客户端角色] --TCP--> 真实服务器
-// 用自签 CA(cacert.pem + cakey.pem) 为每个目标域名动态签发证书，App 信任 CA 即可解 HTTPS。
-// 当前 MVP 只做透明转发明文（不解析 HTTP）；Step 2 在明文上叠加 HTTP 解析落 SQLite。
+// MitmC.c —— OpenSSL TLS MITM 引擎（Step 1.1：SNI 域名签发证书）
+// 问题背景：hev 的 SOCKS5 CONNECT 传的是 IP(已把域名 DNS 解析成 IP) → 若用 IP 签证书，CN=IP
+//   与 App 期望的域名对不上 → App 拒证书 → 连接反复失败("刷久了加载不出")。
+// 修复：App 的 TLS ClientHello 必带 SNI(域名)；在服务端握手时用 SNI 回调动态签发 CN=域名 的
+//   证书 + 用该域名连真实服务器 —— App 校验通过。
+// 链路：hev 客户端 --TCP cfd--> [TLS 服务端角色(SNI 域名证书)] --明文--> [TLS 客户端角色] --TCP--> 真实服务器
 #include "MitmC.h"
 
 #include <stdio.h>
@@ -45,8 +47,8 @@ int mitm_init(const char *ca_pem, const char *ca_key_pem) {
     return 0;
 }
 
-// 为 host 签发域名证书，返回服务端角色的 SSL_CTX（失败返回 NULL）
-static SSL_CTX *make_domain_ctx(const char *host) {
+// 为 host 生成域名密钥+证书（用 CA 签发），返回证书；*out_key 传回私钥(调用方负责 EVP_PKEY_free)
+static X509 *gen_cert(const char *host, EVP_PKEY **out_key) {
     EVP_PKEY *key = EVP_PKEY_new();
     if (!key) return NULL;
     RSA *rsa = RSA_new();
@@ -61,7 +63,6 @@ static SSL_CTX *make_domain_ctx(const char *host) {
     if (!x) { EVP_PKEY_free(key); return NULL; }
     X509_set_version(x, 2);
 
-    // 随机序列号（避免 App 端缓存/指纹）
     unsigned char serial[16];
     if (RAND_bytes(serial, sizeof serial) != 1) {
         X509_free(x); EVP_PKEY_free(key); return NULL;
@@ -72,7 +73,7 @@ static SSL_CTX *make_domain_ctx(const char *host) {
     X509_set_serialNumber(x, ai);
     ASN1_INTEGER_free(ai); BN_free(bn);
 
-    X509_gmtime_adj(X509_get_notBefore(x), -300);           // 5 分钟前生效
+    X509_gmtime_adj(X509_get_notBefore(x), -300);             // 5 分钟前生效
     X509_gmtime_adj(X509_get_notAfter(x), 60L * 60 * 24 * 365); // 1 年有效
     X509_set_pubkey(x, key);
 
@@ -82,13 +83,23 @@ static SSL_CTX *make_domain_ctx(const char *host) {
     X509_set_issuer_name(x, X509_get_subject_name(g_ca_cert));
     X509_sign(x, g_ca_key, EVP_sha256());
 
-    SSL_CTX *ctx = SSL_CTX_new(TLS_server_method());
-    if (!ctx) { X509_free(x); EVP_PKEY_free(key); return NULL; }
-    SSL_CTX_use_certificate(ctx, x);
-    SSL_CTX_use_PrivateKey(ctx, key);
+    if (out_key) *out_key = key;
+    else EVP_PKEY_free(key);
+    return x;
+}
+
+// SNI 回调：根据 App ClientHello 的 SNI 域名动态签发证书并应用到该 SSL
+static int mitm_sni_cb(SSL *s, int *al, void *arg) {
+    const char *host = SSL_get_servername(s, TLSEXT_NAMETYPE_host_name);
+    if (!host || !host[0]) return SSL_TLSEXT_ERR_OK;  // 无 SNI 用默认证书
+    EVP_PKEY *key = NULL;
+    X509 *x = gen_cert(host, &key);
+    if (!x || !key) return SSL_TLSEXT_ERR_ALERT_FATAL;
+    SSL_use_certificate(s, x);
+    SSL_use_PrivateKey(s, key);
     X509_free(x);
     EVP_PKEY_free(key);
-    return ctx;
+    return SSL_TLSEXT_ERR_OK;
 }
 
 // 非阻塞双向明文转发：c(服务端/客户端侧) <-> s(真实服务器侧)
@@ -133,7 +144,21 @@ static void mitm_pump(SSL *c, SSL *s) {
 int mitm_handle(int cfd, const char *host, int port) {
     if (!g_ca_cert || !g_ca_key) return -100;
 
-    // 1) 连真实服务器
+    // 1) 服务端角色 ctx：SNI 回调动态签证书（对 hev 客户端）
+    SSL_CTX *sctx = SSL_CTX_new(TLS_server_method());
+    if (!sctx) return -3;
+    SSL_CTX_set_tlsext_servername_callback(sctx, mitm_sni_cb, NULL);
+    SSL *ssr = SSL_new(sctx);
+    SSL_set_fd(ssr, cfd);
+
+    // 2) accept：触发 SNI 回调签发 CN=域名 的证书；同时拿到真实域名
+    if (SSL_accept(ssr) != 1) {
+        SSL_free(ssr); SSL_CTX_free(sctx); return -4;
+    }
+    const char *sni = SSL_get_servername(ssr, TLSEXT_NAMETYPE_host_name);
+    const char *real = (sni && sni[0]) ? sni : host;
+
+    // 3) 连真实服务器（用 SNI 域名）
     char pstr[16];
     snprintf(pstr, sizeof pstr, "%d", port);
     struct addrinfo h, *res = NULL;
@@ -141,7 +166,7 @@ int mitm_handle(int cfd, const char *host, int port) {
     h.ai_family = AF_UNSPEC;
     h.ai_socktype = SOCK_STREAM;
     int sfd = -1;
-    if (getaddrinfo(host, pstr, &h, &res) == 0 && res) {
+    if (getaddrinfo(real, pstr, &h, &res) == 0 && res) {
         for (struct addrinfo *rp = res; rp; rp = rp->ai_next) {
             sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
             if (sfd < 0) continue;
@@ -151,32 +176,29 @@ int mitm_handle(int cfd, const char *host, int port) {
         }
         freeaddrinfo(res);
     }
-    if (sfd < 0) return -1;
+    if (sfd < 0) {
+        SSL_free(ssr); SSL_CTX_free(sctx); return -1;
+    }
 
-    // 2) 客户端角色 TLS（连真实服务器，忽略其证书校验）
+    // 4) 客户端角色 TLS（连真实服务器，忽略其证书校验）
     SSL_CTX *cctx = SSL_CTX_new(TLS_client_method());
-    if (!cctx) { close(sfd); return -2; }
+    if (!cctx) {
+        close(sfd); SSL_free(ssr); SSL_CTX_free(sctx); return -2;
+    }
     SSL *scl = SSL_new(cctx);
     SSL_set_fd(scl, sfd);
     SSL_set_verify(scl, SSL_VERIFY_NONE, NULL);
-    SSL_set_tlsext_host_name(scl, host);
-
-    // 3) 服务端角色 TLS（对 hev 客户端，用 CA 签的域名证书）
-    SSL_CTX *sctx = make_domain_ctx(host);
-    if (!sctx) {
-        SSL_free(scl); SSL_CTX_free(cctx); close(sfd); return -3;
+    SSL_set_tlsext_host_name(scl, real);
+    if (SSL_connect(scl) != 1) {
+        SSL_free(scl); SSL_CTX_free(cctx);
+        SSL_free(ssr); SSL_CTX_free(sctx); close(sfd); return -5;
     }
-    SSL *ssr = SSL_new(sctx);
-    SSL_set_fd(ssr, cfd);
 
-    // 4) 握手 + 双向明文转发
-    int ok = 1;
-    if (SSL_accept(ssr) != 1) ok = 0;
-    if (ok && SSL_connect(scl) != 1) ok = 0;
-    if (ok) mitm_pump(ssr, scl);
+    // 5) 双向明文转发
+    mitm_pump(ssr, scl);
 
     SSL_free(scl); SSL_CTX_free(cctx);
     SSL_free(ssr); SSL_CTX_free(sctx);
     close(sfd);
-    return ok ? 0 : -4;
+    return 0;
 }

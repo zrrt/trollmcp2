@@ -140,8 +140,8 @@ public final class Socks5Server {
             // fix3cy40: HTTPS(443) → MITM 解密（CA 签发域名证书 + 双向 TLS 劫持，解出明文转发；Step 2 再解析 HTTP 落库）
             if req.port == 443 {
                 s5log("MITM CONNECT \(req.host):\(req.port)")
-                mitm_handle(cfd, req.host, Int32(req.port))
-                s5log("MITM done \(req.host):\(req.port)")
+                let rc = mitm_handle(cfd, req.host, Int32(req.port))
+                s5log("MITM done \(req.host):\(req.port) rc=\(rc)")
                 return
             }
             guard let upfd = connectTo(host: req.host, port: req.port) else {
