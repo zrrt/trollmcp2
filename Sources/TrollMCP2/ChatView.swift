@@ -1485,11 +1485,12 @@ struct MessageBubble: View {
             if m.range.location > pos {
                 ms.append(NSAttributedString(string: ns.substring(with: NSRange(location: pos, length: m.range.location - pos)), attributes: base))
             }
-            let boldGroup = m.range(at: 2)
+            // 捕获组编号：组1 = **加粗** 内容，组2 = `代码` 内容（共2组，无组3）
+            let boldGroup = m.range(at: 1)
             if boldGroup.location != NSNotFound {
                 ms.append(NSAttributedString(string: ns.substring(with: boldGroup), attributes: boldAttrs))
             } else {
-                ms.append(NSAttributedString(string: ns.substring(with: m.range(at: 3)), attributes: orangeAttrs))
+                ms.append(NSAttributedString(string: ns.substring(with: m.range(at: 2)), attributes: orangeAttrs))
             }
             pos = m.range.location + m.range.length
         }
