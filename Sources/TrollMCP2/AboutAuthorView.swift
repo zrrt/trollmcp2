@@ -37,7 +37,7 @@ struct AboutAuthorView: View {
                         .font(.title3.weight(.bold))
                         .foregroundColor(.primary)
                     Text(L10n.t("about_bio"))
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
                         .lineSpacing(4)
                         .multilineTextAlignment(.center)
@@ -51,18 +51,18 @@ struct AboutAuthorView: View {
             CardBox {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(L10n.t("about_thanks_intro"))
-                        .font(.caption)
+                        .font(.footnote)
                         .foregroundColor(.secondary)
                     ForEach(thankRows, id: \.0) { row in
                         HStack(alignment: .top, spacing: 8) {
                             Text(row.0)
-                                .font(.caption)
+                                .font(.footnote)
                             Text(row.1)
-                                .font(.caption)
+                                .font(.footnote)
                                 .foregroundColor(.primary)
                             Spacer(minLength: 0)
                             Text(row.2)
-                                .font(.caption2)
+                                .font(.caption)
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.trailing)
                         }
@@ -76,7 +76,7 @@ struct AboutAuthorView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(safetyRows, id: \.self) { row in
                         Text(row)
-                            .font(.caption)
+                            .font(.footnote)
                             .foregroundColor(.primary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -89,7 +89,7 @@ struct AboutAuthorView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(noteRows, id: \.self) { row in
                         Text(row)
-                            .font(.caption)
+                            .font(.footnote)
                             .foregroundColor(.primary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -102,7 +102,7 @@ struct AboutAuthorView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(disclaimerRows, id: \.self) { row in
                         Text(row)
-                            .font(.caption)
+                            .font(.footnote)
                             .foregroundColor(.primary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -114,7 +114,7 @@ struct AboutAuthorView: View {
             CardBox {
                 VStack(spacing: 10) {
                     Text(L10n.t("about_sponsor_body"))
-                        .font(.caption)
+                        .font(.footnote)
                         .foregroundColor(.primary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
@@ -126,7 +126,7 @@ struct AboutAuthorView: View {
                             .cornerRadius(10)
                     } else {
                         Text("WeChat QR")
-                            .font(.caption)
+                            .font(.footnote)
                             .foregroundColor(.secondary)
                     }
                 }
@@ -138,7 +138,7 @@ struct AboutAuthorView: View {
             CardBox {
                 VStack(spacing: 10) {
                     Text(L10n.t("about_feedback_body"))
-                        .font(.caption)
+                        .font(.footnote)
                         .foregroundColor(.primary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
@@ -175,13 +175,15 @@ struct AboutAuthorView: View {
 
     private var thankRows: [(String, String, String)] {
         [
-            ("📦", "TrollStore", "(opa334)"),
             ("💉", "TrollFools / ElleKit", "(Lessica / rootless)"),
             ("⚙️", "Theos", "toolchain"),
             ("🔐", "ldid / insert_dylib / optool", "sign & inject"),
             ("🛡️", "ct_bypass / Shadow", "iOS 17+ bypass"),
             ("🔍", "class-dump / otool / Frida", "reverse engineering"),
             ("🎮", "H5GG / GameGuardian", "game memory"),
+            ("🔒", "OpenSSL", "MITM decrypt"),
+            ("🚇", "hev-socks5-tunnel / Tun2SocksKit", "VPN tunnel"),
+            ("🗣️", "DIYgod / cloudflare-edge-tts", "AI TTS relay"),
             ("📝", "RSKGrowingTextView", "chat input"),
             ("📦", "ZIPFoundation", "zip archive"),
             ("🐧", "iSH (ARM64)", "Linux emulation"),
