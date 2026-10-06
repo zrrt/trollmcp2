@@ -170,6 +170,15 @@ struct SettingsView: View {
                              }
                          })
         ]
+        // v4.5.0：可爱小女孩助手开关（聊天页右下角悬浮 + 语音/点击互动）
+        controlItems.append(SettingsItem(
+            title: "可爱小女孩助手",
+            subtitle: GirlCompanion.shared.enabled ? "运行中 · 聊天页右下角显示" : "关闭 · 聊天页隐藏",
+            icon: "heart.fill",
+            color: .pink,
+            isOn: { GirlCompanion.shared.enabled },
+            onToggle: { GirlCompanion.shared.enabled = $0 }
+        ))
         // v2.9.72：开发者模式开关（固定显示，控制下方"开发者"分组）
         controlItems.append(SettingsItem(
             title: L10n.t("row_dev_mode"),
