@@ -6,6 +6,8 @@ final class AppUIState: ObservableObject {
     @Published var drawerOpen = false
     @Published var settingsPresented = false
     @Published var settingsJumpToModels = false
+    // v4.4.16：底部"指令"胶囊 → 打开设置并跳到系统指令(SystemPromptsView)页
+    @Published var settingsJumpToSystemPrompts = false
     @Published var controlPresented = false
     @Published var macroPresented = false
     // v3.0.76：输入框上方快捷标签

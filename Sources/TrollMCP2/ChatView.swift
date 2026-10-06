@@ -618,7 +618,9 @@ struct ChatView: View {
                     AppUIState.shared.quickSkillsPresented = true
                 }.frame(height: 36)
                 QuickTabButton(icon: "doc.text", label: "指令") {
+                    // v4.4.16：点"指令"→ 打开设置并真正跳到系统指令页(此前只打开设置,未定位到 SystemPromptsView, 用户实测'没真正跳到')
                     AppUIState.shared.settingsJumpToModels = false
+                    AppUIState.shared.settingsJumpToSystemPrompts = true
                     AppUIState.shared.settingsPresented = true
                 }.frame(height: 36)
                 QuickTabButton(icon: "folder", label: "工作区") {

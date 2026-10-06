@@ -31,6 +31,8 @@ struct SettingsView: View {
     @State private var showLanguagePicker = false
     // v2.9.84：聊天框「在设置中管理模型」→ 打开设置并自动跳到模型 API 页
     @State private var jumpToModels = false
+    // v4.4.16：底部"指令"胶囊 → 打开设置并自动跳到系统指令(SystemPromptsView)页
+    @State private var jumpToSystemPrompts = false
     // v3.3.2：抓包 VPN 开关失败提示
     @State private var vpnToggleError = ""
     // v4.3.29：订阅更新管理器，副标题实时显示 检查中/下载进度/发现新版本
@@ -58,17 +60,20 @@ struct SettingsView: View {
                     // v2.9.245：移除右上角卡片/列表切换按钮——卡片模式在部分机型(iPhone XS等小屏)渲染不稳定(图标/文字显示不全/内容裁剪),统一为列表模式
                 }
                 // v2.9.234：跳转模型API页——iOS16 navigationDestination(修被弹回), iOS15 NavigationLink兜底
+                // v4.4.16：追加"跳系统指令"跳转(底部"指令"胶囊)——与模型跳转对称的 iOS16/iOS15 双兜底
                 .background(
                     Group {
                         if #available(iOS 16.0, *) {
                             EmptyView()
                         } else {
                             NavigationLink(destination: ModelsView(), isActive: $jumpToModels) { EmptyView() }.hidden()
+                            NavigationLink(destination: SystemPromptsView(), isActive: $jumpToSystemPrompts) { EmptyView() }.hidden()
                         }
                     }
                 )
             if #available(iOS 16.0, *) {
                 Color.clear.navigationDestination(isPresented: $jumpToModels) { ModelsView() }
+                Color.clear.navigationDestination(isPresented: $jumpToSystemPrompts) { SystemPromptsView() }
             }
         }
             .frame(width: geo.size.width, height: geo.size.height)   // NavigationStack 显式全屏
@@ -83,6 +88,11 @@ struct SettingsView: View {
             if AppUIState.shared.settingsJumpToModels {
                 AppUIState.shared.settingsJumpToModels = false
                 jumpToModels = true
+            }
+            // v4.4.16：底部"指令"胶囊 → 跳到系统指令页
+            if AppUIState.shared.settingsJumpToSystemPrompts {
+                AppUIState.shared.settingsJumpToSystemPrompts = false
+                jumpToSystemPrompts = true
             }
         }
     }
