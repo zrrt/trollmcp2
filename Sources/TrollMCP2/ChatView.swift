@@ -1404,6 +1404,18 @@ struct MessageBubble: View {
     // v4.4.11：AI 正文行内代码(反引号)→橙色(与"已深度思考"同色)。手动正则解析，
     // 容错流式打字机未闭合反引号(不配对则视为普通文本)。仅 assistant 生效, user 保持纯文本。
     // v4.4.12：正文 markdown 加粗(**xx**)→粗体(semibold)。代码段优先(橙色)，代码段外再匹配粗体。
+    /// v4.4.21：消息文本视图——流式/打字机/用户消息用轻量 Text（避免 UITextView 高频刷新闪跳）；assistant 完成消息用 SelectableText(UITextView) 长按选字/划词/复制
+    @ViewBuilder
+    private func messageTextView(_ shown: String) -> some View {
+        if isStreaming || forceType || isUser {
+            Text(isUser ? AttributedString(shown) : coloredBody(shown))
+                .font(.body)
+                .textSelection(.enabled)
+        } else {
+            SelectableText(attributed: NSAttributedString(coloredBody(shown)), textColor: .label)
+        }
+    }
+
     private func coloredBody(_ text: String) -> AttributedString {
         var out = AttributedString()
         let pattern = "`([^`]+)`"
@@ -1462,9 +1474,8 @@ struct MessageBubble: View {
                 let shown = (isStreaming || forceType) ? String(message.content.prefix(revealedCount)) : message.content
                 // v4.4.11：assistant 行内代码橙色高亮, user 纯文本
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(isUser ? AttributedString(shown) : coloredBody(shown))
-                        .font(.body)
-                        .textSelection(.enabled)
+                    // v4.4.21：完成消息用 SelectableText(UITextView) 长按划词/复制；流式打字机+用户消息用 Text(轻量)
+                    messageTextView(shown)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
                         // v3.3.4：AI 回复气泡从左拉伸到右（全宽）；用户气泡保持靠右自适应
