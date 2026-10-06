@@ -9,7 +9,7 @@
 final class DiagnoseStartupTool: MCPTool {
     let definition = ToolDefinition(
         name: "diagnose.startup",
-        summary: "Auto-diagnose why an app won't launch. Use for: app crashes on start, won't open, find out why. Don't use for: read crash logs (use fs.crash), inject dylib (use injection.enable). Example: user says '小红书 crashes on open' → diagnose startup failure.",
+        summary: "Auto-diagnose why an app won't launch. Use for: app crashes on start, won't open, find out why. Don't use for: read crash logs (use shell.exec), inject dylib (use injection.enable). Example: user says '小红书 crashes on open' → diagnose startup failure.",
         parameters: [
             "bundle_id": "Target App bundle ID (required)",
             "auto_fix": "Auto try to fix (default false, just diagnose)"
@@ -133,7 +133,7 @@ final class DiagnoseStartupTool: MCPTool {
 final class DiagnoseCrashTool: MCPTool {
     let definition = ToolDefinition(
         name: "diagnose.crash",
-        summary: "Analyze app crash logs to find root cause. Use for: app keeps crashing, find out why. Don't use for: read raw crash log (use fs.crash), diagnose startup failure (use diagnose.startup). Example: user says '小红书 keeps crashing, why' → analyze crash.",
+        summary: "Analyze app crash logs to find root cause. Use for: app keeps crashing, find out why. Don't use for: read raw crash log (use shell.exec), diagnose startup failure (use diagnose.startup). Example: user says '小红书 keeps crashing, why' → analyze crash.",
         parameters: [
             "bundle_id": "Target App bundle ID (required)",
             "count": "How many recent crashes to analyze (default 1)"

@@ -3869,11 +3869,11 @@ final class ShellExecTool: MCPTool {
             return ["command": command, "exit_code": 1, "stdout": "tar: usage: tar -cf archive.tar files...", "ios_native": true]
         }
         
-        // 简化：只提示用 fs.zip 工具
+        // 简化：只提示用 shell.exec 工具
         return [
             "command": command,
             "exit_code": 1,
-            "stdout": "tar: 复杂压缩请用 fs.zip 工具，或 Alpine shell 的 tar",
+            "stdout": "tar: 复杂压缩请用 shell.exec 工具，或 Alpine shell 的 tar",
             "ios_native": true,
             "hint": "hint: iOS native tar is incomplete, use Alpine shell"
         ]
@@ -3884,7 +3884,7 @@ final class ShellExecTool: MCPTool {
         return [
             "command": command,
             "exit_code": 1,
-            "stdout": "gzip: 复杂压缩请用 fs.zip 工具，或 Alpine shell 的 gzip",
+            "stdout": "gzip: 复杂压缩请用 shell.exec 工具，或 Alpine shell 的 gzip",
             "ios_native": true,
             "hint": "hint: iOS native gzip is incomplete, use Alpine shell"
         ]

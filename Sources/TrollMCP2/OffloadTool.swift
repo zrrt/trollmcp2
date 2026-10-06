@@ -8,7 +8,7 @@
 //   ta <tool> {json}            —— 参数整体用 JSON 传入
 // 示例：ta app launch bundle_id:com.appstudio.Jinx
 //       ta vpn.capture command:start
-//       ta fs.write path:/var/mobile/Documents/a.txt content:"hello world"
+//       ta artifact path:/var/mobile/Documents/a.txt content:"hello world"
 
 import Foundation
 
@@ -160,7 +160,7 @@ enum OffloadRouter {
 
     private static func listHelp(_ raw: String) -> [String: Any] {
         return ["command": raw, "exit_code": 0,
-                "stdout": "ta — TrollAgent native offload\nusage:\n  ta list\n  ta help <tool>\n  ta <tool> <key:value> [key:value...]\n  ta <tool> {json}\nexample:\n  ta app launch bundle_id:com.appstudio.Jinx\n  ta vpn.capture command:start\n  ta fs.tree path:/var/mobile/Documents",
+                "stdout": "ta — TrollAgent native offload\nusage:\n  ta list\n  ta help <tool>\n  ta <tool> <key:value> [key:value...]\n  ta <tool> {json}\nexample:\n  ta app launch bundle_id:com.appstudio.Jinx\n  ta vpn.capture command:start\n  ta shell.exec path:/var/mobile/Documents",
                 "hint": "start with 'ta list'"]
     }
 }

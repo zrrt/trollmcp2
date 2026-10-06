@@ -398,7 +398,7 @@ public final class ToolRegistry: ObservableObject {
 
     /// v2.9.31：常驻核心工具 (历史渐进披露设计，tool_search 已删，现仅作 UI 参考）。
     private static let _coreToolNames: Set<String> = [
-        // 最常用：终端 (代替了 fs.read）
+        // 最常用：终端 (代替了 artifact）
         "shell.exec",
         // 最常用：截图
         "control.screenshot"
@@ -574,17 +574,17 @@ public final class ToolRegistry: ObservableObject {
             "识别": ["ocr", "recognize", "extract"],
             "文字": ["ocr", "text"],
             "注入": ["inject", "injection", "jailbreak"],
-            "越狱": ["jailbreak", "ellekit", "jailbreak.inject"],
-            "越狱注入": ["jailbreak.inject", "jailbreak"],
+            "越狱": ["jailbreak", "ellekit", "injection.enable"],
+            "越狱注入": ["injection.enable", "jailbreak"],
             "安装": ["install", "ipa"],
             "卸载": ["uninstall"],
             "启动": ["launch", "app.launch"],
             "重启": ["restart", "app.restart"],
             "进程": ["process", "ps"],
             "文件": ["fs", "file"],
-            "读": ["read", "fs.read"],
-            "写": ["write", "fs.write"],
-            "目录": ["tree", "ls", "fs.tree"],
+            "读": ["read", "artifact"],
+            "写": ["write", "artifact"],
+            "目录": ["tree", "ls", "shell.exec"],
             "终端": ["shell", "exec"],
             "命令": ["shell", "exec", "command"],
             "点击": ["tap", "click"],
@@ -658,7 +658,7 @@ public final class ToolRegistry: ObservableObject {
                 let categoryMap: [String: [String]] = [
                     "截图": ["ui.screenshot", "control.screenshot", "ui"],
                     "抓包": ["network.capture", "debug.dump_network_log"],
-                    "注入": ["injection", "jailbreak.inject", "control.inject"],
+                    "注入": ["injection", "injection.enable", "control.inject"],
                     "文件": ["fs.", "bridge.", "artifact."],
                     "浏览器": ["browser."],
                     "自动化": ["automation.", "macro.", "task.run"],
@@ -952,7 +952,7 @@ public final class ToolRegistry: ObservableObject {
     /// ["status":"failed"]）。返回 nil 表示该结果应视为OK。
     /// v2.9.137：结果摘要化 (递归）——大数组保持数组但截断并末尾加省略标记，
     /// 大字符串截断并附总长度。返回后 AI 仍能读结论字段，细节可带 limit 重取。
-    /// `content` 字段 (fs.read/artifact.read_text 的文件内容）保留完整——
+    /// `content` 字段 (artifact.read_text 的文件内容）保留完整——
     /// 它们已由 max_bytes 参数控制读取量，不能再截断。
     /// v2.9.168：通用字段瘦身 (全部工具生效）——
     /// hint 截 60、summary 截 30、删空字符串值。结构信息不删，只去冗余。
@@ -1106,6 +1106,12 @@ public final class ToolRegistry: ObservableObject {
 
         // v3.0.90：系统概览工具 (AI 全局视角目录）
         // v3.1.64: 删 SystemOverviewTool (用 shell.exec("uname -a") / shell.exec("df -h") / shell.exec("free") 代替）
+        // v4.4.x(优化): 重新启用 SystemOverviewTool——tool_categories 已改为从注册表动态生成
+        //   (只列真实注册的大工具 + 版本从 Bundle 读)，给 AI 一个无幽灵工具名的真实目录。
+        register(SystemOverviewTool())
+        // v4.4.x(优化): tools.audit——工具注册表一致性审计（检测 summary/prerequisites 里引用
+        //   但未注册的"幽灵工具名"，防文档漂移，AI 分不清工具的根因之一）。
+        register(AuditTool())
         // v3.1.44: verify 大工具 + 子命令 (合并 2 个 verify.* 工具）
         register(VerifyExecTool())
         // v3.1.44: 删旧的 2 个 verify.* 工具 (已合并到 verify 大工具）

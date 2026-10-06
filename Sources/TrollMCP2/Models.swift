@@ -1493,7 +1493,7 @@ final class ConversationStore: ObservableObject {
             var nextStep = "Check the error message above. Try a different approach or tool."
             if errStr.contains("not found") || errStr.contains("no such file") {
                 reason = "File or path does not exist"
-                nextStep = "Check path with fs.tree or fs.find. If app container, verify bundle_id."
+                nextStep = "Check path with shell.exec or shell.exec. If app container, verify bundle_id."
             } else if errStr.contains("refused") || errStr.contains("connection") || errStr.contains("unreachable") {
                 reason = "Target app or service not reachable"
                 nextStep = "Start the target app first, or check if injection is active (injection.status)."

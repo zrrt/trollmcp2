@@ -767,7 +767,7 @@ enum BM25Tokenizer {
 
 final class KnowledgeImportTextTool: MCPTool {
     let definition = ToolDefinition(name: "knowledge.import_text",
-        summary: "Save text content to the knowledge base. Use for: store notes/reference material for later retrieval. Don't use for: write file to workspace (use fs.write), search saved knowledge (use knowledge.search). Example: user says 'save this note' → import to knowledge base.",
+        summary: "Save text content to the knowledge base. Use for: store notes/reference material for later retrieval. Don't use for: write file to workspace (use artifact), search saved knowledge (use knowledge.search). Example: user says 'save this note' → import to knowledge base.",
         parameters: ["name": "Entry name/title", "content": "Text content to save"], verified: true, category: "knowledge")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let name = params["name"] as? String, let content = params["content"] as? String else {

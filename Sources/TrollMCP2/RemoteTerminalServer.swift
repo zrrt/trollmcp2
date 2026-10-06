@@ -41,7 +41,7 @@ final class RemoteTerminalServer {
     /// 危险工具：默认拒绝 (前缀模糊匹配也生效）
     private let dangerousPrefixes = [
         "injection.", "hook.", "cleanup.execute", "workspace.cleanup", "system.cleanup_execute",
-        "fs.write", "fs.edit", "fs.delete", "fs.move", "fs.download", "fs.zip", "fs.unzip",
+        "artifact", "artifact", "shell.exec", "shell.exec", "shell.exec", "shell.exec", "shell.exec",
         "fs.container", "container.", "app.decrypt", "app.reinstall", "app.install", "app.uninstall",
         "device.fake.", "device.restore", "memory.write", "network.capture", "network.redirect",
         "automation.run", "cron.", "webhooks.", "github.trigger_build",

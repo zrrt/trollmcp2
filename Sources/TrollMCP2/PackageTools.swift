@@ -11,16 +11,16 @@ import ZIPFoundation
 final class PackageTool: MCPTool {
     let definition = ToolDefinition(
         name: "package",
-        summary: "Inspect & unpack package files (.deb / .ipa). Use for: when user wants to see what's inside someone else's package (deb tweak, ipa app), list its structure, read its control/info, or extract files. Modes: inspect (list members: deb → ar entries + control text + data.tar file list; ipa → zip entry list + main Info.plist path), unpack (extract all to a workspace dir, then read files with fs.read / artifact). Handles: deb=ar+tar (gz/lzma compressed data; Apple LZMA only supports .lzma-alone), ipa=zip (stored/deflate). NOT supported: xz container & zstd/bzip2-compressed data.tar (modern deb sometimes) — tell user to unpack on PC with 7-Zip/bsdtar. Example: user says '看看这个 deb 里有什么' → package command:inspect path:/xxx.deb; '解包这个 ipa' → package command:unpack path:/xxx.ipa dest:/var/mobile/Documents/Workspace/extract. REQUIRED PARAMS: command + path.",
+        summary: "Inspect & unpack package files (.deb / .ipa). Use for: when user wants to see what's inside someone else's package (deb tweak, ipa app), list its structure, read its control/info, or extract files. Modes: inspect (list members: deb → ar entries + control text + data.tar file list; ipa → zip entry list + main Info.plist path), unpack (extract all to a workspace dir, then read files with artifact). Handles: deb=ar+tar (gz/lzma compressed data; Apple LZMA only supports .lzma-alone), ipa=zip (stored/deflate). NOT supported: xz container & zstd/bzip2-compressed data.tar (modern deb sometimes) — tell user to unpack on PC with 7-Zip/bsdtar. Example: user says '看看这个 deb 里有什么' → package command:inspect path:/xxx.deb; '解包这个 ipa' → package command:unpack path:/xxx.ipa dest:/var/mobile/Documents/Workspace/extract. REQUIRED PARAMS: command + path.",
         parameters: [
             "command": "inspect / unpack",
             "path": "absolute path to .deb or .ipa",
             "dest": "required for unpack — output directory (will be created)"
         ],
         verified: false, category: "package", prerequisites: [
-            "path must be a real file (use fs.find / shell to locate it first)",
+            "path must be a real file (use shell.exec / shell to locate it first)",
             "unpack writes to dest; ensure enough free space for extracted size",
-            "after unpack, read inner files with fs.read / artifact read"
+            "after unpack, read inner files with artifact read"
         ])
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -33,7 +33,7 @@ final class PackageTool: MCPTool {
         guard FileManager.default.fileExists(atPath: path) else {
             throw MCPError.classified("package: file not found: \(path)",
                                       code: "NOT_FOUND", reason: "path",
-                                      nextStep: "use fs.find / shell ls to locate the file first")
+                                      nextStep: "use shell.exec / shell ls to locate the file first")
         }
 
         switch command {
@@ -130,7 +130,7 @@ final class PackageTool: MCPTool {
             "data_file_count": dataFileList.count,
             "data_compression_note": dataCompressionNote ?? "(none)",
             "data_files_sample": Array(dataFileList.prefix(80)),
-            "hint": "use package command:unpack path:<file> dest:<dir> to extract, then fs.read inner files"
+            "hint": "use package command:unpack path:<file> dest:<dir> to extract, then artifact inner files"
         ]
     }
 
@@ -156,7 +156,7 @@ final class PackageTool: MCPTool {
             "entries_sample": Array(names.prefix(120)),
             "app_names": Array(appNames),
             "main_info_plist": payloadInfoPath ?? "(none)",
-            "hint": "use package command:unpack path:<file> dest:<dir> to extract, then fs.read Payload/<App>.app/Info.plist"
+            "hint": "use package command:unpack path:<file> dest:<dir> to extract, then artifact Payload/<App>.app/Info.plist"
         ]
     }
 
@@ -227,7 +227,7 @@ final class PackageTool: MCPTool {
             "dest": destURL.path,
             "extracted_count": extracted,
             "top_files_sample": Array(list.prefix(100)),
-            "next": "read inner files with fs.read / artifact read"
+            "next": "read inner files with artifact read"
         ]
     }
 

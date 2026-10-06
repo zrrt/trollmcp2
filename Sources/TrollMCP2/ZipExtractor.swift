@@ -5,7 +5,7 @@ import Compression
 /// 支持 STORE(0) 与 DEFLATE(8) 两种压缩方式，解析 ZIP 中央目录。
 /// 用于 GitHub Actions artifact 下载后的解压，避免依赖系统 unzip 或第三方库。
 enum ZipExtractor {
-    /// v2.9.112：ZIP 条目元数据（fs.zip 浏览用）
+    /// v2.9.112：ZIP 条目元数据（shell.exec 浏览用）
     struct ZipEntry {
         let name: String
         let method: Int

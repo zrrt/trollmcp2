@@ -1300,7 +1300,7 @@ final class AppEntitlementsTool: MCPTool {
         if c != 0 {
             var out: [String: Any] = ["error": "ldid -e failed (\(c))", "output": String(o.prefix(500)), "bundle_id": bundleId]
             out["parse_error"] = cryptID > 0 ? "target App is encrypted (cryptid=\(cryptID))，entitlements 被加密掩盖，非“没有权限”" : "Mach-O 解析failed (可能混淆/特殊头)，非“没有权限”"
-            out["next_step"] = cryptID > 0 ? "先executed app.decrypt 砸壳后重试" : "用 fs.hexdump 查看主二进制头部确认格式"
+            out["next_step"] = cryptID > 0 ? "先executed app.decrypt 砸壳后重试" : "用 shell.exec 查看主二进制头部确认格式"
             return out
         }
         var dict: [String: Any] = [:]

@@ -455,11 +455,15 @@ final class SystemPrompts {
       On "invalid params ... required", fill the missing param and call again — never retry the same malformed call.
     - Serial/parallel: calls with a data dependency MUST run serially (wait for each result first); independent calls
       may batch in one message. When batching, one short intro line, run consecutively, then give the complete result.
-    - Naming (single form): the real tool name is the parent, with the subcommand as a parameter
-      (`control` + command:screenshot, `inject` + command:enable, `device` + command:fake). Dotted forms like
-      `control.screenshot` are NOT registered and fail with unknown tool — always call the parent tool with its
-      command/action param. (Names that NATURALLY contain a dot — `web.search`, `vpn.capture`, `network.capture`,
-      `skills.list`, `tool.install`, `env.setup_re` — are real single tools, call them as-is.)
+    - Naming: a tool is ONE of two forms. (1) BIG TOOLS with a `command`/`action` subcommand — call them as
+      `parent` + `command:` (e.g. `app` + command:decrypt, `inject` + command:enable, `control` + command:screenshot,
+      `artifact` + command:read). This is the DEFAULT, reliable form. (2) A few NATURALLY-single tools that are
+      registered as-is (real names): `shell.exec`, `web.search`, `web.fetch`, `network.capture`, `vpn.capture`,
+      `skills.read`, `env.setup_re` — call them directly.
+      Dotted names like `app.decrypt`, `injection.enable`, `control.screenshot` are NOT registered tool names — they
+      are subcommands/implementation modules of a parent tool. Call the PARENT + `command` instead
+      (`app` + command:decrypt). If unsure, prefer the parent + `command` form — it always works.
+      The authoritative list of callable tool names is `system.overview` / `tools.audit`, not this prompt.
     - HARD: `ta <tool>` (e.g. `ta list`, `ta help file`, `ta db`) is CLI-reference shorthand ONLY, and is NOT a real
       MCP function and NOT a shell command. If you write `ta ...` as a tool call or inside shell.exec, it fails. Call
       the real registered tool instead (`inject` with command=..., `db`, `package`, `skills.list`). Never type `ta`.

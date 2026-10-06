@@ -839,7 +839,7 @@ struct ChatView: View {
             // 导致"找不到 .deb"（文件在用户本地文件App里，AI 视野外）
             let saved = Self.saveAttachmentToWorkspace(att)
             if let sp = saved {
-                // v3.1.70：去掉"可用 fs.read / fs.hexdump 读取分析"工具残留（用户反馈），
+                // v3.1.70：去掉"可用 artifact / shell.exec 读取分析"工具残留（用户反馈），
                 // 只保留路径——AI 的 fs 工具集本身就能读，无需在消息里提示
                 attDesc.append("[📎文件：\(att.displayName)] 已保存到 \(sp)")
             } else {

@@ -106,7 +106,7 @@ final class InjectionVerifyTool: MCPTool {
 final class AppDiagnoseTool: MCPTool {
     let definition = ToolDefinition(
         name: "app.diagnose",
-        summary: "Diagnose why an app won't open/crash. Use for: app won't launch, keeps crashing, find out why. Don't use for: read crash logs (use fs.crash), inject dylib (use injection.enable). Example: user says '小红书 will not open, why' → diagnose app failure.",
+        summary: "Diagnose why an app won't open/crash. Use for: app won't launch, keeps crashing, find out why. Don't use for: read crash logs (use shell.exec), inject dylib (use injection.enable). Example: user says '小红书 will not open, why' → diagnose app failure.",
         parameters: ["bundle_id": "Target App bundle ID (required)"],
     verified: true, category: "app_control")
 

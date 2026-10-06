@@ -1842,7 +1842,7 @@ final class InjectionManager {
             "hasBackup": !modified.isEmpty,
             "hint": injected
                 ? "已注入；用 inject inspect bundle_id:\(bundleId) 看加载明细"
-                : "未注入；需要时用 inject command:enable bundle_id:\(bundleId)"
+                : "未注入；需要时用 injection.enable bundle_id:\(bundleId)"
         ]
     }
 
@@ -1897,7 +1897,7 @@ final class InjectionManager {
             "has_sileo": hasSileo,
             "jb_paths_found": checks.filter { $0.value }.map { $0.key },
             "injection_mode": isJailbroken ? "ellekit_runtime" : (ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 17 ? "static_only" : "ct_bypass"),
-            "note": isJailbroken ? "Jailbreak detected. Use jailbreak.inject for runtime injection." : "No jailbreak detected. Use injection.enable for static/ct_bypass injection."
+            "note": isJailbroken ? "Jailbreak detected. Use injection.enable for runtime injection." : "No jailbreak detected. Use injection.enable for static/ct_bypass injection."
         ]
     }
 

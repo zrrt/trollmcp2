@@ -16,12 +16,26 @@ final class SystemOverviewTool: MCPTool {
         verified: true, category: "system")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
-        let totalTools = ToolRegistry.shared.allToolNames().count
+        // v4.4.x：tool_categories 改为从注册表动态生成——只列真实注册的大工具，杜绝幽灵工具名漂移。
+        let reg = ToolRegistry.shared
+        let names = reg.allToolNames().sorted()
+        var byCat: [String: [String]] = [:]
+        for n in names {
+            let cat = reg.tool(named: n)?.definition.category ?? "misc"
+            byCat[cat, default: []].append(n)
+        }
+        var cats: [[String: Any]] = []
+        for (cat, tools) in byCat.sorted(by: { $0.key < $1.key }) {
+            cats.append(["category": cat, "tools": tools])
+        }
+        let ver = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
 
         return [
             "system": "TrollAgent",
-            "version": "3.0.90",
-            "important_note": "All \(totalTools) tools are loaded. Use the tool that matches the task; if unsure, call the matching 'big tool + subcommand' directly. Don't give up — the right tool is always available.",
+            "version": ver,
+            "total_tools": names.count,
+            "important_note": "The callable tools are the BIG TOOLS below — call them as `name` + `command`/`action` subcommand (e.g. `app` + command:decrypt, `inject` + command:enable). Dotted names like app.decrypt are NOT separate tool names. A few single tools are callable as-is: shell.exec, web.search, web.fetch, network.capture, vpn.capture, skills.read, env.setup_re.",
+            "tool_categories": cats,
             "ios_version_support": [
                 "trollstore_supported": [
                     "iOS 14.0 - 15.4.1 (TrollStore 1)",
@@ -35,116 +49,46 @@ final class SystemOverviewTool: MCPTool {
                     "iOS 16.6.2+ (Apple patched CoreTrust)",
                     "iOS 17.1+ (Apple patched kfd for TrollStore)"
                 ],
-                "note": "Two environments: (1) TrollStore (jailbreak-free), (2) Jailbreak (Relaxin/RootHide). Use jailbreak.status to detect which environment you're in."
+                "note": "Two environments: (1) TrollStore (jailbreak-free), (2) Jailbreak. Use device + command:info to detect which environment you're in."
             ],
             "injection_methods": [
-                "jailbreak_ellekit": "jailbreak.inject — runtime injection via ElleKit. Fastest, no binary modification. Only on jailbroken devices (Relaxin/RootHide/Dopamine).",
-                "trollstore_ct_bypass": "injection.enable — runtime injection via CoreTrust (ct_bypass). Only on iOS ≤17.0 TrollStore devices.",
-                "trollstore_static": "injection.static — static injection (insert_dylib + reinstall). Works on all TrollStore devices, but slower."
-            ],
-            "tool_categories": [
-                [
-                    "category": "File System (fs.*)",
-                    "typical_tools": ["fs.read", "fs.write", "fs.tree", "fs.find"],
-                    "use_for": "Read/write files, browse directories, search files"
-                ],
-                [
-                    "category": "Injection (injection.*)",
-                    "typical_tools": ["injection.list", "injection.enable", "injection.status", "injection.mem", "injection.static"],
-                    "use_for": "Inject dylib into apps (TrollStore environment), check injection status, search installed apps"
-                ],
-                [
-                    "category": "Jailbreak (jailbreak.*)",
-                    "typical_tools": ["jailbreak.status", "jailbreak.inject"],
-                    "use_for": "Dylib injection via ElleKit (jailbreak environment only). Use when: device is jailbroken (Relaxin/RootHide/Dopamine). Faster than static injection, no binary modification. Note: loads at app startup, not runtime attach."
-                ],
-                [
-                    "category": "UI Control (control.*)",
-                    "typical_tools": ["control.inject", "control.tap", "control.tap_text", "control.type_text", "control.swipe", "control.screenshot"],
-                    "use_for": "Control target app UI: tap, swipe, type text, screenshot"
-                ],
-                [
-                    "category": "App Control (app.*)",
-                    "typical_tools": ["app.launch", "app.restart", "app.duplicate", "app.encrypt_info"],
-                    "use_for": "Launch/restart apps, clone apps, check encryption status"
-                ],
-                [
-                    "category": "System (system.*)",
-                    "typical_tools": ["device.info", "device.battery", "system.overview"],
-                    "use_for": "Device info, battery status, system overview"
-                ],
-                [
-                    "category": "Browser (browser.*)",
-                    "typical_tools": ["browser.navigate", "browser.screenshot"],
-                    "use_for": "Web browsing, navigate to URLs"
-                ],
-                [
-                    "category": "Shell (shell.*)",
-                    "typical_tools": ["shell.exec"],
-                    "use_for": "Run shell commands (Linux/iSH environment)"
-                ],
-                [
-                    "category": "Memory (memory)",
-                    "typical_tools": ["memory"],
-                    "use_for": "H5GG-style memory modification: search, filter, write, freeze values"
-                ],
-                [
-                    "category": "Diagnostics (diagnostics.*)",
-                    "typical_tools": ["probe.inspect", "device.probe"],
-                    "use_for": "Inspect app internals, probe classes/methods"
-                ],
-                [
-                    "category": "Build & Self-Evolution (build.*, tool.load_dylib)",
-                    "typical_tools": ["tool.load_dylib", "project.generate_tweak", "build.runner.token"],
-                    "use_for": "Write custom tools in Swift, compile to dylib, load into TrollAgent on-the-fly (self-evolution). Also generate Tweak project templates for reverse engineering."
-                ]
+                "trollstore_runtime": "inject + command:enable — runtime injection via CoreTrust (ct_bypass), iOS ≤17.0 TrollStore.",
+                "trollstore_static": "inject + command:static — static injection (insert_dylib + reinstall), all TrollStore devices."
             ],
             "recommended_workflows": [
                 [
-                    "task": "Inject dylib into an app (choose injection method)",
+                    "task": "Inject dylib into an app (TrollStore)",
                     "steps": [
-                        "1. jailbreak.status() — check if device is jailbroken",
-                        "2. If jailbreak detected: jailbreak.inject(bundle_id, dylib_path) — ElleKit runtime injection (fast)",
-                        "3. If no jailbreak: injection.enable(bundle_id) — ct_bypass or static injection",
-                        "4. control.inject(bundle_id) — inject ControlAgent for UI control",
-                        "5. control.screenshot() — verify injection worked"
-                    ]
-                ],
-                [
-                    "task": "Inject dylib into an app (TrollStore only)",
-                    "steps": [
-                        "1. injection.list(\"keyword\") — find bundle_id",
-                        "2. injection.enable(bundle_id) — inject dylib (persistent)",
-                        "3. control.inject(bundle_id) — inject ControlAgent for UI control",
-                        "4. control.screenshot() — verify injection worked"
+                        "1. device + command:info — check environment",
+                        "2. inject + command:list — find bundle_id",
+                        "3. inject + command:enable bundle_id — inject dylib",
+                        "4. control + command:inject bundle_id — inject ControlAgent for UI control",
+                        "5. control + command:screenshot — verify injection worked"
                     ]
                 ],
                 [
                     "task": "Control an app's UI",
                     "steps": [
-                        "1. control.inject(bundle_id) — inject ControlAgent",
-                        "2. control.screenshot() — see current screen",
-                        "3. control.tap_text(\"button text\") — tap by text",
-                        "4. control.type_text(\"search\", \"query\") — type into field"
+                        "1. control + command:inject bundle_id — inject ControlAgent",
+                        "2. control + command:screenshot — see current screen",
+                        "3. control + command:tap_text — tap by text",
+                        "4. control + command:type_text — type into field"
                     ]
                 ],
                 [
                     "task": "Read app container files",
                     "steps": [
-                        "1. fs.tree(bundle_id) — browse container directory",
-                        "2. fs.read(path) — read specific file"
+                        "1. container + command:resolve bundle_id — get data container path",
+                        "2. shell.exec cat/find on that path (or artifact + command:read) — read a file"
                     ]
                 ]
             ],
             "tips": [
-                "If you don't know which tool to use, call the matching 'big tool + subcommand' (e.g. app list, inject status)",
-                "If you're stuck after 2 tries, ask the user for clarification",
-                "Don't repeat the same tool with the same params — it's a loop",
-                "Before injecting dylib, call jailbreak.status() to detect environment",
-                "Jailbreak environment (ElleKit): use jailbreak.inject (fast, no reinstall, loads at startup)",
-                "TrollStore + iOS ≤17.0: use injection.enable (ct_bypass runtime)",
-                "TrollStore + iOS 17.0.1+: use injection.static (static injection)",
-                "iOS 17+: ct_bypass is broken on TrollStore — use static or jailbreak.inject"
+                "Call BIG TOOLS as `name` + `command`/`action` subcommand (app + command:launch, inject + command:enable).",
+                "If you're stuck after 2 tries, ask the user for clarification.",
+                "Don't repeat the same tool with the same params — it's a loop.",
+                "Before injecting dylib, call device + command:info to detect environment.",
+                "TrollStore + iOS ≤17.0: inject + command:enable (ct_bypass runtime); iOS 17.0.1+: inject + command:static."
             ]
         ]
     }
@@ -156,7 +100,7 @@ final class SystemOverviewTool: MCPTool {
 final class VerifyFileTool: MCPTool {
     let definition = ToolDefinition(
         name: "verify.file",
-        summary: "Verify if file exists and has expected content. Use for: after fs.write, check if file was written correctly. Don't use for: read file content (use fs.read).",
+        summary: "Verify if file exists and has expected content. Use for: after artifact, check if file was written correctly. Don't use for: read file content (use artifact).",
         parameters: [
             "path": "File path to verify (required)",
             "expect_size": "Expected file size in bytes (optional)",
@@ -387,7 +331,7 @@ final class InjectionListTool: MCPTool {
 
 
 final class ContainerWriteTextTool: MCPTool {
-    let definition = ToolDefinition(name: "container.write_text", summary: "Write a text file into an app's data container (DANGEROUS!). Use for: modify app data files, write config into app sandbox. Don't use for: write workspace files (use fs.write), read app files (use fs.read). Warning: modifying app data can crash it! Example: user says 'modify 小红书 config file' → write to container.",
+    let definition = ToolDefinition(name: "container.write_text", summary: "Write a text file into an app's data container (DANGEROUS!). Use for: modify app data files, write config into app sandbox. Don't use for: write workspace files (use artifact), read app files (use artifact). Warning: modifying app data can crash it! Example: user says 'modify 小红书 config file' → write to container.",
         parameters: ["bundle_id": "Target App bundle ID", "path": "File path inside app container", "content": "Text content to write"])
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String,
@@ -410,7 +354,7 @@ final class ContainerWriteTextTool: MCPTool {
 // 此前 AI 为定位某 App 的数据目录要循环几百个目录跑 plutil (慢且易因环境问题崩），
 // 一条 resolve 直接给出全部路径 (D items修复，2026-09-23 真机实测确认缺失）
 final class ContainerResolveTool: MCPTool {
-    let definition = ToolDefinition(name: "container.resolve", summary: "Resolve an app's install path, data container and sandbox paths by bundle_id. Use for: find where an app lives on disk, get its data container path for reading/writing config. Don't use for: read/write files (use container write/delete or fs.read). Example: container resolve bundle_id:com.xingin.discover → install path + data container + executable.",
+    let definition = ToolDefinition(name: "container.resolve", summary: "Resolve an app's install path, data container and sandbox paths by bundle_id. Use for: find where an app lives on disk, get its data container path for reading/writing config. Don't use for: read/write files (use container write/delete or artifact). Example: container resolve bundle_id:com.xingin.discover → install path + data container + executable.",
         parameters: ["bundle_id": "App bundle ID to resolve"], returns: ["bundle_id": "Resolved bundle id", "app_name": "App display name", "install_path": "Bundle .app path", "data_container": "Data container path (nil if not accessible)", "executable": "Executable name", "version": "App version"], verified: true, category: "fs")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         guard let bid = params["bundle_id"] as? String else {
@@ -427,7 +371,7 @@ final class ContainerResolveTool: MCPTool {
             "data_container": AppCatalog.lookupContainer(bundleId: app.bundleId) ?? "",
             "executable": app.execName,
             "version": app.version,
-            "hint": AppCatalog.lookupContainer(bundleId: app.bundleId) == nil ? "data container inaccessible (system App or restricted)" : "data container accessible via fs.read / container.write"
+            "hint": AppCatalog.lookupContainer(bundleId: app.bundleId) == nil ? "data container inaccessible (system App or restricted)" : "data container accessible via artifact / container.write"
         ]
     }
 }
@@ -735,7 +679,7 @@ final class ModelUpdateTool: MCPTool {
 }
 
 final class WorkspaceInfoTool: MCPTool {
-    let definition = ToolDefinition(name: "workspace.info", summary: "Show workspace info: path, free space, directory structure with descriptions. Use for: locate files, understand what each directory is for. Don't use for: read file contents (use fs.read).")
+    let definition = ToolDefinition(name: "workspace.info", summary: "Show workspace info: path, free space, directory structure with descriptions. Use for: locate files, understand what each directory is for. Don't use for: read file contents (use artifact).")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let fm = FileManager.default
         let items = (try? fm.contentsOfDirectory(atPath: Workspace.root.path)) ?? []
@@ -777,7 +721,7 @@ final class WorkspaceInfoTool: MCPTool {
             "entries": annotatedEntries,
             "entry_count": items.count,
             "size_bytes": attrs[.size] ?? 0,
-            "note": "each directory purpose is described in the description field. Use fs.read for files, fs.tree for directories."
+            "note": "each directory purpose is described in the description field. Use artifact for files, shell.exec for directories."
         ]
     }
 }
@@ -1032,5 +976,99 @@ final class AutomationExecTool: MCPTool {
         default:
             throw MCPError.invalidParams("Unknown command: \(command). Available: run/list/jobs/stop/status/history/set_enabled/cron_fire")
         }
+    }
+}
+
+// MARK: - tools.audit — 工具注册表一致性审计（防幽灵工具 / 文档漂移）
+
+/// 扫描所有已注册工具的 summary / prerequisites / returns / parameters 文本，
+/// 提取其中的点号 token，找出"被引用但未注册"的工具名（幽灵工具）。
+/// AI 在工具描述里读到不存在的工具名会卡壳——本工具把这类漂移一次性暴露出来。
+final class AuditTool: MCPTool {
+    let definition = ToolDefinition(
+        name: "tools.audit",
+        summary: "Audit tool registry consistency: detect references to unregistered tools (ghost tools) inside tool descriptions/prerequisites, and report totals + verified/requiresJailbreak/requiresTrollStore distribution. Use for: after adding/editing tools, when AI seems confused about available tools, or before long sessions. Don't use for: listing tools (use system.overview), checking a single tool's usage. Example: user says 'check if the tools are consistent' → audit.",
+        parameters: [:],
+        returns: ["total_tools": "registered tool count", "verified_count": "tools marked verified:true", "ghost_ref_count": "total references to unregistered tools", "ghost_refs": "map of tool → unregistered tool names it references (empty = docs consistent with registry)"],
+        verified: true, category: "system")
+
+    func invoke(_ params: [String: Any]) throws -> [String: Any] {
+        let reg = ToolRegistry.shared
+        let all = Set(reg.allToolNames())
+
+        // 非工具名黑名单：英文词 / 格式 token / 域名片段，避免把 "next_step"、"bundle_id" 误报成工具
+        let blacklist: Set<String> = [
+            "bundle_id", "github", "http", "https", "www", "example", "json", "plist", "com_xingin",
+            "next_step", "next", "error", "reason", "path", "paths", "file", "files", "data", "result",
+            "results", "value", "values", "text", "list", "note", "notes", "screen", "button", "method",
+            "mode", "state", "process", "model", "output", "input", "user", "message", "body", "source",
+            "target", "session", "query", "queries", "type", "types", "url", "urls", "status", "key",
+            "keys", "task", "config", "context", "ios", "xcode", "binary", "string", "time", "date",
+            "title", "name", "index", "payload", "content", "unit", "test", "video", "audio", "image",
+            "cell", "detail", "details", "field", "fields", "settings", "option", "options", "doc", "docs"
+        ]
+
+        var ghostRefs: [String: Set<String>] = [:]
+        var refCount = 0
+
+        for name in all.sorted() {
+            guard let tool = reg.tool(named: name) else { continue }
+            var texts: [String] = [tool.definition.summary, tool.definition.uiSummary]
+            texts += tool.definition.prerequisites
+            texts += Array(tool.definition.parameters.values)
+            texts += Array(tool.definition.returns.values)
+
+            var refs = Set<String>()
+            let pattern = "[a-zA-Z_]{2,}(\\.[a-zA-Z_]{2,})+"
+            let regex = try? NSRegularExpression(pattern: pattern)
+            for t in texts where !t.isEmpty {
+                let ns = t as NSString
+                guard let regex = regex else { continue }
+                let matches = regex.matches(in: t, options: [], range: NSRange(location: 0, length: ns.length))
+                for m in matches {
+                    let tok = ns.substring(with: m.range).lowercased()
+                    if tok.contains("://") || tok.contains("@") || tok.contains("/") { continue }
+                    let clean = tok.replacingOccurrences(of: "_", with: ".")
+                    if registered(clean, in: all) { continue }
+                    let parts = clean.split(separator: ".").map(String.init)
+                    if parts.isEmpty { continue }
+                    if blacklist.contains(parts[0]) || blacklist.contains(parts.last ?? "") { continue }
+                    if clean.count < 4 { continue }
+                    if clean.contains(where: { !($0.isLetter || $0 == ".") }) { continue }
+                    refs.insert(clean)
+                }
+            }
+            if !refs.isEmpty {
+                refCount += refs.count
+                ghostRefs[name] = refs
+            }
+        }
+
+        let verifiedCount = all.filter { reg.tool(named: $0)?.definition.verified ?? false }.count
+        let jbCount = all.filter { reg.tool(named: $0)?.definition.requiresJailbreak ?? false }.count
+        let tsCount = all.filter { reg.tool(named: $0)?.definition.requiresTrollStore ?? false }.count
+
+        var sortedGhost: [String: [String]] = [:]
+        for (k, v) in ghostRefs.sorted(by: { $0.key < $1.key }) { sortedGhost[k] = v.sorted() }
+
+        return [
+            "total_tools": all.count,
+            "verified_count": verifiedCount,
+            "requires_jailbreak_count": jbCount,
+            "requires_trollstore_count": tsCount,
+            "ghost_ref_count": refCount,
+            "ghost_refs": sortedGhost,
+            "note": "ghost_refs maps a tool to unregistered tool names it references. Fix by renaming the reference to a registered tool or registering it. Empty ghost_refs = docs consistent with registry."
+        ]
+    }
+
+    /// 判断 token 是否命中注册表（含父工具 + 点号工具；也接受去掉尾段后的前缀）
+    private func registered(_ token: String, in all: Set<String>) -> Bool {
+        if all.contains(token) { return true }
+        if let dot = token.firstIndex(of: ".") {
+            let prefix = String(token[..<dot])
+            if all.contains(prefix) { return true }
+        }
+        return false
     }
 }

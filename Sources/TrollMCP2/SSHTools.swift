@@ -117,7 +117,7 @@ final class SSHTool: MCPTool {
 final class SCPTool: MCPTool {
     let definition = ToolDefinition(
         name: "ssh.scp",
-        summary: "Transfer files between iPhone and remote server via SCP. Use for: upload/download files to/from your Linux server. Don't use for: run commands on server (use ssh.exec), download from internet (use fs.download). Prerequisite: configure SSH in settings. Example: user says 'upload this file to the server' → scp upload.",
+        summary: "Transfer files between iPhone and remote server via SCP. Use for: upload/download files to/from your Linux server. Don't use for: run commands on server (use ssh.exec), download from internet (use shell.exec). Prerequisite: configure SSH in settings. Example: user says 'upload this file to the server' → scp upload.",
         parameters: [
             "direction": "upload (local to remote) or download (remote to local)",
             "local_path": "Local file path on iPhone",

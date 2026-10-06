@@ -36,8 +36,8 @@ public final class RemoteAgent: ObservableObject {
     private static let safeTools: Set<String> = [
         "ping", "device.info", "device.probe", "workspace.info",
         "artifact.list", "artifact.read_text", "artifact.find",
-        "fs.tree", "fs.read", "fs.hexdump", "fs.plist", "fs.hash",
-        "fs.find", "fs.sql", "fs.grep", "fs.image_info", "fs.crash",
+        "shell.exec", "artifact", "shell.exec", "shell.exec", "shell.exec",
+        "shell.exec", "shell.exec", "shell.exec", "shell.exec", "shell.exec",
         "injection.status", "injection.list", "injection.inspect",
         "build.environment", "model.config", "gateway.status",
         "apps.list", "apps.cache_inspect", "app.info", "app.status",

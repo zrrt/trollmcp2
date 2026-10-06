@@ -11,7 +11,7 @@
 final class IPAInspectTool: MCPTool {
     let definition = ToolDefinition(
         name: "ipa.inspect",
-        summary: "Inspect an IPA or installed app: architecture, signature, entitlements, dylib dependencies, Info.plist. Use for: analyze an IPA file, check app details before injection. Don't use for: inject dylib (use inject command:enable), list installed apps (use inject command:list). Example: user says 'what architecture is this IPA' → inspect IPA.",
+        summary: "Inspect an IPA or installed app: architecture, signature, entitlements, dylib dependencies, Info.plist. Use for: analyze an IPA file, check app details before injection. Don't use for: inject dylib (use injection.enable), list installed apps (use injection.list). Example: user says 'what architecture is this IPA' → inspect IPA.",
         parameters: [
             "path": "IPA file path or App Bundle path (required)",
             "detail": "basic (quick overview) or full (all dependencies + entitlements)"
@@ -143,7 +143,7 @@ final class IPAInspectTool: MCPTool {
 final class DylibInspectTool: MCPTool {
     let definition = ToolDefinition(
         name: "dylib.inspect",
-        summary: "Inspect a dylib file (architecture, signature, dependencies). Use for: check if a dylib is compatible before injecting. Don't use for: inject dylib (use inject command:enable), inspect IPA (use ipa.inspect). Example: user says 'does this dylib work' → inspect dylib.",
+        summary: "Inspect a dylib file (architecture, signature, dependencies). Use for: check if a dylib is compatible before injecting. Don't use for: inject dylib (use injection.enable), inspect IPA (use ipa.inspect). Example: user says 'does this dylib work' → inspect dylib.",
         parameters: [
             "path": "Dylib file path (required)"
         ], verified: true, category: "analysis")
@@ -240,7 +240,7 @@ private func machOArch(_ path: String) -> String {
 final class InjectionDiagnoseTool: MCPTool {
     let definition = ToolDefinition(
         name: "injection.diagnose",
-        summary: "Diagnose why injection failed (troubleshoot). Use for: injection didn't work, find out why (app crashed, dylib not loaded, etc.). Don't use for: actually inject (use inject command:enable), check status (use inject command:status). Example: user says '小红书 injection failed, why' → diagnose injection failure.",
+        summary: "Diagnose why injection failed (troubleshoot). Use for: injection didn't work, find out why (app crashed, dylib not loaded, etc.). Don't use for: actually inject (use injection.enable), check status (use injection.status). Example: user says '小红书 injection failed, why' → diagnose injection failure.",
         parameters: [
             "bundle_id": "Target App bundle ID (required)",
             "dylib_path": "Dylib path to check (optional, check existing injected)"
@@ -260,7 +260,7 @@ final class InjectionDiagnoseTool: MCPTool {
         // 1. 检查目标 App 是否存在
         let apps = AppCatalog.list()
         guard let target = apps.first(where: { $0.bundleId == bundleId }) else {
-            return ["error": "app not found: \(bundleId)", "hint": "use inject command:list to find the target App"]
+            return ["error": "app not found: \(bundleId)", "hint": "use injection.list to find the target App"]
         }
         diagnosis["app_name"] = target.name
         diagnosis["bundle_path"] = target.path
@@ -502,7 +502,7 @@ final class NetworkCaptureTool: MCPTool {
             "bundle_id": "Target App bundle_id — REQUIRED for start. e.g. com.xingin.discover",
             "limit": "Max requests to show (default 50)"
         ],
-        verified: true, category: "diagnose", prerequisites: ["inject enable NetworkTweak into target App before start", "start first and let the App generate network traffic before requests/analyze", "0 hits can be normal on custom-stack apps (小红书/抖音 etc.: QUIC/protobuf/private networking beyond NSURLSession) OR a real miss (app not restarted / no traffic) — report the reason, then decide retry vs TLS hook from actual evidence, don't give up on one 0-hit result", "TLS-layer capture: inject enable TLSHook — decrypts SSL_read/SSL_write plaintext to Workspace/network_capture/tls/*.log (hex+TEXT); works even where NSURLSession hook fails; read with fs.read/artifact read, analyze via shell grep"])
+        verified: true, category: "diagnose", prerequisites: ["inject enable NetworkTweak into target App before start", "start first and let the App generate network traffic before requests/analyze", "0 hits can be normal on custom-stack apps (小红书/抖音 etc.: QUIC/protobuf/private networking beyond NSURLSession) OR a real miss (app not restarted / no traffic) — report the reason, then decide retry vs TLS hook from actual evidence, don't give up on one 0-hit result", "TLS-layer capture: inject enable TLSHook — decrypts SSL_read/SSL_write plaintext to Workspace/network_capture/tls/*.log (hex+TEXT); works even where NSURLSession hook fails; read with artifact read, analyze via shell grep"])
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
         let action = (params["action"] as? String) ?? "status"
@@ -535,7 +535,7 @@ final class NetworkCaptureTool: MCPTool {
             guard let tweakPath = tweakPath, FileManager.default.fileExists(atPath: tweakPath) else {
                 return [
                     "error": "NetworkTweak.dylib not bundled",
-                    "hint": "will be added in a later version; for now inject another capture dylib with inject command:enable"
+                    "hint": "will be added in a later version; for now inject another capture dylib with injection.enable"
                 ]
             }
             // v2.9.116：注入前查加密 + 注入后自检
@@ -551,7 +551,7 @@ final class NetworkCaptureTool: MCPTool {
             let injected = (result["injected"] as? Bool) ?? false
             if !injected {
                 return ["action": "start", "bundle_id": bundleId, "injection_result": false,
-                        "error": "NetworkTweak injection not effective (auto-rollback: see inject command:disable)",
+                        "error": "NetworkTweak injection not effective (auto-rollback: see injection.disable)",
                         "next_step": "check app.encrypt_info (decrypt if encrypted) -> app.status to confirm process alive -> retry"]
             }
             // v3.1.71：注入OK——写抓包会话标记 (requests 查询靠它区分"未开始"vs"开了没流量"）
@@ -569,7 +569,7 @@ final class NetworkCaptureTool: MCPTool {
             try? FileManager.default.removeItem(atPath: activeMarker)
             return [
                 "action": "stop",
-                "hint": "stop capture: remove NetworkTweak.dylib with inject command:disable, or kill target App process"
+                "hint": "stop capture: remove NetworkTweak.dylib with injection.disable, or kill target App process"
             ]
 
         case "requests":
