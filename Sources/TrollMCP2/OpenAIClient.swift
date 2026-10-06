@@ -90,6 +90,14 @@ final class OpenAIClient {
             NetworkLog.shared.log("\(c.name): 协议自动纠正 \(c.apiProtocol)→\(corrected) (模型=\(c.model)), 兼容级别已重置")
             c.apiProtocol = corrected
         }
+        // v4.4.17：OpenAI 格式端点自动补 /v1 (用户已填 v1/含版本路径则不补)
+        if c.apiProtocol == "OpenAI Chat Completions" || c.apiProtocol == "OpenAI Responses" {
+            let nb = ModelConfig.normalizeBaseURL(c.baseURL)
+            if nb != c.baseURL {
+                NetworkLog.shared.log("\(c.name): Base URL 自动补 /v1: \(c.baseURL)→\(nb)")
+                c.baseURL = nb
+            }
+        }
         self.config = c
     }
 

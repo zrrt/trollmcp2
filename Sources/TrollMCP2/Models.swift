@@ -105,10 +105,31 @@ extension ModelConfig {
 
     static let providerPresets: [(name: String, provider: String, protocol: String, baseURL: String, model: String, auth: String)] = [
         ("OpenAI", "openai", "OpenAI Chat Completions", "https://api.openai.com/v1", "gpt-4o-mini", "Bearer"),
-        ("DeepSeek", "deepseek", "OpenAI Chat Completions", "https://api.deepseek.com/v1", "deepseek-chat", "Bearer"),
+        ("DeepSeek", "deepseek", "OpenAI Chat Completions", "https://api.deepseek.com", "deepseek-chat", "Bearer"),
         ("Anthropic", "anthropic", "Anthropic Messages", "https://api.anthropic.com/v1", "claude-3-5-sonnet-20240620", "API Key"),
-        ("Botcf", "custom", "OpenAI Responses", "https://botcf.com/v1", "gpt-5.6-terra", "Bearer")
+        ("Botcf", "custom", "OpenAI Responses", "https://botcf.com/v1", "gpt-5.6-terra", "Bearer"),
+        // v4.4.17：扩充主流 OpenAI 兼容预设 (GLM/Kimi/Qwen/MiniMax/阶跃/豆包)。模型名可在模型管理页改。
+        ("智谱GLM", "zhipu", "OpenAI Chat Completions", "https://open.bigmodel.cn/api/paas/v4", "glm-4.5", "Bearer"),
+        ("Kimi(Moonshot)", "moonshot", "OpenAI Chat Completions", "https://api.moonshot.cn/v1", "kimi-k3", "Bearer"),
+        ("通义千问(Qwen)", "qwen", "OpenAI Chat Completions", "https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen3.8-max", "Bearer"),
+        ("MiniMax", "minimax", "OpenAI Chat Completions", "https://api.minimax.chat/v1", "MiniMax-Text-01", "Bearer"),
+        ("阶跃星辰(Step)", "step", "OpenAI Chat Completions", "https://api.stepfun.com/v1", "step-2-mini", "Bearer"),
+        ("豆包(火山)", "doubao", "OpenAI Chat Completions", "https://ark.cn-beijing.volces.com/api/v3", "doubao-pro-32k", "Bearer")
     ]
+
+    /// v4.4.17：Base URL 规范化——OpenAI 格式端点 (Chat/Responses) 自动补 /v1，
+    /// 用户已填 v1/含版本路径(如 /api/paas/v4、/compatible-mode/v1) 则不重复补。
+    /// Anthropic(/anthropic) 与自定义端点不自动补。
+    static func normalizeBaseURL(_ base: String) -> String {
+        let trimmed = base.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard let url = URL(string: trimmed) else { return base }
+        let path = url.path
+        // 纯主机级 (path 空 或 "/") → 补 /v1；已含路径段则尊重用户
+        if path.isEmpty || path == "/" {
+            return trimmed + "/v1"
+        }
+        return base
+    }
 
     /// 推理系列模型 (GPT-5.x / o1 / o3 / o4）不接受 temperature 参数，
     /// 中转站会返回 "Invalid request parameter"。
