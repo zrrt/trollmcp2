@@ -1082,22 +1082,22 @@ struct ChatChip: View {
             HStack(spacing: 4) {
                 if !icon.isEmpty {
                     Image(systemName: icon)
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
                 }
                 Text(label)
-                    .font(.caption)
+                    .font(.system(size: 16, weight: .semibold))
                     .lineLimit(1)
                     .fixedSize()
             }
-            .frame(height: 32)
-            .padding(.horizontal, 8)
+            .frame(height: 42)
+            .padding(.horizontal, 10)
             .background(accent ? Color.blue.opacity(0.14) : Color(.systemGray5))
             .foregroundColor(accent ? Color.blue : Color.secondary)
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 16)
                     .stroke(accent ? Color.blue.opacity(0.35) : Color.clear, lineWidth: 1)
             )
-            .cornerRadius(12)
+            .cornerRadius(16)
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -1113,17 +1113,17 @@ struct QuickTabButton: View {
         Button(action: action) {
             HStack(spacing: 4) {
                 Image(systemName: icon)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                 Text(label)
-                    .font(.caption)
+                    .font(.system(size: 16, weight: .semibold))
                     .lineLimit(1)
             }
-            .frame(height: 32)
+            .frame(height: 42)
             // v3.4.4：与 ChatChip 统一内边距/圆角，保证滑动模块比例一致
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 10)
             .background(Color(.secondarySystemBackground))
             .foregroundColor(.secondary)
-            .cornerRadius(12)
+            .cornerRadius(16)
         }
         .buttonStyle(PlainButtonStyle())
     }
