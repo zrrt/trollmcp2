@@ -1356,6 +1356,25 @@ struct MessageBubble: View {
             .padding(.bottom, 10)
     }
 
+    // v4.4.11：AI 正文行内代码(反引号)→橙色(与"已深度思考"同色)。手动正则解析，
+    // 容错流式打字机未闭合反引号(不配对则视为普通文本)。仅 assistant 生效, user 保持纯文本。
+    private func coloredBody(_ text: String) -> AttributedString {
+        var out = AttributedString()
+        let pattern = "`([^`]+)`"
+        var pos = text.startIndex
+        while let range = text.range(of: pattern, options: .regularExpression, range: pos..<text.endIndex) {
+            if pos < range.lowerBound { out += AttributedString(text[pos..<range.lowerBound]) }
+            let inner = text[text.index(after: range.lowerBound)..<text.index(before: range.upperBound)]
+            var c = AttributedString(inner)
+            c.foregroundColor = .orange
+            c.font = .system(.body, design: .monospaced)
+            out += c
+            pos = range.upperBound
+        }
+        if pos < text.endIndex { out += AttributedString(text[pos..<text.endIndex]) }
+        return out
+    }
+
     private var textBubble: some View {
         VStack(alignment: isUser ? .trailing : .leading, spacing: 2) {
             // v2.9.10：消息内图片缩略图（用户选择相册图片后，气泡里直接显示图片）
@@ -1378,7 +1397,8 @@ struct MessageBubble: View {
                 // 此前只有 isStreaming 才走前缀，forceType(内容在出现前已定好、isStreaming=false)走了全文分支，
                 // 导致"打字机一下有一下没有"(用户实测反馈)。修复后非流式完成的消息也逐字打出来。
                 let shown = (isStreaming || forceType) ? String(message.content.prefix(revealedCount)) : message.content
-                Text(shown)
+                // v4.4.11：assistant 行内代码橙色高亮, user 纯文本
+                Text(isUser ? AttributedString(shown) : coloredBody(shown))
                     .font(.body)
                     .textSelection(.enabled)
                     .padding(.horizontal, 14)
