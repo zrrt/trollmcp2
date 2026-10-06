@@ -607,23 +607,23 @@ struct ChatView: View {
                 // v3.4.7：推理用"大脑"图标、思考用"灯泡"图标（用户指定，勿对调）
                 ChatChip(label: "推理·\(reasoningLabel())", action: {
                     reasoning = (reasoning + 1) % 5
-                }, accent: true, icon: "brain").frame(height: 40)
+                }, accent: true, icon: "brain").frame(height: 36)
                 ChatChip(label: "思考·\(thinkEnabled ? "开" : "关")", action: {
                     thinkEnabled.toggle()
-                }, accent: thinkEnabled, icon: "lightbulb").frame(height: 40)
+                }, accent: thinkEnabled, icon: "lightbulb").frame(height: 36)
                 ChatChip(label: "搜索·\(smartSearch ? "开" : "关")", action: {
                     smartSearch.toggle()
-                }, accent: smartSearch, icon: "magnifyingglass").frame(height: 40)
+                }, accent: smartSearch, icon: "magnifyingglass").frame(height: 36)
                 QuickTabButton(icon: "bolt", label: "技能") {
                     AppUIState.shared.quickSkillsPresented = true
-                }.frame(height: 40)
+                }.frame(height: 36)
                 QuickTabButton(icon: "doc.text", label: "指令") {
                     AppUIState.shared.settingsJumpToModels = false
                     AppUIState.shared.settingsPresented = true
-                }.frame(height: 40)
+                }.frame(height: 36)
                 QuickTabButton(icon: "folder", label: "工作区") {
                     AppUIState.shared.quickFilesPresented = true
-                }.frame(height: 40)
+                }.frame(height: 36)
             }
         }
     }
@@ -1090,7 +1090,7 @@ struct ChatChip: View {
                     .lineLimit(1)
                     .fixedSize()
             }
-            .frame(height: 40)
+            .frame(height: 36)
             .padding(.horizontal, 10)
             .background(accent ? Color.blue.opacity(0.14) : Color(.systemGray5))
             .foregroundColor(accent ? Color.blue : Color.secondary)
@@ -1119,7 +1119,7 @@ struct QuickTabButton: View {
                     .font(.system(size: 15, weight: .semibold))
                     .lineLimit(1)
             }
-            .frame(height: 40)
+            .frame(height: 36)
             // v3.4.4：与 ChatChip 统一内边距/圆角，保证滑动模块比例一致
             .padding(.horizontal, 10)
             .background(Color(.secondarySystemBackground))
