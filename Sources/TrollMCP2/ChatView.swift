@@ -1358,12 +1358,13 @@ struct MessageBubble: View {
 
     // v4.4.11：AI 正文行内代码(反引号)→橙色(与"已深度思考"同色)。手动正则解析，
     // 容错流式打字机未闭合反引号(不配对则视为普通文本)。仅 assistant 生效, user 保持纯文本。
+    // v4.4.12：正文 markdown 加粗(**xx**)→粗体(semibold)。代码段优先(橙色)，代码段外再匹配粗体。
     private func coloredBody(_ text: String) -> AttributedString {
         var out = AttributedString()
         let pattern = "`([^`]+)`"
         var pos = text.startIndex
         while let range = text.range(of: pattern, options: .regularExpression, range: pos..<text.endIndex) {
-            if pos < range.lowerBound { out += AttributedString(text[pos..<range.lowerBound]) }
+            if pos < range.lowerBound { out += styledBold(text[pos..<range.lowerBound]) }
             let inner = text[text.index(after: range.lowerBound)..<text.index(before: range.upperBound)]
             var c = AttributedString(inner)
             c.foregroundColor = .orange
@@ -1371,7 +1372,24 @@ struct MessageBubble: View {
             out += c
             pos = range.upperBound
         }
-        if pos < text.endIndex { out += AttributedString(text[pos..<text.endIndex]) }
+        if pos < text.endIndex { out += styledBold(text[pos..<text.endIndex]) }
+        return out
+    }
+
+    // v4.4.12：代码段外的 markdown 加粗(**xx**)→粗体；未闭合的 ** 容错为普通文本
+    private func styledBold(_ s: Substring) -> AttributedString {
+        var out = AttributedString()
+        let boldPat = "\\*\\*([^*]+)\\*\\*"
+        var pos = s.startIndex
+        while let r = s.range(of: boldPat, options: .regularExpression, range: pos..<s.endIndex) {
+            if pos < r.lowerBound { out += AttributedString(s[pos..<r.lowerBound]) }
+            let inner = s[s.index(after: r.lowerBound)..<s.index(before: r.upperBound)]
+            var b = AttributedString(inner)
+            b.font = .system(.body, weight: .semibold)
+            out += b
+            pos = r.upperBound
+        }
+        if pos < s.endIndex { out += AttributedString(s[pos..<s.endIndex]) }
         return out
     }
 
