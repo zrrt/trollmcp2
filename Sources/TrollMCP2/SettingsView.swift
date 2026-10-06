@@ -179,6 +179,18 @@ struct SettingsView: View {
             isOn: { GirlCompanion.shared.enabled },
             onToggle: { GirlCompanion.shared.enabled = $0 }
         ))
+        // v4.5.1：桌面悬浮 HUD（TrollSpeed 独立二进制，root persona 拉起，手机桌面显示角色）
+        controlItems.append(SettingsItem(
+            title: "桌面悬浮",
+            subtitle: HUDManager.shared.isRunning ? "运行中 · 手机桌面显示" : "未运行 · 手机桌面隐藏",
+            icon: "rectangle.on.rectangle",
+            color: .purple,
+            isOn: { HUDManager.shared.isRunning },
+            onToggle: { on in
+                if on { _ = HUDManager.shared.start() }
+                else { _ = HUDManager.shared.stop() }
+            }
+        ))
         // v4.5.1：可爱助手角色切换（进入角色选择页，卡片式点选）
         controlItems.append(SettingsItem(
             title: "可爱助手角色",
