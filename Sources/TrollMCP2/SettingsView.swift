@@ -40,8 +40,6 @@ struct SettingsView: View {
     // v4.3.30：更新镜像源编辑器
     @State private var showMirrorEditor = false
     @State private var mirrorsText = ""
-    // v4.5.0：可爱助手角色切换弹窗
-    @State private var characterPickerShown = false
 
     var body: some View {
         // v2.9.247：GeometryReader 拿真实全屏尺寸——fullScreenCover+NavigationStack 组合下 List 高度被解析为内容高度(内容不满一屏时列表只占上半屏、下半空白),外层 frame 也无效;改用几何尺寸显式强制 List 与 NavigationStack 铺满全屏,所有机型一致
@@ -181,13 +179,13 @@ struct SettingsView: View {
             isOn: { GirlCompanion.shared.enabled },
             onToggle: { GirlCompanion.shared.enabled = $0 }
         ))
-        // v4.5.0：可爱助手角色切换（小萝莉 / 御姐兔女郎）
+        // v4.5.1：可爱助手角色切换（进入角色选择页，卡片式点选）
         controlItems.append(SettingsItem(
             title: "可爱助手角色",
             subtitle: "当前：\(GirlCompanion.shared.selectedCharacter.rawValue)",
             icon: "person.crop.circle.badge.plus",
             color: .pink,
-            action: { characterPickerShown = true }
+            destination: AnyView(GirlCharacterPickerView())
         ))
         // v2.9.72：开发者模式开关（固定显示，控制下方"开发者"分组）
         controlItems.append(SettingsItem(
@@ -375,15 +373,6 @@ struct SettingsView: View {
                     }
                 }
             }
-        }
-        // v4.5.0：可爱助手角色切换弹窗
-        .confirmationDialog("选择可爱助手角色", isPresented: $characterPickerShown, titleVisibility: .visible) {
-            ForEach(GirlCharacter.allCases) { c in
-                Button(c.rawValue) {
-                    GirlCompanion.shared.selectedCharacter = c
-                }
-            }
-            Button("取消", role: .cancel) {}
         }
     }
 
