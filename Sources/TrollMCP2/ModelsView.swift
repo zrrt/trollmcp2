@@ -369,7 +369,7 @@ struct RecommendCardArea: View {
                 icon: "sparkles",
                 title: L10n.t("relay_card_title"),
                 message: L10n.t("relay_card_body"),
-                link: "https://china.botcf.com/register?aff=bJMk",
+                link: "https://botcf.com/register?aff=bJMk",
                 colors: [Color(red: 0.16, green: 0.44, blue: 0.92),
                          Color(red: 0.0, green: 0.74, blue: 0.95)])
         }

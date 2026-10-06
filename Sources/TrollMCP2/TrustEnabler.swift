@@ -1,5 +1,8 @@
 // TrustEnabler：起 VPN 前的"信任注入"决策与调度层（v3.5.26）
 //
+// ⚠️ 已停用（v4.4.11）：trust inject（kfd_helper 路径）曾导致黑屏重启，触发入口已全部移除
+//（VpnCaptureView 界面按钮、VpnTools command:inject 均已删）。本类保留作参考，禁止重新调用。
+//
 // 统一架构：TrollAgent 一套代码跨 iOS 16.x / 17.x。
 // 唯一分叉点 = 如何让假签名的 VpnTunnel.appex 通过 NECP 的 CS_VALID 校验。
 //
