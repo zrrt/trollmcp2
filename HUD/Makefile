@@ -19,7 +19,9 @@ TrollAgentHUD_FILES = \
     sources/HUDMainApplicationDelegate.mm \
     sources/HUDHelper.mm \
     sources/TSEventFetcher.mm \
-    sources/HUDRootViewController.mm
+    sources/HUDRootViewController.mm \
+    sources/UITouch-KIFAdditions.m \
+    sources/IOHIDEvent+KIF.m
 
 TrollAgentHUD_CFLAGS += -fobjc-arc
 TrollAgentHUD_CFLAGS += -Iheaders
