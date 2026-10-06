@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 struct ChatView: View {
     @ObservedObject private var store = ConversationStore.shared
     @ObservedObject private var modelStore = ModelStore.shared
+    @ObservedObject private var tts = TTSService.shared
 
     @State private var inputText = ""
     @State private var inputHeight: CGFloat = 36
@@ -101,6 +102,12 @@ struct ChatView: View {
                         }
                     } else {
                         HStack(spacing: 14) {
+                            // v4.4.18：全局朗读开关——开着时 AI 流式回复自动朗读（右上角喇叭）
+                            Button(action: { withAnimation { tts.speakerEnabled.toggle() } }) {
+                                Image(systemName: tts.speakerEnabled ? "speaker.wave.2.fill" : "speaker.wave.2")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(tts.speakerEnabled ? .tmCyan : .secondary)
+                            }
                             Button(action: enterSelection) {
                                 Image(systemName: "checkmark.circle")
                                     .font(.system(size: 18, weight: .semibold))
@@ -1283,6 +1290,8 @@ struct MessageBubble: View {
     // v3.5.4：用户反馈太慢 → 提速到 ~133 字/秒 (0.015s/tick × 2 字符），快但仍看得出打字感
     @State private var revealedCount = 0
     @State private var typeTimer: Timer?
+    // v4.4.18：流式自动朗读——记录已朗读到的字符位置，content 增长时只把新增整句送 TTS
+    @State private var autoSpokenUpTo = 0
 
     // v3.5.4：自适应打字机（业界：平时 ~50 字/秒舒适，积压多自动提速追平网络，标点/换行稍停顿更自然）。
     // 不像固定 133 字/秒那样一快到底；也不像 25 字/秒那样拖沓。
@@ -1310,6 +1319,20 @@ struct MessageBubble: View {
     private func stopTypeTimer() {
         typeTimer?.invalidate()
         typeTimer = nil
+    }
+    // v4.4.18：流式自动朗读——把 autoSpokenUpTo 之后出现的完整句子逐个送 TTS（只在生成中触发）
+    private func autoSpeak(_ full: String) {
+        let chars = Array(full)
+        if autoSpokenUpTo >= chars.count { return }
+        var boundary = autoSpokenUpTo
+        while boundary < chars.count {
+            if "。！？!?\n…".contains(chars[boundary]) {
+                let sentence = String(chars[autoSpokenUpTo...boundary]).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !sentence.isEmpty { TTSService.shared.speak(sentence) }
+                autoSpokenUpTo = boundary + 1
+            }
+            boundary += 1
+        }
     }
     // v3.5.4：思考黄泡——思考进行中(isStreaming)自动展开让用户看到模型在动；
     // 思考结束自动收起(除非用户手动展开)。业界(掘金/Koder/DeepSeek Harness)一致做法。
@@ -1435,31 +1458,53 @@ struct MessageBubble: View {
                 // 导致"打字机一下有一下没有"(用户实测反馈)。修复后非流式完成的消息也逐字打出来。
                 let shown = (isStreaming || forceType) ? String(message.content.prefix(revealedCount)) : message.content
                 // v4.4.11：assistant 行内代码橙色高亮, user 纯文本
-                Text(isUser ? AttributedString(shown) : coloredBody(shown))
-                    .font(.body)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    // v3.3.4：AI 回复气泡从左拉伸到右（全宽）；用户气泡保持靠右自适应
-                    .frame(maxWidth: isUser ? nil : .infinity, alignment: .leading)
-                    // v2.9.93：用户气泡改巨魔蓝渐变（浅青→蓝，品牌化），助手保持系统色
-                    .background(
-                        Group {
-                                if isUser {
-                                    LinearGradient(colors: [.tmCyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
-                                } else if message.isError {
-                                    Color.red.opacity(0.15)
-                                } else {
-                                    Color(.secondarySystemBackground)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(isUser ? AttributedString(shown) : coloredBody(shown))
+                        .font(.body)
+                        .textSelection(.enabled)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        // v3.3.4：AI 回复气泡从左拉伸到右（全宽）；用户气泡保持靠右自适应
+                        .frame(maxWidth: isUser ? nil : .infinity, alignment: .leading)
+                        // v2.9.93：用户气泡改巨魔蓝渐变（浅青→蓝，品牌化），助手保持系统色
+                        .background(
+                            Group {
+                                    if isUser {
+                                        LinearGradient(colors: [.tmCyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+                                    } else if message.isError {
+                                        Color.red.opacity(0.15)
+                                    } else {
+                                        Color(.secondarySystemBackground)
+                                    }
                                 }
+                        )
+                        .foregroundColor(isUser ? .white : .primary)
+                        .cornerRadius(18)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18)
+                                .strokeBorder(isSelected ? (isUser ? Color.white : Color.blue) : Color.clear, lineWidth: 2)
+                        )
+                    // v4.4.18：朗读喇叭按钮（assistant 消息）——点一下朗读这条全文；长按仍保留选字复制
+                    if !isUser && !message.isTool {
+                        HStack(spacing: 4) {
+                            Button(action: { TTSService.shared.speakForced(message.content) }) {
+                                Image(systemName: "speaker.wave.2")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
                             }
-                    )
-                    .foregroundColor(isUser ? .white : .primary)
-                    .cornerRadius(18)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18)
-                            .strokeBorder(isSelected ? (isUser ? Color.white : Color.blue) : Color.clear, lineWidth: 2)
-                    )
+                            .buttonStyle(.plain)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.bottom, 3)
+                    }
+                }
+                .frame(maxWidth: isUser ? nil : .infinity, alignment: .leading)
+                // v4.4.18：流式自动朗读——assistant 生成中且全局开关开，content 增长时把新增整句送 TTS
+                .onChange(of: message.content) { newContent in
+                    guard message.role == "assistant", isStreaming, TTSService.shared.speakerEnabled else { return }
+                    autoSpeak(newContent)
+                }
             }
         }
     }
