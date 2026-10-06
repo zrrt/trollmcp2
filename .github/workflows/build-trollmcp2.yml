@@ -402,9 +402,10 @@ jobs:
           cp "Resources/tweaks/ControlAgent.dylib" "Resources/bin/ControlAgent.dylib"
           ls -lh Resources/tweaks/
           # v4.5.1：桌面悬浮 HUD（TrollSpeed 独立二进制，application.mk 编 TrollAgentHUD.app）。
+          # 用 make（非 make package）：产物 .theos/obj/debug/TrollAgentHUD.app 编译即生成，无需 deb control。
           # 软失败：本轮先验证 theos 能否编出 HUD；失败只告警不阻断（角色选择等主 App 功能照常出包）。
           echo ">>> building HUD"
-          if (cd HUD && make package); then
+          if (cd HUD && make); then
             HUDAPP="HUD/.theos/obj/debug/TrollAgentHUD.app"
             if [ -d "$HUDAPP" ]; then
               rm -rf Resources/hud
