@@ -1381,7 +1381,7 @@ struct MessageBubble: View {
             if pos < r.lowerBound { out += AttributedString(s[pos..<r.lowerBound]) }
             let inner = s[s.index(after: r.lowerBound)..<s.index(before: r.upperBound)]
             var b = AttributedString(inner)
-            b.font = .system(.body, weight: .semibold)
+            b.font = .system(size: 17, weight: .semibold) // v4.4.14: .system(_:weight:) 需 iOS16+, 改 system(size:weight:) 兼容更低部署目标
             out += b
             pos = r.upperBound
         }
