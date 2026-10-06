@@ -31,6 +31,9 @@ TrollAgentHUD_CFLAGS += -Wno-error -Wno-deprecated-declarations -Wno-unused-vari
 
 TrollAgentHUD_FRAMEWORKS += CoreGraphics CoreServices QuartzCore IOKit UIKit
 TrollAgentHUD_PRIVATE_FRAMEWORKS += BackBoardServices GraphicsServices SpringBoardServices
+# 私有 framework 符号由 TrollSpeed libraries/*.tbd 提供（Xcode SDK 无私有 tbd）：
+# -F 指向 HUD/libraries/<fw>.framework/<fw>，配合 PRIVATE_FRAMEWORKS 生成的 -framework 链上
+TrollAgentHUD_LDFLAGS += -Flibraries
 TrollAgentHUD_CODESIGN_FLAGS += -Ssupports/entitlements.plist
 
 include $(THEOS_MAKE_PATH)/application.mk
