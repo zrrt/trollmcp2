@@ -607,23 +607,23 @@ struct ChatView: View {
                 // v3.4.7：推理用"大脑"图标、思考用"灯泡"图标（用户指定，勿对调）
                 ChatChip(label: "推理·\(reasoningLabel())", action: {
                     reasoning = (reasoning + 1) % 5
-                }, accent: true, icon: "brain").frame(height: 32)
+                }, accent: true, icon: "brain").frame(height: 42)
                 ChatChip(label: "思考·\(thinkEnabled ? "开" : "关")", action: {
                     thinkEnabled.toggle()
-                }, accent: thinkEnabled, icon: "lightbulb").frame(height: 32)
+                }, accent: thinkEnabled, icon: "lightbulb").frame(height: 42)
                 ChatChip(label: "搜索·\(smartSearch ? "开" : "关")", action: {
                     smartSearch.toggle()
-                }, accent: smartSearch, icon: "magnifyingglass").frame(height: 32)
+                }, accent: smartSearch, icon: "magnifyingglass").frame(height: 42)
                 QuickTabButton(icon: "bolt", label: "技能") {
                     AppUIState.shared.quickSkillsPresented = true
-                }.frame(height: 32)
+                }.frame(height: 42)
                 QuickTabButton(icon: "doc.text", label: "指令") {
                     AppUIState.shared.settingsJumpToModels = false
                     AppUIState.shared.settingsPresented = true
-                }.frame(height: 32)
+                }.frame(height: 42)
                 QuickTabButton(icon: "folder", label: "工作区") {
                     AppUIState.shared.quickFilesPresented = true
-                }.frame(height: 32)
+                }.frame(height: 42)
             }
         }
     }
