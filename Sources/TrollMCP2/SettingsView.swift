@@ -90,9 +90,13 @@ struct SettingsView: View {
                 jumpToModels = true
             }
             // v4.4.16：底部"指令"胶囊 → 跳到系统指令页
+            // v4.4.21：延迟一帧触发——iOS16 navigationDestination(isPresented:) 在设置页首帧出现时目标未注册,
+            // 立即设 true 会被 SwiftUI 吞掉不跳(用户实测'点指令没真正跳到系统指令页'); 延迟到下一帧目标注册后再跳
             if AppUIState.shared.settingsJumpToSystemPrompts {
                 AppUIState.shared.settingsJumpToSystemPrompts = false
-                jumpToSystemPrompts = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    jumpToSystemPrompts = true
+                }
             }
         }
     }
