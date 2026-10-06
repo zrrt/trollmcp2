@@ -1320,13 +1320,16 @@ struct MessageBubble: View {
         typeTimer?.invalidate()
         typeTimer = nil
     }
-    // v4.4.18：流式自动朗读——把 autoSpokenUpTo 之后出现的完整句子逐个送 TTS（只在生成中触发）
+    // v4.4.20：自动朗读——用 autoSpokenUpTo 增量读"没读过"的部分；流式/非流式 onAppear+onChange 双触发共用，防重复
+    // 句子边界：句末标点切分；无标点长段攒够 60 字也强制读（防一直憋着不读）
     private func autoSpeak(_ full: String) {
         let chars = Array(full)
         if autoSpokenUpTo >= chars.count { return }
         var boundary = autoSpokenUpTo
         while boundary < chars.count {
-            if "。！？!?\n…".contains(chars[boundary]) {
+            let isPunct = "。！？!?\n…".contains(chars[boundary])
+            let overLimit = (boundary - autoSpokenUpTo) >= 60
+            if isPunct || overLimit {
                 let sentence = String(chars[autoSpokenUpTo...boundary]).trimmingCharacters(in: .whitespacesAndNewlines)
                 if !sentence.isEmpty { TTSService.shared.speak(sentence) }
                 autoSpokenUpTo = boundary + 1
@@ -1502,9 +1505,13 @@ struct MessageBubble: View {
                     }
                 }
                 .frame(maxWidth: isUser ? nil : .infinity, alignment: .leading)
-                // v4.4.18：流式自动朗读——assistant 生成中且全局开关开，content 增长时把新增整句送 TTS
+                // v4.4.20：自动朗读——onAppear 兜底非流式完成消息(onChange 只在 content 变化时触发, 完成消息挂载即固定不触发)；onChange 处理流式增量。autoSpokenUpTo 增量+防重复
+                .onAppear {
+                    guard message.role == "assistant", !message.isTool, TTSService.shared.speakerEnabled, !message.content.isEmpty else { return }
+                    autoSpeak(message.content)
+                }
                 .onChange(of: message.content) { newContent in
-                    guard message.role == "assistant", isStreaming, TTSService.shared.speakerEnabled else { return }
+                    guard message.role == "assistant", !message.isTool, TTSService.shared.speakerEnabled else { return }
                     autoSpeak(newContent)
                 }
             }
