@@ -2,96 +2,108 @@ import Foundation
 import AVFoundation
 import Combine
 
-/// v4.4.18：Edge TTS 朗读服务。
-/// - 走 Cloudflare Worker 中转 `tts.trollagent.cc.cd`（国内裸连可用，绕开 workers.dev 被墙）
+/// v4.4.19：Edge TTS 朗读服务（流水线预取版）。
+/// - 走 Cloudflare Worker 中转 `tts.trollagent.cc.cd`（国内裸连可用）
 /// - 夹子音：zh-CN-XiaoyiNeural + pitch +30Hz（用户选定）
-/// - mp3 直接内存播放（AVAudioPlayer(data:)，不写文件 → 播完即丢，满足"不落地存储"）
-/// - 长文本按句切分排队逐句合成播放
-/// - 全局喇叭开关（右上角），持久化到 UserDefaults
+/// - mp3 直接内存播放（AVAudioPlayer(data:)，不写文件 → 播完即丢）
+/// - **流水线预取**：边播放当前句、边在后台合成下一句，句间无缝（实测串行每句干等 2-3s 会卡，预取消除空洞）
+/// - 手动朗读(speakForced)打断当前自动朗读，只播指定文本
 final class TTSService: NSObject, ObservableObject, AVAudioPlayerDelegate {
     static let shared = TTSService()
 
     @Published var speakerEnabled: Bool {
         didSet { UserDefaults.standard.set(speakerEnabled, forKey: "trollmcp2.tts_enabled") }
     }
-    /// 是否正在播放（UI 用来切换喇叭图标）
     @Published var isSpeaking = false
 
     private let baseURL = "https://tts.trollagent.cc.cd/tts"
     private let voice = "zh-CN-XiaoyiNeural"
     private let pitch = "+30Hz"
 
+    /// 待合成文本队列（有序，按句切分）
+    private var pendingTexts: [String] = []
+    /// 已合成好的 mp3 数据（有序，就绪即播）
+    private var readyChunks: [Data] = []
     private var player: AVAudioPlayer?
-    private var queue: [String] = []
-    private var playingText = false
+    private var isSynthBusy = false
 
     private override init() {
         speakerEnabled = UserDefaults.standard.bool(forKey: "trollmcp2.tts_enabled")
         super.init()
     }
 
-    /// 朗读一段文本（内部按句切分排队）。受全局喇叭开关控制。
+    // MARK: - 对外
+
+    /// 自动朗读（受全局喇叭开关控制）：流式分句送进来，排队流水线播放
     func speak(_ text: String) {
         guard speakerEnabled else { return }
-        let sentences = splitSentences(text)
-        for s in sentences where !s.isEmpty { queue.append(s) }
-        drainIfNeeded()
+        enqueueSentences(text)
     }
 
-    /// 手动朗读（无视喇叭开关——用户主动点喇叭就是想听）
+    /// 手动朗读（无视开关，打断当前自动朗读，只播这段）
     func speakForced(_ text: String) {
-        for s in splitSentences(text) where !s.isEmpty { queue.append(s) }
-        drainIfNeeded()
+        stopInternal()
+        enqueueSentences(text)
     }
 
-    /// 停止并清空队列
-    func stop() {
-        queue.removeAll()
-        player?.stop()
-        player = nil
-        playingText = false
-        isSpeaking = false
-    }
+    func stop() { stopInternal() }
 
     // MARK: - 队列
 
-    private func drainIfNeeded() {
-        guard !playingText, player?.isPlaying != true, !queue.isEmpty else { return }
-        playNext()
+    private func enqueueSentences(_ text: String) {
+        for s in splitSentences(text) where !s.isEmpty { pendingTexts.append(s) }
+        pump()
     }
 
-    private func playNext() {
-        guard !queue.isEmpty else { isSpeaking = false; playingText = false; return }
-        let text = queue.removeFirst()
-        playingText = true
-        isSpeaking = true
-        synthesize(text) { [weak self] data in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                guard let data, data.count > 100 else { self.next(); return }
-                do {
-                    try AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
-                    try AVAudioSession.sharedInstance().setActive(true)
-                    let p = try AVAudioPlayer(data: data)
-                    p.delegate = self
-                    self.player = p
-                    p.play()
-                } catch {
-                    self.next()
+    private func stopInternal() {
+        pendingTexts.removeAll()
+        readyChunks.removeAll()
+        player?.stop()
+        player = nil
+        isSynthBusy = false
+        isSpeaking = false
+    }
+
+    /// 主泵：确保①有就绪 mp3 就播放；②合成器空闲且有待合成文本就预取下一个（边播边合成，流水线）
+    private func pump() {
+        // ① 播放就绪的下一句（player 为 nil 表示上一句播完或尚未开播）
+        if player == nil, !readyChunks.isEmpty {
+            let data = readyChunks.removeFirst()
+            startPlay(data)
+        }
+        // ② 合成器空闲则预取下一个（这句合成期间，当前句正在播放 → 句间无缝）
+        if !isSynthBusy, !pendingTexts.isEmpty {
+            let text = pendingTexts.removeFirst()
+            isSynthBusy = true
+            synthesize(text) { [weak self] data in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.isSynthBusy = false
+                    if let data, data.count > 100 { self.readyChunks.append(data) }
+                    self.pump()   // 合成完再泵：播就绪的 + 继续预取
                 }
             }
         }
     }
 
-    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        next()
+    private func startPlay(_ data: Data) {
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+            try AVAudioSession.sharedInstance().setActive(true)
+            let p = try AVAudioPlayer(data: data)
+            p.delegate = self
+            player = p
+            isSpeaking = true
+            p.play()
+        } catch {
+            player = nil
+            pump()   // 播放失败，跳过继续下一个
+        }
     }
 
-    private func next() {
-        playingText = false
-        player = nil
-        if queue.isEmpty { isSpeaking = false }
-        else { playNext() }
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        self.player = nil
+        pump()   // 播完 → 播下一句（已预取）+ 继续预取再下一句
     }
 
     // MARK: - 合成
@@ -109,7 +121,7 @@ final class TTSService: NSObject, ObservableObject, AVAudioPlayerDelegate {
         }.resume()
     }
 
-    /// 按中文/英文句末标点与换行切分，保留标点在句中
+    /// 按中文/英文句末标点与换行切分
     func splitSentences(_ t: String) -> [String] {
         var result: [String] = []
         var current = ""
