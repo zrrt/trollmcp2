@@ -606,23 +606,23 @@ struct ChatView: View {
                 // v3.4.7：推理用"大脑"图标、思考用"灯泡"图标（用户指定，勿对调）
                 ChatChip(label: "推理·\(reasoningLabel())", action: {
                     reasoning = (reasoning + 1) % 5
-                }, accent: true, icon: "brain").frame(width: 76, height: 32)
+                }, accent: true, icon: "brain").frame(height: 32)
                 ChatChip(label: "思考·\(thinkEnabled ? "开" : "关")", action: {
                     thinkEnabled.toggle()
-                }, accent: thinkEnabled, icon: "lightbulb").frame(width: 76, height: 32)
+                }, accent: thinkEnabled, icon: "lightbulb").frame(height: 32)
                 ChatChip(label: "搜索·\(smartSearch ? "开" : "关")", action: {
                     smartSearch.toggle()
-                }, accent: smartSearch, icon: "magnifyingglass").frame(width: 76, height: 32)
+                }, accent: smartSearch, icon: "magnifyingglass").frame(height: 32)
                 QuickTabButton(icon: "bolt", label: "技能") {
                     AppUIState.shared.quickSkillsPresented = true
-                }.frame(width: 76, height: 32)
+                }.frame(height: 32)
                 QuickTabButton(icon: "doc.text", label: "指令") {
                     AppUIState.shared.settingsJumpToModels = false
                     AppUIState.shared.settingsPresented = true
-                }.frame(width: 76, height: 32)
+                }.frame(height: 32)
                 QuickTabButton(icon: "folder", label: "工作区") {
                     AppUIState.shared.quickFilesPresented = true
-                }.frame(width: 76, height: 32)
+                }.frame(height: 32)
             }
         }
     }
@@ -636,7 +636,8 @@ struct ChatView: View {
             // v3.4.5：功能行（推理/思考/搜索/系统指令/技能/工作区）——胶囊与输入框、与上方都留
             // 等距 16pt 间隙（上下对称，间距比之前加大）
             chatModeBar
-                .padding(.horizontal, 12)
+                // v4.4.11：左边距 12→16（用户反馈推理贴左无空格）
+                .padding(.horizontal, 16)
                 // v3.4.7：顶部间距减半(16→8)，用户反馈上方空太多；底部 16 保留(胶囊到输入框的加大间距)
                 .padding(.top, 8)
                 .padding(.bottom, 16)
@@ -1088,7 +1089,6 @@ struct ChatChip: View {
                     .lineLimit(1)
                     .fixedSize()
             }
-            .frame(maxWidth: .infinity)
             .frame(height: 32)
             .padding(.horizontal, 8)
             .background(accent ? Color.blue.opacity(0.14) : Color(.systemGray5))
@@ -1118,8 +1118,6 @@ struct QuickTabButton: View {
                     .font(.caption)
                     .lineLimit(1)
             }
-            // v3.4.7：与 ChatChip 一致铺满整宽(76)——否则背景只包内容宽度，看起来比推理/思考/搜索窄
-            .frame(maxWidth: .infinity)
             .frame(height: 32)
             // v3.4.4：与 ChatChip 统一内边距/圆角，保证滑动模块比例一致
             .padding(.horizontal, 8)
