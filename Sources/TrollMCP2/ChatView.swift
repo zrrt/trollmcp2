@@ -1420,7 +1420,8 @@ struct MessageBubble: View {
                 .font(.body)
                 .textSelection(.enabled)
         } else {
-            SelectableText(attributed: NSAttributedString(coloredBody(shown)), textColor: .label)
+            // v4.5.0：完成消息用原生 NSAttributedString 富文本（加粗/橙色/暗黑模式都正确渲染），避免 SwiftUI AttributedString 桥接丢失样式
+            SelectableText(attributed: attributedBody(shown), textColor: .label)
         }
     }
 
@@ -1456,6 +1457,46 @@ struct MessageBubble: View {
         }
         if pos < s.endIndex { out += AttributedString(s[pos..<s.endIndex]) }
         return out
+    }
+
+    // v4.5.0：原生 NSAttributedString 富文本——给 SelectableText(UITextView) 用。
+    // 解析 **加粗** 与 `代码`(橙色)；直接写 UIKit font + UIColor（动态 .label 适配暗黑模式），
+    // 不走 SwiftUI AttributedString 桥接（会丢橙色/加粗样式，导致暗黑下看不清、字体变小）。
+    private func attributedBody(_ text: String) -> NSAttributedString {
+        let baseColor = UIColor.label
+        let orangeColor = UIColor.systemOrange
+        let regular = UIFont.systemFont(ofSize: 17)
+        let bold = UIFont.boldSystemFont(ofSize: 17)
+        let mono = UIFont.monospacedSystemFont(ofSize: 17, weight: .regular)
+
+        let base: [NSAttributedString.Key: Any] = [.font: regular, .foregroundColor: baseColor]
+        let boldAttrs: [NSAttributedString.Key: Any] = [.font: bold, .foregroundColor: baseColor]
+        let orangeAttrs: [NSAttributedString.Key: Any] = [.font: mono, .foregroundColor: orangeColor]
+
+        let ns = text as NSString
+        let pattern = #"\*\*([^*]+)\*\*|`([^`]+)`"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return NSAttributedString(string: text, attributes: base)
+        }
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: ns.length))
+        let ms = NSMutableAttributedString()
+        var pos = 0
+        for m in matches {
+            if m.range.location > pos {
+                ms.append(NSAttributedString(string: ns.substring(with: NSRange(location: pos, length: m.range.location - pos)), attributes: base))
+            }
+            let boldGroup = m.range(at: 2)
+            if boldGroup.location != NSNotFound {
+                ms.append(NSAttributedString(string: ns.substring(with: boldGroup), attributes: boldAttrs))
+            } else {
+                ms.append(NSAttributedString(string: ns.substring(with: m.range(at: 3)), attributes: orangeAttrs))
+            }
+            pos = m.range.location + m.range.length
+        }
+        if pos < ns.length {
+            ms.append(NSAttributedString(string: ns.substring(with: NSRange(location: pos, length: ns.length - pos)), attributes: base))
+        }
+        return ms
     }
 
     private var textBubble: some View {
