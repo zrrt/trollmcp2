@@ -35,7 +35,7 @@ final class SkillStore {
 
     /// 内置技能版本：升级内置技能时递增，触发对已存在 skills.json 的合并补全
     /// v4 变更：mergeBuiltins 由"补全缺失"改为"补全+覆盖同名内置技能"，同步 v3.7.7 bind 新架构措辞
-    private static let builtinsVersion = 4
+    private static let builtinsVersion = 5
 
     private var enabledKey = "trollmcp2.skills_enabled"
 
@@ -111,6 +111,12 @@ final class SkillStore {
                 "name": "App 生命周期管理",
                 "summary": "manage apps: launch/stop/restart/status, install/uninstall, cache, dependencies, duplicate, diagnose startup/injection. Use for: control and troubleshoot a target app. Example: user wants to restart an app or check why it crashes on launch.",
                 "instruction": "当用户要求启动/停止/重启/安装/诊断某个 App 时执行本技能：\n## 适用范围\n- 启动、停止、重启、状态查询、安装卸载、缓存/依赖、启动诊断\n## 工作流\n1. 用 ta app 管理；参数参考 ta help app\n2. 明确目标 App 的 bundle_id\n3. 常规操作：ta app launch/stop/restart/status bundle_id:<目标>\n4. 崩溃/启动失败：ta diagnose startup bundle_id:<目标>（或 injection）定位原因\n5. 安装/卸载走 ta app install/uninstall，涉及替换先备份\n## 输出要求\n- 给出目标 App、执行的操作、返回状态、诊断证据\n## 禁止事项\n- 未确认 bundle_id 前不批量误操作\n- 诊断崩溃用 ta diagnose，不用不可靠的二进制 grep\n## 自检\n- [ ] 是否明确了 bundle_id？ [ ] 是否验证了操作结果？",
+            ],
+            // v4.4.11(P0): 环境提示词瘦身——SHELL 段"实测边界知识"拆到此技能, 遇到时 skills.read 按需加载
+            [
+                "name": "Shell & Env 边界参考",
+                "summary": "iOS 原生 shell 与 Alpine 环境的实测边界结论(按需查询): cstool 架构模式名、tree/jtool2/git/python3 限制、nscan/llvm 用法、installer/provision/auto-bind 路由。Use for: 遇到 shell 工具报错或环境边界限制时查询结论。",
+                "instruction": "遇到 shell/环境边界问题先查这里(由环境提示词按需加载)：\n## 工具边界\n- cstool 仅 ARM: 模式名 arm/armbe/thumb/thumbbe/cortexm/armv8/thumbv8/armv8be/thumbv8be/arm64/arm64be; aarch64/x86/x86_64 一律 Invalid → ARM64 用 arm64, ARM32 用 arm/armv8; 非 ARM 架构用 llvm-objdump --macho --arch=x86_64 -d 或 r2 兜底\n- tree 是 BusyBox v1.37, 不支持 -L/-d 等 GNU 参数(会报 [error opening dir]); 列目录树用 find <dir> -maxdepth N 或直接 tree <dir>(无参数)\n- jtool2 -h 可能 exit 0 但无输出(iOS 缓冲滞留) → Mach-O 分析优先 llvm-objdump/llvm-nm/llvm-readelf/llvm-strings; 必须用 jtool2 且空输出时加 `> /tmp/x 2>&1; cat /tmp/x` 重定向验证\n- shell.exec 默认 limit=16000; 结果出现\"输出太长已截断\"提示时, 必须先读 <path> 完整内容再分析, 绝不基于截断片段下结论; 逆向/分析类命令建议 full=true 或 limit=50000\n## 原生 vs Alpine\n- 永远用命令名调用(勿用绝对路径, 绝对路径会触发 Alpine 路由→Permission denied); tool.install 返回 path 仅作存在性参考\n- python3 默认 App 内置原生 CPython(有 numpy/pandas); 要 Alpine python 用 sh -c 'python3 ...'; 原生 python3 无 pip, 新包只能走 Alpine\n- 原生 python 不能 fork/exec 子进程(Errno45), 无 pyarrow/fsspec, 读数据用 CSV/JSON; 调外部二进制走 shell.exec\n- iSH/Alpine 内 import numpy/pandas/matplotlib 会段错误闪退 → 用原生工具/原生 python\n- 装完先冒烟验证(工具名 --version 或 --help, 确认 exit 0 且有输出); exit 0 空输出=缓冲问题, 用文件重定向确认\n## git(pure-python dulwich)\n- iOS 沙箱拦 fork, 真 git 二进制跑不了; 用 python3 <app>/bin/git.py clone/init/add/commit/log/status/push\n- add 有上游 bug 勿用官方 CLI; SSH 需 paramiko(未内置), 用 https 或 PAT\n## 网络/安装\n- nmap 编不过(iOS 缺 Linux 网络头); 端口扫描用 python3 <app>/bin/nscan.py <host> 1-1000 或 -p 22,80 <host>\n- tool.install name:<pkg> 走 builtin→apk→pip→CI; 大包(pandas/numpy等) 1-3min 属正常, 别手工 apk add(默认20s超时被杀)\n- apk 自动切中国镜像+装证书; 安装失败读结构化诊断, 重试一次或说明真因, 不盲重试\n- iOS 构建工具链(Theos+clang)不可装, 用 PC 交叉编译 / GitHub Actions\n## 路由/bind\n- 路由优先级: builtin 原生 bin > iOS-native > 已装 Alpine > 自动 provision(白名单) > tool.install\n- iOS↔Alpine 自动 bind: /var/mobile/Documents/Workspace→/ios_workspace, /var/containers→/ios_containers, /System→/ios_system(只读); Alpine 直读直写, 无 2MB 限制\n- /var/mobile 整棵【不】自动绑定(自引用→内核污染→崩溃); 读 App 数据容器用 bind_app bundle_id:<id> 返回 /ios_data_<app>, 写用 bind_app_write(先自动备份)\n- auto-bind 只改命令行不改脚本内路径: sh/heredoc 脚本里用 /ios_* 路径, 或改原生 python3 脚本\n## 禁止\n- 未确认就 which 是浪费, 缺工具自动 provision; env:alpine/env:ios 前缀会 not found, 勿写\n- 未确认命令可用前不要重复试错, 先 skills.read 本参考",
             ],
         ]
 

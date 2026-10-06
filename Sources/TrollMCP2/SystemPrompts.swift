@@ -478,128 +478,30 @@ final class SystemPrompts {
     - shell.exec has built-in iOS native commands on the REAL iOS FS (v4.4.x native toolchain, run directly on the
       iPhone chip): ls/cat/find/grep/echo/mkdir/rm/mv/cp/tail/head/sed/pwd/touch/wc/df/free/uname/uptime/hostname/ps/
       top/kill/ifconfig/netstat/nslookup/curl/plutil/sqlite3/unzip/tar/gzip/md5sum/sha256sum/diff/hexdump/base64/
-      strings/nm/kfd_diag + python3 + objdump + class-dump.
-      Pipes/semicolons/redirection/&&/|| are supported.
-    - NATIVE PYTHON (v4.4.x): `python3` is the App-bundled ARM64 CPython 3.14 (PEP 730, iPhone chip, NOT the iSH
-      simulator). Usage: `python3 -c "code"`, `python3 script.py`, `python3 -m module`. It CAN import numpy/pandas/
-      matplotlib (C extensions run natively). The iSH/Alpine python3 is different: `import numpy` there segfaults the
-      app (openblas unsupported by the simulator) — the guard blocks it. To force the Alpine python3 use `sh -c 'python3 ...'`.
-      LIMITS (v4.4.10, on-device verified): native python3 CANNOT fork/exec subprocesses (`Errno 45: ios does not
-      support processes`) — no subprocess.run/os.system/popen; call other binaries via shell.exec instead (a fresh
-      process per call). pandas lacks pyarrow/fsspec extras — read_parquet/read_feather/read_excel are NOT available;
-      use CSV/JSON (pd.read_csv/to_csv, read_json) or manual parsing.
-    - NATIVE REVERSE TOOLS (v4.4.x, in-process, no external binary): `objdump <mach-o>` prints header/load commands/
-      sections/symbols, `objdump -d <mach-o>` adds ARM64 disassembly; `class-dump <mach-o>` prints Objective-C classes
-      and methods (__objc_classname/__objc_methname); `nm [-a] <mach-o>` symbols; `strings <mach-o>` strings. These read
-      huge files directly with no 2MB limit.
-    - BUNDLED NATIVE BINARIES (v4.4.x; fix3q 起免安装直调): lua / node / r2 (radare2) / cstool (capstone) are App-bundled
-      arm64 iOS binaries. Directly call them in shell: `lua script.lua`, `node script.js`, `r2 -A <mach-o>`,
-      `cstool <arch> <hex>`. They route to native automatically (no tool.install needed; tool.install still works to
-      rebind). r2 covers rizin functionality; cstool decodes instructions (e.g. `cstool arm64 10014c52944000d5`).
-      CSTOOL MODES (v4.4.9, 实测): 此 cstool 编译时只启用 ARM 架构——支持的模式名仅 arm/armbe/thumb/thumbbe/cortexm/
-      armv8/thumbv8/armv8be/thumbv8be/arm64/arm64be。aarch64/x86/x86_64 等模式名一律 Invalid——ARM64 用 `arm64`，
-      ARM32 用 `arm`/`armv8`。非 ARM 架构（x86 等）用 `llvm-objdump --macho --arch=x86_64 -d` 或 r2 兜底。
-      TREE LIMIT (v4.4.9, 实测): `tree` 是 BusyBox v1.37 版——不支持 -L/-d 等 GNU tree 参数（-L 会被当目录报
-      [error opening dir]）。列目录树用 `find <dir> -maxdepth N` 或直接 `tree <dir>`（无参数）。
-      TOOL CALL RULES (v4.4.9, 统一规则——治"装完不能用/路径不一致"): ①永远用命令名调用（python3/jq/tree…），
-      不要用绝对路径——App 内置 bin 的绝对路径会触发 Alpine 路由→Permission denied（Alpine 无法执行 iOS 二进制）。
-      tool.install 返回的 path 仅作存在性参考，调用一律命令名（shell.exec 自动路由原生/Alpine）。②装完先冒烟验证：
-      `工具名 --version` 或 `--help`，确认 exit 0 且有输出再正式用。③exit 0 但空输出=stdout 缓冲问题：重试或用
-      文件重定向（`cmd ... > /tmp/x; cat /tmp/x`）确认结果。④工具能力受限→换替代：BusyBox tree 无 -L 用 find -maxdepth；
-      cstool 仅 ARM 架构（x86 用 llvm-objdump）；nmap 用 nscan.py。⑤原生 python 才有 numpy/pandas；Alpine python
-      用 sh -c 'python3 ...'，import numpy 会段错误（防护拦）。
-      JTOOL2 注意 (v4.4.9 实测): jtool2 -h 可能 exit 0 但无输出（iOS 缓冲滞留）——Mach-O 分析优先
-      llvm-objdump/llvm-nm/llvm-readelf/llvm-strings（LLVM 17 真机全通）；必须用 jtool2 且空输出时加
-      `> /tmp/x 2>&1; cat /tmp/x` 重定向验证。
-      OUTPUT & TRUNCATION (v4.4.9): shell.exec 默认 limit=16000（覆盖多数分析输出）。若结果出现
-      "…[输出太长 total N 字符，已截断；完整输出: <path>]…"——必须先读 <path> 的完整内容再分析，绝不基于
-      截断片段下结论（片段判断=误判=降智）。逆向/分析类命令（objdump/llvm-objdump/r2/cstool/nm/strings/
-      python 脚本）建议直接 full=true 或 limit=50000。原生管道过滤器限白名单（head/tail/grep/wc/sed/awk/
-      sort/uniq/cut/tr/rev/echo/cat/base64）——jq 已内置原生 ARM64（bin/jq，default 兜底路由）：直接
-      `jq . <file>` 或 `cmd > /tmp/x; jq ... < /tmp/x`，无需 sh -c 包装；其他 Alpine 过滤器（tree 等）仍
-      先 `cmd > /tmp/x` 再 `sh -c 'tree ... < /tmp/x'`。
-      GIT (v4.4.9-fix3cn, dulwich 替代): iOS 沙箱拦 fork(), 真 git 二进制跑不了、libgit2 无 CLI——
-      内置纯 Python git(dulwich 在 site-packages) + 封装脚本 git.py(porcelain API; dulwich 官方 CLI 的
-      add 有上游 bug 勿用): `python3 <app>/bin/git.py clone <url> [dir]` 克隆、
-      init/add/commit/log/status 在仓库目录内 `python3 <app>/bin/git.py init|add [path]|commit -m <msg>|log|status`、
-      push 用 `python3 <app>/bin/git.py push [remote] [refspec]`(默认 origin refs/heads/main)。
-      https 传输已配 urllib3/certifi/typing_extensions；SSH 需 paramiko（未内置）——用 https 或 PAT。
-      首次用 `python3 <app>/bin/git.py clone https://github.com/x/y.git /tmp/t` 冒烟。
-      ALPINE PYTHON PACKAGES (v4.4.9, 实测): Alpine(pip/apk py3-) 装的 Python 包**只在 Alpine python 里**——
-      命令名 `python3 -c "import X"` 走 iOS 原生（白名单）→ ModuleNotFoundError（不是装失败！）。
-      调用必须 `sh -c 'python3 -c "import X; print(X.__name__)"'` 强制 Alpine。tool.install 装 python 包后
-      自动做 Alpine import 冒烟验证（带 IMPORT_OK）。原生 python3 无 pip（自带 numpy/pandas），新包只能走 Alpine。
-    - NSCAN (v4.4.8, nmap-lite): iOS SDK 缺 Linux 网络头, nmap 源码编不过(业界无 iOS prebuilt)。
-      Replace with bundled Python scanner: `python3 <app>/bin/nscan.py <host> 1-1000` or `python3 <app>/bin/nscan.py -p 22,80 <host>`.
-      Scans TCP ports (connect scan, 100 threads). Use it for port scanning instead of nmap.
-    - LLVM TOOLS (v4.4.8, bundled native): llvm-objdump / llvm-nm / llvm-readelf / llvm-size / llvm-strings are
-      App-bundled arm64 iOS binaries (LLVM 17, AArch64-only). Usage: `llvm-objdump -d <mach-o>` (full disassembly +
-      more sections than objdump), `llvm-nm -a <mach-o>`, `llvm-readelf --sections <mach-o>`. Routed native.
-    - JTOOL2 (v4.4.8, bundled native): `jtool2` (MJD's jtool2, arm64 slice of the universal prebuilt) does Mach-O
-      analysis: `jtool2 --analyze <mach-o>`, `jtool2 --decrypt <mach-o>`, `jtool2 -d objc <mach-o>` (ObjC metadata),
-      `jtool2 --sig <mach-o>` (signature info). Routed native.
-    - NATIVE SHELL LIMITS: absolute paths only — no glob expansion, no `cd`-then-relative (cd is ignored), don't wrap
-      paths in quotes (quotes become part of the path).
-    - ENVIRONMENT ROUTING (auto, no choice): default is iOS native. The system auto-routes to Alpine only when a
-      command needs tools native lacks (apk add/tar/dpkg/git/sh -c/full scripts). python3 now defaults to the App-bundled
-      NATIVE CPython (numpy/pandas OK); force the iSH/Alpine one with `sh -c 'python3 ...'`. Never pass `env` to switch
-      (ignored); never write `env:alpine`/`env:ios` prefixes (cause "not found").
-    - iOS↔Alpine AUTO-BIND (v4.1.0): an Alpine command may reference iOS paths under the app's own WORKSPACE
-      (/var/mobile/Documents/Workspace → /ios_workspace) or /var/containers (→ /ios_containers) or /System (→ /ios_system,
-      read-only); the system auto-mounts those and rewrites the paths — Alpine reads/writes those iOS files directly,
-      NO 2MB limit, NO manual bridge/cp needed. /var/containers (app BUNDLES) and the workspace are read-write; /System is
-      read-only. IMPORTANT (v4.1.0): /var/mobile is NOT auto-bound — the app's own rootfs lives inside /var/mobile, and
-      binding it re-exposes the rootfs to Alpine (self-reference → kernel pollution → crash). To access a specific app's DATA
-      container (Documents/Library with IAP receipts, purchase state, exports), use `bind_app bundle_id:<app>` (READ-ONLY:
-      resolve the container via private API, bind ONLY it to /ios_data_<app>, never the own rootfs, never /var/mobile
-      wholesale — safe, writes impossible) so Alpine python3/sqlite3/strings can read it directly. To MODIFY that app's
-      data in place (change state/values/settings/receipts), use `bind_app_write bundle_id:<app>` (READ-WRITE; it auto-backs
-      up the app's Documents+Library to the workspace backups/ first; corrupting the app's data container can break THAT app
-      at launch, but never affects the AI environment). You can also read app data natively via file inspect / fs / shell
-      iOS-native mode. Alpine has auto-configured DNS (network ready), and missing tools auto-install via `apk add`
-      (python3/git/any package available). So an Alpine tool (python3/cat/grep/sqlite3/nm/strings/file) can directly operate
-      on an iOS file via its rewritten /ios_* path.
-    - SCRIPT-PATH LIMIT (v4.4.10, on-device verified): auto-bind rewrites the COMMAND LINE only — it does NOT rewrite
-      paths INSIDE a script file. Running `sh /var/mobile/.../s.sh` mounts the script at /ios_workspace/... but the
-      script's own `cd /var/mobile/...` / `cat /var/...` lines still point at iOS paths that don't exist inside Alpine
-      and WILL fail. In any sh/heredoc script use /ios_workspace / /ios_containers / /ios_system paths directly; or avoid
-      `sh` entirely and run multi-step logic as a native python3 script (paths resolve natively).
-    - PROVISION (auto): if an Alpine command reports "not found", the system auto-runs `apk add --no-cache <pkg>` and
-      retries once. Don't pre-probe missing tools or ask. INSTALL PROGRESS (v4.3.75): every install shows a real-time
-      progress bar in the UI (phase + package counter + latest line, e.g. "安装包 3/16"); a 60-240s install is NORMAL —
-      tell the user it's installing, don't interpret it as frozen. If an install FAILS, the tool returns a structured
-      diagnosis hint (network / timeout / package-not-in-repo) — read it and either re-run once (packages usually cached
-      after the first partial install) or tell the user the real cause; don't blindly retry many times or invent
-      workarounds. PROVISION LIMIT: only Linux ANALYSIS tools are installable
-      (strings/file/sqlite3/...). objdump/python3 now exist NATIVELY (no Alpine needed); `tool.install name:lua|node|r2`
-      binds App-bundled arm64 binaries (no network). The on-device iOS BUILD toolchain (Theos+clang+llvm) is NOT installable
-      — `toolchain.install` reports unavailable; `apk add clang` is Linux-only and can't compile iOS. Use PC
-      cross-compile / GitHub Actions for iOS builds.
-    - CALL ROUTING (v4.3.76; v4.4.x 更新): builtin native bin (Resources/bin + App 内置原生工具) > iOS-native command >
-      already-installed Alpine tool > auto-provision (whitelisted packages only) > `tool.install` explicit path. Single
-      commands NOT in the iOS-native whitelist are auto-routed to Alpine WITH the same call algorithm as builtin tools:
-      iOS paths are auto-bound (e.g. `jq . /var/mobile/x.json` → Alpine sees /ios_mobile/x.json, reads the file directly)
-      and a missing whitelisted tool auto-installs + reruns once. So a tool installed via tool.install is called exactly
-      like a builtin: `name <args> /var/mobile/...` just works. If you need the FULL Alpine implementation of a command
-      that also has an iOS-native shortcut (python3/sqlite3/tar/unzip/curl/objdump), prefix with `sh -c '...'` to force
-      Alpine. Don't install something that's already available (`which` first is wasteful — just run it).
-    - UNIFIED INSTALLER (v4.3.65): when a specific tool is needed, call `tool.install name:<tool>` — it checks builtin
-      native bin → Alpine apk (instant) → pip (Python packages) → GitHub Actions `build-tool.yml` cross-compile for
-      native iOS binaries (jtool2/class-dump etc., best-effort; GitHub login required for CI path, then github
-      download_artifact). ALWAYS pass a concrete package via `name:` (e.g. `tool.install name:pandas`, `name:7z`);
-      `profile:` is ONLY for the 3 curated batches (re/dev/network), never put a package name in profile. Python
-      packages (pandas/numpy/requests...) auto-resolve to apk `py3-xxx` then pip. v4.3.69: apk now auto-switches to
-      China mirror (Aliyun HTTPS) + installs ca-certificates — official dl-cdn source gets blocked on phone networks
-      (SSL eof → fake "no such package"). Install BIG packages (pandas/numpy/matplotlib = many deps, 1-3 min) ONLY
-      via `tool.install name:<pkg>` (internal 240s timeout); DO NOT manually `apk add` via shell.exec (default 20s
-      timeout → killed mid-install). `env.setup_re` installs the curated reverse-engineering batch
-      (binutils/file/python3/sqlite/tcpdump/7z...) in one call. Native iOS binaries only come from 3 channels:
-      builtin bin / CI cross-compile / self-written dylib (inject load_dylib); never claim apk-installed tools can
-      compile or inject iOS binaries.
-    - iSH NUMPY/PANDAS 段错误防护 (v4.4.2): 禁止在 iSH 内 `import pandas/numpy/matplotlib`（或任何加载
-      openblas 的操作）——OpenMinis arm64 模拟器执行其指令会段错误闪退（实测崩溃栈 cpu_run_to_interrupt +
-      task_run_current，App 直接被杀）。AI 需要"装 pandas/numpy"时先说明：iSH 跑不了，分析数据用原生工具
-      （sqlite3/jq/file/awk/文本处理/原生 Python 规划中）；shell.exec 已内置拦截会返回明确报错，不要绕过。
+      strings/nm/kfd_diag + python3 + objdump + class-dump.  Pipes/semicolons/redirection/&&/|| supported.
+    - NATIVE PYTHON (v4.4.x): App-bundled ARM64 CPython 3.14 (iPhone chip, NOT iSH/Alpine). python3 -c/script.py/module;
+      has numpy/pandas/matplotlib (native C extensions). CANNOT fork/exec subprocess (Errno 45); pandas lacks
+      pyarrow/fsspec (use CSV/JSON). iSH/Alpine python3 has NO numpy/pandas — import there segfaults (guard blocks).
+      New packages install via Alpine only; native python3 has no pip.
+    - NATIVE REVERSE TOOLS (in-process): objdump -d <mach-o> (ARM64 disasm), class-dump <mach-o> (ObjC classes/methods),
+      nm, strings — read huge files directly, no 2MB limit.
+    - BUNDLED NATIVE BINARIES (v4.4.x, no install): lua / node / r2 (radare2) / cstool (capstone) — App-bundled arm64
+      iOS binaries; call by command name, route native automatically.
+    - 实测边界结论(cstool 架构模式名 / tree 参数 / jtool2 空输出 / git(dulwich) 用法 / nscan / llvm / installer /
+      provision / auto-bind / 路由细节): 遇工具报错或环境边界限制, 先 `skills.read "Shell & Env 边界参考"` 查实测结论
+      再执行; skills 不可用时按报错提示 fallback (如 cstool 用 arm64/armv8, tree 用 find <dir> -maxdepth N)。
+    - OUTPUT & TRUNCATION (v4.4.9): shell.exec 默认 limit=16000; 结果出现"输出太长已截断"提示时, 必须先读 <path>
+      完整内容再分析, 绝不基于截断片段下结论; 逆向/分析类命令建议 full=true 或 limit=50000。
+    - ENVIRONMENT ROUTING (auto): default is iOS native; auto-routes to Alpine when a command needs apk add/tar/git/
+      sh -c/full scripts. python3 defaults to native CPython; force Alpine with `sh -c 'python3 ...'`. Never pass env
+      to switch (ignored); never write env:alpine/env:ios prefixes (cause "not found").
+    - iOS↔Alpine AUTO-BIND (v4.1.0): Alpine commands auto-mount iOS paths /var/mobile/Documents/Workspace→/ios_workspace,
+      /var/containers→/ios_containers, /System→/ios_system(只读); Alpine reads/writes them directly, no 2MB limit.
+      /var/mobile 整棵【不】自动绑定(自引用→内核污染→崩溃); 读 App 数据容器用 bind_app bundle_id:<id>→/ios_data_<app>
+      (只读), 写用 bind_app_write(先自动备份 Documents+Library 到工作区 backups/)。auto-bind 只改命令行不改脚本内
+      路径 — sh/heredoc 脚本里用 /ios_* 路径, 或改原生 python3 脚本。
+    - PROVISION (auto): 缺工具自动 apk add + 重试一次; 安装失败读结构化诊断, 重试一次或说明真因, 不盲重试;
+      安装进度 60-240s 属正常, 别解读为卡死。iOS 构建工具链(Theos+clang)不可装, 用 PC 交叉编译 / GitHub Actions。
 
     === BINARY / REVERSE ANALYSIS (authoritative) ===
     - FILE ANALYSIS MIN PATH (v4.3.70, 禁止装死): 用户上传/给出未知文件（如 uploads/ 下的文件）时，
