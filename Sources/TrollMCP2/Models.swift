@@ -130,6 +130,29 @@ extension ModelConfig {
         if reasoningPrefixes.contains(where: { m.hasPrefix($0) }) { return "max_completion_tokens" }
         return "max_tokens"
     }
+
+    /// v4.4.16：API 协议自动纠偏——用户配错协议(如把 deepseek 配成 OpenAI Responses)时，
+    /// 请求前自动纠正到正确协议，无需用户手动调整(大部分用户不会去改配置)。
+    /// 规则参考 Codex 端点分配：
+    ///  - claude/anthropic → Anthropic Messages
+    ///  - gpt-5.x / o1/o3/o4 (推理系列, Codex 走 responses) → OpenAI Responses
+    ///  - deepseek → OpenAI Chat Completions (deepseek 在 chat/completions 就能用 tools, 走 responses 反而慢)
+    ///  - Custom Endpoint 一律尊重用户, 不自动改
+    static func autoCorrectProtocol(model: String, provider: String, current: String) -> String {
+        let m = model.lowercased()
+        let p = provider.lowercased()
+        // 显式选的自定义端点尊重用户, 不自动纠正
+        if current == "Custom Endpoint" { return current }
+        // Anthropic 模型
+        if p.contains("anthropic") || m.hasPrefix("claude") { return "Anthropic Messages" }
+        // 推理系列 (Codex 同款 responses 端点)
+        let reasoningPrefixes = ["gpt-5.", "o1", "o3", "o4", "o1-", "o3-", "o4-"]
+        if reasoningPrefixes.contains(where: { m.hasPrefix($0) }) || m.contains("reasoning") { return "OpenAI Responses" }
+        // deepseek 对话模型 → Chat Completions
+        if p.contains("deepseek") || m.contains("deepseek") { return "OpenAI Chat Completions" }
+        // 其余尊重当前
+        return current
+    }
 }
 
 final class ModelStore: ObservableObject {

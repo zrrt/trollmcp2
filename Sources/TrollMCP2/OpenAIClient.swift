@@ -80,7 +80,17 @@ final class OpenAIClient {
     var currentReasoningLevel = 0  // v2.9.49：默认 low (medium/high 推理显著增加延迟，对标 Codex CLI 默认 low）
 
     init(_ config: ModelConfig) {
-        self.config = config
+        // v4.4.16：API 协议自动纠偏——用户配错协议(如 deepseek 配 Responses)时，请求前自动纠正
+        // (deepseek→Chat Completions, gpt-5/o系列→Responses, claude→Anthropic)，无需用户手动改
+        var c = config
+        let corrected = ModelConfig.autoCorrectProtocol(model: c.model, provider: c.provider, current: c.apiProtocol)
+        if corrected != c.apiProtocol {
+            // 协议变了, 旧的 compatLevel 记忆(尤其 L5=Responses)基于旧协议不再适用 → 重置到 L0 重新试探
+            c.compatLevel = 0
+            NetworkLog.shared.log("\(c.name): 协议自动纠正 \(c.apiProtocol)→\(corrected) (模型=\(c.model)), 兼容级别已重置")
+            c.apiProtocol = corrected
+        }
+        self.config = c
     }
 
     // MARK: - 对外入口
@@ -199,7 +209,9 @@ final class OpenAIClient {
         // 审计修正：只在 L0(默认未降级) 时强制试 L5；一旦降级到 L1/L2 被记住，就尊重记忆级别——
         // 否则每次工具请求都白试一次 L5 再回落 (浪费往返)。L3/L4 已由上面分支尝试 L5 恢复。
         let hasTools = tools != nil && !(tools?.isEmpty ?? true)
-        if hasTools, config.apiProtocol != "OpenAI Responses", config.compatLevel == 0 {
+        // v4.4.16：L5(Responses) 强制试用只对推理系列(走 Responses 的 gpt-5/o系列)触发；
+        // 此前对所有带工具请求无差别试 L5, 把 deepseek 也拉去 responses 端点(慢/支持差)并记住 L5
+        if hasTools, config.apiProtocol != "OpenAI Responses", config.compatLevel == 0, config.isReasoningModel {
             NetworkLog.shared.log("\(config.name): 带工具请求，优先尝试 L5 Responses API (Codex 同款端点)…")
             start = 5
         }
