@@ -500,6 +500,8 @@ final class SystemPrompts {
       /var/mobile 整棵【不】自动绑定(自引用→内核污染→崩溃); 读 App 数据容器用 bind_app bundle_id:<id>→/ios_data_<app>
       (只读), 写用 bind_app_write(先自动备份 Documents+Library 到工作区 backups/)。auto-bind 只改命令行不改脚本内
       路径 — sh/heredoc 脚本里用 /ios_* 路径, 或改原生 python3 脚本。
+    - GIT (v4.4.9, iOS 沙箱拦 fork 真 git 跑不了): 用 App 内置纯 Python git `python3 <app>/bin/git.py clone <url> <dir>` /
+      init/add/commit/log/status / push [remote] [refspec]; https 或 PAT(SSH 需 paramiko 未内置)。首次用 clone 冒烟。
     - PROVISION (auto): 缺工具自动 apk add + 重试一次; 安装失败读结构化诊断, 重试一次或说明真因, 不盲重试;
       安装进度 60-240s 属正常, 别解读为卡死。iOS 构建工具链(Theos+clang)不可装, 用 PC 交叉编译 / GitHub Actions。
 

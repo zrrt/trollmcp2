@@ -6,7 +6,7 @@ import Foundation
 final class VpnTool: MCPTool {
     let definition = ToolDefinition(
         name: "vpn.capture",
-        summary: "MITM packet capture (system-level). Use for: capture HTTPS plaintext of ANY app (custom network stacks, protobuf, self-built sockets included) — unlike network.capture which only hooks NSURLSession. Modes: VPN (start/stop, requires VpnTunnel appex installed, auto-routes system traffic) or local proxy (local_start/local_stop, requires user to set WiFi HTTP proxy to 127.0.0.1:18180 manually). First use: run cert to generate + install root CA (mobileconfig → Settings → install → enable Full Trust in Certificate Trust Settings), otherwise TLS handshake fails for apps. Limitations: QUIC/HTTP3 traffic not decrypted (app usually falls back to HTTP/2, then capturable); TLS-pinned apps will fail handshake; self-built raw-socket apps may lose network under VPN mode. Logs: Workspace/network_capture/mitm/*.txt (hex+TEXT per connection). Example: user says 'capture 小红书 with VPN' → vpn.capture command:start. REQUIRED PARAMS: none for status; cert generates CA profile.",
+        summary: "MITM packet capture (system-level HTTPS plaintext of ANY app, 含protobuf/自定义socket; 覆盖面>network.capture). Commands: status / start / stop / cert / local_start / local_stop / logs. start=VPN模式(自动路由); local_start=本地代理(手动设WiFi代理127.0.0.1:18180); 首用先 cert 装根CA+Full Trust 否则TLS失败. Logs: Workspace/network_capture/mitm/*.txt. 局限: QUIC/HTTP3不解密; TLS-pinned失败.",
         parameters: [
             "command": "status / start / stop / cert / local_start / local_stop / logs"
         ],
