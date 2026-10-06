@@ -167,6 +167,34 @@ if [ -d "Resources/bin" ]; then
     fi
 fi
 
+# v4.5.1: 桌面悬浮 HUD（TrollSpeed 独立二进制）——打进 $APP/hud/TrollAgentHUD.app + 系统 entitlements 签名。
+# HUD 进程需要 no-sandbox/persona-mgmt/hid.client 等系统级权限，独立用 HUD/supports/entitlements.plist 签名，
+# 由主 App posix_spawn + root persona 拉起。Resources/hud 由 CI（Build built-in tweaks 步骤）生成；无则跳过。
+if [ -d "Resources/hud/TrollAgentHUD.app" ]; then
+    echo ">>> bundling HUD (desktop floating window)"
+    rm -rf "$APP/hud"
+    mkdir -p "$APP/hud"
+    cp -R "Resources/hud/TrollAgentHUD.app" "$APP/hud/TrollAgentHUD.app"
+    HUD_BIN="$APP/hud/TrollAgentHUD.app/TrollAgentHUD"
+    chmod +x "$HUD_BIN"
+    if [ -f "HUD/supports/entitlements.plist" ] && [ -n "$SIGN_TOOL" ]; then
+        if [ "$SIGN_TOOL" = codesign ]; then
+            codesign -s - -f --entitlements "HUD/supports/entitlements.plist" "$HUD_BIN" 2>/dev/null \
+                && echo ">>> HUD signed (codesign)" \
+                || echo "!!! HUD codesign FAILED"
+        else
+            "$SIGN_TOOL" -S"HUD/supports/entitlements.plist" "$HUD_BIN" 2>/dev/null \
+                && echo ">>> HUD signed (ldid)" \
+                || echo "!!! HUD ldid sign FAILED"
+        fi
+    else
+        echo "!!! HUD entitlements/sign tool missing — HUD bundled but unsigned"
+    fi
+    echo ">>> HUD bundle: $(du -sh "$APP/hud/TrollAgentHUD.app" | cut -f1)"
+else
+    echo ">>> Resources/hud missing — skipping HUD bundle (desktop floating window not in this build)"
+fi
+
 # v4.4.4: 原生 Python 集成（CPython 3.14 iOS, PEP 730）。
 # CI 由 native-python job 编译 Python.xcframework 并 upload artifact（tar.gz 包装）；
 # build job download 到 python-ios/。此处先解包再定位 ios-arm64 slice。

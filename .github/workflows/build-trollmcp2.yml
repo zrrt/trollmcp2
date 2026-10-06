@@ -401,6 +401,22 @@ jobs:
           # v2.9.315：默认注入 ControlAgent v1（合并版 UI 控制+保活+截图）
           cp "Resources/tweaks/ControlAgent.dylib" "Resources/bin/ControlAgent.dylib"
           ls -lh Resources/tweaks/
+          # v4.5.1：桌面悬浮 HUD（TrollSpeed 独立二进制，application.mk 编 TrollAgentHUD.app）。
+          # 软失败：本轮先验证 theos 能否编出 HUD；失败只告警不阻断（角色选择等主 App 功能照常出包）。
+          echo ">>> building HUD"
+          if (cd HUD && make package); then
+            HUDAPP="HUD/.theos/obj/debug/TrollAgentHUD.app"
+            if [ -d "$HUDAPP" ]; then
+              rm -rf Resources/hud
+              mkdir -p Resources/hud
+              cp -R "$HUDAPP" "Resources/hud/TrollAgentHUD.app"
+              echo ">>> HUD bundled: $(du -sh Resources/hud/TrollAgentHUD.app | cut -f1)"
+            else
+              echo "WARN: HUD make ok but no app found (.theos/obj/debug missing)"
+            fi
+          else
+            echo "WARN: HUD build FAILED (soft) — desktop HUD not bundled this build"
+          fi
 
       - name: Build sqlite_wipe (iOS arm64 root tool)
         run: |
