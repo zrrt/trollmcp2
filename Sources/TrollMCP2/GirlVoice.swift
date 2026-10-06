@@ -184,11 +184,9 @@ final class GirlVoice: NSObject, ObservableObject {
 
     private func finishRecognition() {
         guard isListening else { return }
-        if let result = task?.result, !result.bestTranscription.formattedString.isEmpty {
-            sendFinal(result.bestTranscription.formattedString)
-        } else {
-            sendFinal(partialText)
-        }
+        // SFSpeechRecognitionTask 无公开 result 属性，结果只能走 resultHandler；
+        // 手动停止/静音超时时直接用最近一次 partialText 发送（resultHandler 的 isFinal 分支已单独处理最终结果）
+        sendFinal(partialText)
     }
 
     private func stopAndFlush() {
