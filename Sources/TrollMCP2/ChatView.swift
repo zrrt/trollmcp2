@@ -1329,13 +1329,9 @@ struct MessageBubble: View {
                 withAnimation { expanded.toggle() }
             }
         }
-        // v4.3.42：长按消息 → 复制 / 系统分享页（iOS16+ ShareLink，侧载稳定）
-        .contextMenu {
-            Button(action: { onCopy?() }) {
-                Label("复制", systemImage: "doc.on.doc")
-            }
-            SharePresenter.menuShare(text: message.content)
-        }
+        // v4.4.13：移除 contextMenu——长按文字改为系统选择手柄(.textSelection)，可拖选部分复制。
+        // 此前外层 contextMenu(复制全文/分享)抢占长按, 导致内层 Text 的 .textSelection(.enabled) 永远触发不了
+        // 文字选择。全量复制/分享走多选工具栏(selectionMode: copySelected/shareMessage)。
         // v3.4.5：打字机效果——内容增长即逐字显示，直到完整
         .onAppear {
             if (isStreaming || forceType), revealedCount < message.content.count { startTypeTimer() }
