@@ -2,29 +2,45 @@ import SwiftUI
 import UIKit
 import Combine
 
-// MARK: - 可爱小女孩助手 · 状态
+// MARK: - 可爱助手 · 状态
 
-/// v4.5.0：可爱小女孩助手全局开关（设置里可选开/关，UserDefaults 持久化）
+/// v4.5.0：可爱助手全局开关 + 角色（设置里可选开/关、切换角色，UserDefaults 持久化）
+/// 角色：小萝莉(girl_*) / 御姐兔女郎(rabit_*)
+enum GirlCharacter: String, CaseIterable, Identifiable {
+    case loli = "小萝莉"
+    case rabit = "御姐兔女郎"
+    var id: String { rawValue }
+    var iconPrefix: String { self == .loli ? "girl" : "rabit" }
+}
+
 final class GirlCompanion: ObservableObject {
     static let shared = GirlCompanion()
     @Published var enabled: Bool {
         didSet { UserDefaults.standard.set(enabled, forKey: "trollmcp2.girl_companion_enabled") }
     }
+    @Published var selectedCharacter: GirlCharacter {
+        didSet { UserDefaults.standard.set(selectedCharacter.rawValue, forKey: "trollmcp2.girl_character") }
+    }
     private init() {
         enabled = UserDefaults.standard.bool(forKey: "trollmcp2.girl_companion_enabled")
+        selectedCharacter = GirlCharacter(rawValue: UserDefaults.standard.string(forKey: "trollmcp2.girl_character") ?? "") ?? .loli
     }
 }
 
-// MARK: - 表情帧（对应 Resources/girl_*.png，build-ipa.sh 打进 App 根，Bundle.main 读）
+// MARK: - 表情帧（对应 Resources/girl_*.png 或 rabit_*.png，build-ipa.sh 打进 App 根，Bundle.main 读）
 
 enum GirlExpression: String {
-    case idle = "girl_idle"    // 正常/待机
-    case happy = "girl_happy"  // 开心（点击）
-    case think = "girl_think"  // 思考
-    case talk = "girl_talk"    // 说话口型（语音时）
+    case idle    // 正常/待机
+    case happy   // 开心（点击）
+    case think   // 思考
+    case talk    // 说话口型（语音时）
+    /// 按角色取帧图名：小萝莉 girl_*，御姐兔女郎 rabit_*
+    func imageName(for character: GirlCharacter) -> String {
+        return "\(character.iconPrefix)_\(rawValue)"
+    }
 }
 
-// MARK: - 小女孩视图
+// MARK: - 角色视图
 
 struct GirlCompanionView: View {
     @ObservedObject private var companion = GirlCompanion.shared
@@ -43,7 +59,7 @@ struct GirlCompanionView: View {
         VStack(spacing: 6) {
             // 小女孩本体
             Group {
-                if let img = UIImage(named: expression.rawValue) {
+                if let img = UIImage(named: expression.imageName(for: companion.selectedCharacter)) {
                     Image(uiImage: img)
                         .resizable()
                         .scaledToFit()
@@ -83,7 +99,7 @@ struct GirlCompanionView: View {
                 if tapFlash == 0 { expression = .idle }
             }
         }
-        .alert("可爱小女孩助手", isPresented: $deniedHint) {
+        .alert("可爱助手", isPresented: $deniedHint) {
             Button("好", role: .cancel) {}
         } message: {
             Text("需要麦克风 + 语音识别权限才能跟我说话，请在系统设置里允许。")
