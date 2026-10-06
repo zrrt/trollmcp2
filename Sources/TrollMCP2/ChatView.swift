@@ -84,7 +84,7 @@ struct ChatView: View {
                     } else {
                         Button(action: { withAnimation { AppUIState.shared.drawerOpen.toggle() } }) {
                             Image(systemName: "line.horizontal.3")
-                                .font(.system(size: 20, weight: .semibold))
+                                .font(.system(size: 18, weight: .semibold))
                         }
                     }
                 }
@@ -107,7 +107,8 @@ struct ChatView: View {
                             }
                             .disabled(store.currentMessages.isEmpty)
                             Button(action: { store.newConversation() }) {
-                                Image(systemName: "square.and.pencil")
+                                // v4.4.11：新会话从 square.and.pencil 换 plus（更简洁，与勾选/菜单同线框风格）
+                                Image(systemName: "plus")
                                     .font(.system(size: 18, weight: .semibold))
                             }
                         }
