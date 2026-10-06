@@ -1521,8 +1521,9 @@ struct MessageBubble: View {
                                 .font(.caption2.bold())
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(message.isError ? Color.red.opacity(0.15) : Color.green.opacity(0.15))
-                                .foregroundColor(message.isError ? .red : .green)
+                                // v4.4.11：完成绿→蓝(与执行中同色, 减颜色), 仅出错保留红
+                                .background(message.isError ? Color.red.opacity(0.15) : Color.blue.opacity(0.15))
+                                .foregroundColor(message.isError ? .red : .blue)
                                 .cornerRadius(6)
                         }
                         // v3.3.4：工具执行耗时（对齐 OpenMinis 步骤耗时样式）
@@ -1625,11 +1626,11 @@ struct MessageBubble: View {
                     } else {
                         Image(systemName: message.isError ? "exclamationmark.circle" : "checkmark.circle")
                             .font(.system(size: 14))
-                            .foregroundColor(message.isError ? .red : .green)
+                            .foregroundColor(message.isError ? .red : .blue)
                         Text(expanded ? "工具结果 ▴" : "工具结果 ▾")
                             .font(.subheadline)
                             .fontWeight(.medium)
-                            .foregroundColor(message.isError ? .red : .green)
+                            .foregroundColor(message.isError ? .red : .blue)
                     }
                     Spacer()
                 }
@@ -1884,7 +1885,7 @@ struct TrailRow: View {
     private var colorFor: Color {
         switch step.status {
         case .running: return .blue
-        case .success: return .green
+        case .success: return .blue
         case .failed: return .red
         }
     }
