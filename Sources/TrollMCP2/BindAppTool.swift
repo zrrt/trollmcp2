@@ -15,7 +15,7 @@ import Foundation
 final class BindAppTool: MCPTool {
     let definition = ToolDefinition(
         name: "bind_app",
-        summary: "只读按需绑定指定 App 的数据容器进 Alpine(私有 API 解析容器) → /ios_data_<app>。用于让 Alpine 的 python3/sqlite3/strings 只读该 App 的 Documents/Library(内购票据、购买状态、导出文件)。【只读】：AI 读得到但写不进去 → 永不写坏目标 App。绝不绑 /var/mobile 整棵与自身容器(rootfs)，无自引用污染崩溃。Example: bind_app bundle_id:com.appstudio.Jinx → /ios_data_com_appstudio_jinx。要【就地修改】该 App 数据用 bind_app_write(可写+先备份)。Don't use for: 读 App Bundle(用 /ios_containers)。",
+        summary: "只读绑定指定 App 数据容器进 Alpine → /ios_data_<app>。参数 bundle_id。让 python3/sqlite3/strings 只读该 App Documents/Library(内购票据/购买状态/导出文件); 读得到写不进去, 永不写坏目标 App。要就地改数据用 bind_app_write(可写+先备份); 读 App Bundle 用 /ios_containers。",
         parameters: [
             "bundle_id": "App bundle ID (required)"
         ], verified: true, category: "filesystem")

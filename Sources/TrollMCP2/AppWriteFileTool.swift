@@ -10,7 +10,7 @@ import Foundation
 final class AppWriteFileTool: MCPTool {
     let definition = ToolDefinition(
         name: "app_write_file",
-        summary: "原生直写指定 App 数据容器里的文件(绕开 Alpine fakefs 只读)。参数 bundle_id + rel_path(容器内相对路径, 如 Library/Preferences/com.appstudio.Jinx.plist) + content_b64(base64 编码的完整文件内容)。写前自动备份目标文件到 Workspace/backups/<app>_<ts>/。用于就地修改 App 内购状态/设置/票据数据。风险: 写坏该 App 数据容器→该 App 可能无法启动(不影响AI环境)。读用 bind_app, 可写改文件用本工具(不依赖 Alpine 挂载点, 真正可写)。Example: app_write_file bundle_id:com.appstudio.Jinx rel_path:Library/Preferences/com.appstudio.Jinx.plist content_b64:<base64>",
+        summary: "原生直写指定 App 数据容器内文件(绕开 Alpine fakefs 只读, 不依赖挂载点)。参数 bundle_id + rel_path(容器内相对路径, 如 Library/Preferences/x.plist) + content_b64(base64 完整文件内容)。写前自动备份到 Workspace/backups/。用于就地改 App 内购/设置/票据数据; 读用 bind_app, 真正可写改文件用本工具。",
         parameters: [
             "bundle_id": "App bundle ID (required)",
             "rel_path": "容器内相对路径, 如 Library/Preferences/x.plist (required, 禁止绝对路径/../)",

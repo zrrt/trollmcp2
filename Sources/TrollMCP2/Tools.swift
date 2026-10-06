@@ -64,7 +64,7 @@ final class DeviceProbeTool: MCPTool {
 final class MemoryTweakTool: MCPTool {
     let definition = ToolDefinition(
         name: "memory",
-        summary: "Game memory modification (like GameGuardian/H5GG). Use for: modify game values like coins, HP, lives, scores. Don't use for: read app files (use shell.exec cat), network capture (use network.capture). Prerequisite: inject MemoryTweak.dylib into target game first. Workflow: 1) search for current value, 2) change value in game, 3) refine search, 4) write new value. Example: user says 'modify coins' → search coin count in game memory.",
+        summary: "Game memory modification (GameGuardian/H5GG style). Actions: attach / search / refine / write / freeze / unfreeze / status / frozen / results. Params: value (search/refine/write/freeze), type (int/int64/float/double/byte/short), address (0x hex, required for write/freeze/unfreeze). Requires MemoryTweak.dylib injected into target game.",
         parameters: [
             "action": "attach (确认已注入并连接，injected dylib 后服务即已 attach，等价 status) / search (first scan) / refine (filter results) / write (set new value) / freeze (lock value) / unfreeze / status / frozen (list locked values)",
             "value": "Value to search/write/freeze. e.g. 1000 coins, 50 HP",
@@ -169,7 +169,7 @@ final class MemoryTweakTool: MCPTool {
 final class ArtifactExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "artifact",
-        summary: "Manage workspace files (read/write/list/output_name/output_bookmark). Use subcommand to specify action. Use for: read/write/list files in workspace, set output name. Don't use for: read app container files (use shell.exec cat), system files (use shell.exec). Example: read → artifact read filename:report.txt; list → artifact list. Subcommands: read / write / list / output_name_get / output_name_set / output_bookmark. REQUIRED PARAMS per subcommand: read→filename; write→filename+text; output_name_set→name; others→none.",
+        summary: "Manage workspace files. Subcommands: read / write / list / output_name_get / output_name_set / output_bookmark. Params: filename (read/write), text (write), name (output_name_set). App container files use container.*, system files use shell.exec.",
         parameters: [
             "command": "Subcommand (required): read / write / list / output_name_get / output_name_set / output_bookmark",
             "filename": "File name — REQUIRED for read/write",
@@ -268,7 +268,7 @@ final class ArtifactExecTool: MCPTool {
 final class DeviceExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "device",
-        summary: "Manage device info and spoofing (info/probe/fake/restore/advertising/idfv/snapshot). Use subcommand to specify action. Use for: get device info, spoof device identity, get advertising ID / IDFV, device snapshot. Don't use for: app management (use app.*), injection (use inject.*). Example: info → device info; fake → device fake; snapshot → device snapshot. Subcommands: info / probe / fake / restore / advertising / idfv / snapshot.",
+        summary: "Device info & identity spoofing. Subcommands: info / probe / fake / restore / advertising / idfv / snapshot. fake spoofs device identity, restore reverts, snapshot captures state. App management use app.*.",
         parameters: [
             "command": "Subcommand: info / probe / fake / restore / advertising / idfv / snapshot"
         ],
@@ -314,7 +314,7 @@ final class DeviceExecTool: MCPTool {
 final class ContainerExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "container",
-        summary: "Manage app data container (refresh/resolve/write/delete). Use subcommand to specify action. Use for: read/write/delete files in app container, resolve app install+data paths. Don't use for: workspace files (use artifact.*), system files (use shell.exec). Example: write → container write bundle_id:com.xxx path:Documents/xxx.txt text:hello; resolve → container resolve bundle_id:com.xxx. Subcommands: refresh / resolve / write / delete. REQUIRED PARAMS per subcommand: write→bundle_id+path+text; delete→bundle_id+path; resolve→bundle_id; refresh→none.",
+        summary: "Manage app data container: read/write/delete files inside an installed app sandbox, resolve bundle_id to install+data paths. Subcommands: refresh / resolve / write / delete. Params: bundle_id (resolve/write/delete), path (write/delete), text (write). Workspace files use artifact.*, system files use shell.exec.",
         parameters: [
             "command": "Subcommand (required): refresh / resolve / write / delete",
             "bundle_id": "App bundle ID — REQUIRED for resolve/write/delete",
@@ -647,7 +647,7 @@ final class ModelExecTool: MCPTool {
 final class KnowledgeExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "knowledge",
-        summary: "Manage knowledge base (import_text/import_file/search/delete/clear). Use subcommand to specify action. Use for: save/search/delete knowledge entries, or clear the whole base. Don't use for: chat memory (use memory set/list). Example: search → knowledge search query:xxx; clear → knowledge clear. Subcommands: import_text / import_file / search / delete / clear.",
+        summary: "Persistent knowledge base. Commands: import_text / import_file / search / delete / clear. Params: text (import_text), name (import_text/delete), path (import_file), query (search). Chat memory use memory.*.",
         parameters: [
             "command": "Subcommand: import_text / import_file / search / delete / clear",
             "text": "Text to import (for import_text)",
@@ -753,7 +753,7 @@ final class LocationExecTool: MCPTool {
 final class GitHubExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "github",
-        summary: "Manage GitHub CI (account_status/trigger_build/fetch_runs/download_artifact). Use subcommand to specify action. Use for: trigger build, check status, download artifact. Don't use for: code search (use web.search). Example: trigger_build → github trigger_build; fetch_runs → github fetch_runs. Subcommands: account_status / trigger_build / fetch_runs / download_artifact.",
+        summary: "GitHub CI automation. Commands: account_status / trigger_build / fetch_runs / download_artifact. Params: workflow (build-trollmcp2.yml or build-tweak.yml), tweak, ref (default main), run_id (for download_artifact).",
         parameters: [
             "command": "Subcommand: account_status / trigger_build / fetch_runs / download_artifact",
             "workflow": "Workflow file for trigger_build: build-trollmcp2.yml (default, build IPA) or build-tweak.yml (build tweak dylib)",

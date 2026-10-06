@@ -760,7 +760,7 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
 final class InjectionExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "inject",
-        summary: "Manage dylib injection & reverse engineering. For binary analysis, FIRST CHOICE is `inject binary_symbols` (extract Mach-O symbols/classes) instead of manually running nm/strings via shell.exec. Use for: inject/remove dylib, check injection status, inspect IPA/dylib/binary (ipa_inspect/dylib_inspect/binary_symbols), apply hooks, wipe keychain. Don't use for: launch app (use app launch), UI control (use control). Example: enable → inject enable bundle_id:com.xxx; status → inject status; list → inject list query:小红书; analyze binary → inject binary_symbols path:... Subcommands: enable / disable / static / enable_persisted / status / inspect / list / remove / restore / mem / diagnose / verify / ipa_inspect / dylib_inspect / binary_symbols / hook_apply / probe_inspect / plugin_list / keychain_wipe / load_dylib.",
+        summary: "Manage dylib injection & reverse engineering. Params: command, bundle_id, path(IPA/dylib/binary), dylib_path, query. 二进制分析首选 binary_symbols(提取Mach-O符号/类), 别用 shell 跑 nm/strings. Use for: 注入/移除dylib, 查状态, inspect IPA/dylib/binary, hook, wipe keychain. 启动App走app.*, UI操作走control.*. Subcommands: enable / disable / static / enable_persisted / status / inspect / list / remove / restore / mem / diagnose / verify / ipa_inspect / dylib_inspect / binary_symbols / hook_apply / probe_inspect / plugin_list / keychain_wipe / load_dylib.",
         parameters: [
             "command": "Subcommand: enable / disable / static / enable_persisted / status / inspect / list / remove / restore / mem / diagnose / verify / ipa_inspect / dylib_inspect / binary_symbols / hook_apply / probe_inspect / plugin_list / keychain_wipe / load_dylib",
             "bundle_id": "App bundle ID",
@@ -930,7 +930,7 @@ final class InjectionExecTool: MCPTool {
 final class AutomationExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "automation",
-        summary: "Manage automation/scheduled tasks (run/list/stop/status/cron_fire). Use subcommand to specify action. Use for: schedule tasks, run/stop automation, fire cron task. Don't use for: one-off reminders (use reminder.*). Example: run → automation run name:task1; list → automation list; stop → automation stop name:task1; cron_fire → automation cron_fire name:task1. Subcommands: run / list / jobs / stop / status / history / set_enabled / cron_fire.",
+        summary: "Manage automation/scheduled tasks. Params: command, name(任务名/ID), enabled. Use for: 定时任务的创建/启停/手动触发/cron 触发. 一次性提醒走 reminder.*. Subcommands: run / list / jobs / stop / status / history / set_enabled / cron_fire.",
         parameters: [
             "command": "Subcommand: run / list / jobs / stop / status / history / set_enabled / cron_fire",
             "name": "Task name or ID",
@@ -987,7 +987,7 @@ final class AutomationExecTool: MCPTool {
 final class AuditTool: MCPTool {
     let definition = ToolDefinition(
         name: "tools.audit",
-        summary: "Audit tool registry consistency: detect references to unregistered tools (ghost tools) inside tool descriptions/prerequisites, and report totals + verified/requiresJailbreak/requiresTrollStore distribution. Use for: after adding/editing tools, when AI seems confused about available tools, or before long sessions. Don't use for: listing tools (use system.overview), checking a single tool's usage. Example: user says 'check if the tools are consistent' → audit.",
+        summary: "Audit tool registry consistency: 找出 descriptions/prerequisites 里引用了未注册的幽灵工具, 报告工具总数及 verified/jailbreak/trollStore 分布. Use for: 增删改工具后、AI 对可用工具困惑时、长会话前. 列工具走 system.overview.",
         parameters: [:],
         returns: ["total_tools": "registered tool count", "verified_count": "tools marked verified:true", "ghost_ref_count": "total references to unregistered tools", "ghost_refs": "map of tool → unregistered tool names it references (empty = docs consistent with registry)"],
         verified: true, category: "system")

@@ -11,7 +11,7 @@ import ZIPFoundation
 final class PackageTool: MCPTool {
     let definition = ToolDefinition(
         name: "package",
-        summary: "Inspect & unpack package files (.deb / .ipa). Use for: when user wants to see what's inside someone else's package (deb tweak, ipa app), list its structure, read its control/info, or extract files. Modes: inspect (list members: deb → ar entries + control text + data.tar file list; ipa → zip entry list + main Info.plist path), unpack (extract all to a workspace dir, then read files with artifact). Handles: deb=ar+tar (gz/lzma compressed data; Apple LZMA only supports .lzma-alone), ipa=zip (stored/deflate). NOT supported: xz container & zstd/bzip2-compressed data.tar (modern deb sometimes) — tell user to unpack on PC with 7-Zip/bsdtar. Example: user says '看看这个 deb 里有什么' → package command:inspect path:/xxx.deb; '解包这个 ipa' → package command:unpack path:/xxx.ipa dest:/var/mobile/Documents/Workspace/extract. REQUIRED PARAMS: command + path.",
+        summary: "Inspect & unpack .deb/.ipa packages. Commands: inspect (list members: deb→ar entries+control text+data.tar list; ipa→zip entries+main Info.plist path) / unpack (extract to workspace dir, read via artifact). Params: command, path, dest. Formats: deb=ar+tar(gz/lzma; Apple LZMA only .lzma-alone); ipa=zip(stored/deflate). NOT supported: xz container & zstd/bzip2 data.tar → tell user unpack on PC with 7-Zip/bsdtar. Use for: see inside deb/ipa, list structure, read control/info, extract files. Required: command+path.",
         parameters: [
             "command": "inspect / unpack",
             "path": "absolute path to .deb or .ipa",

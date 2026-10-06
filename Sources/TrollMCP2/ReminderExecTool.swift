@@ -6,7 +6,7 @@ import UserNotifications
 
 final class ReminderExecTool: MCPTool {
     let definition = ToolDefinition(name: "reminder",
-        summary: "Reminder operations (create todo / schedule one-time notification / schedule recurring notification). Use for: set a to-do item, get reminded after a delay, periodic alerts. Don't use for: scheduling automation tasks (use automation cron_fire). Example: user says 'remind me about the meeting tomorrow' → reminder create; user says 'remind me to drink water in 10 minutes' → reminder schedule; user says 'remind me to drink water every hour' → reminder recurring.",
+        summary: "提醒事项/本地通知. action: create(写进iPhone提醒App, params:title/notes) / schedule(一次性通知, params:title/body/delay_seconds) / recurring(重复通知, params:title/body/interval_seconds). Use for: 待办、延时提醒、周期闹钟. 定时自动化任务走 automation.cron_fire.",
         parameters: ["action": "Subcommand: 'create' / 'schedule' / 'recurring'", "title": "Reminder title", "notes": "For create: optional notes", "body": "For schedule/recurring: notification message", "delay_seconds": "For schedule: delay in seconds", "interval_seconds": "For recurring: repeat interval in seconds"], verified: true, category: "system")
 
     func invoke(_ params: [String: Any]) throws -> [String: Any] {

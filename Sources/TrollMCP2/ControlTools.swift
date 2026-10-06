@@ -424,7 +424,7 @@ final class ControlTypeTextTool: MCPTool {
 final class ControlExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "control",
-        summary: "Control target app UI (tap/type/swipe/screenshot/key). Use subcommand to specify action. Use for: UI automation, controlling app screen. Don't use for: shell commands (use shell.exec), browser control (use browser.*). Example: tap → control tap x:100 y:200; screenshot → control screenshot; type text → control type text:'hello'; tap by text → control tap_text text:'login'; press home → control key key:home. Subcommands: inject / status / ui_tree / screenshot / tap / swipe / type / key / tap_text / type_text. REQUIRED PARAMS per subcommand: tap→x(Number)+y(Number); swipe→x1,y1,x2,y2(Number); type→text; tap_text→text; key→key(home/back/enter); inject→bundle_id; others→none.",
+        summary: "Control target app UI. Subcommands: inject / status / ui_tree / screenshot / tap / swipe / type / key / tap_text / type_text. Params per subcommand: tap→x,y(Number); swipe→x1,y1,x2,y2(Number); type→text; tap_text→text; type_text→placeholder+text; key→key(home/back/enter); inject→bundle_id; others none. Use for: UI automation / app screen control. 先 inject 注入 ControlAgent 后再调其他子命令.",
         parameters: [
             "command": "Subcommand (required): inject / status / ui_tree / screenshot / tap / swipe / type / key / tap_text / type_text",
             "bundle_id": "App bundle ID — REQUIRED for inject only",

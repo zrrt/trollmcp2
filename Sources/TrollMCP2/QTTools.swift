@@ -496,7 +496,7 @@ final class LogCollectTool: MCPTool {
 final class NetworkCaptureTool: MCPTool {
     let definition = ToolDefinition(
         name: "network.capture",
-        summary: "HTTP/HTTPS packet capture. Use for: see what network requests an app makes, analyze API calls, inspect request/response headers, debug app networking. Don't use for: browse web pages (use browser navigate), read local files (use shell.exec cat). Workflow: 1) inject NetworkTweak into app, 2) use the app normally, 3) query captured requests. Example: user says 'capture 小红书 network requests' → network.capture action:start bundle_id:com.xingin.discover. LIMITATIONS: only hooks NSURLSession stack (Apple networking); apps with custom network stacks (protobuf/gRPC/QUIC/HTTP3/TLS pinning, e.g. 小红书/抖音) may show 0 hits — expected, NOT a tool failure; binary request/response bodies are base64-encoded. REQUIRED PARAMS: start→bundle_id; others optional. action: status / start / stop / requests / analyze.",
+        summary: "HTTP/HTTPS packet capture (hooks NSURLSession stack). Commands: status / start / stop / requests / analyze. Params: action, bundle_id(required for start), limit. Use for: see app's network requests, analyze API calls, inspect req/resp headers, debug networking. start injects NetworkTweak into app, then use app normally and query requests. 0 hits expected for custom-network-stack apps (protobuf/gRPC/QUIC/HTTP3/TLS pinning, e.g. 小红书/抖音) — not a tool failure. Binary req/resp bodies base64-encoded.",
         parameters: [
             "action": "Action (default status): status / start / stop / requests / analyze",
             "bundle_id": "Target App bundle_id — REQUIRED for start. e.g. com.xingin.discover",

@@ -54,7 +54,7 @@ struct BrowserWaitTool: MCPTool {
 struct BrowserTextTool: MCPTool {
     var definition = ToolDefinition(
         name: "browser.text",
-        summary: "Read text content of current web page. Use for: read what's on a webpage, extract article text, search within page. Don't use for: open new URL (use browser.navigate), inspect page HTML/structure (use browser.snapshot), type into input box (use browser.type), click buttons (use browser.eval). Example: user says 'what did Baidu search' → read current page text.",
+        summary: "Read text content of current web page. Params: max_chars(default 3000), optional query keyword filter. Returns text + current_url. Use for read article text / search within page. Inspect HTML structure use browser.snapshot, type into input use browser.type.",
         parameters: ["max_chars": "Max characters to return (default 3000)", "query": "Optional: only return text containing this keyword (e.g. 'price')"],
     verified: true, category: "browser")
     func invoke(_ params: [String: Any]) throws -> [String: Any] {
@@ -242,7 +242,7 @@ struct BrowserNavigateTool: MCPTool {
 final class BrowserExecTool: MCPTool {
     let definition = ToolDefinition(
         name: "browser",
-        summary: "Control built-in browser (navigate/screenshot/snapshot/click/type/scroll/wait). Use subcommand to specify action. Use for: open web pages, click buttons, fill forms. Don't use for: read app container files (use shell.exec). Example: navigate → browser navigate url:https://xxx.com; click → browser click idx:5. Subcommands: status / navigate / screenshot / snapshot / text / click / type / form_fields / fill_form / submit / scroll / wait / wait_for / adblock / clear.",
+        summary: "Control built-in browser via command. Subcommands: status/navigate/screenshot/snapshot/text/click/type/form_fields/fill_form/submit/scroll/wait/wait_for/adblock/clear. Params: url(navigate), idx(click/type), text(type), selector(wait_for), enabled(adblock), kinds(clear). Use for open web pages, click buttons, fill forms, read page text.",
         parameters: [
             "command": "Subcommand: status / navigate / screenshot / snapshot / text / click / type / form_fields / fill_form / submit / scroll / wait / wait_for / adblock / clear",
             "url": "URL (for navigate)",
