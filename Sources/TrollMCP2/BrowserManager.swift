@@ -120,8 +120,10 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
         guard webView == nil else { return true }
         // v3.5.16j：首次调用主动初始化并重试——此前 5s 单次超时，主线程忙/WebView 建得慢时
         // 直接返回 ERR("浏览器 WebView 初始化超时")，导致 browser.navigate 前几次报 ok=false/UNKNOWN。
-        // 现在最多重试 4 次、每次 2s（共约 8s），期间主线程空闲后 WebView 建成就成功。
-        for _ in 0..<4 {
+        // v4.4.11：增强健壮性——重试 4→6 次(共约 12s)；非主线程若主线程 2.5s 未响应(主线程忙/被占)
+        // 则后台线程直建兜底(createWebView 只建 WKWebView 不进 UI 层级, 后台创建安全)；仍失败输出诊断日志。
+        let start = Date()
+        for i in 0..<6 {
             if Thread.isMainThread {
                 createWebView()
                 if webView != nil { return true }
@@ -131,12 +133,19 @@ final class BrowserManager: NSObject, ObservableObject, WKNavigationDelegate {
                     if self.webView == nil { self.createWebView() }
                     sem.signal()
                 }
-                _ = sem.wait(timeout: .now() + 2)
+                let waited = sem.wait(timeout: .now() + 2.5)
                 if webView != nil { return true }
+                // 主线程 2.5s 未响应 → 主线程忙 → 后台线程直建兜底（此时 async 大概率未执行, 无并发冲突）
+                if waited == .timedOut && webView == nil {
+                    if self.webView == nil { self.createWebView() }
+                    if webView != nil { return true }
+                }
             }
             // 未成功则稍等再试，给主线程腾空
             Thread.sleep(forTimeInterval: 0.3)
         }
+        let elapsed = Date().timeIntervalSince(start)
+        NSLog("ensureWebView failed after 6 tries (%.1fs) — 主线程疑似忙/WebView 创建被卡, 真机 inspect logs 定位", elapsed)
         return false
     }
 
