@@ -40,10 +40,21 @@ final class TTSService: NSObject, ObservableObject, AVAudioPlayerDelegate {
         enqueueSentences(text)
     }
 
-    /// 手动朗读（无视开关，打断当前自动朗读，只播这段）
+    /// 手动朗读（无视开关，打断当前自动朗读，只播这段）——整段已完整，一次合成后连续播完（实测100字3s/500字约6s，比逐句更快）
     func speakForced(_ text: String) {
         stopInternal()
-        enqueueSentences(text)
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return }
+        isSynthBusy = true
+        synthesize(t) { [weak self] data in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.isSynthBusy = false
+                guard let data, data.count > 100 else { return }
+                self.readyChunks.append(data)
+                self.pump()
+            }
+        }
     }
 
     func stop() { stopInternal() }
