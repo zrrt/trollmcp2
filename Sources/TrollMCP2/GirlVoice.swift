@@ -184,7 +184,7 @@ final class GirlVoice: NSObject, ObservableObject {
 
     private func finishRecognition() {
         guard isListening else { return }
-        if let result = task?.result(), !result.bestTranscription.formattedString.isEmpty {
+        if let result = task?.result, !result.bestTranscription.formattedString.isEmpty {
             sendFinal(result.bestTranscription.formattedString)
         } else {
             sendFinal(partialText)

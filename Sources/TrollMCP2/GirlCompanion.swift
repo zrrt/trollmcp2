@@ -153,7 +153,7 @@ struct GirlCompanionView: View {
         if !tts.speakerEnabled {
             tts.speakerEnabled = true
         }
-        let store = ModelStore.shared
+        let store = ConversationStore.shared
         if store.selectedId == nil {
             store.newConversation()
         }

@@ -32,6 +32,10 @@ struct SelectableText: UIViewRepresentable {
         tv.invalidateIntrinsicContentSize()
     }
 
+    // v4.5.0：sizeThatFits(proposal:) 是 iOS16+ 的 UIViewRepresentable 协议方法，
+    // iOS15 编译会报 ProposedViewSize unavailable —— 用 @available 限定，
+    // iOS15 靠 UITextView intrinsicContentSize（updateUIView 已 invalidate）自适应高度
+    @available(iOS 16.0, *)
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
         let width = proposal.width ?? (UIScreen.main.bounds.width - 40)
         let size = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
