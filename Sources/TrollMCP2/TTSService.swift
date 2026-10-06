@@ -14,7 +14,11 @@ final class TTSService: NSObject, ObservableObject, AVAudioPlayerDelegate {
     @Published var speakerEnabled: Bool {
         didSet { UserDefaults.standard.set(speakerEnabled, forKey: "trollmcp2.tts_enabled") }
     }
-    @Published var isSpeaking = false
+    @Published var isSpeaking = false {
+        didSet { if !isSpeaking { speakingId = nil } }
+    }
+    /// 当前手动朗读的消息 id（气泡喇叭高亮用；流式自动朗读不设）
+    @Published var speakingId: String?
 
     private let baseURL = "https://tts.trollagent.cc.cd/tts"
     private let voice = "zh-CN-XiaoyiNeural"
@@ -37,14 +41,15 @@ final class TTSService: NSObject, ObservableObject, AVAudioPlayerDelegate {
     /// 自动朗读（受全局喇叭开关控制）：流式分句送进来，排队流水线播放
     func speak(_ text: String) {
         guard speakerEnabled else { return }
-        enqueueSentences(text)
+        enqueueSentences(cleanForSpeech(text))
     }
 
     /// 手动朗读（无视开关，打断当前自动朗读，只播这段）——整段已完整，一次合成后连续播完（实测100字3s/500字约6s，比逐句更快）
-    func speakForced(_ text: String) {
+    func speakForced(id: String?, _ text: String) {
         stopInternal()
-        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let t = cleanForSpeech(text).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return }
+        speakingId = id
         isSynthBusy = true
         synthesize(t) { [weak self] data in
             DispatchQueue.main.async {
@@ -81,6 +86,8 @@ final class TTSService: NSObject, ObservableObject, AVAudioPlayerDelegate {
         if player == nil, !readyChunks.isEmpty {
             let data = readyChunks.removeFirst()
             startPlay(data)
+        } else if player == nil {
+            isSpeaking = false   // 没有就绪也没在播 → 整段播完（结束朗读）
         }
         // ② 合成器空闲则预取下一个（这句合成期间，当前句正在播放 → 句间无缝）
         if !isSynthBusy, !pendingTexts.isEmpty {
@@ -147,5 +154,32 @@ final class TTSService: NSObject, ObservableObject, AVAudioPlayerDelegate {
         let tail = current.trimmingCharacters(in: .whitespacesAndNewlines)
         if !tail.isEmpty { result.append(tail) }
         return result
+    }
+
+    /// 朗读前清洗：去掉 markdown 标记/链接/括号/星号/竖线等格式符号，只留文字（避免 Edge TTS 把 * - （） # 等读出来）
+    private func cleanForSpeech(_ t: String) -> String {
+        var s = t
+        // 行内代码/反引号
+        s = s.replacingOccurrences(of: "`", with: "")
+        // 链接 [text](url) → text
+        s = s.replacingOccurrences(of: #"\[([^\]]+)\]\([^)]*\)"#, with: "$1", options: .regularExpression)
+        // 行首 markdown 标记（标题#/列表-*/引用>）
+        s = s.replacingOccurrences(of: #"(?m)^[ \t]*[#>*+-][ \t]*"#, with: "", options: .regularExpression)
+        // 表格分隔行 |---| 整行去掉
+        s = s.replacingOccurrences(of: #"(?m)^[ \t]*\|?[ \t]*:?-+:?[ \t]*(\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$"#, with: "", options: .regularExpression)
+        // 残留星号/下划线/井号
+        s = s.replacingOccurrences(of: #"[*_]"#, with: "", options: .regularExpression)
+        s = s.replacingOccurrences(of: "#", with: "")
+        // 表格竖线（保留单元格内容）
+        s = s.replacingOccurrences(of: "|", with: "")
+        // 括号符号本身去掉（保留内部文字），中英括号都处理
+        s = s.replacingOccurrences(of: "(", with: "").replacingOccurrences(of: ")", with: "")
+        s = s.replacingOccurrences(of: "（", with: "").replacingOccurrences(of: "）", with: "")
+        // 数学符号转读法
+        s = s.replacingOccurrences(of: "×", with: "乘").replacingOccurrences(of: "÷", with: "除以")
+        // 压缩连续空白与空行
+        s = s.replacingOccurrences(of: #"[ \t]+"#, with: " ", options: .regularExpression)
+        s = s.replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
+        return s.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

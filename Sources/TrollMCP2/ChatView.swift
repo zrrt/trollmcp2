@@ -1486,17 +1486,19 @@ struct MessageBubble: View {
                         )
                     // v4.4.18：朗读喇叭按钮（assistant 消息）——点一下朗读这条全文；长按仍保留选字复制
                     if !isUser && !message.isTool {
-                        HStack(spacing: 4) {
-                            Button(action: { TTSService.shared.speakForced(message.content) }) {
-                                Image(systemName: "speaker.wave.2")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.secondary)
+                        HStack(spacing: 6) {
+                            Button(action: { TTSService.shared.speakForced(id: message.id, message.content) }) {
+                                Image(systemName: TTSService.shared.speakingId == message.id ? "speaker.wave.2.fill" : "speaker.wave.2")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundColor(TTSService.shared.speakingId == message.id ? .tmCyan : .secondary)
+                                    .padding(.vertical, 6)
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             Spacer()
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.bottom, 3)
+                        .padding(.horizontal, 10)
+                        .padding(.bottom, 4)
                     }
                 }
                 .frame(maxWidth: isUser ? nil : .infinity, alignment: .leading)
