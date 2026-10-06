@@ -1233,6 +1233,28 @@ struct QuickActionCard: View {
     }
 }
 
+// v4.4.15：气泡点击手势——仅 tool 折叠 / 多选模式注册 onTapGesture；
+// 纯文本气泡(非tool非selection)不注册任何点击手势，否则父级 contentShape+onTapGesture
+// 的手势识别器会抢占内部 Text 的 textSelection 长按 → AI 回复一大段文字长按选字失效(用户实测)
+private struct MessageTapModifier: ViewModifier {
+    let isTool: Bool
+    let selectionMode: Bool
+    let onToggleSelect: (() -> Void)?
+    let onToolToggle: () -> Void
+    func body(content: Content) -> some View {
+        if isTool || selectionMode {
+            content
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if selectionMode { onToggleSelect?() }
+                    else { onToolToggle() }
+                }
+        } else {
+            content
+        }
+    }
+}
+
 struct MessageBubble: View {
     let message: ChatMessage
     // v4.3.77：安装进度——工具"执行中"气泡渲染实时进度条（引用处位于本 struct）
@@ -1321,14 +1343,13 @@ struct MessageBubble: View {
         }
         // v3.4.4：AI/工具气泡左右各留 16 边距（用户反馈 10 仍太小）；用户气泡右侧留白 12
         .padding(.horizontal, isUser ? 12 : 16)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if selectionMode {
-                onToggleSelect?()
-            } else if isTool {
-                withAnimation { expanded.toggle() }
-            }
-        }
+        // v4.4.15：条件点击手势——tool/多选才注册，纯文本气泡不注册(让 textSelection 长按生效)
+        .modifier(MessageTapModifier(
+            isTool: isTool,
+            selectionMode: selectionMode,
+            onToggleSelect: onToggleSelect,
+            onToolToggle: { withAnimation { expanded.toggle() } }
+        ))
         // v4.4.13：移除 contextMenu——长按文字改为系统选择手柄(.textSelection)，可拖选部分复制。
         // 此前外层 contextMenu(复制全文/分享)抢占长按, 导致内层 Text 的 .textSelection(.enabled) 永远触发不了
         // 文字选择。全量复制/分享走多选工具栏(selectionMode: copySelected/shareMessage)。
