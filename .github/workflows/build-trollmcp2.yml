@@ -411,6 +411,14 @@ jobs:
               rm -rf Resources/hud
               mkdir -p Resources/hud
               cp -R "$HUDAPP" "Resources/hud/TrollAgentHUD.app"
+              # v6.0.3：给独立 HUD 二进制 ldid 签名（ldid-procursus，确保 exec 放行——
+              # TrollStore 重签可能不覆盖 Resources/hud/ 里的 .app，二进制保持 theos 假签名会被 AMFI 拒 exec）
+              HUD_BIN="Resources/hud/TrollAgentHUD.app/TrollAgentHUD"
+              if ldid "$HUD_BIN" 2>/tmp/hud_sign.err; then
+                echo ">>> HUD ldid signed (ad-hoc)"
+              else
+                echo "WARN: HUD ldid sign failed: $(cat /tmp/hud_sign.err)"
+              fi
               echo ">>> HUD bundled: $(du -sh Resources/hud/TrollAgentHUD.app | cut -f1)"
             else
               echo "WARN: HUD make ok but no app found (.theos/obj/debug missing)"
