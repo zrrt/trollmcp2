@@ -94,14 +94,13 @@ let package = Package(
                 .unsafeFlags([
                     "-L", "hud-stage/lib", "-lHUD",
                     "-F", "HUD/libraries",
-                    // v4.5.3：私有 framework 全部 weak 链接——正常 App 启动时即使 dyld
-                    // 加载这些 framework 受限也不致崩溃；HUD 只在 -hud 分支真正调用，
-                    // 主 App 不触碰其符号。
-                    "-weak_framework", "BackBoardServices",
-                    "-weak_framework", "GraphicsServices",
-                    "-weak_framework", "SpringBoardServices",
-                    "-weak_framework", "AssertionServices",
-                    "-weak_framework", "IOKit",
+                    // v4.5.3：私有 framework 全部 weak 链接（-Xlinker 透传，swiftc 不认 -weak_framework）——
+                    // 正常 App 启动时即使 dyld 加载这些 framework 受限也不致崩溃；HUD 只在 -hud 分支真正调用。
+                    "-Xlinker", "-weak_framework", "-Xlinker", "BackBoardServices",
+                    "-Xlinker", "-weak_framework", "-Xlinker", "GraphicsServices",
+                    "-Xlinker", "-weak_framework", "-Xlinker", "SpringBoardServices",
+                    "-Xlinker", "-weak_framework", "-Xlinker", "AssertionServices",
+                    "-Xlinker", "-weak_framework", "-Xlinker", "IOKit",
                     "-lc++",
                 ])
             ]
