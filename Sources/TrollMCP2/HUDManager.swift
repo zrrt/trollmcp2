@@ -6,6 +6,17 @@ private let PID_PATH = "/var/mobile/Library/Caches/trollagent.hud.pid"
 /// start() 诊断日志（写到 /tmp，8790 ios_native 可直接 cat 读，确证 start 执行到哪步）
 private let TMP_LOG = "/tmp/hud.start.log"
 
+/// v6.0.4：persona 99 提权所需 C 函数声明（@_silgen_name 只能用于顶层全局函数，
+/// 不能放类里实例方法——之前放类里导致 Build IPA 编译失败）。
+#if !targetEnvironment(simulator)
+@_silgen_name("posix_spawnattr_set_persona_np")
+private func _troll_persona_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>?, _ persona: uid_t, _ flags: UInt32) -> Int32
+@_silgen_name("posix_spawnattr_set_persona_uid_np")
+private func _troll_persona_uid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>?, _ uid: uid_t) -> Int32
+@_silgen_name("posix_spawnattr_set_persona_gid_np")
+private func _troll_persona_gid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>?, _ gid: gid_t) -> Int32
+#endif
+
 /// 桌面悬浮 HUD：单可执行双模式（TrollSpeed 正解）。
 /// 主 App 可执行（TrollStore 有效签名）由 HUDManager 以 root persona 拉起，argv 带
 /// -hud 进悬浮模式——复用主可执行的有效签名，AMFI 放行（独立二进制假签名被 106/109 拒的根因已消除）。
@@ -26,22 +37,14 @@ final class HUDManager {
     /// UIApplicationInitialize/__completeAndRunAsPlugin 在 sandbox 下崩(step=enter 都没落盘)。
     /// 主 App 已有 platform-application + persona-mgmt entitlements，persona 99 不再报 106。
     private static let POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE: UInt32 = 1
-    #if !targetEnvironment(simulator)
-    @_silgen_name("posix_spawnattr_set_persona_np")
-    private func posix_spawnattr_set_persona_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>?, _ persona: uid_t, _ flags: UInt32) -> Int32
-    @_silgen_name("posix_spawnattr_set_persona_uid_np")
-    private func posix_spawnattr_set_persona_uid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>?, _ uid: uid_t) -> Int32
-    @_silgen_name("posix_spawnattr_set_persona_gid_np")
-    private func posix_spawnattr_set_persona_gid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>?, _ gid: gid_t) -> Int32
-    #endif
     private func spawnDetached(_ path: String, args: [String]) -> Bool {
         var attr: posix_spawnattr_t = posix_spawnattr_t()
         posix_spawnattr_init(&attr)
         defer { posix_spawnattr_destroy(&attr) }
         #if !targetEnvironment(simulator)
-        posix_spawnattr_set_persona_np(&attr, 99, HUDManager.POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE)
-        posix_spawnattr_set_persona_uid_np(&attr, 0)
-        posix_spawnattr_set_persona_gid_np(&attr, 0)
+        _troll_persona_np(&attr, 99, HUDManager.POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE)
+        _troll_persona_uid_np(&attr, 0)
+        _troll_persona_gid_np(&attr, 0)
         #endif
         var argv: [UnsafeMutablePointer<CChar>?] = [strdup(path)] + args.map { strdup($0) }
         argv.append(nil)
