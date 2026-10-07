@@ -1,6 +1,11 @@
 import Foundation
 import Darwin
 
+/// 桌面悬浮 HUD 进程 pid 文件（HUDMainStart 写入）
+private let PID_PATH = "/var/mobile/Library/Caches/trollagent.hud.pid"
+/// start() 诊断日志（写到 /tmp，8790 ios_native 可直接 cat 读，确证 start 执行到哪步）
+private let TMP_LOG = "/tmp/hud.start.log"
+
 /// 桌面悬浮 HUD：单可执行双模式（TrollSpeed 正解）。
 /// 主 App 可执行（TrollStore 有效签名）由 HUDManager 以 root persona 拉起，argv 带
 /// -hud 进悬浮模式——复用主可执行的有效签名，AMFI 放行（独立二进制假签名被 106/109 拒的根因已消除）。
@@ -44,12 +49,20 @@ final class HUDManager {
     private func appendLog(_ msg: String) {
         let line = "[\(Date())] \(msg)\n"
         let data = line.data(using: .utf8) ?? Data()
+        // 主日志写 App Documents + /var/mobile/Documents
         for url in [logURL, sysLogURL] {
             if let h = try? FileHandle(forWritingTo: url) {
                 h.seekToEndOfFile(); h.write(data); try? h.close()
             } else {
                 try? data.write(to: url, options: .atomic)
             }
+        }
+        // 诊断副本写 /tmp（8790 ios_native 可直接 cat 读，确证 start 执行到哪步）
+        let tmpURL = URL(fileURLWithPath: TMP_LOG)
+        if let h = try? FileHandle(forWritingTo: tmpURL) {
+            h.seekToEndOfFile(); h.write(data); try? h.close()
+        } else {
+            try? data.write(to: tmpURL, options: .atomic)
         }
     }
 
@@ -62,11 +75,12 @@ final class HUDManager {
         return nil
     }
 
-    /// 是否在跑：主可执行 -check——进程存活返回 EXIT_FAILURE(1)，未在跑/无 pid 返回 EXIT_SUCCESS(0)
+    /// 是否在跑：直接读 pid 文件 + kill(pid,0) 检查进程存活。
+    /// （不再用 spawnRoot(-check)：那是提权 persona 99，iOS16+TrollStore 下 errno 106，判断不可靠）
     var isRunning: Bool {
-        guard let bin = hudBinaryPath else { return false }
-        let (code, _) = InjectionManager.shared.spawnRoot(bin, args: ["-check"], timeout: 5)
-        return code == 1
+        guard let pidStr = try? String(contentsOfFile: PID_PATH, encoding: .utf8),
+              let pid = Int32(pidStr.trimmingCharacters(in: .whitespacesAndNewlines)) else { return false }
+        return kill(pid, 0) == 0 || errno == EPERM
     }
 
     /// LaunchDaemon plist：TrollSpeed 主路径靠 launchctl load 拉起（launchd 以 root+App 类型 spawn，
