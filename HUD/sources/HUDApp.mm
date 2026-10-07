@@ -141,6 +141,10 @@ extern "C" void HUDMainStart(void)
 {
     @autoreleasepool
     {
+        // v6.x Step2 诊断：每一步写文件日志( /var/mobile/Documents/hud.log )，确证 mobile 不提权下在哪一步退出
+        NSString *hudLogPath = @"/var/mobile/Documents/hud.log";
+        NSString *p = [NSString stringWithFormat:@"[HUD -hud] %@ step=enter\n", [NSDate date]];
+        [p writeToFile:hudLogPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
         log_debug(OS_LOG_DEFAULT, "HUD launched via -hud");
 
         pid_t pid = getpid();
@@ -152,24 +156,37 @@ extern "C" void HUDMainStart(void)
 
         [UIScreen initialize];
         CFRunLoopGetCurrent();
-
+        p = [NSString stringWithFormat:@"[HUD -hud] step=before-GSInitialize pid=%d\n", pid];
+        [p writeToFile:hudLogPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
         GSInitialize();
+        p = [NSString stringWithFormat:@"[HUD -hud] step=GSInitialize-ok\n"];
+        [p writeToFile:hudLogPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
         BKSDisplayServicesStart();
         UIApplicationInitialize();
+        p = [NSString stringWithFormat:@"[HUD -hud] step=UIApplicationInitialize-ok\n"];
+        [p writeToFile:hudLogPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
 
         UIApplicationInstantiateSingleton(objc_getClass("HUDMainApplication"));
+        p = [NSString stringWithFormat:@"[HUD -hud] step=InstantiateSingleton-ok\n"];
+        [p writeToFile:hudLogPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
         static id<UIApplicationDelegate> appDelegate = [[objc_getClass("HUDMainApplicationDelegate") alloc] init];
         [UIApplication.sharedApplication setDelegate:appDelegate];
         [UIApplication.sharedApplication _accessibilityInit];
+        p = [NSString stringWithFormat:@"[HUD -hud] step=accessibilityInit-ok\n"];
+        [p writeToFile:hudLogPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
 
         [NSRunLoop currentRunLoop];
         BKSHIDEventRegisterEventCallback(_HUDEventCallback);
+        p = [NSString stringWithFormat:@"[HUD -hud] step=BKSHIDEventRegister-ok\n"];
+        [p writeToFile:hudLogPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
 
         if (@available(iOS 15.0, *)) {
             GSEventInitialize(0);
             GSEventPushRunLoopMode(kCFRunLoopDefaultMode);
         }
 
+        p = [NSString stringWithFormat:@"[HUD -hud] step=before-completeAndRunAsPlugin\n"];
+        [p writeToFile:hudLogPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
         [UIApplication.sharedApplication __completeAndRunAsPlugin];
 
         CFRunLoopRun();
