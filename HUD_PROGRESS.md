@@ -33,3 +33,24 @@
 - TheBall 源码/ipa: `research/TheBall/`(1.6–2.7.ipa 已解包 2.7，主可执行"后台不死是"已逆向出机制)
 - TrollSpeed 参考(launchctl/persona 路线，已确认此机不可行): `research/TrollSpeed/`
 - 仓库: zrrt/trollmcp2 main
+
+## 2026-10-07 晚更新（方案 B Step 1 成功 + Step 2 定方向）
+
+### Step 1 已验证成功（真机 hud.log + ps）
+- HUD 拉起改**不提权 posix_spawn**（spawn 而非 spawnRoot persona 99）→ **errno 106 彻底避开**
+- hud.log: `start OK (posix_spawn 不提权, mobile)`
+- ps 看到 HUD 进程被拉起（PID, 父进程 1）
+
+### HUD 起来但桌面没显示
+- 今天(10-07)无崩溃日志(.ips)；ps 只有主 App 进程 → **HUD -hud 进程起来后退出了**
+- 根因：`HUDMainStart()`(HUD/sources/HUDApp.mm) 用 **TrollSpeed 插件模式**：
+  `GSInitialize + BKSDisplayServicesStart + UIApplicationInitialize + __completeAndRunAsPlugin + HUDMainApplication 私有事件接管(反汇编 _run)`
+  ——**这套依赖 root persona，mobile 不提权下跑不动(退出)**
+
+### Step 2 方向
+- **重构 HUDMainStart**：从插件模式 → **普通 UIApplication + 高 windowLevel accessibility 全局窗口**(TheBall 方式, mobile 可行)
+- HUD/sources 有 HUDMainApplication.mm(142)/HUDMainWindow.mm(19)/HUDRootViewController.mm 需重构窗口机制
+- 工作量大，需多轮改+测
+
+### 待解
+- TheBall 悬浮球进程 uid 未确证(装 TheBall 到手机 ps 可测)；但 mobile + accessibility 全局窗口确定性成立(已从 TheBall 逆向确认机制)
