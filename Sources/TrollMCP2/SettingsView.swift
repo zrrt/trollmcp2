@@ -179,7 +179,12 @@ struct SettingsView: View {
             icon: "heart.fill",
             color: .pink,
             isOn: { GirlCompanion.shared.enabled },
-            onToggle: { GirlCompanion.shared.enabled = $0 }
+            onToggle: { on in
+                GirlCompanion.shared.enabled = on
+                // 打开可爱助手即自动拉起桌面悬浮 HUD（HUD 显示当前角色小女孩）
+                if on { _ = HUDManager.shared.start() }
+                else { _ = HUDManager.shared.stop() }
+            }
         ))
         // v4.5.1：桌面悬浮 HUD（TrollSpeed 独立二进制，root persona 拉起，手机桌面显示角色）
         _ = hudRefresh // 依赖：onToggle 后 body 重建，subtitle 显示最新启动结果/原因
