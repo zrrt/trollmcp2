@@ -179,6 +179,8 @@ struct SettingsView: View {
                 ?? (HUDManager.shared.isRunning ? "桌面悬浮运行中 · 手机桌面显示" : "桌面悬浮未运行 · 手机桌面隐藏"),
             icon: "heart.fill",
             color: .pink,
+            // 点击进入角色选择页（v6.0.2：角色选择直接放进可爱助手）
+            destination: AnyView(GirlCharacterPickerView()),
             isOn: { GirlCompanion.shared.enabled },
             onToggle: { on in
                 GirlCompanion.shared.enabled = on
@@ -186,9 +188,7 @@ struct SettingsView: View {
                 if on { _ = HUDManager.shared.start() }
                 else { _ = HUDManager.shared.stop() }
                 hudRefresh.toggle()
-            },
-            // 点击进入角色选择页（v6.0.2：角色选择直接放进可爱助手）
-            destination: AnyView(GirlCharacterPickerView())
+            }
         ))
         // v2.9.72：开发者模式开关（固定显示，控制下方"开发者"分组）
         controlItems.append(SettingsItem(
