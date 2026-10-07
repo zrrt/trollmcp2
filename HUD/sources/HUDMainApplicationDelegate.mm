@@ -17,6 +17,7 @@
 @implementation HUDMainApplicationDelegate {
     HUDRootViewController *_rootViewController;
     SBSAccessibilityWindowHostingController *_windowHostingController;
+    UIBackgroundTaskIdentifier _backgroundTask;
 }
 
 - (instancetype)init
@@ -58,6 +59,25 @@
 #pragma clang diagnostic pop
 
     return YES;
+}
+
+// 保活（抄 TheBall FloatingBallBackgroundManager）：HUD 是 posix_spawn 后台进程，
+// 没有 beginBackgroundTask 会被系统当后台进程迅速杀掉。进后台即申请后台任务保持存活。
+- (void)applicationDidEnterBackground:(UIApplication *)application
+{
+    _backgroundTask = [application beginBackgroundTaskWithName:@"trollagent.hud.keepalive" expirationHandler:^{
+        [application endBackgroundTask:self->_backgroundTask];
+        self->_backgroundTask = UIBackgroundTaskInvalid;
+    }];
+    log_debug(OS_LOG_DEFAULT, "HUD keepalive beginBackgroundTask=%lu", (unsigned long)_backgroundTask);
+}
+
+- (void)applicationWillEnterForeground:(UIApplication *)application
+{
+    if (_backgroundTask != UIBackgroundTaskInvalid) {
+        [application endBackgroundTask:_backgroundTask];
+        _backgroundTask = UIBackgroundTaskInvalid;
+    }
 }
 
 @end
