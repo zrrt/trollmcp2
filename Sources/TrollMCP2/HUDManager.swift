@@ -11,11 +11,13 @@ final class HUDManager {
 
     /// 最近一次启动失败原因（供设置页 subtitle 直接展示，避免盲猜）
     var lastStartError: String?
-    /// 最近一次启动日志写入 App 容器 Documents/hud.log（AI/终端可读）
+    /// 最近一次启动日志写入 App 容器 Documents/hud.log + /var/mobile/Documents/hud.log
+    /// （后者在 /var/mobile/Documents，8790 shell.exec 可直接 cat 读，便于 AI 连真机诊断）
     private let logURL: URL = {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first ?? URL(fileURLWithPath: "/var/mobile")
         return docs.appendingPathComponent("hud.log")
     }()
+    private let sysLogURL = URL(fileURLWithPath: "/var/mobile/Documents/hud.log")
 
     /// HUD 可执行路径：主 App 可执行本身（单可执行双模式，-hud 进悬浮）
     var hudBinaryPath: String? {
@@ -28,11 +30,23 @@ final class HUDManager {
 
     private func appendLog(_ msg: String) {
         let line = "[\(Date())] \(msg)\n"
-        if let h = try? FileHandle(forWritingTo: logURL) {
-            h.seekToEndOfFile(); h.write(line.data(using: .utf8) ?? Data()); try? h.close()
-        } else {
-            try? line.data(using: .utf8)?.write(to: logURL, options: .atomic)
+        let data = line.data(using: .utf8) ?? Data()
+        for url in [logURL, sysLogURL] {
+            if let h = try? FileHandle(forWritingTo: url) {
+                h.seekToEndOfFile(); h.write(data); try? h.close()
+            } else {
+                try? data.write(to: url, options: .atomic)
+            }
         }
+    }
+
+    /// v4.5.9：launchctl 真实路径探测——iOS 各版本位置不一(/usr/bin 或 /usr/sbin /bin /sbin)。
+    /// 逐路径探测，避免写死 /usr/bin 在部分 iOS 上 ENOENT。找不到返回 nil（subtitle 明确提示）。
+    private var launchctlBinary: String? {
+        for p in ["/usr/bin/launchctl", "/usr/sbin/launchctl", "/bin/launchctl", "/sbin/launchctl"] {
+            if FileManager.default.fileExists(atPath: p) { return p }
+        }
+        return nil
     }
 
     /// 是否在跑：主可执行 -check——进程存活返回 EXIT_FAILURE(1)，未在跑/无 pid 返回 EXIT_SUCCESS(0)
@@ -122,14 +136,20 @@ final class HUDManager {
         appendLog("start: launching \(bin) -hud")
 
         // 主路径：写 LaunchDaemon plist + launchctl load（launchd 以 root+App 拉起，AMFI 放行）
-        if writeDaemonPlist(bin: bin) {
-            let (code, out) = InjectionManager.shared.spawnRoot("/usr/bin/launchctl", args: ["load", daemonPlistPath], timeout: 15)
-            if code == 0 {
-                lastStartError = nil
-                appendLog("start OK via launchctl load")
-                return true
+        // v4.5.9：launchctl 路径探测——写死 /usr/bin 在部分 iOS 上 ENOENT 会误导诊断
+        if let lctl = launchctlBinary {
+            if writeDaemonPlist(bin: bin) {
+                let (code, out) = InjectionManager.shared.spawnRoot(lctl, args: ["load", daemonPlistPath], timeout: 15)
+                if code == 0 {
+                    lastStartError = nil
+                    appendLog("start OK via launchctl load (\(lctl))")
+                    return true
+                }
+                appendLog("launchctl load errno=\(code) out=\(out) (\(lctl))——回退 posix_spawn")
             }
-            appendLog("launchctl load errno=\(code) out=\(out)——回退 posix_spawn")
+        } else {
+            lastStartError = "launchctl 二进制未找到（/usr/bin /usr/sbin /bin /sbin 均无）"
+            appendLog("start: launchctl not found in standard paths——直接 posix_spawn")
         }
 
         // 兜底：posix_spawn persona 99（TrollSpeed 仅 plist 缺失时用；可能 106）
@@ -147,8 +167,8 @@ final class HUDManager {
     @discardableResult
     func stop() -> Bool {
         // 主路径：launchctl unload
-        if FileManager.default.fileExists(atPath: daemonPlistPath) {
-            let (code, out) = InjectionManager.shared.spawnRoot("/usr/bin/launchctl", args: ["unload", daemonPlistPath], timeout: 15)
+        if FileManager.default.fileExists(atPath: daemonPlistPath), let lctl = launchctlBinary {
+            let (code, out) = InjectionManager.shared.spawnRoot(lctl, args: ["unload", daemonPlistPath], timeout: 15)
             appendLog("stop: launchctl unload code=\(code) out=\(out)")
             if code == 0 { return true }
         }

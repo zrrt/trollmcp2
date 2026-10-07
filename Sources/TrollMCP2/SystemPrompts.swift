@@ -497,6 +497,10 @@ final class SystemPrompts {
     - ENVIRONMENT ROUTING (auto): default is iOS native; auto-routes to Alpine when a command needs apk add/tar/git/
       sh -c/full scripts. python3 defaults to native CPython; force Alpine with `sh -c 'python3 ...'`. Never pass env
       to switch (ignored); never write env:alpine/env:ios prefixes (cause "not found").
+    - COMMAND EXISTENCE (v4.5.9, 实测边界): App 视角下 `ls /usr/bin` 目录枚举只显示系统 daemon 子集
+      (swift-inspect/sysdiagnose 等)，常用命令(chmod/ls/cp/launchctl)不会出现在目录列表里——但【直接路径访问正常】。
+      确认某命令是否存在，用 `command -v <名>` 或 `ls -la /usr/bin/<名>` / `/usr/sbin/<名>`；【不要】用 `ls <目录>` 枚举
+      判断系统缺命令——那会误判。launchctl 在此环境位于 /usr/bin/launchctl。
     - iOS↔Alpine AUTO-BIND (v4.1.0): Alpine commands auto-mount iOS paths /var/mobile/Documents/Workspace→/ios_workspace,
       /var/containers→/ios_containers, /System→/ios_system(只读); Alpine reads/writes them directly, no 2MB limit.
       /var/mobile 整棵【不】自动绑定(自引用→内核污染→崩溃); 读 App 数据容器用 bind_app bundle_id:<id>→/ios_data_<app>
