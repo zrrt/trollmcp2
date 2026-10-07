@@ -9,12 +9,15 @@ private let TMP_LOG = "/tmp/hud.start.log"
 /// v6.0.4：persona 99 提权所需 C 函数声明（@_silgen_name 只能用于顶层全局函数，
 /// 不能放类里实例方法——之前放类里导致 Build IPA 编译失败）。
 #if !targetEnvironment(simulator)
+// v6.0.4: posix_spawnattr_t 在 iOS 是 void*(=UnsafeMutableRawPointer)，&attr 是
+// UnsafeMutablePointer<UnsafeMutableRawPointer>。声明参数用不带外层 Optional 的
+// UnsafeMutablePointer<posix_spawnattr_t>(展开即 UnsafeMutablePointer<UnsafeMutableRawPointer>)。
 @_silgen_name("posix_spawnattr_set_persona_np")
-func _troll_persona_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>?, _ persona: uid_t, _ flags: UInt32) -> Int32
+func _troll_persona_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>, _ persona: uid_t, _ flags: UInt32) -> Int32
 @_silgen_name("posix_spawnattr_set_persona_uid_np")
-func _troll_persona_uid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>?, _ uid: uid_t) -> Int32
+func _troll_persona_uid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>, _ uid: uid_t) -> Int32
 @_silgen_name("posix_spawnattr_set_persona_gid_np")
-func _troll_persona_gid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>?, _ gid: gid_t) -> Int32
+func _troll_persona_gid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>, _ gid: gid_t) -> Int32
 #endif
 
 /// 桌面悬浮 HUD：单可执行双模式（TrollSpeed 正解）。
@@ -43,8 +46,8 @@ final class HUDManager {
         defer { posix_spawnattr_destroy(&attr) }
         #if !targetEnvironment(simulator)
         _troll_persona_np(&attr, 99, HUDManager.POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE)
-        _troll_persona_uid_np(&attr, 0)
-        _troll_persona_gid_np(&attr, 0)
+        _troll_persona_uid_np(&attr, 0 as uid_t)
+        _troll_persona_gid_np(&attr, 0 as gid_t)
         #endif
         var argv: [UnsafeMutablePointer<CChar>?] = [strdup(path)] + args.map { strdup($0) }
         argv.append(nil)
