@@ -60,9 +60,12 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             VpnManager.cleanupStaleConfig()
         }
         // v6.0.x：可爱助手开启则启动自动拉起桌面悬浮 HUD。
-        // 解决"enabled 残留 true 开关已 on 但没重新拨动 → start 不触发"——启动时直接拉起。
-        if GirlCompanion.shared.enabled {
-            _ = HUDManager.shared.start()
+        // 直接读 UserDefaults（不经 GirlCompanion.shared 时序），延迟 2s 确保 UI/进程就绪再拉起。
+        let girlEnabled = UserDefaults.standard.bool(forKey: "trollmcp2.girl_companion_enabled")
+        if girlEnabled {
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 2) {
+                _ = HUDManager.shared.start()
+            }
         }
         // v4.3.39：启动静默检查更新——后台跑，不打扰；发现新版点亮设置页"检查更新"红点
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 3) {

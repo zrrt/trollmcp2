@@ -175,7 +175,8 @@ struct SettingsView: View {
         // v4.5.0：可爱助手开关（聊天页右下角悬浮 + 语音/点击互动，可切换角色）
         controlItems.append(SettingsItem(
             title: "可爱助手",
-            subtitle: GirlCompanion.shared.enabled ? "运行中 · 聊天页右下角显示" : "关闭 · 聊天页隐藏",
+            subtitle: HUDManager.shared.lastStartError
+                ?? (HUDManager.shared.isRunning ? "桌面悬浮运行中 · 手机桌面显示" : "桌面悬浮未运行 · 手机桌面隐藏"),
             icon: "heart.fill",
             color: .pink,
             isOn: { GirlCompanion.shared.enabled },
@@ -184,29 +185,9 @@ struct SettingsView: View {
                 // 打开可爱助手即自动拉起桌面悬浮 HUD（HUD 显示当前角色小女孩）
                 if on { _ = HUDManager.shared.start() }
                 else { _ = HUDManager.shared.stop() }
-            }
-        ))
-        // v4.5.1：桌面悬浮 HUD（TrollSpeed 独立二进制，root persona 拉起，手机桌面显示角色）
-        _ = hudRefresh // 依赖：onToggle 后 body 重建，subtitle 显示最新启动结果/原因
-        controlItems.append(SettingsItem(
-            title: "桌面悬浮",
-            subtitle: HUDManager.shared.lastStartError
-                ?? (HUDManager.shared.isRunning ? "运行中 · 手机桌面显示" : "未运行 · 手机桌面隐藏"),
-            icon: "rectangle.on.rectangle",
-            color: .purple,
-            isOn: { HUDManager.shared.isRunning },
-            onToggle: { on in
-                if on { _ = HUDManager.shared.start() }
-                else { _ = HUDManager.shared.stop() }
                 hudRefresh.toggle()
-            }
-        ))
-        // v4.5.1：可爱助手角色切换（进入角色选择页，卡片式点选）
-        controlItems.append(SettingsItem(
-            title: "可爱助手角色",
-            subtitle: "当前：\(GirlCompanion.shared.selectedCharacter.rawValue)",
-            icon: "person.crop.circle.badge.plus",
-            color: .pink,
+            },
+            // 点击进入角色选择页（v6.0.2：角色选择直接放进可爱助手）
             destination: AnyView(GirlCharacterPickerView())
         ))
         // v2.9.72：开发者模式开关（固定显示，控制下方"开发者"分组）
