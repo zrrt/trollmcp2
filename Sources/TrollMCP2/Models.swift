@@ -672,6 +672,10 @@ final class ConversationStore: ObservableObject {
     /// v3.1.70：活动请求绑定的会话 ID——请求由哪个会话发起就写回哪个会话。
     /// 修复"请求进行中切换会话，AI 输出错位/写错会话" (用户实测：老会话未暂停，切换新会话后输出仍乱）。
     private var activeConvId: UUID?
+    /// v4.5.8：永不清除的"发起请求的会话"锁定——activeConvId 会在停止/请求结束时清 nil，
+    /// 若此刻流式仍在回调，activeConvIndex 兜底 selectedIndex 就会把 AI 输出写进切换后的会话 (用户实测)。
+    /// requestSessionId 只在下一次 send() 时覆盖，不受停止/切换影响，保证流式始终写回发起会话。
+    private var requestSessionId: UUID?
     /// v3.5.16：用户点了「停止」——设 true 后 runLoop 每轮开头检查，若已停止则不再继续递归
     /// (修复"点了暂停/停止还在继续发消息"：此前进度只取消当前 client，递归会新建 client 接着跑)。
     private(set) var stopRequested = false  // v4.3.77：工具批量循环需读（停止后跳出，不再装剩余包）
@@ -686,7 +690,7 @@ final class ConversationStore: ObservableObject {
 
     /// v3.1.70：活动请求的会话 index (优先活动会话，兜底当前选中会话）
     private var activeConvIndex: Int? {
-        if let id = activeConvId, let i = conversations.firstIndex(where: { $0.id == id }) {
+        if let id = activeConvId ?? requestSessionId, let i = conversations.firstIndex(where: { $0.id == id }) {
             return i
         }
         return selectedIndex
@@ -700,6 +704,12 @@ final class ConversationStore: ObservableObject {
     var currentTitle: String {
         guard let idx = selectedIndex else { return "会话" }
         return conversations[idx].title
+    }
+
+    /// v4.5.8：当前选中会话是否正在请求——右下角"停止"按钮据此显示。
+    /// 此前用全局 isLoading：请求中切到别的会话，新会话右下角也显示红色"停止"(该会话并无请求)，困惑。
+    var selectedIsRequesting: Bool {
+        isLoading && selectedIndex == activeConvIndex
     }
 
     func newConversation(title: String = "新会话") {
@@ -794,6 +804,7 @@ final class ConversationStore: ObservableObject {
         cancelNetworkRetry()
         // v3.1.70：请求绑定到发起时的会话——中途切换会话，输出仍写回该会话 (修复输出错位）
         activeConvId = selectedId
+        requestSessionId = selectedId   // v4.5.8：永不清除的锁定兜底 (防 activeConvId 清 nil 后写错会话）
         // v3.4.9：新请求开始，清掉上一轮的"刚产出"标记（避免旧消息被重新打字）
         liveProducedID = nil
         // v3.5.5：新任务开始，重置"先解说后执行"自适应纠正状态（避免跨任务计数器残留）

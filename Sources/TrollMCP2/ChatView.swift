@@ -694,8 +694,9 @@ struct ChatView: View {
                 // （iOS16 actionSheet 偶发点击无响应 + 无"已选 N"徽标）
                 // v2.9.36：移除麦克风按钮（语音无实际作用）
 
-                // v2.9.13：请求中时按钮变为"停止"，点击取消当前请求
-                if store.isLoading {
+                // v2.9.13：请求中时按钮变为"停止"，点击取消当前请求 (v4.5.8：仅当前选中会话在请求时显示，
+                // 切到别的会话不误显示停止）
+                if store.selectedIsRequesting {
                     Button(action: { store.cancelCurrent() }) {
                         Image(systemName: "stop.fill")
                             .font(.system(size: 14, weight: .bold))
