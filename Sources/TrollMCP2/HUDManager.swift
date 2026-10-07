@@ -6,19 +6,9 @@ private let PID_PATH = "/var/mobile/Library/Caches/trollagent.hud.pid"
 /// start() 诊断日志（写到 /tmp，8790 ios_native 可直接 cat 读，确证 start 执行到哪步）
 private let TMP_LOG = "/tmp/hud.start.log"
 
-/// v6.0.4：persona 99 提权所需 C 函数声明（@_silgen_name 只能用于顶层全局函数，
-/// 不能放类里实例方法——之前放类里导致 Build IPA 编译失败）。
-#if !targetEnvironment(simulator)
-// v6.0.4: posix_spawnattr_t 在 iOS 是 void*(=UnsafeMutableRawPointer)，&attr 是
-// UnsafeMutablePointer<UnsafeMutableRawPointer>。声明参数用不带外层 Optional 的
-// UnsafeMutablePointer<posix_spawnattr_t>(展开即 UnsafeMutablePointer<UnsafeMutableRawPointer>)。
-@_silgen_name("posix_spawnattr_set_persona_np")
-func _troll_persona_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>, _ persona: uid_t, _ flags: UInt32) -> Int32
-@_silgen_name("posix_spawnattr_set_persona_uid_np")
-func _troll_persona_uid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>, _ uid: uid_t) -> Int32
-@_silgen_name("posix_spawnattr_set_persona_gid_np")
-func _troll_persona_gid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>, _ gid: gid_t) -> Int32
-#endif
+/// v6.0.4：persona 99 提权用 dlsym 动态加载 posix_spawnattr_set_persona_*_np——
+/// 绕开 Swift 对 posix_spawnattr_t(void*) 的类型混乱(@_silgen_name 声明会展开成
+/// UnsafeMutablePointer<Optional<...>> 导致编译失败)。调用在 spawnDetached 内。
 
 /// 桌面悬浮 HUD：单可执行双模式（TrollSpeed 正解）。
 /// 主 App 可执行（TrollStore 有效签名）由 HUDManager 以 root persona 拉起，argv 带
@@ -45,9 +35,21 @@ final class HUDManager {
         posix_spawnattr_init(&attr)
         defer { posix_spawnattr_destroy(&attr) }
         #if !targetEnvironment(simulator)
-        _troll_persona_np(&attr, 99 as uid_t, HUDManager.POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE)
-        _troll_persona_uid_np(&attr, 0 as uid_t)
-        _troll_persona_gid_np(&attr, 0 as gid_t)
+        // persona 99 提权（TrollSpeed 正解）：dlsym 动态加载，绕开 Swift 的 posix_spawnattr_t 类型问题。
+        // &attr 是 UnsafeMutablePointer<UnsafeMutableRawPointer>(attr=void*)。
+        let RTLD_DEFAULT = UnsafeMutableRawPointer(bitPattern: -2)!
+        typealias PersonaNP = @convention(c) (UnsafeMutablePointer<UnsafeMutableRawPointer>, uid_t, UInt32) -> Int32
+        typealias PersonaUID = @convention(c) (UnsafeMutablePointer<UnsafeMutableRawPointer>, uid_t) -> Int32
+        typealias PersonaGID = @convention(c) (UnsafeMutablePointer<UnsafeMutableRawPointer>, gid_t) -> Int32
+        if let f = dlsym(RTLD_DEFAULT, "posix_spawnattr_set_persona_np") {
+            unsafeBitCast(f, to: PersonaNP.self)(&attr, 99, HUDManager.POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE)
+        }
+        if let f = dlsym(RTLD_DEFAULT, "posix_spawnattr_set_persona_uid_np") {
+            unsafeBitCast(f, to: PersonaUID.self)(&attr, 0)
+        }
+        if let f = dlsym(RTLD_DEFAULT, "posix_spawnattr_set_persona_gid_np") {
+            unsafeBitCast(f, to: PersonaGID.self)(&attr, 0)
+        }
         #endif
         var argv: [UnsafeMutablePointer<CChar>?] = [strdup(path)] + args.map { strdup($0) }
         argv.append(nil)
