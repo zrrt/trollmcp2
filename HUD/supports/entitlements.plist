@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>application-identifier</key>
-	<string>ch.xxtou.hudapp</string>
+	<string>TROLLTROLL.com.trollagent.app</string>
 	<key>com.apple.QuartzCore.displayable-context</key>
 	<true/>
 	<key>com.apple.QuartzCore.secure-mode</key>
@@ -42,8 +42,9 @@
 	<true/>
 	<key>file-read-data</key>
 	<true/>
-	<key>platform-application</key>
-	<true/>
+	<!-- v4.5.1: 去掉 platform-application——嵌入主 App 的子二进制，TrollStore 只对主可执行有效签名，
+	     ldid 假签名撑不起 platform-app 的 AMFI 校验(posix_spawn 报 errno 106)。按 bin 工具方式：
+	     no-sandbox 等私有 entitlement 足以 root 拉起+创建系统窗口，不需要 platform-app。 -->
 	<key>user-preference-read</key>
 	<true/>
 	<key>user-preference-write</key>
