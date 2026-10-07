@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 /// 桌面悬浮 HUD：单可执行双模式（TrollSpeed 正解）。
 /// 主 App 可执行（TrollStore 有效签名）由 HUDManager 以 root persona 拉起，argv 带
@@ -11,6 +12,18 @@ final class HUDManager {
 
     /// 最近一次启动失败原因（供设置页 subtitle 直接展示，避免盲猜）
     var lastStartError: String?
+
+    /// posix_spawn 拉起且不等待/不超时——HUD 是常驻进程(runloop 不退出)，
+    /// 用带 timeout 的 spawn 会在 15s 后 SIGKILL 把 HUD 杀掉(桌面悬浮窗刚建就消失)。
+    /// detach：spawn 后立即返回，HUD 以独立进程常驻(父进程被 launchd 收养)。
+    private func spawnDetached(_ path: String, args: [String]) -> Bool {
+        var argv: [UnsafeMutablePointer<CChar>?] = [strdup(path)] + args.map { strdup($0) }
+        argv.append(nil)
+        defer { for p in argv where p != nil { free(p) } }
+        var pid: pid_t = 0
+        let status = posix_spawn(&pid, path, nil, nil, &argv, nil)
+        return status == 0
+    }
     /// 最近一次启动日志写入 App 容器 Documents/hud.log + /var/mobile/Documents/hud.log
     /// （后者在 /var/mobile/Documents，8790 shell.exec 可直接 cat 读，便于 AI 连真机诊断）
     private let logURL: URL = {
@@ -152,16 +165,16 @@ final class HUDManager {
             appendLog("start: launchctl not found in standard paths——直接 posix_spawn")
         }
 
-        // 方案 B(TheBall)：不提权 posix_spawn 拉起 HUD（mobile 身份），避开 persona 99 的 errno 106。
+        // 方案 B(TheBall)：不提权 posix_spawn detach 拉起 HUD（mobile 身份，常驻不 timeout）
+        // ——避开 persona 99 的 errno 106；detach 不 waitpid 让 HUD 长期存活，不触发 15s SIGKILL。
         // HUD 显示全局窗口不靠 root，靠 accessibility-window-hosting entitlement（主可执行已带）。
-        let (code, out) = InjectionManager.shared.spawn(bin, args: ["-hud"], timeout: 15)
-        if code != 0 {
-            lastStartError = "拉起失败 errno=\(code) out=\(out)"
-            appendLog("start FAIL: spawn errno=\(code) out=\(out)")
+        if !spawnDetached(bin, args: ["-hud"]) {
+            lastStartError = "拉起失败 (posix_spawn detach)"
+            appendLog("start FAIL: spawnDetached")
             return false
         }
         lastStartError = nil
-        appendLog("start OK (posix_spawn 不提权, mobile)")
+        appendLog("start OK (posix_spawn detach 不提权, 常驻)")
         return true
     }
 
