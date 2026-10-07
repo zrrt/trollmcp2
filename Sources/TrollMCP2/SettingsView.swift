@@ -40,6 +40,8 @@ struct SettingsView: View {
     // v4.3.30：更新镜像源编辑器
     @State private var showMirrorEditor = false
     @State private var mirrorsText = ""
+    // v4.5.1：桌面悬浮开关结果刷新触发器（HUDManager.lastStartError 非 @Published，用它触发 body 重建显示原因）
+    @State private var hudRefresh = false
 
     var body: some View {
         // v2.9.247：GeometryReader 拿真实全屏尺寸——fullScreenCover+NavigationStack 组合下 List 高度被解析为内容高度(内容不满一屏时列表只占上半屏、下半空白),外层 frame 也无效;改用几何尺寸显式强制 List 与 NavigationStack 铺满全屏,所有机型一致
@@ -180,15 +182,18 @@ struct SettingsView: View {
             onToggle: { GirlCompanion.shared.enabled = $0 }
         ))
         // v4.5.1：桌面悬浮 HUD（TrollSpeed 独立二进制，root persona 拉起，手机桌面显示角色）
+        _ = hudRefresh // 依赖：onToggle 后 body 重建，subtitle 显示最新启动结果/原因
         controlItems.append(SettingsItem(
             title: "桌面悬浮",
-            subtitle: HUDManager.shared.isRunning ? "运行中 · 手机桌面显示" : "未运行 · 手机桌面隐藏",
+            subtitle: HUDManager.shared.lastStartError
+                ?? (HUDManager.shared.isRunning ? "运行中 · 手机桌面显示" : "未运行 · 手机桌面隐藏"),
             icon: "rectangle.on.rectangle",
             color: .purple,
             isOn: { HUDManager.shared.isRunning },
             onToggle: { on in
                 if on { _ = HUDManager.shared.start() }
                 else { _ = HUDManager.shared.stop() }
+                hudRefresh.toggle()
             }
         ))
         // v4.5.1：可爱助手角色切换（进入角色选择页，卡片式点选）
