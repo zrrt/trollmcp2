@@ -42,6 +42,12 @@
 	<true/>
 	<key>com.apple.private.hid.client.event-monitor</key>
 	<true/>
+	<key>com.apple.private.hid.client.event-filter</key>
+	<true/>
+	<key>com.apple.private.hid.client.service-protected</key>
+	<true/>
+	<key>com.apple.private.hid.manager.client</key>
+	<true/>
 	<key>com.apple.AutoWake-write-access</key>
 	<true/>
 	<key>com.apple.CommCenter.fine-grained</key>
@@ -103,6 +109,14 @@
 	<key>com.apple.springboard.iconState</key>
 	<true/>
 	<key>com.apple.springboard.iconState.mutate</key>
+	<true/>
+	<key>com.apple.springboard.accessibility-window-hosting</key>
+	<true/>
+	<key>com.apple.springboard.disallowControlCenter</key>
+	<true/>
+	<key>com.apple.springboard.disallowNotificationCenter</key>
+	<true/>
+	<key>com.apple.private.allow-background-haptics</key>
 	<true/>
 	<key>com.apple.springboard.launchapplicationswithoptions</key>
 	<true/>

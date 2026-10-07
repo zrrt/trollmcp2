@@ -1,13 +1,14 @@
 //
 //  HUDApp.mm
-//  TrollSpeed
+//  TrollAgent
 //
-//  Created by Lessica on 2024/1/24.
-//
-//  TrollAgent 改造：作为独立 HUD 二进制 main——直接进入 HUD 悬浮模式，
-//  去掉原版"同一二进制 -hud 分支"的主 App 分支与 roothide(JBROOT) 依赖。
-//  HUD 用 root persona 拉起后，以无沙盒 + 系统 entitlements 创建全局系统窗口，
-//  并接收全局 HID 触摸事件（让悬浮小女孩可点可拖）。
+//  TrollSpeed 改造：单可执行双模式的核心悬浮逻辑（照抄 TrollSpeed 正解）。
+//  主 App 可执行（TrollStore 有效签名）的 main() 按 argv 分支调用：
+//    -hud  -> HUDMainStart()  进悬浮模式（root persona 拉起后，无沙盒 + 系统
+//                              entitlements 创建全局系统窗口 + 接收全局 HID 触摸）
+//    -exit -> HUDExit()       杀悬浮进程（读 pid 文件）
+//    -check-> HUDCheck()      查悬浮存活
+//  这三个是 C 链接函数，供 Swift 主 App 的 main() 调用，避开 main 冲突。
 //
 
 #import <notify.h>
@@ -21,6 +22,7 @@
 #import "BackboardServices.h"
 #import "AXEventRepresentation.h"
 #import "UIApplication+Private.h"
+#import "HUDApp.h"
 
 #define PID_PATH "/var/mobile/Library/Caches/trollagent.hud.pid"
 
@@ -99,48 +101,51 @@ void _HUDEventCallback(void *target, void *refcon, IOHIDServiceRef service, IOHI
     }
 }
 
-int main(int argc, char *argv[])
+// -exit：读 pid 文件杀掉 HUD 进程（主 App 关闭悬浮用）
+extern "C" void HUDExit(void)
+{
+    @autoreleasepool {
+        NSString *pidPath = @(PID_PATH);
+        NSString *pidString = [NSString stringWithContentsOfFile:pidPath
+                                                        encoding:NSUTF8StringEncoding
+                                                           error:nil];
+        if (pidString)
+        {
+            pid_t pid = (pid_t)[pidString intValue];
+            kill(pid, SIGKILL);
+            unlink([pidPath UTF8String]);
+        }
+    }
+}
+
+// -check：返回 EXIT_FAILURE(存活) / EXIT_SUCCESS(未跑)
+extern "C" int HUDCheck(void)
+{
+    @autoreleasepool {
+        NSString *pidPath = @(PID_PATH);
+        NSString *pidString = [NSString stringWithContentsOfFile:pidPath
+                                                        encoding:NSUTF8StringEncoding
+                                                           error:nil];
+        if (pidString)
+        {
+            pid_t pid = (pid_t)[pidString intValue];
+            int alive = kill(pid, 0);
+            return (alive == 0 ? EXIT_FAILURE : EXIT_SUCCESS);
+        }
+        return EXIT_SUCCESS;
+    }
+}
+
+// 进 HUD 悬浮模式：不返回（内部 runloop）
+extern "C" void HUDMainStart(void)
 {
     @autoreleasepool
     {
-        NSString *pidPath = @(PID_PATH);
-
-        // -exit：根据 pid 文件杀掉 HUD 进程（主 App 关闭悬浮用）
-        if (argc > 1 && strcmp(argv[1], "-exit") == 0)
-        {
-            NSString *pidString = [NSString stringWithContentsOfFile:pidPath
-                                                            encoding:NSUTF8StringEncoding
-                                                               error:nil];
-            if (pidString)
-            {
-                pid_t pid = (pid_t)[pidString intValue];
-                kill(pid, SIGKILL);
-                unlink([pidPath UTF8String]);
-            }
-            return EXIT_SUCCESS;
-        }
-
-        // -check：查 HUD 是否在跑（主 App 判断悬浮状态用）
-        if (argc > 1 && strcmp(argv[1], "-check") == 0)
-        {
-            NSString *pidString = [NSString stringWithContentsOfFile:pidPath
-                                                            encoding:NSUTF8StringEncoding
-                                                               error:nil];
-            if (pidString)
-            {
-                pid_t pid = (pid_t)[pidString intValue];
-                int alive = kill(pid, 0);
-                return (alive == 0 ? EXIT_FAILURE : EXIT_SUCCESS);
-            }
-            else return EXIT_SUCCESS;
-        }
-
-        // 直接进入 HUD 悬浮模式（独立 HUD 二进制，无需 -hud 参数）
-        log_debug(OS_LOG_DEFAULT, "HUD launched");
+        log_debug(OS_LOG_DEFAULT, "HUD launched via -hud");
 
         pid_t pid = getpid();
         NSString *pidString = [NSString stringWithFormat:@"%d", pid];
-        [pidString writeToFile:pidPath
+        [pidString writeToFile:@(PID_PATH)
                     atomically:YES
                       encoding:NSUTF8StringEncoding
                          error:nil];
@@ -168,6 +173,5 @@ int main(int argc, char *argv[])
         [UIApplication.sharedApplication __completeAndRunAsPlugin];
 
         CFRunLoopRun();
-        return EXIT_SUCCESS;
     }
 }

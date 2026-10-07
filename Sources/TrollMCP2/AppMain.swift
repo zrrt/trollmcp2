@@ -1,15 +1,31 @@
 import UIKit
 import SwiftUI
 
+// 桌面悬浮 HUD 单可执行双模式（TrollSpeed 正解）：主 App 可执行（TrollStore 有效签名）
+// 由 HUDManager 以 root persona 拉起，argv 带 -hud 进悬浮模式；-exit/-check 关闭/查存活。
+// 符号由 libHUD.a 提供（HUD/sources 编出的 ObjC++ 悬浮核心，HUDApp.mm extern "C" 导出）。
+@_silgen_name("HUDMainStart") func HUDMainStart()
+@_silgen_name("HUDExit") func HUDExit()
+@_silgen_name("HUDCheck") func HUDCheck() -> Int32
+
 @main
 struct TrollAgentApp {
     static func main() {
-        UIApplicationMain(
-            CommandLine.argc,
-            CommandLine.unsafeArgv,
-            nil,
-            NSStringFromClass(AppDelegate.self)
-        )
+        let args = CommandLine.arguments
+        if args.contains("-hud") {
+            HUDMainStart()        // 进悬浮模式（内部 runloop，不返回）
+        } else if args.contains("-exit") {
+            HUDExit()             // 关闭悬浮（读 pid 杀）
+        } else if args.contains("-check") {
+            exit(HUDCheck())      // 查悬浮存活（EXIT_FAILURE=存活 / EXIT_SUCCESS=未跑）
+        } else {
+            UIApplicationMain(
+                CommandLine.argc,
+                CommandLine.unsafeArgv,
+                nil,
+                NSStringFromClass(AppDelegate.self)
+            )
+        }
     }
 }
 

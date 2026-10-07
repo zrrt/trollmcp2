@@ -29,6 +29,12 @@ if [ ! -f "openssl-stage/lib/libssl.a" ]; then
 fi
 echo ">>> OpenSSL: $(du -sh openssl-stage/lib | cut -f1)"
 
+# v4.5.2：桌面悬浮 HUD 单可执行双模式（TrollSpeed 正解）——先把 HUD/sources 的 ObjC++
+# 悬浮核心编成 libHUD.a，主 App（SwiftPM）链接（Package.swift unsafeFlags 引用）。
+# 必须在此之前跑完，否则主 App swift build 链接缺 libHUD.a 失败。
+echo ">>> building libHUD.a (desktop floating HUD core)"
+bash scripts/build-hud.sh
+
 # v2.9.249: 部署目标 16→15 治本——按 ios16 编译会引用 iOS16+ 符号(URLRequest.httpMethod/timeoutInterval 等 availability 标注错误的 Swift setter),iOS 15.6 dyld 启动崩;降到 ios14 后编译器自动避免 iOS16+ API
 # v4.3.54: 双架构（arm64 + arm64e）——TrollAgent 纯 arm64 在 A12+(arm64e 芯片)
 # 设备上以兼容模式运行，MobileIcons/CoreImage 在 compat 模式下处理图标异常 →
@@ -167,33 +173,9 @@ if [ -d "Resources/bin" ]; then
     fi
 fi
 
-# v4.5.1: 桌面悬浮 HUD（TrollSpeed 独立二进制）——打进 $APP/hud/TrollAgentHUD.app + 系统 entitlements 签名。
-# HUD 进程需要 no-sandbox/persona-mgmt/hid.client 等系统级权限，独立用 HUD/supports/entitlements.plist 签名，
-# 由主 App posix_spawn + root persona 拉起。Resources/hud 由 CI（Build built-in tweaks 步骤）生成；无则跳过。
-if [ -d "Resources/hud/TrollAgentHUD.app" ]; then
-    echo ">>> bundling HUD (desktop floating window)"
-    rm -rf "$APP/hud"
-    mkdir -p "$APP/hud"
-    cp -R "Resources/hud/TrollAgentHUD.app" "$APP/hud/TrollAgentHUD.app"
-    HUD_BIN="$APP/hud/TrollAgentHUD.app/TrollAgentHUD"
-    chmod +x "$HUD_BIN"
-    if [ -f "HUD/supports/entitlements.plist" ] && [ -n "$SIGN_TOOL" ]; then
-        if [ "$SIGN_TOOL" = codesign ]; then
-            codesign -s - -f --entitlements "HUD/supports/entitlements.plist" "$HUD_BIN" 2>/dev/null \
-                && echo ">>> HUD signed (codesign)" \
-                || echo "!!! HUD codesign FAILED"
-        else
-            "$SIGN_TOOL" -S"HUD/supports/entitlements.plist" "$HUD_BIN" 2>/dev/null \
-                && echo ">>> HUD signed (ldid)" \
-                || echo "!!! HUD ldid sign FAILED"
-        fi
-    else
-        echo "!!! HUD entitlements/sign tool missing — HUD bundled but unsigned"
-    fi
-    echo ">>> HUD bundle: $(du -sh "$APP/hud/TrollAgentHUD.app" | cut -f1)"
-else
-    echo ">>> Resources/hud missing — skipping HUD bundle (desktop floating window not in this build)"
-fi
+# v4.5.2：桌面悬浮 HUD 已改为【单可执行双模式】——HUD ObjC 核心编成 libHUD.a 直接链接进主可执行
+#（见上方 build-hud.sh + Package.swift），不再打进独立 TrollAgentHUD 二进制（假签名被 AMFI 106/109 拒，
+# 已废弃）。主可执行被 TrollStore 有效签名，-hud 复用有效签名 → 悬浮进程 AMFI 放行。
 
 # v4.4.4: 原生 Python 集成（CPython 3.14 iOS, PEP 730）。
 # CI 由 native-python job 编译 Python.xcframework 并 upload artifact（tar.gz 包装）；

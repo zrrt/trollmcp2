@@ -87,7 +87,20 @@ let package = Package(
             exclude: ["Resources"],
             linkerSettings: [
                 .linkedLibrary("z"),
-                .linkedFramework("NetworkExtension")
+                .linkedFramework("NetworkExtension"),
+                // v4.5.2：桌面悬浮 HUD 单可执行双模式（TrollSpeed 正解）——链接 libHUD.a
+                //（HUD/sources 编出的 ObjC++ 悬浮核心）+ 私有 framework tbd（HUD/libraries）。
+                // build-ipa.sh 在 swift build 前先编 libHUD.a → hud-stage/lib/libHUD.a。
+                .unsafeFlags([
+                    "-L", "hud-stage/lib", "-lHUD",
+                    "-F", "HUD/libraries",
+                    "-framework", "BackBoardServices",
+                    "-framework", "GraphicsServices",
+                    "-framework", "SpringBoardServices",
+                    "-framework", "AssertionServices",
+                    "-framework", "IOKit",
+                    "-lc++",
+                ])
             ]
         ),
     ]

@@ -1,7 +1,9 @@
 import Foundation
 
-/// 桌面悬浮 HUD：主 App 用 root persona 拉起/关闭 TrollAgentHUD 独立二进制。
-/// HUD 独立进程以无沙盒 + 系统 entitlements 创建全局系统窗口（放小女孩角色），
+/// 桌面悬浮 HUD：单可执行双模式（TrollSpeed 正解）。
+/// 主 App 可执行（TrollStore 有效签名）由 HUDManager 以 root persona 拉起，argv 带
+/// -hud 进悬浮模式——复用主可执行的有效签名，AMFI 放行（独立二进制假签名被 106/109 拒的根因已消除）。
+/// HUD 用无沙盒 + 系统 entitlements 创建全局系统窗口（放小女孩角色），
 /// 由 HUD/sources/HUDApp.mm 管理 pid(/var/mobile/Library/Caches/trollagent.hud.pid)。
 final class HUDManager {
     static let shared = HUDManager()
@@ -15,10 +17,9 @@ final class HUDManager {
         return docs.appendingPathComponent("hud.log")
     }()
 
-    /// HUD 可执行路径：<主App bundle>/hud/TrollAgentHUD.app/TrollAgentHUD
+    /// HUD 可执行路径：主 App 可执行本身（单可执行双模式，-hud 进悬浮）
     var hudBinaryPath: String? {
-        let base = Bundle.main.bundlePath
-        let p = base + "/hud/TrollAgentHUD.app/TrollAgentHUD"
+        let p = Bundle.main.executablePath ?? ""
         return FileManager.default.fileExists(atPath: p) ? p : nil
     }
 
@@ -34,7 +35,7 @@ final class HUDManager {
         }
     }
 
-    /// 是否在跑：HUDApp -check——进程存活返回 EXIT_FAILURE(1)，未在跑/无 pid 返回 EXIT_SUCCESS(0)
+    /// 是否在跑：主可执行 -check——进程存活返回 EXIT_FAILURE(1)，未在跑/无 pid 返回 EXIT_SUCCESS(0)
     var isRunning: Bool {
         guard let bin = hudBinaryPath else { return false }
         let (code, _) = InjectionManager.shared.spawnRoot(bin, args: ["-check"], timeout: 5)
@@ -44,12 +45,12 @@ final class HUDManager {
     @discardableResult
     func start() -> Bool {
         guard let bin = hudBinaryPath else {
-            lastStartError = "HUD 二进制缺失：\(bundlePath)/hud/TrollAgentHUD.app/TrollAgentHUD 不存在"
-            appendLog("start FAIL: binary not found at \(bundlePath)/hud/")
+            lastStartError = "主可执行缺失：\(bundlePath)"
+            appendLog("start FAIL: main executable not found at \(bundlePath)")
             return false
         }
-        appendLog("start: launching \(bin)")
-        let (code, out) = InjectionManager.shared.spawnRoot(bin, args: [], timeout: 15)
+        appendLog("start: launching \(bin) -hud")
+        let (code, out) = InjectionManager.shared.spawnRoot(bin, args: ["-hud"], timeout: 15)
         if code != 0 {
             lastStartError = "拉起失败 errno=\(code) out=\(out)"
             appendLog("start FAIL: spawn errno=\(code) out=\(out)")
