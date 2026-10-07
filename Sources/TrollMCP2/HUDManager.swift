@@ -45,7 +45,7 @@ final class HUDManager {
         posix_spawnattr_init(&attr)
         defer { posix_spawnattr_destroy(&attr) }
         #if !targetEnvironment(simulator)
-        _troll_persona_np(&attr, 99, HUDManager.POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE)
+        _troll_persona_np(&attr, 99 as uid_t, HUDManager.POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE)
         _troll_persona_uid_np(&attr, 0 as uid_t)
         _troll_persona_gid_np(&attr, 0 as gid_t)
         #endif
