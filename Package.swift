@@ -57,7 +57,8 @@ let package = Package(
         // 无 Swift 类型混乱）。Swift 主 App import CLaunch 调 troll_launch_hud()。
         .target(
             name: "CLaunch",
-            path: "CLaunch"
+            path: "CLaunch",
+            publicHeadersPath: "."
         ),
         // fix3cy16 (P1)：CHev——hev-socks5-tunnel 桥接层（iOS 真机 slice 手动链接，
         //   避开 SwiftPM binaryTarget 平台选择问题）。依赖 scripts/build-ipa.sh 下载解压的
