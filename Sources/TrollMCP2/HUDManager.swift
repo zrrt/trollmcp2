@@ -37,8 +37,11 @@ final class HUDManager {
     }()
     private let sysLogURL = URL(fileURLWithPath: "/var/mobile/Documents/hud.log")
 
-    /// HUD 可执行路径：主 App 可执行本身（单可执行双模式，-hud 进悬浮）
+    /// HUD 可执行路径：优先独立 HUD 二进制（Resources/hud/TrollAgentHUD.app，TrollStore 随主 App 重签，
+    /// 签名有效 AMFI 放行——TrollSpeed 正解）；兜底主可执行 -hud（旧方案，主可执行二次 exec 可能被 AMFI 拒）
     var hudBinaryPath: String? {
+        let hudApp = Bundle.main.bundlePath + "/hud/TrollAgentHUD.app/TrollAgentHUD"
+        if FileManager.default.fileExists(atPath: hudApp) { return hudApp }
         let p = Bundle.main.executablePath ?? ""
         return FileManager.default.fileExists(atPath: p) ? p : nil
     }
