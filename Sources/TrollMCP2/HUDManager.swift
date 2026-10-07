@@ -10,11 +10,11 @@ private let TMP_LOG = "/tmp/hud.start.log"
 /// 不能放类里实例方法——之前放类里导致 Build IPA 编译失败）。
 #if !targetEnvironment(simulator)
 @_silgen_name("posix_spawnattr_set_persona_np")
-private func _troll_persona_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>?, _ persona: uid_t, _ flags: UInt32) -> Int32
+func _troll_persona_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>?, _ persona: uid_t, _ flags: UInt32) -> Int32
 @_silgen_name("posix_spawnattr_set_persona_uid_np")
-private func _troll_persona_uid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>?, _ uid: uid_t) -> Int32
+func _troll_persona_uid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>?, _ uid: uid_t) -> Int32
 @_silgen_name("posix_spawnattr_set_persona_gid_np")
-private func _troll_persona_gid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>?, _ gid: gid_t) -> Int32
+func _troll_persona_gid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>?, _ gid: gid_t) -> Int32
 #endif
 
 /// 桌面悬浮 HUD：单可执行双模式（TrollSpeed 正解）。
