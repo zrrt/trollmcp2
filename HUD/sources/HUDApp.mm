@@ -141,8 +141,9 @@ extern "C" void HUDMainStart(void)
 {
     @autoreleasepool
     {
-        // v6.x Step2 诊断：每一步写文件日志( /var/mobile/Documents/hud.log )，确证 mobile 不提权下在哪一步退出
-        NSString *hudLogPath = @"/var/mobile/Documents/hud.log";
+        // v6.x Step2 诊断：每步写文件日志到 pid 同目录( Caches 已知可写，/var/mobile/Documents 可能被沙盒拒)，
+        // 确证 mobile 不提权下 HUD 走到哪一步退出
+        NSString *hudLogPath = @"/var/mobile/Library/Caches/hudapp.log";
         NSString *p = [NSString stringWithFormat:@"[HUD -hud] %@ step=enter\n", [NSDate date]];
         [p writeToFile:hudLogPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
         log_debug(OS_LOG_DEFAULT, "HUD launched via -hud");
