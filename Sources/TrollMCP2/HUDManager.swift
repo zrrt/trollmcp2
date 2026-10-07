@@ -152,15 +152,16 @@ final class HUDManager {
             appendLog("start: launchctl not found in standard paths——直接 posix_spawn")
         }
 
-        // 兜底：posix_spawn persona 99（TrollSpeed 仅 plist 缺失时用；可能 106）
-        let (code, out) = InjectionManager.shared.spawnRoot(bin, args: ["-hud"], timeout: 15)
+        // 方案 B(TheBall)：不提权 posix_spawn 拉起 HUD（mobile 身份），避开 persona 99 的 errno 106。
+        // HUD 显示全局窗口不靠 root，靠 accessibility-window-hosting entitlement（主可执行已带）。
+        let (code, out) = InjectionManager.shared.spawn(bin, args: ["-hud"], timeout: 15)
         if code != 0 {
             lastStartError = "拉起失败 errno=\(code) out=\(out)"
             appendLog("start FAIL: spawn errno=\(code) out=\(out)")
             return false
         }
         lastStartError = nil
-        appendLog("start OK (posix_spawn fallback)")
+        appendLog("start OK (posix_spawn 不提权, mobile)")
         return true
     }
 
@@ -173,7 +174,7 @@ final class HUDManager {
             if code == 0 { return true }
         }
         guard let bin = hudBinaryPath else { return false }
-        let (code, _) = InjectionManager.shared.spawnRoot(bin, args: ["-exit"], timeout: 15)
+        let (code, _) = InjectionManager.shared.spawn(bin, args: ["-exit"], timeout: 15)
         appendLog("stop: posix_spawn -exit code=\(code)")
         return code == 0
     }
