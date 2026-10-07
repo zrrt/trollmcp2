@@ -22,7 +22,9 @@ final class TTSService: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
     private let baseURL = "https://tts.trollagent.cc.cd/tts"
     private let voice = "zh-CN-XiaoyiNeural"
-    private let pitch = "+30Hz"
+    // v4.5.7：语速提升 +10%（rate）；磁性——夹子音基调下调音高(pitch +30Hz→+15Hz)让声音更醇厚
+    private let pitch = "+15Hz"
+    private let rate = "+10%"
 
     /// 待合成文本队列（有序，按句切分）
     private var pendingTexts: [String] = []
@@ -132,7 +134,7 @@ final class TTSService: NSObject, ObservableObject, AVAudioPlayerDelegate {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 40
-        req.httpBody = try? JSONSerialization.data(withJSONObject: ["text": text, "voice": voice, "pitch": pitch])
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["text": text, "voice": voice, "pitch": pitch, "rate": rate])
         URLSession.shared.dataTask(with: req) { data, _, err in
             guard err == nil, let data, data.count > 100 else { completion(nil); return }
             completion(data)

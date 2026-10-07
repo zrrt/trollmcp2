@@ -1566,11 +1566,9 @@ struct MessageBubble: View {
                     }
                 }
                 .frame(maxWidth: isUser ? nil : .infinity, alignment: .leading)
-                // v4.4.20：自动朗读——onAppear 兜底非流式完成消息(onChange 只在 content 变化时触发, 完成消息挂载即固定不触发)；onChange 处理流式增量。autoSpokenUpTo 增量+防重复
-                .onAppear {
-                    guard message.role == "assistant", !message.isTool, TTSService.shared.speakerEnabled, !message.content.isEmpty else { return }
-                    autoSpeak(message.content)
-                }
+                // v4.5.7：移除 onAppear 自动朗读——重开 App/切换会话时历史 assistant 消息
+                // 会触发 autoSpeak(全文) 复读(用户反馈)。只留 onChange 流式增量朗读新回复；
+                // 历史/完成消息不复读，需要时点气泡喇叭手动朗读。
                 .onChange(of: message.content) { newContent in
                     guard message.role == "assistant", !message.isTool, TTSService.shared.speakerEnabled else { return }
                     autoSpeak(newContent)
