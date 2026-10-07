@@ -53,6 +53,12 @@ let package = Package(
             dependencies: ["CMitm"],
             path: "Sources/MitmCore"
         ),
+        // v6.0.4：桌面悬浮 HUD 提权 spawn C 层。persona 99 提权放 C（posix_spawnattr_t 在 C 是 void*，
+        // 无 Swift 类型混乱）。Swift 主 App import CLaunch 调 troll_launch_hud()。
+        .target(
+            name: "CLaunch",
+            path: "CLaunch"
+        ),
         // fix3cy16 (P1)：CHev——hev-socks5-tunnel 桥接层（iOS 真机 slice 手动链接，
         //   避开 SwiftPM binaryTarget 平台选择问题）。依赖 scripts/build-ipa.sh 下载解压的
         //   hev-stage/lib/libhev-socks5-tunnel.a（ios-arm64 slice，Tun2SocksKit 5.16.0 release）
@@ -81,7 +87,8 @@ let package = Package(
                 .product(name: "ZIPFoundation", package: "ZIPFoundation"),
                 "CISH",
                 "MitmCore",
-                "CMitm"
+                "CMitm",
+                "CLaunch"
             ],
             path: "Sources/TrollMCP2",
             exclude: ["Resources"],

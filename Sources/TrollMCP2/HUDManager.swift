@@ -6,9 +6,10 @@ private let PID_PATH = "/var/mobile/Library/Caches/trollagent.hud.pid"
 /// start() 诊断日志（写到 /tmp，8790 ios_native 可直接 cat 读，确证 start 执行到哪步）
 private let TMP_LOG = "/tmp/hud.start.log"
 
-/// v6.0.4：persona 99 提权用 dlsym 动态加载 posix_spawnattr_set_persona_*_np——
-/// 绕开 Swift 对 posix_spawnattr_t(void*) 的类型混乱(@_silgen_name 声明会展开成
-/// UnsafeMutablePointer<Optional<...>> 导致编译失败)。调用在 spawnDetached 内。
+/// v6.0.4：桌面悬浮 HUD 提权 spawn 用 CLaunch（C 层 troll_launch_hud）——persona 99 提权在 C 里做
+/// （posix_spawnattr_t 在 C 是 void*），Swift 只声明简单 C 签名（无类型混乱）。
+@_silgen_name("troll_launch_hud")
+func _troll_launch_hud(_ path: UnsafePointer<CChar>, _ argv: UnsafePointer<UnsafeMutablePointer<CChar>?>, _ persona: Int32) -> Int32
 
 /// 桌面悬浮 HUD：单可执行双模式（TrollSpeed 正解）。
 /// 主 App 可执行（TrollStore 有效签名）由 HUDManager 以 root persona 拉起，argv 带
@@ -31,32 +32,17 @@ final class HUDManager {
     /// 主 App 已有 platform-application + persona-mgmt entitlements，persona 99 不再报 106。
     private static let POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE: UInt32 = 1
     private func spawnDetached(_ path: String, args: [String]) -> Bool {
-        var attr: posix_spawnattr_t = posix_spawnattr_t()
-        posix_spawnattr_init(&attr)
-        defer { posix_spawnattr_destroy(&attr) }
-        #if !targetEnvironment(simulator)
-        // persona 99 提权（TrollSpeed 正解）：dlsym 动态加载，绕开 Swift 的 posix_spawnattr_t 类型问题。
-        // &attr 是 UnsafeMutablePointer<UnsafeMutableRawPointer>(attr=void*)。
-        let RTLD_DEFAULT = UnsafeMutableRawPointer(bitPattern: -2)!
-        typealias PersonaNP = @convention(c) (UnsafeMutablePointer<UnsafeMutableRawPointer>, uid_t, UInt32) -> Int32
-        typealias PersonaUID = @convention(c) (UnsafeMutablePointer<UnsafeMutableRawPointer>, uid_t) -> Int32
-        typealias PersonaGID = @convention(c) (UnsafeMutablePointer<UnsafeMutableRawPointer>, gid_t) -> Int32
-        if let f = dlsym(RTLD_DEFAULT, "posix_spawnattr_set_persona_np") {
-            unsafeBitCast(f, to: PersonaNP.self)(&attr, 99, HUDManager.POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE)
-        }
-        if let f = dlsym(RTLD_DEFAULT, "posix_spawnattr_set_persona_uid_np") {
-            unsafeBitCast(f, to: PersonaUID.self)(&attr, 0)
-        }
-        if let f = dlsym(RTLD_DEFAULT, "posix_spawnattr_set_persona_gid_np") {
-            unsafeBitCast(f, to: PersonaGID.self)(&attr, 0)
-        }
-        #endif
         var argv: [UnsafeMutablePointer<CChar>?] = [strdup(path)] + args.map { strdup($0) }
         argv.append(nil)
         defer { for p in argv where p != nil { free(p) } }
-        var pid: pid_t = 0
-        let status = posix_spawn(&pid, path, nil, &attr, &argv, nil)
-        return status == 0
+        // persona 99 提权交给 CLaunch（C 层 troll_launch_hud）——主 App 有 platform-application+persona-mgmt。
+        return argv.withUnsafeBufferPointer { buf in
+            guard let base = buf.baseAddress else { return false }
+            let rc = path.withCString { cs in
+                _troll_launch_hud(cs, base, 1)
+            }
+            return rc == 0
+        }
     }
     /// 最近一次启动日志写入 App 容器 Documents/hud.log + /var/mobile/Documents/hud.log
     /// （后者在 /var/mobile/Documents，8790 shell.exec 可直接 cat 读，便于 AI 连真机诊断）
