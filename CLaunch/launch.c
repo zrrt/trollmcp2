@@ -12,6 +12,11 @@ extern int posix_spawnattr_setpersona_np(posix_spawnattr_t *, uid_t, uint32_t);
 extern int posix_spawnattr_setuid_np(posix_spawnattr_t *, uid_t);
 extern int posix_spawnattr_setgid_np(posix_spawnattr_t *, gid_t);
 
+/* POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE 是私有宏，iOS 公开 SDK spawn.h 不导出，这里自行定义（=1，TrollSpeed 同款）。 */
+#ifndef POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE
+#define POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE 1
+#endif
+
 int troll_launch_hud(const char *path, const char *const *argv, int persona_override) {
     if (!path || !argv) return -1;
 
