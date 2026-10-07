@@ -59,6 +59,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         DispatchQueue.global(qos: .utility).async {
             VpnManager.cleanupStaleConfig()
         }
+        // v6.0.x：可爱助手开启则启动自动拉起桌面悬浮 HUD。
+        // 解决"enabled 残留 true 开关已 on 但没重新拨动 → start 不触发"——启动时直接拉起。
+        if GirlCompanion.shared.enabled {
+            _ = HUDManager.shared.start()
+        }
         // v4.3.39：启动静默检查更新——后台跑，不打扰；发现新版点亮设置页"检查更新"红点
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 3) {
             let ver = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? ""
