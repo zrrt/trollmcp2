@@ -411,11 +411,11 @@ jobs:
               rm -rf Resources/hud
               mkdir -p Resources/hud
               cp -R "$HUDAPP" "Resources/hud/TrollAgentHUD.app"
-              # v6.0.3：给独立 HUD 二进制 ldid 签名（ldid-procursus，确保 exec 放行——
-              # TrollStore 重签可能不覆盖 Resources/hud/ 里的 .app，二进制保持 theos 假签名会被 AMFI 拒 exec）
+              # v6.0.4：给独立 HUD 二进制 ldid -S 签完整 entitlements（含 platform-application/persona-mgmt）——
+              # persona 99 提权必需；TrollStore 重签会保留 platform-app（TrollSpeed/TheBall 正解）
               HUD_BIN="Resources/hud/TrollAgentHUD.app/TrollAgentHUD"
-              if ldid "$HUD_BIN" 2>/tmp/hud_sign.err; then
-                echo ">>> HUD ldid signed (ad-hoc)"
+              if ldid -S "HUD/supports/entitlements.plist" "$HUD_BIN" 2>/tmp/hud_sign.err; then
+                echo ">>> HUD ldid signed (full entitlements)"
               else
                 echo "WARN: HUD ldid sign failed: $(cat /tmp/hud_sign.err)"
               fi

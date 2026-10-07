@@ -21,12 +21,33 @@ final class HUDManager {
     /// posix_spawn 拉起且不等待/不超时——HUD 是常驻进程(runloop 不退出)，
     /// 用带 timeout 的 spawn 会在 15s 后 SIGKILL 把 HUD 杀掉(桌面悬浮窗刚建就消失)。
     /// detach：spawn 后立即返回，HUD 以独立进程常驻(父进程被 launchd 收养)。
+    /// v6.0.4：改回 persona 99 提权(uid/gid 0)跑 HUD——TrollSpeed/TheBall 正解。
+    /// 之前不提权 detach 让 HUD 以 mobile sandbox 身份跑，HUDMainStart 的
+    /// UIApplicationInitialize/__completeAndRunAsPlugin 在 sandbox 下崩(step=enter 都没落盘)。
+    /// 主 App 已有 platform-application + persona-mgmt entitlements，persona 99 不再报 106。
+    private static let POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE: UInt32 = 1
+    #if !targetEnvironment(simulator)
+    @_silgen_name("posix_spawnattr_set_persona_np")
+    private func posix_spawnattr_set_persona_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>?, _ persona: uid_t, _ flags: UInt32) -> Int32
+    @_silgen_name("posix_spawnattr_set_persona_uid_np")
+    private func posix_spawnattr_set_persona_uid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>?, _ uid: uid_t) -> Int32
+    @_silgen_name("posix_spawnattr_set_persona_gid_np")
+    private func posix_spawnattr_set_persona_gid_np(_ attr: UnsafeMutablePointer<posix_spawnattr_t>?, _ gid: gid_t) -> Int32
+    #endif
     private func spawnDetached(_ path: String, args: [String]) -> Bool {
+        var attr: posix_spawnattr_t = posix_spawnattr_t()
+        posix_spawnattr_init(&attr)
+        defer { posix_spawnattr_destroy(&attr) }
+        #if !targetEnvironment(simulator)
+        posix_spawnattr_set_persona_np(&attr, 99, HUDManager.POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE)
+        posix_spawnattr_set_persona_uid_np(&attr, 0)
+        posix_spawnattr_set_persona_gid_np(&attr, 0)
+        #endif
         var argv: [UnsafeMutablePointer<CChar>?] = [strdup(path)] + args.map { strdup($0) }
         argv.append(nil)
         defer { for p in argv where p != nil { free(p) } }
         var pid: pid_t = 0
-        let status = posix_spawn(&pid, path, nil, nil, &argv, nil)
+        let status = posix_spawn(&pid, path, nil, &attr, &argv, nil)
         return status == 0
     }
     /// 最近一次启动日志写入 App 容器 Documents/hud.log + /var/mobile/Documents/hud.log
