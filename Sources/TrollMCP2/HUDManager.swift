@@ -42,6 +42,76 @@ final class HUDManager {
         return code == 1
     }
 
+    /// LaunchDaemon plist：TrollSpeed 主路径靠 launchctl load 拉起（launchd 以 root+App 类型 spawn，
+    /// AMFI 放行）。posix_spawn persona 只是 plist 缺失时的兜底，直接走会 errno 106。
+    /// 写到 App Documents 容器（100% 可写；launchctl load 支持任意路径，launchd 以 root 读）。
+    private var daemonPlistPath: String {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first ?? URL(fileURLWithPath: "/var/mobile")
+        return docs.appendingPathComponent("hudservices.plist").path
+    }
+    private let daemonLabel = "com.trollagent.hudservices"
+
+    private func writeDaemonPlist(bin: String) -> Bool {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+        \t<key>EnablePressuredExit</key>
+        \t<false/>
+        \t<key>EnableTransactions</key>
+        \t<false/>
+        \t<key>EnvironmentVariables</key>
+        \t<dict>
+        \t\t<key>DISABLE_TWEAKS</key>
+        \t\t<string>1</string>
+        \t</dict>
+        \t<key>GroupName</key>
+        \t<string>wheel</string>
+        \t<key>HighPriorityIO</key>
+        \t<true/>
+        \t<key>KeepAlive</key>
+        \t<true/>
+        \t<key>Label</key>
+        \t<string>\(daemonLabel)</string>
+        \t<key>POSIXSpawnType</key>
+        \t<string>App</string>
+        \t<key>ProcessType</key>
+        \t<string>Interactive</string>
+        \t<key>ProgramArguments</key>
+        \t<array>
+        \t\t<string>\(bin)</string>
+        \t\t<string>-hud</string>
+        \t</array>
+        \t<key>RunAtLoad</key>
+        \t<true/>
+        \t<key>ThrottleInterval</key>
+        \t<integer>5</integer>
+        \t<key>UserName</key>
+        \t<string>root</string>
+        \t<key>_AdditionalProperties</key>
+        \t<dict>
+        \t\t<key>RunningBoard</key>
+        \t\t<dict>
+        \t\t\t<key>Managed</key>
+        \t\t\t<false/>
+        \t\t\t<key>Reported</key>
+        \t\t\t<false/>
+        \t\t</dict>
+        \t</dict>
+        </dict>
+        </plist>
+        """
+        do {
+            try xml.data(using: .utf8)?.write(to: URL(fileURLWithPath: daemonPlistPath), options: .atomic)
+            appendLog("wrote daemon plist \(daemonPlistPath)")
+            return true
+        } catch {
+            appendLog("write daemon plist FAIL: \(error)")
+            return false
+        }
+    }
+
     @discardableResult
     func start() -> Bool {
         guard let bin = hudBinaryPath else {
@@ -50,6 +120,19 @@ final class HUDManager {
             return false
         }
         appendLog("start: launching \(bin) -hud")
+
+        // 主路径：写 LaunchDaemon plist + launchctl load（launchd 以 root+App 拉起，AMFI 放行）
+        if writeDaemonPlist(bin: bin) {
+            let (code, out) = InjectionManager.shared.spawnRoot("/usr/bin/launchctl", args: ["load", daemonPlistPath], timeout: 15)
+            if code == 0 {
+                lastStartError = nil
+                appendLog("start OK via launchctl load")
+                return true
+            }
+            appendLog("launchctl load errno=\(code) out=\(out)——回退 posix_spawn")
+        }
+
+        // 兜底：posix_spawn persona 99（TrollSpeed 仅 plist 缺失时用；可能 106）
         let (code, out) = InjectionManager.shared.spawnRoot(bin, args: ["-hud"], timeout: 15)
         if code != 0 {
             lastStartError = "拉起失败 errno=\(code) out=\(out)"
@@ -57,15 +140,21 @@ final class HUDManager {
             return false
         }
         lastStartError = nil
-        appendLog("start OK")
+        appendLog("start OK (posix_spawn fallback)")
         return true
     }
 
     @discardableResult
     func stop() -> Bool {
+        // 主路径：launchctl unload
+        if FileManager.default.fileExists(atPath: daemonPlistPath) {
+            let (code, out) = InjectionManager.shared.spawnRoot("/usr/bin/launchctl", args: ["unload", daemonPlistPath], timeout: 15)
+            appendLog("stop: launchctl unload code=\(code) out=\(out)")
+            if code == 0 { return true }
+        }
         guard let bin = hudBinaryPath else { return false }
         let (code, _) = InjectionManager.shared.spawnRoot(bin, args: ["-exit"], timeout: 15)
-        appendLog("stop: code=\(code)")
+        appendLog("stop: posix_spawn -exit code=\(code)")
         return code == 0
     }
 }
