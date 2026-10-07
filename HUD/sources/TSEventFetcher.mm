@@ -13,11 +13,10 @@
 #import "UITouch-KIFAdditions.h"
 #import "UIApplication+Private.h"
 
-// v4.5.4：本类被静态库(libHUD.a)链接进主 App 可执行。若无门禁，+load 会在主 App
+// v4.5.5：本类被静态库(libHUD.a)链接进主 App 可执行。若无门禁，+load 会在主 App
 // 启动(main 前)误执行触摸事件注入初始化 → 打开 App 即闪退。
 // 门禁：仅 HUD 进程(带 -hud 参数)才初始化，主 App 正常启动直接跳过。
-extern int _NSGetArgc(void);
-extern char **_NSGetArgv(void);
+// 用 NSProcessInfo arguments 判断（避免 _NSGetArgc 在 C++ 下缺 extern "C" 的链接问题）。
 
 static NSArray *_safeTouchAry = nil;
 static NSMutableArray *_touchAry = nil;
@@ -60,15 +59,9 @@ static void __TSEventFetcherCallback(void *info)
 
 + (void)load
 {
-  // v4.5.4 门禁：仅 HUD 进程(-hud)才做触摸事件注入初始化。
+  // v4.5.5 门禁：仅 HUD 进程(-hud)才做触摸事件注入初始化。
   // 主 App 正常启动(无 -hud)直接 return，避免 main 前误执行导致闪退。
-  int argc = _NSGetArgc();
-  char **argv = _NSGetArgv();
-  BOOL isHUD = NO;
-  for (int i = 0; i < argc; i++) {
-    if (argv[i] && strcmp(argv[i], "-hud") == 0) { isHUD = YES; break; }
-  }
-  if (!isHUD) return;
+  if (![[[NSProcessInfo processInfo] arguments] containsObject:@"-hud"]) return;
 
   _livingTouchAry = [[NSMutableArray alloc] init];
   _touchAry = [[NSMutableArray alloc] init];
