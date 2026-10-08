@@ -27,10 +27,12 @@ TrollAgentHUD_FILES = \
 # ---- Cubism Live2D SDK (CubismSdkForNative-5-r.5) ----
 CUBISM_ROOT = cubism
 CUBISM_CORE = $(CUBISM_ROOT)/Core/lib/ios/Release-iphoneos/libLive2DCubismCore.a
-CUBISM_FW_SRC = $(shell find $(CUBISM_ROOT)/Framework/src -name '*.cpp')
+# 只编核心 Framework + Metal 渲染器；排除 OpenGL/D3D9/D3D11/Vulkan（iOS 不需要，OpenGL 还需已废弃的 OpenGLES.framework）
+CUBISM_FW_SRC = $(shell find $(CUBISM_ROOT)/Framework/src -name '*.cpp' | grep -v -E '(Rendering/(OpenGL|D3D9|D3D11|Vulkan)|Rendering/[^/]*/Shaders)')
+CUBISM_FW_METAL_SRC = $(shell find $(CUBISM_ROOT)/Framework/src/Rendering/Metal -name '*.mm')
 CUBISM_LAPP_SRC = $(shell find $(CUBISM_ROOT)/LApp -name '*.mm' -o -name '*.m')
 
-TrollAgentHUD_FILES += $(CUBISM_FW_SRC) $(CUBISM_LAPP_SRC)
+TrollAgentHUD_FILES += $(CUBISM_FW_SRC) $(CUBISM_FW_METAL_SRC) $(CUBISM_LAPP_SRC)
 
 TrollAgentHUD_CFLAGS += -fobjc-arc
 TrollAgentHUD_CFLAGS += -Iheaders
@@ -44,8 +46,8 @@ TrollAgentHUD_CFLAGS += -Wno-error -Wno-deprecated-declarations -Wno-unused-vari
 TrollAgentHUD_CFLAGS += -std=gnu++14
 
 TrollAgentHUD_FRAMEWORKS += CoreGraphics CoreServices QuartzCore IOKit UIKit
-# Cubism Live2D 渲染：Metal（iOS 主渲染）+ OpenGLES（Framework 含 OpenGL 渲染器源码）
-TrollAgentHUD_FRAMEWORKS += Metal OpenGLES
+# Cubism Live2D 渲染：仅 Metal（iOS 主渲染）。不链 OpenGLES——iOS 17+ 已废弃/移除，链入会启动崩溃
+TrollAgentHUD_FRAMEWORKS += Metal
 # 链接 Cubism Core 静态库
 TrollAgentHUD_LDFLAGS += $(CUBISM_CORE)
 TrollAgentHUD_PRIVATE_FRAMEWORKS += BackBoardServices GraphicsServices SpringBoardServices
