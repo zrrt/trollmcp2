@@ -9,8 +9,35 @@
 #import "HUDRootViewController.h"
 #import "HUDMainWindow.h"
 #import <string.h>
+#import <QuartzCore/QuartzCore.h>
+#import <SpringBoardServices/SpringBoardServices.h>
+
+// v6.0.7：锁屏保活（抄 TrollSpeed HUDRootViewController）——监听 springboard.lockstate，
+// 锁屏时隐藏悬浮、解锁时恢复显示（进程本身是 posix_spawn 无沙盒 root 通常不被杀，窗口需锁屏隐藏/解锁恢复）
+#define NOTIFY_UI_LOCKSTATE "com.apple.springboard.lockstate"
 
 static BOOL _passthrough = NO;
+
+@interface HUDRootViewController ()
+- (void)lockHide;
+- (void)unlockShow;
+- (void)registerNotifications;
+@end
+
+// 锁屏状态回调（TrollSpeed 正解）：锁屏隐藏悬浮视图，解锁恢复显示
+static void SpringBoardLockStatusChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo)
+{
+    HUDRootViewController *vc = (__bridge HUDRootViewController *)observer;
+    NSString *lockState = (__bridge NSString *)name;
+    if ([lockState isEqualToString:@NOTIFY_UI_LOCKSTATE]) {
+        mach_port_t sbsPort = SBSSpringBoardServerPort();
+        if (sbsPort == MACH_PORT_NULL) return;
+        BOOL isLocked = NO, isPasscodeSet = NO;
+        SBGetScreenLockStatus(sbsPort, &isLocked, &isPasscodeSet);
+        if (!isLocked) [vc unlockShow];
+        else [vc lockHide];
+    }
+}
 
 // v6.0.7：悬浮小女孩显示尺寸（pt），由主 App 启动时 -size N 传入（HUDMain.mm 解析），默认 150
 extern "C" double g_hud_size;
@@ -75,6 +102,9 @@ extern "C" const char *g_hud_char;
                                  (self.view.bounds.size.height - size)/2,
                                  size, size);
 
+    // v6.0.7：注册锁屏/解锁监听（锁屏隐藏悬浮、解锁恢复，抄 TrollSpeed）
+    [self registerNotifications];
+
     // 呼吸动画（idle 缩放循环）
     [self _startBreathing];
 
@@ -93,9 +123,28 @@ extern "C" const char *g_hud_char;
 
 // v6.0.7：上下漂浮动画（原来呼吸缩放改成上下飘——用户要求对齐 app 里的漂浮效果）
 - (void)_startBreathing {
+    [_girlView.layer removeAllAnimations];   // 防重复调用叠加动画
     [UIView animateWithDuration:2.6 delay:0 options:UIViewAnimationOptionAutoreverse | UIViewAnimationOptionRepeat | UIViewAnimationOptionCurveEaseInOut animations:^{
         self->_girlView.transform = CGAffineTransformMakeTranslation(0, -14);
     } completion:nil];
+}
+
+// v6.0.7：注册 springboard 锁屏状态监听（抄 TrollSpeed HUDRootViewController）
+- (void)registerNotifications {
+    CFNotificationCenterRef center = CFNotificationCenterGetDarwinNotifyCenter();
+    CFNotificationCenterAddObserver(center, (__bridge const void *)self, SpringBoardLockStatusChanged, CFSTR(NOTIFY_UI_LOCKSTATE), NULL, CFNotificationSuspensionBehaviorCoalesce);
+}
+
+// 锁屏：隐藏悬浮 + 停止动画
+- (void)lockHide {
+    _girlView.hidden = YES;
+    [_girlView.layer removeAllAnimations];
+}
+
+// 解锁：恢复显示 + 重启动画
+- (void)unlockShow {
+    _girlView.hidden = NO;
+    [self _startBreathing];
 }
 
 // 拖动悬浮小女孩
