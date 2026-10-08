@@ -236,7 +236,8 @@ extern "C" const char *g_hud_char;
     });
 }
 
-// v6.0.7：注册 springboard 锁屏状态监听（抄 TrollSpeed HUDRootViewController）- (void)registerNotifications {
+// v6.0.7：注册 springboard 锁屏状态监听（抄 TrollSpeed HUDRootViewController）
+- (void)registerNotifications {
     CFNotificationCenterRef center = CFNotificationCenterGetDarwinNotifyCenter();
     CFNotificationCenterAddObserver(center, (__bridge const void *)self, SpringBoardLockStatusChanged, CFSTR(NOTIFY_UI_LOCKSTATE), NULL, CFNotificationSuspensionBehaviorCoalesce);
 }
