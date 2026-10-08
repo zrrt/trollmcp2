@@ -220,6 +220,8 @@ extern "C" void HUDMainStart(void)
         p = [NSString stringWithFormat:@"[HUD -hud] step=before-completeAndRunAsPlugin\n"];
         [p writeToFile:hudLogPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
         [UIApplication.sharedApplication __completeAndRunAsPlugin];
+        p = [NSString stringWithFormat:@"[HUD -hud] step=completeAndRunAsPlugin-ok\n"];
+        [p writeToFile:hudLogPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
 
         // v6.0.8：监听退出通知——主 App 以 mobile 身份 kill 不掉 root 的 HUD 进程(EPERM)，
         // 导致"开关一次加一个角色"叠加。改为 HUD 自己监听 notify 后 _exit(0)（进程有权杀自己）。

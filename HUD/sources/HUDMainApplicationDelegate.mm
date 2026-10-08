@@ -32,8 +32,20 @@
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary <UIApplicationLaunchOptionsKey, id> *)launchOptions
 {
     log_debug(OS_LOG_DEFAULT, "- [HUDMainApplicationDelegate application:%{public}@ didFinishLaunchingWithOptions:%{public}@]", application, launchOptions);
+    @autoreleasepool {
+        NSString *log = @"[HUD] didFinishLaunching-begin\n";
+        NSData *d = [log dataUsingEncoding:NSUTF8StringEncoding];
+        NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:@"/var/mobile/Library/Caches/hudapp.log"];
+        [fh seekToEndOfFile]; [fh writeData:d]; [fh closeFile];
+    }
 
     _rootViewController = [[HUDRootViewController alloc] init];
+    @autoreleasepool {
+        NSString *log = @"[HUD] didFinishLaunching-RootVC-ok\n";
+        NSData *d = [log dataUsingEncoding:NSUTF8StringEncoding];
+        NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:@"/var/mobile/Library/Caches/hudapp.log"];
+        [fh seekToEndOfFile]; [fh writeData:d]; [fh closeFile];
+    }
 
     self.window = [[HUDMainWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
     [self.window setRootViewController:_rootViewController];
@@ -41,6 +53,12 @@
     [self.window setWindowLevel:10000010.0];
     [self.window setHidden:NO];
     [self.window makeKeyAndVisible];
+    @autoreleasepool {
+        NSString *log = @"[HUD] didFinishLaunching-window-ok\n";
+        NSData *d = [log dataUsingEncoding:NSUTF8StringEncoding];
+        NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:@"/var/mobile/Library/Caches/hudapp.log"];
+        [fh seekToEndOfFile]; [fh writeData:d]; [fh closeFile];
+    }
 
     _windowHostingController = [[objc_getClass("SBSAccessibilityWindowHostingController") alloc] init];
     unsigned int _contextId = [self.window _contextId];

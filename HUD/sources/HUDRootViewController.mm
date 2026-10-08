@@ -172,6 +172,12 @@ extern "C" const char *g_hud_char;
                                  w, size);
 
     // v6.0.7：注册锁屏/解锁监听（锁屏隐藏悬浮、解锁恢复，抄 TrollSpeed）
+    @autoreleasepool {
+        NSString *log = @"[HUD] viewDidLoad-before-registerNotifications\n";
+        NSData *d = [log dataUsingEncoding:NSUTF8StringEncoding];
+        NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:@"/var/mobile/Library/Caches/hudapp.log"];
+        [fh seekToEndOfFile]; [fh writeData:d]; [fh closeFile];
+    }
     [self registerNotifications];
 
     // 呼吸动画（idle 缩放循环）
