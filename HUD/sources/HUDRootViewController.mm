@@ -10,7 +10,12 @@
 #import "HUDMainWindow.h"
 #import <string.h>
 #import <QuartzCore/QuartzCore.h>
-#import <SpringBoardServices/SpringBoardServices.h>
+#import <mach/mach.h>
+
+// v6.0.7：SpringBoardServices 是私有 framework（Xcode SDK 无头文件），直接 extern 声明原型，
+// 符号由 HUD/libraries/SpringBoardServices.framework/SpringBoardServices.tbd 链接提供（Makefile PRIVATE_FRAMEWORKS 已含）
+extern mach_port_t SBSSpringBoardServerPort(void);
+extern void SBGetScreenLockStatus(mach_port_t port, BOOL *isLocked, BOOL *isPasscodeSet);
 
 // v6.0.7：锁屏保活（抄 TrollSpeed HUDRootViewController）——监听 springboard.lockstate，
 // 锁屏时隐藏悬浮、解锁时恢复显示（进程本身是 posix_spawn 无沙盒 root 通常不被杀，窗口需锁屏隐藏/解锁恢复）
