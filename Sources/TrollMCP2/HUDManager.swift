@@ -200,16 +200,17 @@ final class HUDManager {
         // 方案 B(TheBall)：不提权 posix_spawn detach 拉起 HUD（mobile 身份，常驻不 timeout）
         // ——避开 persona 99 的 errno 106；detach 不 waitpid 让 HUD 长期存活，不触发 15s SIGKILL。
         // HUD 显示全局窗口不靠 root，靠 accessibility-window-hosting entitlement（主可执行已带）。
-        // v6.0.7：读设置里的悬浮尺寸（pt），-size N 传给 HUD 生效（默认 150）
+        // v6.0.7：读设置里的悬浮尺寸（pt），-size N 传给 HUD 生效（默认 150）；读角色 -char 传 girl/rabit
         let hudSize = UserDefaults.standard.double(forKey: "trollagent.hud_size")
         let sizeArg = (hudSize >= 50 && hudSize <= 400) ? Int(hudSize) : 150
-        if !spawnDetached(bin, args: ["-hud", "-size", "\(sizeArg)"]) {
+        let charArg = UserDefaults.standard.string(forKey: "trollmcp2.girl_character") == "rabit" ? "rabit" : "girl"
+        if !spawnDetached(bin, args: ["-hud", "-char", charArg, "-size", "\(sizeArg)"]) {
             lastStartError = "拉起失败 (posix_spawn detach)"
             appendLog("start FAIL: spawnDetached")
             return false
         }
         lastStartError = nil
-        appendLog("start OK (posix_spawn detach 不提权, 常驻, size=\(sizeArg))")
+        appendLog("start OK (posix_spawn detach 不提权, 常驻, size=\(sizeArg), char=\(charArg))")
         return true
     }
 

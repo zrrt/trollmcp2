@@ -12,6 +12,11 @@ struct GirlCharacterPickerView: View {
                 ForEach(GirlCharacter.allCases) { c in
                     Button {
                         companion.selectedCharacter = c
+                        // v6.0.7：桌面悬浮 HUD 读当前角色，切换后重启悬浮让新角色生效
+                        _ = HUDManager.shared.stop()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            _ = HUDManager.shared.start()
+                        }
                     } label: {
                         HStack(spacing: 14) {
                             // 角色形象（idle 帧）
@@ -49,7 +54,7 @@ struct GirlCharacterPickerView: View {
                     .buttonStyle(PlainButtonStyle())
                 }
             }
-            Section(footer: Text("切换后，聊天页右下角的可爱助手会立即换成所选角色。")) {
+            Section(footer: Text("切换后自动重启桌面悬浮，显示所选角色。")) {
                 EmptyView()
             }
         }

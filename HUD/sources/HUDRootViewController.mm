@@ -8,11 +8,14 @@
 
 #import "HUDRootViewController.h"
 #import "HUDMainWindow.h"
+#import <string.h>
 
 static BOOL _passthrough = NO;
 
 // v6.0.7：悬浮小女孩显示尺寸（pt），由主 App 启动时 -size N 传入（HUDMain.mm 解析），默认 150
 extern "C" double g_hud_size;
+// v6.0.7：悬浮角色（girl=小萝莉 / rabit=御姐兔女郎），由主 App 启动时 -char 传入（HUDMain.mm 解析）
+extern "C" const char *g_hud_char;
 
 @implementation HUDRootViewController {
     UIImageView *_girlView;
@@ -29,11 +32,13 @@ extern "C" double g_hud_size;
 
 - (instancetype)init {
     if (self = [super init]) {
-        // 加载小女孩多帧图（HUD bundle 内的 girl_*.png）
-        UIImage *idle  = [UIImage imageNamed:@"girl_idle"];
-        UIImage *happy = [UIImage imageNamed:@"girl_happy"];
-        UIImage *think = [UIImage imageNamed:@"girl_think"];
-        UIImage *talk  = [UIImage imageNamed:@"girl_talk"];
+        // v6.0.7：按当前角色加载多帧图（girl_小萝莉 / rabit_御姐兔女郎，HUD bundle 内）
+        BOOL isRabbit = (g_hud_char && strcmp(g_hud_char, "rabit") == 0);
+        NSString *prefix = isRabbit ? @"rabit" : @"girl";
+        UIImage *idle  = [UIImage imageNamed:[NSString stringWithFormat:@"%@_idle", prefix]];
+        UIImage *happy = [UIImage imageNamed:[NSString stringWithFormat:@"%@_happy", prefix]];
+        UIImage *think = [UIImage imageNamed:[NSString stringWithFormat:@"%@_think", prefix]];
+        UIImage *talk  = [UIImage imageNamed:[NSString stringWithFormat:@"%@_talk", prefix]];
         if (idle)  _idleFrames  = @[idle];
         if (happy) _happyFrames = @[happy];
         if (think) _thinkFrames = @[think];
@@ -86,9 +91,10 @@ extern "C" double g_hud_size;
     self.view.frame = [UIScreen mainScreen].bounds;
 }
 
+// v6.0.7：上下漂浮动画（原来呼吸缩放改成上下飘——用户要求对齐 app 里的漂浮效果）
 - (void)_startBreathing {
-    [UIView animateWithDuration:2.4 delay:0 options:UIViewAnimationOptionAutoreverse | UIViewAnimationOptionRepeat | UIViewAnimationOptionCurveEaseInOut animations:^{
-        self->_girlView.transform = CGAffineTransformMakeScale(1.03, 1.03);
+    [UIView animateWithDuration:2.6 delay:0 options:UIViewAnimationOptionAutoreverse | UIViewAnimationOptionRepeat | UIViewAnimationOptionCurveEaseInOut animations:^{
+        self->_girlView.transform = CGAffineTransformMakeTranslation(0, -14);
     } completion:nil];
 }
 
