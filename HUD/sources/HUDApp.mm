@@ -190,6 +190,13 @@ extern "C" void HUDMainStart(void)
         [p writeToFile:hudLogPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
         [UIApplication.sharedApplication __completeAndRunAsPlugin];
 
+        // v6.0.8：监听退出通知——主 App 以 mobile 身份 kill 不掉 root 的 HUD 进程(EPERM)，
+        // 导致"开关一次加一个角色"叠加。改为 HUD 自己监听 notify 后 _exit(0)（进程有权杀自己）。
+        static int exitToken;
+        notify_register_dispatch("com.trollagent.hud.exit", &exitToken, dispatch_get_main_queue(), ^(int t) {
+            _exit(0);
+        });
+
         CFRunLoopRun();
     }
 }

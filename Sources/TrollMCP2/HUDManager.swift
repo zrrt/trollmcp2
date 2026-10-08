@@ -234,10 +234,13 @@ final class HUDManager {
         return code == 0
     }
 
-    /// v6.0.8：强制停止——-exit 后确认进程真的没了；若还存活（kill root 权限/pid 陈旧）直接 SIGKILL。
-    /// 避免旧 HUD 进程残留导致每次 start 叠加出多个悬浮角色。
+    /// v6.0.8：强制停止——先 notify_post 让 HUD 自己 _exit(0)（主 App mobile 身份 kill 不掉 root 进程，
+    /// 只能让 HUD 自己退；所有 HUD 进程都监听此通知，一次清掉全部避免叠加），再 -exit 兜底。
+    /// 最后轮询确认进程没了，若还存活（pid 陈旧）读 pid 直接 SIGKILL。
     @discardableResult
     func forceStop() -> Bool {
+        notify_post("com.trollagent.hud.exit")
+        usleep(300_000)
         _ = stop()
         // 轮询确认（最多 ~2s），若进程仍存活则强杀
         for _ in 0..<10 {
