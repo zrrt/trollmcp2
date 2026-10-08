@@ -173,6 +173,9 @@ final class HUDManager {
 
     @discardableResult
     func start() -> Bool {
+        // v6.0.8 修复：先清掉旧进程，避免每次 start 叠加出多个悬浮角色。
+        // （stop 可能因 kill root 权限/pid 文件陈旧而没杀干净，这里兜底强制清理）
+        if isRunning { _ = forceStop() }
         guard let bin = hudBinaryPath else {
             lastStartError = "主可执行缺失：\(bundlePath)"
             appendLog("start FAIL: main executable not found at \(bundlePath)")
@@ -229,5 +232,26 @@ final class HUDManager {
         let (code, _) = InjectionManager.shared.spawn(bin, args: ["-exit"], timeout: 15)
         appendLog("stop: posix_spawn -exit code=\(code)")
         return code == 0
+    }
+
+    /// v6.0.8：强制停止——-exit 后确认进程真的没了；若还存活（kill root 权限/pid 陈旧）直接 SIGKILL。
+    /// 避免旧 HUD 进程残留导致每次 start 叠加出多个悬浮角色。
+    @discardableResult
+    func forceStop() -> Bool {
+        _ = stop()
+        // 轮询确认（最多 ~2s），若进程仍存活则强杀
+        for _ in 0..<10 {
+            if !isRunning { return true }
+            usleep(200_000)
+        }
+        // 仍存活：读 pid 直接 SIGKILL（platform-application 有权杀 root）
+        if let pidStr = try? String(contentsOfFile: PID_PATH, encoding: .utf8),
+           let pid = Int32(pidStr.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            kill(pid, SIGKILL)
+            usleep(300_000)
+        }
+        let alive = isRunning
+        appendLog("forceStop: alive=\(alive)")
+        return !alive
     }
 }
