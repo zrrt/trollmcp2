@@ -99,6 +99,9 @@ extern "C" const char *g_hud_char;
     NSArray<UIImage *> *_thinkFrames;
     UIImage *_wallImage;      // v6.0.8：扒墙姿势图（水平墙沿——顶/底边缘）
     UIImage *_wallImageV;     // v6.0.8：扒墙姿势图（竖直墙沿——左/右边缘）
+    NSArray<UIImage *> *_moodFrames;  // v6.0.8：更多站立表情/动作帧（blink/wave/tilt/giggle/heart/surprise/angry/jump）
+    BOOL _autoMoodPaused;             // 锁屏时暂停待机自动换表情
+    BOOL _moodShowing;                // 待机表情显示中（防重复切换）
     BOOL _isDragging;
     CGPoint _dragOffset;
     int _emojiTimer;      // 点击表情显示计时
@@ -124,6 +127,14 @@ extern "C" const char *g_hud_char;
         if (wall) _wallImage = _trimTransparentPadding(wall);   // v6.0.8：水平扒墙（顶/底边缘）
         UIImage *wallV = [UIImage imageNamed:[NSString stringWithFormat:@"%@_wall_v", prefix]];
         if (wallV) _wallImageV = _trimTransparentPadding(wallV);   // v6.0.8：竖直扒墙（左/右边缘）
+        // v6.0.8：加载更多站立表情/动作帧（待机自动切换 + 点击轮流展示）
+        NSArray *moodNames = @[@"blink", @"wave", @"tilt", @"giggle", @"heart", @"surprise", @"angry", @"jump"];
+        NSMutableArray *mood = [NSMutableArray array];
+        for (NSString *mn in moodNames) {
+            UIImage *m = [UIImage imageNamed:[NSString stringWithFormat:@"%@_%@", prefix, mn]];
+            if (m) [mood addObject:_trimTransparentPadding(m)];
+        }
+        if (mood.count) _moodFrames = mood;
         if (!idle) {
             // 兜底：纯色圆（资源缺失时仍可见）
             _idleFrames = @[ [self _placeholderCircle] ];
@@ -166,6 +177,9 @@ extern "C" const char *g_hud_char;
     // 呼吸动画（idle 缩放循环）
     [self _startBreathing];
 
+    // v6.0.8：待机自动切换表情（空闲时随机眨眼/挥手/歪头等）
+    [self _scheduleAutoMood];
+
     // 拖动 + 点击
     UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(_pan:)];
     UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(_tap:)];
@@ -194,8 +208,35 @@ extern "C" const char *g_hud_char;
     [_girlView.layer addAnimation:anim forKey:@"hudFloat"];
 }
 
-// v6.0.7：注册 springboard 锁屏状态监听（抄 TrollSpeed HUDRootViewController）
-- (void)registerNotifications {
+// v6.0.8：待机自动切换表情——空闲时随机从 _moodFrames 挑一个显示约 1.2s，然后回 idle，再排下一次。
+// 只在"待机态 + 未拖拽 + 未扒墙 + 未锁屏"时切换，不打断用户正在看的表情/扒墙/拖拽。
+- (void)_scheduleAutoMood {
+    if (!_moodFrames.count || _moodShowing) return;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (self->_autoMoodPaused || self->_isDragging || self->_moodShowing) { [self _scheduleAutoMood]; return; }
+        if (self->_girlView.image == self->_wallImage || self->_girlView.image == self->_wallImageV) { [self _scheduleAutoMood]; return; }
+        if (self->_girlView.image != self->_idleFrames.firstObject) { [self _scheduleAutoMood]; return; }
+        NSUInteger idx = arc4random_uniform((uint32_t)self->_moodFrames.count);
+        UIImage *m = self->_moodFrames[idx];
+        if (!m) { [self _scheduleAutoMood]; return; }
+        self->_moodShowing = YES;
+        self->_girlView.image = m;
+        [self _setFrameForImage:m];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            self->_moodShowing = NO;
+            if (!self->_isDragging && !self->_autoMoodPaused &&
+                self->_girlView.image != self->_idleFrames.firstObject &&
+                self->_girlView.image != self->_wallImage && self->_girlView.image != self->_wallImageV) {
+                self->_girlView.image = self->_idleFrames.firstObject;
+                self->_girlView.transform = CGAffineTransformIdentity;
+                [self _setFrameForImage:self->_idleFrames.firstObject];
+            }
+            [self _scheduleAutoMood];
+        });
+    });
+}
+
+// v6.0.7：注册 springboard 锁屏状态监听（抄 TrollSpeed HUDRootViewController）- (void)registerNotifications {
     CFNotificationCenterRef center = CFNotificationCenterGetDarwinNotifyCenter();
     CFNotificationCenterAddObserver(center, (__bridge const void *)self, SpringBoardLockStatusChanged, CFSTR(NOTIFY_UI_LOCKSTATE), NULL, CFNotificationSuspensionBehaviorCoalesce);
 }
@@ -203,13 +244,17 @@ extern "C" const char *g_hud_char;
 // 锁屏：隐藏悬浮 + 停止动画
 - (void)lockHide {
     _girlView.hidden = YES;
+    _autoMoodPaused = YES;
+    _moodShowing = NO;
     [_girlView.layer removeAllAnimations];
 }
 
 // 解锁：恢复显示 + 重启动画
 - (void)unlockShow {
     _girlView.hidden = NO;
+    _autoMoodPaused = NO;
     [self _startBreathing];
+    [self _scheduleAutoMood];
 }
 
 // 拖动悬浮小女孩
@@ -285,11 +330,14 @@ extern "C" const char *g_hud_char;
         return;
     }
     static int seq = 0;
-    UIImage *img = nil;
-    if (seq == 0) img = _happyFrames.firstObject ?: _idleFrames.firstObject;
-    else if (seq == 1) img = _thinkFrames.firstObject ?: _idleFrames.firstObject;
-    else img = _idleFrames.firstObject;
-    seq = (seq + 1) % 3;
+    // v6.0.8：表情池扩大——happy、think + 新增站立表情（比心/惊喜/生气/跳跃/挥手/捂嘴等）轮流展示
+    NSMutableArray *pool = [NSMutableArray array];
+    if (_happyFrames.firstObject) [pool addObject:_happyFrames.firstObject];
+    if (_thinkFrames.firstObject) [pool addObject:_thinkFrames.firstObject];
+    if (_moodFrames.count) [pool addObjectsFromArray:_moodFrames];
+    if (!pool.count) return;
+    UIImage *img = pool[(NSUInteger)(seq % (int)pool.count)];
+    seq = (seq + 1) % (int)pool.count;
     _girlView.image = img;
     [self _setFrameForImage:img];
     _emojiTimer = 2;   // 约 1.6s 后回待机
@@ -300,6 +348,7 @@ extern "C" const char *g_hud_char;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         if (!self->_isDragging) {
             self->_girlView.image = self->_idleFrames.firstObject;
+            self->_girlView.transform = CGAffineTransformIdentity;
             [self _setFrameForImage:self->_idleFrames.firstObject];
         }
     });
