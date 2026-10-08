@@ -11,6 +11,11 @@ private let TMP_LOG = "/tmp/hud.start.log"
 @_silgen_name("troll_launch_hud")
 func _troll_launch_hud(_ path: UnsafePointer<CChar>, _ argv: UnsafePointer<UnsafeMutablePointer<CChar>?>, _ persona: Int32) -> Int32
 
+/// v6.0.8：Darwin notify 跨进程通知（libsystem_notify 的 notify_post）。Swift 默认作用域没有，
+/// 用 @_silgen_name 直连 C 符号——主 App 用它通知 HUD 进程自己 _exit(0)（HUD 是 root，主 App 杀不动）。
+@_silgen_name("notify_post")
+func _notify_post(_ name: UnsafePointer<CChar>)
+
 /// 桌面悬浮 HUD：单可执行双模式（TrollSpeed 正解）。
 /// 主 App 可执行（TrollStore 有效签名）由 HUDManager 以 root persona 拉起，argv 带
 /// -hud 进悬浮模式——复用主可执行的有效签名，AMFI 放行（独立二进制假签名被 106/109 拒的根因已消除）。
@@ -239,7 +244,7 @@ final class HUDManager {
     /// 最后轮询确认进程没了，若还存活（pid 陈旧）读 pid 直接 SIGKILL。
     @discardableResult
     func forceStop() -> Bool {
-        notify_post("com.trollagent.hud.exit")
+        "com.trollagent.hud.exit".withCString { _notify_post($0) }
         usleep(300_000)
         _ = stop()
         // 轮询确认（最多 ~2s），若进程仍存活则强杀
