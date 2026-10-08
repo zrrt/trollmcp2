@@ -170,7 +170,7 @@ extern "C" void HUDMainStart(void)
                 if (plist && pname) {
                     int cap = plist(NULL, 0);
                     if (cap > 0) {
-                        pid_t *pids = calloc((size_t)cap, sizeof(pid_t));
+                        pid_t *pids = (pid_t *)calloc((size_t)cap, sizeof(pid_t));
                         int n = plist(pids, (int)(cap * sizeof(pid_t)));
                         for (int i = 0; i < n && i < cap; i++) {
                             if (pids[i] <= 0 || pids[i] == pid) continue;
