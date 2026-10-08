@@ -117,6 +117,12 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             backgroundTask = .invalid
         }
         BackgroundKeepAlive.cancelRefresh()
+        // v6.0.7：锁屏久了 HUD 进程可能被系统清理；回前台自动检查，若可爱助手开着但悬浮没跑则拉起
+        if GirlCompanion.shared.enabled && !HUDManager.shared.isRunning {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                _ = HUDManager.shared.start()
+            }
+        }
     }
 
     // MARK: v2.9.126 —— 深链导入模型 API 配置（对齐 cc-switch DeepLinkImportDialog）
