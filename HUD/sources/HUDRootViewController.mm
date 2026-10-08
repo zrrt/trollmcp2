@@ -127,11 +127,18 @@ extern "C" const char *g_hud_char;
 }
 
 // v6.0.7：上下漂浮动画（原来呼吸缩放改成上下飘——用户要求对齐 app 里的漂浮效果）
+// v6.0.8：改 CABasicAnimation（layer 级）——UIView animateWithDuration 的 block 在锁屏/解锁的
+// runloop 状态下可能不执行，导致解锁后悬浮在但不浮动；CABasicAnimation 直接操作 layer 更稳。
 - (void)_startBreathing {
     [_girlView.layer removeAllAnimations];   // 防重复调用叠加动画
-    [UIView animateWithDuration:2.6 delay:0 options:UIViewAnimationOptionAutoreverse | UIViewAnimationOptionRepeat | UIViewAnimationOptionCurveEaseInOut animations:^{
-        self->_girlView.transform = CGAffineTransformMakeTranslation(0, -14);
-    } completion:nil];
+    CABasicAnimation *anim = [CABasicAnimation animationWithKeyPath:@"transform.translation.y"];
+    anim.fromValue = @(0);
+    anim.toValue = @(-14);
+    anim.duration = 1.3;       // 2.6s 往返 → 单程 1.3s
+    anim.autoreverses = YES;
+    anim.repeatCount = INFINITY;
+    anim.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+    [_girlView.layer addAnimation:anim forKey:@"hudFloat"];
 }
 
 // v6.0.7：注册 springboard 锁屏状态监听（抄 TrollSpeed HUDRootViewController）
