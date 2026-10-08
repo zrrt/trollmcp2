@@ -227,6 +227,10 @@ final class HUDManager {
 
     @discardableResult
     func stop() -> Bool {
+        // v6.0.8：先 notify_post 让 HUD 自己 _exit(0)——主 App(mobile) -exit 杀不掉 root HUD(EPERM)，
+        // 设置开关关、切角色、调尺寸的 stop 都必须走 notify 自杀才关得掉。
+        "com.trollagent.hud.exit".withCString { _notify_post($0) }
+        usleep(300_000)
         // 主路径：launchctl unload
         if FileManager.default.fileExists(atPath: daemonPlistPath), let lctl = launchctlBinary {
             let (code, out) = InjectionManager.shared.spawnRoot(lctl, args: ["unload", daemonPlistPath], timeout: 15)
