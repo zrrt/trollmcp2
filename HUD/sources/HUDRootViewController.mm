@@ -97,7 +97,8 @@ extern "C" const char *g_hud_char;
     NSArray<UIImage *> *_idleFrames;
     NSArray<UIImage *> *_happyFrames;
     NSArray<UIImage *> *_thinkFrames;
-    UIImage *_wallImage;      // v6.0.8：扒墙姿势图（吸附屏幕边缘时显示，企鹅趴墙探头）
+    UIImage *_wallImage;      // v6.0.8：扒墙姿势图（水平墙沿——顶/底边缘）
+    UIImage *_wallImageV;     // v6.0.8：扒墙姿势图（竖直墙沿——左/右边缘）
     BOOL _isDragging;
     CGPoint _dragOffset;
     int _emojiTimer;      // 点击表情显示计时
@@ -120,7 +121,9 @@ extern "C" const char *g_hud_char;
         if (think) _thinkFrames = @[_trimTransparentPadding(think)];
         if (talk)  _thinkFrames = @[_trimTransparentPadding(talk)];   // 说话帧暂并入 think 备用
         UIImage *wall = [UIImage imageNamed:[NSString stringWithFormat:@"%@_wall", prefix]];
-        if (wall) _wallImage = _trimTransparentPadding(wall);   // v6.0.8：扒墙姿势
+        if (wall) _wallImage = _trimTransparentPadding(wall);   // v6.0.8：水平扒墙（顶/底边缘）
+        UIImage *wallV = [UIImage imageNamed:[NSString stringWithFormat:@"%@_wall_v", prefix]];
+        if (wallV) _wallImageV = _trimTransparentPadding(wallV);   // v6.0.8：竖直扒墙（左/右边缘）
         if (!idle) {
             // 兜底：纯色圆（资源缺失时仍可见）
             _idleFrames = @[ [self _placeholderCircle] ];
@@ -238,22 +241,26 @@ extern "C" const char *g_hud_char;
 }
 
 // v6.0.8：松手吸附到最近屏幕边缘（<threshold 才算）并切换扒墙姿势（企鹅趴墙探头）
+// 顶/底（水平边）用水平墙沿图 _wallImage；左/右（垂直边）用竖直墙沿图 _wallImageV。
 - (void)_snapToEdge {
-    if (!_wallImage) return;
     CGSize v = [UIScreen mainScreen].bounds.size;
     CGPoint c = _girlView.center;
     CGFloat th = 50;
     CGFloat dL = c.x, dR = v.width - c.x, dT = c.y, dB = v.height - c.y;
     CGFloat minD = MIN(MIN(dL, dR), MIN(dT, dB));
     if (minD > th) { _girlView.transform = CGAffineTransformIdentity; return; }   // 离四边都太远，不吸附（并清镜像）
-    // v6.0.8：吸附左缘→镜像面向左墙；右缘→正常面向右墙；上下→保持原方向
+    UIImage *wallImg = nil;
+    if (minD == dL || minD == dR) wallImg = _wallImageV;   // 左/右：竖直墙沿图
+    else                          wallImg = _wallImage;    // 顶/底：水平墙沿图
+    if (!wallImg) return;
+    // 吸附左缘→镜像面向左墙；右缘→正常面向右墙；上下→保持原方向
     if (minD == dL)      { c.x = _girlView.frame.size.width / 2; _girlView.transform = CGAffineTransformMakeScale(-1, 1); }
     else if (minD == dR) { c.x = v.width - _girlView.frame.size.width / 2; _girlView.transform = CGAffineTransformIdentity; }
     else if (minD == dT) { c.y = _girlView.frame.size.height / 2; _girlView.transform = CGAffineTransformIdentity; }
     else                 { c.y = v.height - _girlView.frame.size.height / 2; _girlView.transform = CGAffineTransformIdentity; }
     _girlView.center = c;
-    _girlView.image = _wallImage;
-    [self _setFrameForImage:_wallImage];
+    _girlView.image = wallImg;
+    [self _setFrameForImage:wallImg];
 }
 
 // 点击切表情：开心→思考→待机
@@ -271,7 +278,7 @@ extern "C" const char *g_hud_char;
 - (void)_tap:(UITapGestureRecognizer *)g {
     if (_isDragging) return;
     // v6.0.8：从扒墙状态点击 → 直接恢复站立待机（不切表情）
-    if (_girlView.image == _wallImage && _idleFrames.firstObject) {
+    if ((_girlView.image == _wallImage || _girlView.image == _wallImageV) && _idleFrames.firstObject) {
         _girlView.image = _idleFrames.firstObject;
         _girlView.transform = CGAffineTransformIdentity;
         [self _setFrameForImage:_idleFrames.firstObject];
