@@ -107,8 +107,11 @@ extern "C" const char *g_hud_char;
     } else if (g.state == UIGestureRecognizerStateChanged && _isDragging) {
         CGPoint c = CGPointMake(p.x - _dragOffset.x, p.y - _dragOffset.y);
         CGSize v = self.view.bounds.size;
-        c.x = MAX(_girlView.bounds.size.width/2, MIN(c.x, v.width - _girlView.bounds.size.width/2));
-        c.y = MAX(_girlView.bounds.size.height/2, MIN(c.y, v.height - _girlView.bounds.size.height/2));
+        // v6.0.7 修复：边界用显示尺寸（frame.size）而非图片固有尺寸（bounds 是 600×900）——
+        // 旧代码用 bounds 导致角色拖不到屏幕边缘。改用 frame 后角色可紧贴屏幕边。
+        CGSize gs = _girlView.frame.size;
+        c.x = MAX(gs.width/2, MIN(c.x, v.width - gs.width/2));
+        c.y = MAX(gs.height/2, MIN(c.y, v.height - gs.height/2));
         _girlView.center = c;
     } else if (g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled) {
         _isDragging = NO;

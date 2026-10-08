@@ -16,8 +16,15 @@ struct HudSizeSettingsView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            Slider(value: $size, in: 80...300, step: 5) { _ in
-                UserDefaults.standard.set(size, forKey: "trollagent.hud_size")
+            Slider(value: $size, in: 80...300, step: 5) { editing in
+                // v6.0.7：拖动结束后保存并自动重启悬浮，让新尺寸立即生效
+                if !editing {
+                    UserDefaults.standard.set(size, forKey: "trollagent.hud_size")
+                    _ = HUDManager.shared.stop()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        _ = HUDManager.shared.start()
+                    }
+                }
             }
             .padding(.horizontal)
 
@@ -25,7 +32,7 @@ struct HudSizeSettingsView: View {
                 .font(.system(size: 22, weight: .bold))
                 .foregroundColor(.pink)
 
-            Text("调整桌面悬浮小女孩的大小\n修改后请在「可爱助手」开关处关闭再打开悬浮生效")
+            Text("调整后自动重启悬浮，新尺寸立即生效")
                 .font(.footnote)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
