@@ -413,48 +413,9 @@ jobs:
               cp -R "$HUDAPP" "Resources/hud/TrollAgentHUD.app"
               # v6.0.6：theos application.mk 不生成 Info.plist → UIApplication 无法从 bundle 读
               # NSPrincipalClass/CFBundleIdentifier → UIApplicationInitialize 后进程退出（hudapp.log 停在
-              # step=UIApplicationInitialize-ok）。参照 TrollSpeed Resources/Info.plist 主动补写。
-              cat > "Resources/hud/TrollAgentHUD.app/Info.plist" <<'HUDPLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>CFBundleDevelopmentRegion</key>
-	<string>English</string>
-	<key>CFBundleDisplayName</key>
-	<string>可爱助手</string>
-	<key>CFBundleExecutable</key>
-	<string>TrollAgentHUD</string>
-	<key>CFBundleIdentifier</key>
-	<string>ch.xxtou.hudapp</string>
-	<key>CFBundleInfoDictionaryVersion</key>
-	<string>6.0</string>
-	<key>CFBundleName</key>
-	<string>可爱助手</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>6.0.6</string>
-	<key>CFBundleVersion</key>
-	<string>220</string>
-	<key>NSPrincipalClass</key>
-	<string>HUDMainApplication</string>
-	<key>UIBackgroundStyle</key>
-	<string>UIBackgroundStyleDarkBlur</string>
-	<key>UIApplicationShowsViewsWhileLocked</key>
-	<false/>
-	<key>UIApplicationSystemWindowsSecureKey</key>
-	<true/>
-	<key>UIRequiresFullScreen</key>
-	<true/>
-	<key>UISupportedInterfaceOrientations</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-	</array>
-</dict>
-</plist>
-HUDPLIST
-              echo ">>> HUD Info.plist written: $(wc -c < Resources/hud/TrollAgentHUD.app/Info.plist) bytes"
+              # step=UIApplicationInitialize-ok）。参照 TrollSpeed Resources/Info.plist 从仓库补拷。
+              cp "HUD/Info.plist" "Resources/hud/TrollAgentHUD.app/Info.plist"
+              echo ">>> HUD Info.plist: $(wc -c < Resources/hud/TrollAgentHUD.app/Info.plist) bytes"
               # v6.0.4：给独立 HUD 二进制 ldid -S 签完整 entitlements（含 platform-application/persona-mgmt）——
               # persona 99 提权必需；TrollStore 重签会保留 platform-app（TrollSpeed/TheBall 正解）
               # 注意：ldid -S 后必须紧跟 entitlements 文件（无空格），写成 `-S "plist" "binary"` 会把 plist 当

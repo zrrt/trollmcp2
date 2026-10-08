@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>English</string>
+	<key>CFBundleDisplayName</key>
+	<string>可爱助手</string>
+	<key>CFBundleExecutable</key>
+	<string>TrollAgentHUD</string>
+	<key>CFBundleIdentifier</key>
+	<string>ch.xxtou.hudapp</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>可爱助手</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>6.0.6</string>
+	<key>CFBundleVersion</key>
+	<string>220</string>
+	<key>NSPrincipalClass</key>
+	<string>HUDMainApplication</string>
+	<key>UIBackgroundStyle</key>
+	<string>UIBackgroundStyleDarkBlur</string>
+	<key>UIApplicationShowsViewsWhileLocked</key>
+	<false/>
+	<key>UIApplicationSystemWindowsSecureKey</key>
+	<true/>
+	<key>UIRequiresFullScreen</key>
+	<true/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+</dict>
+</plist>
