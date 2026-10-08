@@ -24,13 +24,30 @@ TrollAgentHUD_FILES = \
     sources/IOHIDEvent+KIF.m \
     sources/HUDMain.mm
 
+# ---- Cubism Live2D SDK (CubismSdkForNative-5-r.5) ----
+CUBISM_ROOT = cubism
+CUBISM_CORE = $(CUBISM_ROOT)/Core/lib/ios/Release-iphoneos/libLive2DCubismCore.a
+CUBISM_FW_SRC = $(shell find $(CUBISM_ROOT)/Framework/src -name '*.cpp')
+CUBISM_LAPP_SRC = $(shell find $(CUBISM_ROOT)/LApp -name '*.mm' -o -name '*.m')
+
+TrollAgentHUD_FILES += $(CUBISM_FW_SRC) $(CUBISM_LAPP_SRC)
+
 TrollAgentHUD_CFLAGS += -fobjc-arc
 TrollAgentHUD_CFLAGS += -Iheaders
 TrollAgentHUD_CFLAGS += -Isources
+TrollAgentHUD_CFLAGS += -I$(CUBISM_ROOT)/Framework/src
+TrollAgentHUD_CFLAGS += -I$(CUBISM_ROOT)/Core/include
+TrollAgentHUD_CFLAGS += -I$(CUBISM_ROOT)/LApp
 TrollAgentHUD_CFLAGS += -include supports/hudapp-prefix.pch
 TrollAgentHUD_CFLAGS += -Wno-error -Wno-deprecated-declarations -Wno-unused-variable -Wno-unused-function
+# Cubism Framework 需要 C++14
+TrollAgentHUD_CFLAGS += -std=gnu++14
 
 TrollAgentHUD_FRAMEWORKS += CoreGraphics CoreServices QuartzCore IOKit UIKit
+# Cubism Live2D 渲染：Metal（iOS 主渲染）+ OpenGLES（Framework 含 OpenGL 渲染器源码）
+TrollAgentHUD_FRAMEWORKS += Metal OpenGLES
+# 链接 Cubism Core 静态库
+TrollAgentHUD_LDFLAGS += $(CUBISM_CORE)
 TrollAgentHUD_PRIVATE_FRAMEWORKS += BackBoardServices GraphicsServices SpringBoardServices
 # 私有 framework 符号由 TrollSpeed libraries/*.tbd 提供（Xcode SDK 无私有 tbd）：
 # -F 指向 HUD/libraries/<fw>.framework/<fw>，配合 PRIVATE_FRAMEWORKS 生成的 -framework 链上
