@@ -97,6 +97,7 @@ extern "C" const char *g_hud_char;
     NSArray<UIImage *> *_idleFrames;
     NSArray<UIImage *> *_happyFrames;
     NSArray<UIImage *> *_thinkFrames;
+    UIImage *_wallImage;      // v6.0.8：扒墙姿势图（吸附屏幕边缘时显示，企鹅趴墙探头）
     BOOL _isDragging;
     CGPoint _dragOffset;
     int _emojiTimer;      // 点击表情显示计时
@@ -118,6 +119,8 @@ extern "C" const char *g_hud_char;
         if (happy) _happyFrames = @[_trimTransparentPadding(happy)];
         if (think) _thinkFrames = @[_trimTransparentPadding(think)];
         if (talk)  _thinkFrames = @[_trimTransparentPadding(talk)];   // 说话帧暂并入 think 备用
+        UIImage *wall = [UIImage imageNamed:[NSString stringWithFormat:@"%@_wall", prefix]];
+        if (wall) _wallImage = _trimTransparentPadding(wall);   // v6.0.8：扒墙姿势
         if (!idle) {
             // 兜底：纯色圆（资源缺失时仍可见）
             _idleFrames = @[ [self _placeholderCircle] ];
@@ -212,6 +215,11 @@ extern "C" const char *g_hud_char;
     if (g.state == UIGestureRecognizerStateBegan) {
         _isDragging = YES;
         _dragOffset = CGPointMake(p.x - _girlView.center.x, p.y - _girlView.center.y);
+        // v6.0.8：从吸附/扒墙状态开始拖动，先恢复待机图
+        if (_girlView.image != _idleFrames.firstObject && _idleFrames.firstObject) {
+            _girlView.image = _idleFrames.firstObject;
+            [self _setFrameForImage:_idleFrames.firstObject];
+        }
     } else if (g.state == UIGestureRecognizerStateChanged && _isDragging) {
         CGPoint c = CGPointMake(p.x - _dragOffset.x, p.y - _dragOffset.y);
         // v6.0.8: 边界用屏幕尺寸（不依赖可能非全屏的 self.view.bounds）——确保能拖到屏幕右/下边缘
@@ -224,7 +232,26 @@ extern "C" const char *g_hud_char;
         _girlView.center = c;
     } else if (g.state == UIGestureRecognizerStateEnded || g.state == UIGestureRecognizerStateCancelled) {
         _isDragging = NO;
+        [self _snapToEdge];   // v6.0.8：松手时靠近屏幕边缘则吸附并显示扒墙姿势
     }
+}
+
+// v6.0.8：松手吸附到最近屏幕边缘（<threshold 才算）并切换扒墙姿势（企鹅趴墙探头）
+- (void)_snapToEdge {
+    if (!_wallImage) return;
+    CGSize v = [UIScreen mainScreen].bounds.size;
+    CGPoint c = _girlView.center;
+    CGFloat th = 50;
+    CGFloat dL = c.x, dR = v.width - c.x, dT = c.y, dB = v.height - c.y;
+    CGFloat minD = MIN(MIN(dL, dR), MIN(dT, dB));
+    if (minD > th) return;   // 离四边都太远，不吸附
+    if (minD == dL)      c.x = _girlView.frame.size.width / 2;
+    else if (minD == dR) c.x = v.width - _girlView.frame.size.width / 2;
+    else if (minD == dT) c.y = _girlView.frame.size.height / 2;
+    else                 c.y = v.height - _girlView.frame.size.height / 2;
+    _girlView.center = c;
+    _girlView.image = _wallImage;
+    [self _setFrameForImage:_wallImage];
 }
 
 // 点击切表情：开心→思考→待机
