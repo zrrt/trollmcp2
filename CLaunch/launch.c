@@ -13,7 +13,6 @@
 typedef int (*setpersona_fn)(posix_spawnattr_t *, uid_t, uint32_t);
 typedef int (*setuid_fn)(posix_spawnattr_t *, uid_t);
 typedef int (*setgid_fn)(posix_spawnattr_t *, gid_t);
-
 /* POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE 是私有宏，iOS 公开 SDK spawn.h 不导出，这里自行定义（=1，TrollSpeed 同款）。 */
 #ifndef POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE
 #define POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE 1
@@ -30,12 +29,19 @@ int troll_launch_hud(const char *path, const char *const *argv, int persona_over
     if (persona_override) {
         /* persona 99 = root；需调用方（主 App）带 platform-application + persona-mgmt entitlements。
            dlsym 动态加载（SDK .tbd 无这些符号，静态链接会 undefined symbol）。 */
-        setpersona_fn sp = (setpersona_fn)dlsym(RTLD_DEFAULT, "posix_spawnattr_setpersona_np");
-        setuid_fn su = (setuid_fn)dlsym(RTLD_DEFAULT, "posix_spawnattr_setuid_np");
-        setgid_fn sg = (setgid_fn)dlsym(RTLD_DEFAULT, "posix_spawnattr_setgid_np");
-        if (sp) (void)sp(&attr, 99, POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE);
-        if (su) (void)su(&attr, 0);
-        if (sg) (void)sg(&attr, 0);
+        setpersona_fn sp = (setpersona_fn)dlsym(RTLD_DEFAULT, "posix_spawnattr_set_persona_np");
+        setuid_fn su = (setuid_fn)dlsym(RTLD_DEFAULT, "posix_spawnattr_set_persona_uid_np");
+        setgid_fn sg = (setgid_fn)dlsym(RTLD_DEFAULT, "posix_spawnattr_set_persona_gid_np");
+        int rp = sp ? sp(&attr, 99, POSIX_SPAWN_PERSONA_FLAGS_OVERRIDE) : -999;
+        int ru = su ? su(&attr, 0) : -999;
+        int rg = sg ? sg(&attr, 0) : -999;
+        /* 提权结果写 /tmp/hud.launch.log，真机确证 HUD 是否 root persona 拉起 */
+        FILE *lf = fopen("/tmp/hud.launch.log", "w");
+        if (lf) {
+            fprintf(lf, "persona symbols: sp=%s su=%s sg=%s\nrc: persona=%d uid=%d gid=%d\n",
+                    sp ? "OK" : "MISS", su ? "OK" : "MISS", sg ? "OK" : "MISS", rp, ru, rg);
+            fclose(lf);
+        }
     }
 
     pid_t pid = 0;

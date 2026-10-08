@@ -160,7 +160,8 @@ extern "C" const char *g_hud_char;
         _dragOffset = CGPointMake(p.x - _girlView.center.x, p.y - _girlView.center.y);
     } else if (g.state == UIGestureRecognizerStateChanged && _isDragging) {
         CGPoint c = CGPointMake(p.x - _dragOffset.x, p.y - _dragOffset.y);
-        CGSize v = self.view.bounds.size;
+        // v6.0.8: 边界用屏幕尺寸（不依赖可能非全屏的 self.view.bounds）——确保能拖到屏幕右/下边缘
+        CGSize v = [UIScreen mainScreen].bounds.size;
         // v6.0.7 修复：边界用显示尺寸（frame.size）而非图片固有尺寸（bounds 是 600×900）——
         // 旧代码用 bounds 导致角色拖不到屏幕边缘。改用 frame 后角色可紧贴屏幕边。
         CGSize gs = _girlView.frame.size;
