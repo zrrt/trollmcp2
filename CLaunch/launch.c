@@ -3,6 +3,7 @@
 #include <spawn.h>
 #include <unistd.h>
 #include <dlfcn.h>
+#include <stdio.h>
 
 /*
  * posix_spawnattr_setpersona_np 等是 iOS 私有 API：运行时在 libspawn 里存在，
