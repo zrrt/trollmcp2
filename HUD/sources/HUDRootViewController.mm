@@ -218,6 +218,7 @@ extern "C" const char *g_hud_char;
         // v6.0.8：从吸附/扒墙状态开始拖动，先恢复待机图
         if (_girlView.image != _idleFrames.firstObject && _idleFrames.firstObject) {
             _girlView.image = _idleFrames.firstObject;
+            _girlView.transform = CGAffineTransformIdentity;
             [self _setFrameForImage:_idleFrames.firstObject];
         }
     } else if (g.state == UIGestureRecognizerStateChanged && _isDragging) {
@@ -244,11 +245,12 @@ extern "C" const char *g_hud_char;
     CGFloat th = 50;
     CGFloat dL = c.x, dR = v.width - c.x, dT = c.y, dB = v.height - c.y;
     CGFloat minD = MIN(MIN(dL, dR), MIN(dT, dB));
-    if (minD > th) return;   // 离四边都太远，不吸附
-    if (minD == dL)      c.x = _girlView.frame.size.width / 2;
-    else if (minD == dR) c.x = v.width - _girlView.frame.size.width / 2;
-    else if (minD == dT) c.y = _girlView.frame.size.height / 2;
-    else                 c.y = v.height - _girlView.frame.size.height / 2;
+    if (minD > th) { _girlView.transform = CGAffineTransformIdentity; return; }   // 离四边都太远，不吸附（并清镜像）
+    // v6.0.8：吸附左缘→镜像面向左墙；右缘→正常面向右墙；上下→保持原方向
+    if (minD == dL)      { c.x = _girlView.frame.size.width / 2; _girlView.transform = CGAffineTransformMakeScale(-1, 1); }
+    else if (minD == dR) { c.x = v.width - _girlView.frame.size.width / 2; _girlView.transform = CGAffineTransformIdentity; }
+    else if (minD == dT) { c.y = _girlView.frame.size.height / 2; _girlView.transform = CGAffineTransformIdentity; }
+    else                 { c.y = v.height - _girlView.frame.size.height / 2; _girlView.transform = CGAffineTransformIdentity; }
     _girlView.center = c;
     _girlView.image = _wallImage;
     [self _setFrameForImage:_wallImage];
@@ -268,6 +270,13 @@ extern "C" const char *g_hud_char;
 }
 - (void)_tap:(UITapGestureRecognizer *)g {
     if (_isDragging) return;
+    // v6.0.8：从扒墙状态点击 → 直接恢复站立待机（不切表情）
+    if (_girlView.image == _wallImage && _idleFrames.firstObject) {
+        _girlView.image = _idleFrames.firstObject;
+        _girlView.transform = CGAffineTransformIdentity;
+        [self _setFrameForImage:_idleFrames.firstObject];
+        return;
+    }
     static int seq = 0;
     UIImage *img = nil;
     if (seq == 0) img = _happyFrames.firstObject ?: _idleFrames.firstObject;
