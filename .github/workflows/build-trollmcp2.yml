@@ -364,7 +364,7 @@ jobs:
     needs: [native-tools, native-python, native-wheels, native-nmap, native-llvm]
     runs-on: macos-latest
     env:
-      RELEASE_VERSION: 4.4.10
+      RELEASE_VERSION: 6.0.8
     steps:
       - uses: actions/checkout@v4
 
