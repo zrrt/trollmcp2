@@ -413,8 +413,10 @@ jobs:
               cp -R "$HUDAPP" "Resources/hud/TrollAgentHUD.app"
               # v6.0.4：给独立 HUD 二进制 ldid -S 签完整 entitlements（含 platform-application/persona-mgmt）——
               # persona 99 提权必需；TrollStore 重签会保留 platform-app（TrollSpeed/TheBall 正解）
+              # 注意：ldid -S 后必须紧跟 entitlements 文件（无空格），写成 `-S "plist" "binary"` 会把 plist 当
+              # 二进制读 → "Unknown header magic" → HUD 二进制没签名 → UIApplication 缺 platform-app 进程退出。
               HUD_BIN="Resources/hud/TrollAgentHUD.app/TrollAgentHUD"
-              if ldid -S "HUD/supports/entitlements.plist" "$HUD_BIN" 2>/tmp/hud_sign.err; then
+              if ldid "-SHUD/supports/entitlements.plist" "$HUD_BIN" 2>/tmp/hud_sign.err; then
                 echo ">>> HUD ldid signed (full entitlements)"
               else
                 echo "WARN: HUD ldid sign failed: $(cat /tmp/hud_sign.err)"
