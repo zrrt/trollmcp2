@@ -11,6 +11,9 @@
 
 static BOOL _passthrough = NO;
 
+// v6.0.7：悬浮小女孩显示尺寸（pt），由主 App 启动时 -size N 传入（HUDMain.mm 解析），默认 150
+extern "C" double g_hud_size;
+
 @implementation HUDRootViewController {
     UIImageView *_girlView;
     NSArray<UIImage *> *_idleFrames;
@@ -62,7 +65,7 @@ static BOOL _passthrough = NO;
     _girlView.userInteractionEnabled = YES;
     [self.view addSubview:_girlView];
 
-    CGFloat size = 150.0;   // 悬浮小女孩显示尺寸
+    CGFloat size = (CGFloat)g_hud_size;   // 悬浮小女孩显示尺寸（v6.0.7 可调，默认 150）
     _girlView.frame = CGRectMake((self.view.bounds.size.width - size)/2,
                                  (self.view.bounds.size.height - size)/2,
                                  size, size);

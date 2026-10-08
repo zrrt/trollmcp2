@@ -11,6 +11,7 @@
 #import <UIKit/UIKit.h>
 #import <string.h>
 #import <stdio.h>
+#import <stdlib.h>
 #import <unistd.h>
 
 extern "C" void HUDMainStart(void);
@@ -32,10 +33,23 @@ static void hud_diag(const char *msg)
     }
 }
 
+// v6.0.7：悬浮小女孩显示尺寸（pt），由主 App 启动时 -size N 传入，默认 150
+double g_hud_size = 150.0;
+
 int main(int argc, char *argv[])
 {
     @autoreleasepool
     {
+        // v6.0.7：先解析 -size N（任意位置），设全局尺寸，供 HUDMainStart/悬浮窗口读取
+        for (int i = 1; i < argc; i++)
+        {
+            if (argv[i] && strcmp(argv[i], "-size") == 0 && i + 1 < argc)
+            {
+                double v = atof(argv[i + 1]);
+                if (v >= 50 && v <= 400) g_hud_size = v;
+            }
+        }
+
         char argvline[512] = {0};
         for (int i = 1; i < argc; i++)
         {

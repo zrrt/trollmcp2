@@ -190,6 +190,16 @@ struct SettingsView: View {
                 hudRefresh.toggle()
             }
         ))
+        // v6.0.7：悬浮尺寸（桌面悬浮小女孩 pt，Slider 调整，重启悬浮生效）
+        let savedSize = UserDefaults.standard.double(forKey: "trollagent.hud_size")
+        let displaySize = (savedSize >= 50 && savedSize <= 400) ? Int(savedSize) : 150
+        controlItems.append(SettingsItem(
+            title: "悬浮尺寸",
+            subtitle: "\(displaySize) pt · 修改后重启悬浮生效",
+            icon: "arrow.up.left.and.arrow.down.right",
+            color: .pink,
+            destination: AnyView(HudSizeSettingsView())
+        ))
         // v2.9.72：开发者模式开关（固定显示，控制下方"开发者"分组）
         controlItems.append(SettingsItem(
             title: L10n.t("row_dev_mode"),

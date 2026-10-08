@@ -144,14 +144,8 @@ struct ChatView: View {
                         .padding(.top, 8)
                 }
             }, alignment: .top)
-            // v4.5.0：可爱小女孩助手 —— 聊天页右下角悬浮（设置里可开关）
-            .overlay(alignment: .bottomTrailing) {
-                if GirlCompanion.shared.enabled {
-                    GirlCompanionView()
-                        .padding(.trailing, 10)
-                        .padding(.bottom, 58)   // 避开底部输入框
-                }
-            }
+            // v6.0.7：去掉聊天页右下角小女孩 overlay——桌面悬浮 HUD 已是小女孩，再叠一个会重复成两个。
+            // （原 v4.5.0 的 GirlCompanionView 悬浮已移除；GirlCompanion.enabled 仍用于 AppMain 自动拉起桌面悬浮）
         }
         .navigationViewStyle(.stack)
         // v2.9.31：授权弹窗已整体移除（工具搜索即自动授权，无弹窗）。
