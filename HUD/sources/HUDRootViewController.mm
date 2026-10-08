@@ -228,13 +228,27 @@ extern "C" const char *g_hud_char;
 }
 
 // 点击切表情：开心→思考→待机
+// v6.0.8：切帧时按新帧内容比例重设 frame（高度固定 size、宽按比例、保持中心）——
+// 兔女郎各动作帧内容比例差异巨大(idle 0.25 vs happy 0.52)，固定 init 的窄框会让 aspectFit 缩放导致"一下大一下小"。
+- (void)_setFrameForImage:(UIImage *)img {
+    if (!img || !_girlView) return;
+    CGPoint center = _girlView.center;
+    CGFloat size = (CGFloat)g_hud_size;
+    CGFloat aspect = (img.size.height > 0) ? (img.size.width / img.size.height) : 1.0;
+    CGFloat w = size * aspect;
+    _girlView.bounds = CGRectMake(0, 0, w, size);
+    _girlView.center = center;   // 保持中心，切换时不跳
+}
 - (void)_tap:(UITapGestureRecognizer *)g {
     if (_isDragging) return;
     static int seq = 0;
-    if (seq == 0) _girlView.image = _happyFrames.firstObject ?: _idleFrames.firstObject;
-    else if (seq == 1) _girlView.image = _thinkFrames.firstObject ?: _idleFrames.firstObject;
-    else _girlView.image = _idleFrames.firstObject;
+    UIImage *img = nil;
+    if (seq == 0) img = _happyFrames.firstObject ?: _idleFrames.firstObject;
+    else if (seq == 1) img = _thinkFrames.firstObject ?: _idleFrames.firstObject;
+    else img = _idleFrames.firstObject;
     seq = (seq + 1) % 3;
+    _girlView.image = img;
+    [self _setFrameForImage:img];
     _emojiTimer = 2;   // 约 1.6s 后回待机
     [self _resetAfterEmoji];
 }
@@ -243,6 +257,7 @@ extern "C" const char *g_hud_char;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.6 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         if (!self->_isDragging) {
             self->_girlView.image = self->_idleFrames.firstObject;
+            [self _setFrameForImage:self->_idleFrames.firstObject];
         }
     });
 }
