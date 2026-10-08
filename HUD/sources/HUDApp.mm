@@ -15,6 +15,7 @@
 #import <mach-o/dyld.h>
 #import <sys/utsname.h>
 #import <objc/runtime.h>
+#import <stdlib.h>
 
 #import "IOKit+SPI.h"
 #import "HUDHelper.h"
@@ -154,6 +155,35 @@ extern "C" void HUDMainStart(void)
                     atomically:YES
                       encoding:NSUTF8StringEncoding
                          error:nil];
+
+        // v6.0.8 根治叠加：HUD 进程是独立 root 进程，卸载 app 不杀它、旧 HUD 也不监听 exit 通知，
+        // 所以"开关一次加一个角色"。这里 HUD（root 身份，有权杀同类）启动时枚举并杀掉所有旧 TrollAgentHUD，
+        // 只留自己——无论旧 HUD 是否新版，都清干净。用 dlopen libproc + dlsym 避免链接依赖。
+        {
+            void *proc_h = dlopen("/usr/lib/libproc.dylib", RTLD_LAZY);
+            if (proc_h) {
+                typedef int (*plist_fn)(pid_t *, int);
+                typedef int (*pname_fn)(pid_t, char *, int);
+                plist_fn plist = (plist_fn)dlsym(proc_h, "proc_listallpids");
+                pname_fn pname = (pname_fn)dlsym(proc_h, "proc_name");
+                if (plist && pname) {
+                    int cap = plist(NULL, 0);
+                    if (cap > 0) {
+                        pid_t *pids = calloc((size_t)cap, sizeof(pid_t));
+                        int n = plist(pids, (int)(cap * sizeof(pid_t)));
+                        for (int i = 0; i < n && i < cap; i++) {
+                            if (pids[i] <= 0 || pids[i] == pid) continue;
+                            char nm[128] = {0};
+                            if (pname(pids[i], nm, sizeof(nm)) > 0 && strstr(nm, "TrollAgentHUD") != NULL) {
+                                kill(pids[i], SIGKILL);
+                            }
+                        }
+                        free(pids);
+                    }
+                }
+                dlclose(proc_h);
+            }
+        }
 
         [UIScreen initialize];
         CFRunLoopGetCurrent();
