@@ -29,6 +29,49 @@ static BOOL _passthrough = NO;
 - (void)registerNotifications;
 @end
 
+// v6.0.8：裁剪掉 UIImage 四周透明留白，返回角色实际内容图（无背景留白，角色才能贴到屏幕边缘）。
+// 读像素检测不透明(alpha)边界，用 CGImageCreateWithImageInRect 裁出内容矩形。
+static UIImage * _trimTransparentPadding(UIImage *img) {
+    if (!img || !img.CGImage) return img;
+    CGImageRef cg = img.CGImage;
+    size_t w = CGImageGetWidth(cg), h = CGImageGetHeight(cg);
+    if (w == 0 || h == 0) return img;
+    size_t bpr = w * 4;
+    unsigned char *px = (unsigned char *)calloc(h, bpr);
+    if (!px) return img;
+    CGContextRef ctx = CGBitmapContextCreate(px, w, h, 8, bpr, CGImageGetColorSpace(cg),
+                                             kCGImageAlphaPremultipliedLast);
+    if (ctx) {
+        CGContextDrawImage(ctx, CGRectMake(0, 0, w, h), cg);
+        int minX = (int)w, maxX = -1, minY = (int)h, maxY = -1;
+        for (size_t y = 0; y < h; y++) {
+            const unsigned char *row = px + y * bpr;
+            for (size_t x = 0; x < w; x++) {
+                if (row[x * 4 + 3] > 8) {   // alpha > 阈值为内容
+                    int ix = (int)x, iy = (int)y;
+                    if (ix < minX) minX = ix;
+                    if (ix > maxX) maxX = ix;
+                    if (iy < minY) minY = iy;
+                    if (iy > maxY) maxY = iy;
+                }
+            }
+        }
+        CGContextRelease(ctx);
+        if (maxX >= minX && maxY >= minY &&
+            (minX > 0 || minY > 0 || maxX < (int)w - 1 || maxY < (int)h - 1)) {
+            CGRect r = CGRectMake(minX, minY, maxX - minX + 1, maxY - minY + 1);
+            CGImageRef crop = CGImageCreateWithImageInRect(cg, r);
+            if (crop) {
+                img = [UIImage imageWithCGImage:crop scale:img.scale orientation:img.imageOrientation];
+                CGImageRelease(crop);
+            }
+        }
+    }
+    free(px);
+    return img;
+}
+
+
 // 锁屏状态回调（TrollSpeed 正解）：锁屏隐藏悬浮视图，解锁恢复显示
 static void SpringBoardLockStatusChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo)
 {
@@ -71,10 +114,10 @@ extern "C" const char *g_hud_char;
         UIImage *happy = [UIImage imageNamed:[NSString stringWithFormat:@"%@_happy", prefix]];
         UIImage *think = [UIImage imageNamed:[NSString stringWithFormat:@"%@_think", prefix]];
         UIImage *talk  = [UIImage imageNamed:[NSString stringWithFormat:@"%@_talk", prefix]];
-        if (idle)  _idleFrames  = @[idle];
-        if (happy) _happyFrames = @[happy];
-        if (think) _thinkFrames = @[think];
-        if (talk)  _thinkFrames = @[talk];   // 说话帧暂并入 think 备用
+        if (idle)  _idleFrames  = @[_trimTransparentPadding(idle)];
+        if (happy) _happyFrames = @[_trimTransparentPadding(happy)];
+        if (think) _thinkFrames = @[_trimTransparentPadding(think)];
+        if (talk)  _thinkFrames = @[_trimTransparentPadding(talk)];   // 说话帧暂并入 think 备用
         if (!idle) {
             // 兜底：纯色圆（资源缺失时仍可见）
             _idleFrames = @[ [self _placeholderCircle] ];
@@ -103,9 +146,13 @@ extern "C" const char *g_hud_char;
     [self.view addSubview:_girlView];
 
     CGFloat size = (CGFloat)g_hud_size;   // 悬浮小女孩显示尺寸（v6.0.7 可调，默认 150）
-    _girlView.frame = CGRectMake((self.view.bounds.size.width - size)/2,
+    // v6.0.8：高固定 size、宽按裁剪后角色内容比例——aspectFit 填满、左右不留白，角色才能真正贴到屏幕边缘
+    UIImage *idleImg = _idleFrames.firstObject;
+    CGFloat aspect = (idleImg.size.height > 0) ? (idleImg.size.width / idleImg.size.height) : 1.0;
+    CGFloat w = size * aspect;
+    _girlView.frame = CGRectMake((self.view.bounds.size.width - w)/2,
                                  (self.view.bounds.size.height - size)/2,
-                                 size, size);
+                                 w, size);
 
     // v6.0.7：注册锁屏/解锁监听（锁屏隐藏悬浮、解锁恢复，抄 TrollSpeed）
     [self registerNotifications];
