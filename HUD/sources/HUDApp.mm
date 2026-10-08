@@ -16,6 +16,7 @@
 #import <sys/utsname.h>
 #import <objc/runtime.h>
 #import <stdlib.h>
+#import <dlfcn.h>
 
 #import "IOKit+SPI.h"
 #import "HUDHelper.h"
