@@ -337,7 +337,7 @@ Csm::csmString GetPath(CFURLRef url)
         }
         else
         {
-            MTLViewport safeAreaViewport = [view getSafeAreaViewport];
+            MTLViewport safeAreaViewport = {0.0, 0.0, (double)width, (double)height, 0.0, 1.0};
             model->GetRenderer<Csm::Rendering::CubismRenderer_Metal>()->SetRenderViewport(safeAreaViewport);
         }
 
@@ -398,7 +398,7 @@ Csm::csmString GetPath(CFURLRef url)
             renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
             id<MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
 
-            MTLViewport safeAreaViewport = [view getSafeAreaViewport];
+            MTLViewport safeAreaViewport = {0.0, 0.0, (double)width, (double)height, 0.0, 1.0};
             [renderEncoder setViewport:safeAreaViewport];
 
             float alpha = 0.4f;
@@ -422,7 +422,7 @@ Csm::csmString GetPath(CFURLRef url)
             renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 1);
             id<MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
 
-            MTLViewport safeAreaViewport = [view getSafeAreaViewport];
+            MTLViewport safeAreaViewport = {0.0, 0.0, (double)width, (double)height, 0.0, 1.0};
             [renderEncoder setViewport:safeAreaViewport];
 
             Csm::Rendering::CubismRenderTarget_Metal& useTarget = model->GetRenderBuffer();
