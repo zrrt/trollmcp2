@@ -34,14 +34,14 @@ compile_cpp_mm() { # clang++ (C++/ObjC++)
   local f="$1"
   local base
   base=$(echo "$f" | sed "s#^$HUD/##" | tr '/' '_')
-  xcrun -sdk iphoneos clang++ -arch arm64 -std=gnu++14 -fno-objc-arc -c "$f" \
+  xcrun -sdk iphoneos clang++ -arch arm64 -std=gnu++14 -fno-objc-arc -Wno-return-mismatch -Wno-objc-property-no-attribute -Wno-unused-parameter -Wno-deprecated-declarations -c "$f" \
     -o "$OBJDIR/$base.o" $INC 2>>"$OBJDIR/err.log" || { echo "FAIL cpp/mm: $f"; tail -8 "$OBJDIR/err.log"; exit 1; }
 }
 compile_m() { # clang (纯 ObjC)
   local f="$1"
   local base
   base=$(echo "$f" | sed "s#^$HUD/##" | tr '/' '_')
-  xcrun -sdk iphoneos clang -arch arm64 -fno-objc-arc -c "$f" \
+  xcrun -sdk iphoneos clang -arch arm64 -fno-objc-arc -Wno-return-mismatch -Wno-unused-parameter -Wno-deprecated-declarations -c "$f" \
     -o "$OBJDIR/$base.o" $INC 2>>"$OBJDIR/err.log" || { echo "FAIL m: $f"; tail -8 "$OBJDIR/err.log"; exit 1; }
 }
 
