@@ -10,6 +10,7 @@
 #import <fstream>
 #import <vector>
 #import "LAppDefine.h"
+#import "LAppLive2DManager.h"
 #import "LAppPal.h"
 #import "LAppTextureManager.h"
 #import "AppDelegate.h"
