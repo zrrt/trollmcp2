@@ -44,7 +44,7 @@ final class HUDManager {
         return argv.withUnsafeBufferPointer { buf in
             guard let base = buf.baseAddress else { return false }
             let rc = path.withCString { cs in
-                _troll_launch_hud(cs, base, 1)
+                _troll_launch_hud(cs, base, 0)
             }
             return rc == 0
         }
