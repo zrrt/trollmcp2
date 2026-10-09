@@ -416,7 +416,9 @@ jobs:
                 cp "HUD/CubismDL.dylib" "Resources/hud/TrollAgentHUD.app/CubismDL.dylib"
                 echo ">>> CubismDL.dylib bundled: \$(wc -c < Resources/hud/TrollAgentHUD.app/CubismDL.dylib) bytes"
               else
-                echo "WARN: CubismDL.dylib build failed (soft)"
+                # [TrollAgent bridge] dylib 是 Live2D 渲染核心——硬失败（编不出直接红，CI 红绿即编译结果）
+                echo "::error::CubismDL.dylib build FAILED (must fix)"
+                exit 1
               fi
               # v6.0.6：theos application.mk 不生成 Info.plist → UIApplication 无法从 bundle 读
               # NSPrincipalClass/CFBundleIdentifier → UIApplicationInitialize 后进程退出（hudapp.log 停在
