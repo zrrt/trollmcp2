@@ -81,6 +81,17 @@ let package = Package(
                 .linkedFramework("NetworkExtension")
             ]
         ),
+        // Live2D 主 App 预览（诊断：主 App 正常 GPU 环境渲染 Hiyori，定位 Cubism 链路是否可行）
+        .target(
+            name: "Live2DPreview",
+            path: "Sources/Live2DPreview",
+            publicHeadersPath: ".",
+            linkerSettings: [
+                .linkedFramework("Metal"),
+                .linkedFramework("MetalKit"),
+                .linkedFramework("QuartzCore")
+            ]
+        ),
         .executableTarget(
             name: "TrollAgent",
             dependencies: [
@@ -89,7 +100,8 @@ let package = Package(
                 "CISH",
                 "MitmCore",
                 "CMitm",
-                "CLaunch"
+                "CLaunch",
+                "Live2DPreview"
             ],
             path: "Sources/TrollMCP2",
             exclude: ["Resources"],

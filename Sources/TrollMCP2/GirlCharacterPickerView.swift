@@ -57,6 +57,11 @@ struct GirlCharacterPickerView: View {
             Section(footer: Text("切换后自动重启桌面悬浮，显示所选角色。")) {
                 EmptyView()
             }
+            Section(header: Text("Live2D")) {
+                NavigationLink(destination: Live2DPreviewScreen()) {
+                    Label("Live2D 预览（诊断 Hiyori 渲染）", systemImage: "figure.dance")
+                }
+            }
         }
         .navigationTitle("可爱助手角色")
         .navigationBarTitleDisplayMode(.inline)
