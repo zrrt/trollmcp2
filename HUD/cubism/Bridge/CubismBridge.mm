@@ -96,7 +96,7 @@ int cb_init(const char* resourcesPath)
     // 2) Cubism Framework 初始化（官方 AppDelegate.mm:50-52）
     CubismFramework::Option opt;
     memset(&opt, 0, sizeof(opt));
-    opt.LogFunction = LAppPal::PrintMessageLogLn;
+    opt.LogFunction = LAppPal::PrintMessageLn;
     opt.LoggingLevel = CubismFramework::Option::LogLevel_Verbose;
     CubismFramework::StartUp(&s_allocator, &opt);
     CubismFramework::Initialize();
