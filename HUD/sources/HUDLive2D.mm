@@ -79,6 +79,16 @@ typedef int (*cb_shutdown_fn)(void);
         CAMetalLayer *ml = (CAMetalLayer*)layer;
         if (!ml.device) ml.device = MTLCreateSystemDefaultDevice();
         [self _log:@"[HUDLive2D] CAMetalLayer device %@ (isKind MetalLayerHost=%d)", ml.device, [layer isKindOfClass:[CAMetalLayer class]]];
+        // [TrollAgent diag] 独立文件记录 device 诊断（不被 cb_attach failed 覆盖）：root 提权进程 MTLCreateSystemDefaultDevice 可能返回 nil
+        {
+            id<MTLDevice> d0 = ml.device;
+            id<MTLDevice> d1 = nil;
+            if (!d0) { d1 = MTLCreateSystemDefaultDevice(); }
+            NSString *diag = [NSString stringWithFormat:
+                @"metalHost.layer=%@ isCAMetal=%d ml.device=%p mtlCreate=%p (ml.device==mtlCreate->same=%d)\n",
+                layer, [layer isKindOfClass:[CAMetalLayer class]], ml.device, d0?d0:d1, (d0&&d0==(d1?d1:d0))];
+            [diag writeToFile:@"/var/mobile/Library/Caches/hudl2d_diag.log" atomically:YES encoding:NSUTF8StringEncoding error:nil];
+        }
         CGFloat scale = [UIScreen mainScreen].scale;
         ml.drawableSize = CGSizeMake((CGFloat)width * scale, (CGFloat)height * scale);
         ml.opaque = NO;
@@ -99,6 +109,11 @@ typedef int (*cb_shutdown_fn)(void);
         [self _log:@"[HUDLive2D] cb_attach_layer OK (%d x %d)", width, height];
     } else {
         [self _log:@"[HUDLive2D] cb_attach_layer failed"];
+        {
+            NSString *errDiag = [NSString stringWithFormat:@"cb_attach FAILED: ml.device=%p layerClass=%@ isCAM=%d width=%d height=%d",
+                ml.device, NSStringFromClass([layer class]), [layer isKindOfClass:[CAMetalLayer class]], width, height];
+            [errDiag writeToFile:@"/var/mobile/Library/Caches/hudl2d_diag.log" atomically:YES encoding:NSUTF8StringEncoding error:nil];
+        }
         return NO;
     }
     // Hiyori 模型目录在 bundle/Hiyori/Hiyori.model3.json
