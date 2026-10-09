@@ -82,8 +82,8 @@ typedef int (*cb_shutdown_fn)(void);
         // [TrollAgent fix] root 提权进程 MTLCreateSystemDefaultDevice 可能返回 nil（无 GPU 服务连接）。
         // 兜底：MTLCopyAllDevices 枚举所有可用 GPU（返回 autoreleased NSArray），取第一个。
         if (!ml.device) {
-            id<MTLDevice> fallback = [[MTLCopyAllDevices() firstObject] retain];
-            if (fallback) ml.device = fallback;
+            NSArray<id<MTLDevice>> *all = MTLCopyAllDevices();
+            if (all.count) ml.device = all.firstObject;
         }
         [self _log:@"[HUDLive2D] CAMetalLayer device %@ (isKind MetalLayerHost=%d)", ml.device, [layer isKindOfClass:[CAMetalLayer class]]];
         // [TrollAgent diag] 独立文件记录 device 诊断（不被 cb_attach failed 覆盖）：root 提权进程 MTLCreateSystemDefaultDevice 可能返回 nil
