@@ -16,8 +16,8 @@
 #import "LAppPal.h"
 #import "LAppAllocator.h"
 #import "LAppModel.h"
-#import "CubismMatrix44.hpp"
-#import "CubismDefaultParameterId.h"
+#import "Math/CubismMatrix44.hpp"
+#import "CubismDefaultParameterId.hpp"
 
 using namespace Csm;
 
