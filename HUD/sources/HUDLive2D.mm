@@ -74,9 +74,10 @@ typedef int (*cb_shutdown_fn)(void);
 // 返回 YES 表示 Live2D 渲染激活（调用方应隐藏 PNG _girlView）。
 - (BOOL)activateWithLayer:(CALayer*)layer width:(int)width height:(int)height {
     if (!_dl) return NO;
+    CAMetalLayer *ml = nil;
     // CAMetalLayer 需要 device + drawableSize 才能 nextDrawable
     if ([layer isKindOfClass:[CAMetalLayer class]]) {
-        CAMetalLayer *ml = (CAMetalLayer*)layer;
+        ml = (CAMetalLayer*)layer;
         if (!ml.device) ml.device = MTLCreateSystemDefaultDevice();
         [self _log:@"[HUDLive2D] CAMetalLayer device %@ (isKind MetalLayerHost=%d)", ml.device, [layer isKindOfClass:[CAMetalLayer class]]];
         // [TrollAgent diag] 独立文件记录 device 诊断（不被 cb_attach failed 覆盖）：root 提权进程 MTLCreateSystemDefaultDevice 可能返回 nil
