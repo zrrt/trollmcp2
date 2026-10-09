@@ -124,8 +124,9 @@ typedef int (*cb_shutdown_fn)(void);
     va_list ap; va_start(ap, fmt);
     NSString *msg = [[NSString alloc] initWithFormat:fmt arguments:ap];
     va_end(ap);
-    NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:@"/var/mobile/Library/Caches/hudapp.log"];
-    if (fh) { [fh seekToEndOfFile]; [fh writeData:[[msg stringByAppendingString:@"\n"] dataUsingEncoding:NSUTF8StringEncoding]]; [fh closeFile]; }
+    // [TrollAgent fix] NSFileHandle 追加在 completeAndRunAsPlugin 后被沙盒掐断（hudapp.log 只留 HUDApp 首行），
+    // 改用 writeToFile atomically 覆盖（与 HUDApp 相同，验证可写），写独立状态文件 hudl2d.log —— 读最后一行即可定位激活到哪一步。
+    [msg writeToFile:@"/var/mobile/Library/Caches/hudl2d.log" atomically:YES encoding:NSUTF8StringEncoding error:nil];
 }
 
 @end
