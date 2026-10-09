@@ -129,7 +129,7 @@ int cb_load_model(const char* dir, const char* file)
 
 int cb_attach_layer(void* cametalLayer, int width, int height)
 {
-    g_layer = (__bridge CAMetalLayer*)cametalLayer;
+    g_layer = (CAMetalLayer*)cametalLayer;
     g_w = width; g_h = height;
     if (!g_layer) return -1;
 
