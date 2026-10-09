@@ -199,23 +199,14 @@ extern "C" const char *g_hud_char;
     // [TrollAgent bridge] Live2D（方案 A）：窗口建立后 dlopen CubismDL + 渲染 Hiyori。
     // 激活成功则隐藏 PNG _girlView，用 Metal 渲染宿主显示；失败静默降级回 PNG。
     @autoreleasepool {
-        // [TrollAgent diag] 覆盖式状态日志（hudapp.log 追加被沙盒掐断，这里独立记录 viewDidLoad 执行 + Live2D 激活结果）
-        NSString *s0 = @"[HUD] viewDidLoad-live2d-enter";
-        [s0 writeToFile:@"/var/mobile/Library/Caches/hudl2d.log" atomically:YES encoding:NSUTF8StringEncoding error:nil];
         HUDLive2D *l2d = [HUDLive2D shared];
-        BOOL libOK = [l2d loadLibrary];
-        NSString *s1 = libOK ? @"[HUD] loadLibrary OK" : @"[HUD] loadLibrary FAIL(fallback PNG)";
-        [s1 writeToFile:@"/var/mobile/Library/Caches/hudl2d.log" atomically:YES encoding:NSUTF8StringEncoding error:nil];
-        if (libOK) {
+        if ([l2d loadLibrary]) {
             UIView *metalHost = [[MetalLayerHost alloc] initWithFrame:_girlView.frame];
             metalHost.backgroundColor = [UIColor clearColor];
             [self.view addSubview:metalHost];
-            BOOL act = [l2d activateWithLayer:metalHost.layer
-                                       width:(int)metalHost.bounds.size.width
-                                      height:(int)metalHost.bounds.size.height];
-            NSString *s2 = act ? @"[HUD] activateWithLayer YES(Hiyori active, PNG hidden)" : @"[HUD] activateWithLayer NO(fallback PNG)";
-            [s2 writeToFile:@"/var/mobile/Library/Caches/hudl2d.log" atomically:YES encoding:NSUTF8StringEncoding error:nil];
-            if (act) {
+            if ([l2d activateWithLayer:metalHost.layer
+                                 width:(int)metalHost.bounds.size.width
+                                height:(int)metalHost.bounds.size.height]) {
                 _girlView.hidden = YES;
             } else {
                 [metalHost removeFromSuperview];

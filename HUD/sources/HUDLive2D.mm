@@ -74,28 +74,10 @@ typedef int (*cb_shutdown_fn)(void);
 // 返回 YES 表示 Live2D 渲染激活（调用方应隐藏 PNG _girlView）。
 - (BOOL)activateWithLayer:(CALayer*)layer width:(int)width height:(int)height {
     if (!_dl) return NO;
-    CAMetalLayer *ml = nil;
     // CAMetalLayer 需要 device + drawableSize 才能 nextDrawable
     if ([layer isKindOfClass:[CAMetalLayer class]]) {
-        ml = (CAMetalLayer*)layer;
+        CAMetalLayer *ml = (CAMetalLayer*)layer;
         if (!ml.device) ml.device = MTLCreateSystemDefaultDevice();
-        // [TrollAgent fix] root 提权进程 MTLCreateSystemDefaultDevice 可能返回 nil（无 GPU 服务连接）。
-        // 兜底：MTLCopyAllDevices 枚举所有可用 GPU（返回 autoreleased NSArray），取第一个。
-        if (!ml.device) {
-            NSArray<id<MTLDevice>> *all = MTLCopyAllDevices();
-            if (all.count) ml.device = all.firstObject;
-        }
-        [self _log:@"[HUDLive2D] CAMetalLayer device %@ (isKind MetalLayerHost=%d)", ml.device, [layer isKindOfClass:[CAMetalLayer class]]];
-        // [TrollAgent diag] 独立文件记录 device 诊断（不被 cb_attach failed 覆盖）：root 提权进程 MTLCreateSystemDefaultDevice 可能返回 nil
-        {
-            id<MTLDevice> d0 = ml.device;
-            id<MTLDevice> d1 = nil;
-            if (!d0) { d1 = MTLCreateSystemDefaultDevice(); }
-            NSString *diag = [NSString stringWithFormat:
-                @"metalHost.layer=%@ isCAMetal=%d ml.device=%p mtlCreate=%p (ml.device==mtlCreate->same=%d)\n",
-                layer, [layer isKindOfClass:[CAMetalLayer class]], ml.device, d0?d0:d1, (d0&&d0==(d1?d1:d0))];
-            [diag writeToFile:@"/var/mobile/Library/Caches/hudl2d_diag.log" atomically:YES encoding:NSUTF8StringEncoding error:nil];
-        }
         CGFloat scale = [UIScreen mainScreen].scale;
         ml.drawableSize = CGSizeMake((CGFloat)width * scale, (CGFloat)height * scale);
         ml.opaque = NO;
@@ -116,11 +98,6 @@ typedef int (*cb_shutdown_fn)(void);
         [self _log:@"[HUDLive2D] cb_attach_layer OK (%d x %d)", width, height];
     } else {
         [self _log:@"[HUDLive2D] cb_attach_layer failed"];
-        {
-            NSString *errDiag = [NSString stringWithFormat:@"cb_attach FAILED: ml.device=%p layerClass=%@ isCAM=%d width=%d height=%d",
-                ml.device, NSStringFromClass([layer class]), [layer isKindOfClass:[CAMetalLayer class]], width, height];
-            [errDiag writeToFile:@"/var/mobile/Library/Caches/hudl2d_diag.log" atomically:YES encoding:NSUTF8StringEncoding error:nil];
-        }
         return NO;
     }
     // Hiyori 模型目录在 bundle/Hiyori/Hiyori.model3.json
@@ -147,9 +124,8 @@ typedef int (*cb_shutdown_fn)(void);
     va_list ap; va_start(ap, fmt);
     NSString *msg = [[NSString alloc] initWithFormat:fmt arguments:ap];
     va_end(ap);
-    // [TrollAgent fix] NSFileHandle 追加在 completeAndRunAsPlugin 后被沙盒掐断（hudapp.log 只留 HUDApp 首行），
-    // 改用 writeToFile atomically 覆盖（与 HUDApp 相同，验证可写），写独立状态文件 hudl2d.log —— 读最后一行即可定位激活到哪一步。
-    [msg writeToFile:@"/var/mobile/Library/Caches/hudl2d_step.log" atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    NSFileHandle *fh = [NSFileHandle fileHandleForWritingAtPath:@"/var/mobile/Library/Caches/hudapp.log"];
+    if (fh) { [fh seekToEndOfFile]; [fh writeData:[[msg stringByAppendingString:@"\n"] dataUsingEncoding:NSUTF8StringEncoding]]; [fh closeFile]; }
 }
 
 @end
