@@ -114,16 +114,10 @@ int cb_load_model(const char* dir, const char* file)
     g_mgr.viewHeight = g_h;
     g_mgr.device = g_layer ? [g_layer device] : nil;
     [g_mgr setUpModel];
-    // 只加载指定模型（changeScene(0) 会按 modelDir[0] 加载；这里直接取 0 号）
+    // 只加载指定模型（changeScene(0) 按 setUpModel 枚举出的 modelDir[0] 加载 Hiyori）
     [g_mgr changeScene:0];
-    // 让第一个模型 LoadAssets 到指定 dir/file（若 changeScene 未正确取 dir，显式补设）
-    LAppModel* m = [g_mgr getModel:0];
-    if (m) {
-        m->LoadAssets(dir, file);
-        [g_mgr releaseAllModel];
-        [g_mgr setUpModel];
-        [g_mgr changeScene:0];
-    }
+    // [TrollAgent fix] 去掉显式 m->LoadAssets(dir,file)：dir="Hiyori" 非完整路径，
+    // LoadAssets 内部拼成 "HiyoriHiyori.model3.json" 会失败；changeScene 已用完整 modelPath 加载成功。
     return 0;
 }
 

@@ -92,17 +92,19 @@ typedef int (*cb_shutdown_fn)(void);
         [self _log:@"[HUDLive2D] cb_init failed"];
         return NO;
     }
+    // [TrollAgent fix] 必须先 attach（设 g_layer/g_w/g_h/device），再 load_model——
+    // cb_load_model 里 LAppModel LoadAssets 需要 g_mgr.device（来自 layer），顺序反了会因 device nil 崩。
+    if (_cb_attach_layer && _cb_attach_layer((__bridge void*)layer, width, height) == 0) {
+        [self _log:@"[HUDLive2D] cb_attach_layer OK (%d x %d)", width, height];
+    } else {
+        [self _log:@"[HUDLive2D] cb_attach_layer failed"];
+        return NO;
+    }
     // Hiyori 模型目录在 bundle/Hiyori/Hiyori.model3.json
     if (_cb_load_model && _cb_load_model("Hiyori", "Hiyori.model3.json") == 0) {
         [self _log:@"[HUDLive2D] cb_load_model OK"];
     } else {
         [self _log:@"[HUDLive2D] cb_load_model failed"];
-        return NO;
-    }
-    if (_cb_attach_layer && _cb_attach_layer((__bridge void*)layer, width, height) == 0) {
-        [self _log:@"[HUDLive2D] cb_attach_layer OK (%d x %d)", width, height];
-    } else {
-        [self _log:@"[HUDLive2D] cb_attach_layer failed"];
         return NO;
     }
     if (_cb_start_render_loop) _cb_start_render_loop();

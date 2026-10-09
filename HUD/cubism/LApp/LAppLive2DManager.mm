@@ -94,9 +94,11 @@ Csm::csmString GetPath(CFURLRef url)
         _renderPassDescriptor.depthAttachment.storeAction = MTLStoreActionDontCare;
         _renderPassDescriptor.depthAttachment.clearDepth = 1.0;
 
-        [self setUpModel];
-
-        [self changeScene:_sceneIndex];
+        // [TrollAgent fix] 不在 init（getInstance）阶段加载模型：
+        // 此时 g_mgr.device/viewWidth/viewHeight 尚未设置（cb_load_model 才设），
+        // 提前 LoadAssets 会因 device 未就绪崩溃。改由 cb_load_model 显式 setUpModel+changeScene。
+        //[self setUpModel];
+        //[self changeScene:_sceneIndex];
     }
     return self;
 }
@@ -151,21 +153,31 @@ Csm::csmString GetPath(CFURLRef url)
 {
     _modelDir.Clear();
 
-    NSBundle* bundle = [NSBundle mainBundle];
+    // [TrollAgent fix] 官方用 [NSBundle pathsForResourcesOfType:inDirectory:]（inDirectory 是相对 bundle 路径），
+    // 我们 ResourcesPath 是绝对路径（HUD.app bundlePath），导致枚举失败 → _modelDir 空 → changeScene 越界崩。
+    // 改用 NSFileManager 枚举绝对路径下的子目录，找含 .model3.json 的目录（兼容绝对/相对路径）。
+    NSFileManager* fm = [NSFileManager defaultManager];
     NSString* resPath = [NSString stringWithUTF8String:LAppDefine::ResourcesPath];
-    NSArray* resArr = [bundle pathsForResourcesOfType:NULL inDirectory:resPath];
-    NSUInteger cnt = [resArr count];
-
-    for (NSUInteger i = 0; i < cnt; i++)
+    if (resPath.length == 0) { qsort(_modelDir.GetPtr(), _modelDir.GetSize(), sizeof(Csm::csmString), CompareCsmString); return; }
+    // 若为相对路径（官方 "Resources/"），转成 bundle 内绝对
+    if (![resPath hasPrefix:@"/"]) {
+        resPath = [[[NSBundle mainBundle] bundlePath] stringByAppendingPathComponent:resPath];
+    }
+    NSArray* subDirs = [fm contentsOfDirectoryAtPath:resPath error:nil];
+    for (NSString* modelName in subDirs)
     {
-        NSString* modelName = [[resArr objectAtIndex:i] lastPathComponent];
-        NSMutableString* modelDirPath = [NSMutableString stringWithString:resPath];
-        [modelDirPath appendString:@"/"];
-        [modelDirPath appendString:modelName];
-        NSArray* model3json = [bundle pathsForResourcesOfType:@".model3.json" inDirectory:modelDirPath];
-        if ([model3json count] == 1)
+        if ([modelName hasPrefix:@"."]) continue;   // 跳过隐藏文件
+        NSString* modelDirPath = [resPath stringByAppendingPathComponent:modelName];
+        BOOL isDir = NO;
+        if (![fm fileExistsAtPath:modelDirPath isDirectory:&isDir] || !isDir) continue;
+        NSArray* files = [fm contentsOfDirectoryAtPath:modelDirPath error:nil];
+        for (NSString* f in files)
         {
-            _modelDir.PushBack(Csm::csmString([modelName UTF8String]));
+            if ([f hasSuffix:@".model3.json"])
+            {
+                _modelDir.PushBack(Csm::csmString([modelName UTF8String]));
+                break;
+            }
         }
     }
     qsort(_modelDir.GetPtr(), _modelDir.GetSize(), sizeof(Csm::csmString), CompareCsmString);

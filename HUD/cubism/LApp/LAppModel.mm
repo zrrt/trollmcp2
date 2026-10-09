@@ -136,14 +136,17 @@ void LAppModel::LoadAssets(const csmChar* dir, const csmChar* fileName)
         return;
     }
 
-    AppDelegate *appDelegate = (AppDelegate *) [[UIApplication sharedApplication] delegate];
-    SceneDelegate* sceneDelegate = [appDelegate getActiveSceneDelegate];
-    ViewController* view = [sceneDelegate viewController];
-
+    // [TrollAgent fix] 去官方 demo AppDelegate/SceneDelegate/ViewController 依赖——
+    // HUD 进程的 delegate 无 getActiveSceneDelegate，直接调会 unrecognized selector 崩。
+    // 渲染尺寸改用 UIScreen（+ 注入的 manager viewWidth/viewHeight 优先）。
     const CGFloat retinaScale = [[UIScreen mainScreen] scale];
-    // Retinaディスプレイサイズにするため倍率をかける
-    const float width = view.view.frame.size.width * retinaScale;
-    const float height = view.view.frame.size.height * retinaScale;
+    float width  = [[UIScreen mainScreen] bounds].size.width  * retinaScale;
+    float height = [[UIScreen mainScreen] bounds].size.height * retinaScale;
+    LAppLive2DManager* mgr = [LAppLive2DManager getInstance];
+    if (mgr && mgr.viewWidth > 0 && mgr.viewHeight > 0) {
+        width  = mgr.viewWidth  * retinaScale;
+        height = mgr.viewHeight * retinaScale;
+    }
 
     CreateRenderer(width, height);
 
