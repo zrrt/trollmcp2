@@ -248,7 +248,6 @@ Csm::csmString GetPath(CFURLRef url)
     // [TrollAgent bridge] 悬浮窗环境无 AppDelegate/SceneDelegate/ViewController——改用注入的渲染上下文
     int width = _viewWidth;
     int height = _viewHeight;
-    id<MTLDevice> device = _device;
 
     float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
     float displayRatio = static_cast<float>(height) / static_cast<float>(width);
