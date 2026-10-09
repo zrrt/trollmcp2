@@ -36,6 +36,11 @@ typedef NS_ENUM(NSUInteger, SelectTarget)
 @property (nonatomic) float clearColorG;
 @property (nonatomic) float clearColorB;
 
+// [TrollAgent bridge] 悬浮窗环境无 AppDelegate/ViewController——注入渲染上下文
+@property (nonatomic) Csm::csmInt32 viewWidth;
+@property (nonatomic) Csm::csmInt32 viewHeight;
+@property (nonatomic) id <MTLDevice> device;
+
 @property (nonatomic) Csm::csmVector<Csm::csmString> modelDir; ///< モデルディレクトリ名のコンテナ
 
 /**

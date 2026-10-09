@@ -411,6 +411,13 @@ jobs:
               rm -rf Resources/hud
               mkdir -p Resources/hud
               cp -R "$HUDAPP" "Resources/hud/TrollAgentHUD.app"
+              # [TrollAgent bridge] 编独立 CubismDL.dylib（Live2D 渲染，隔离启动崩溃）并放进 HUD.app
+              if bash HUD/build_cubism_dylib.sh "$GITHUB_WORKSPACE/HUD" "$GITHUB_WORKSPACE/HUD/CubismDL.dylib"; then
+                cp "HUD/CubismDL.dylib" "Resources/hud/TrollAgentHUD.app/CubismDL.dylib"
+                echo ">>> CubismDL.dylib bundled: \$(wc -c < Resources/hud/TrollAgentHUD.app/CubismDL.dylib) bytes"
+              else
+                echo "WARN: CubismDL.dylib build failed (soft)"
+              fi
               # v6.0.6：theos application.mk 不生成 Info.plist → UIApplication 无法从 bundle 读
               # NSPrincipalClass/CFBundleIdentifier → UIApplicationInitialize 后进程退出（hudapp.log 停在
               # step=UIApplicationInitialize-ok）。参照 TrollSpeed Resources/Info.plist 从仓库补拷。

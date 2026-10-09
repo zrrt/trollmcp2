@@ -33,7 +33,7 @@ namespace LAppDefine {
     extern const csmFloat32 ViewLogicalMaxBottom;   ///< 論理的なビュー座標系の下端の最大値
     extern const csmFloat32 ViewLogicalMaxTop;      ///< 論理的なビュー座標系の上端の最大値
 
-    extern const csmChar* ResourcesPath;            ///< 素材パス
+    extern csmChar* ResourcesPath;                  ///< 素材パス（[TrollAgent bridge] 运行时可由 bridge 改写）
     extern const csmChar* BackImageName;         ///< 背景画像ファイル
     extern const csmChar* GearImageName;         ///< 歯車画像ファイル
     extern const csmChar* PowerImageName;        ///< 終了ボタン画像ファイル

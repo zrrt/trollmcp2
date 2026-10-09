@@ -9,9 +9,9 @@
 #import <string.h>
 #import <stdlib.h>
 #import <Foundation/Foundation.h>
-#import "AppDelegate.h"
-#import "SceneDelegate.h"
-#import "ViewController.h"
+//#import "AppDelegate.h" // [TrollAgent bridge] 无官方示例类
+//#import "SceneDelegate.h"
+//#import "ViewController.h"
 #import "LAppModel.h"
 #import "LAppDefine.h"
 #import "LAppPal.h"
@@ -200,11 +200,8 @@ Csm::csmString GetPath(CFURLRef url)
 
 - (void)onTap:(Csm::csmFloat32)x floatY:(Csm::csmFloat32)y;
 {
-    AppDelegate *appDelegate = (AppDelegate *) [[UIApplication sharedApplication] delegate];
-    SceneDelegate* sceneDelegate = [appDelegate getActiveSceneDelegate];
-    ViewController* view = [sceneDelegate viewController];
-    int width = [view getWindowWidth];
-    int height = [view getWindowHeight];
+    int width = _viewWidth;
+    int height = _viewHeight;
     float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
     float displayRatio = static_cast<float>(height) / static_cast<float>(width);
 
@@ -248,19 +245,17 @@ Csm::csmString GetPath(CFURLRef url)
 
 - (void)onUpdate:(id <MTLCommandBuffer>)commandBuffer currentDrawable:(id<CAMetalDrawable>)drawable depthTexture:(id<MTLTexture>)depthTarget;
 {
-    AppDelegate *appDelegate = (AppDelegate *) [[UIApplication sharedApplication] delegate];
-    SceneDelegate* sceneDelegate = [appDelegate getActiveSceneDelegate];
-    ViewController* view = [sceneDelegate viewController];
-
-    int width = [view getWindowWidth];
-    int height = [view getWindowHeight];
+    // [TrollAgent bridge] 悬浮窗环境无 AppDelegate/SceneDelegate/ViewController——改用注入的渲染上下文
+    int width = _viewWidth;
+    int height = _viewHeight;
+    id<MTLDevice> device = _device;
 
     float aspectRatio = static_cast<float>(width) / static_cast<float>(height);
     float displayRatio = static_cast<float>(height) / static_cast<float>(width);
 
     Csm::csmUint32 modelCount = _models.GetSize();
 
-    id<MTLDevice> device = [view getDevice];
+    id<MTLDevice> device = _device;
     Csm::Rendering::CubismDeviceInfo_Metal* deviceInfo = Csm::Rendering::CubismDeviceInfo_Metal::GetDeviceInfo(device);
 
     // モデルで使用するオフスクリーン管理の開始処理
@@ -503,10 +498,6 @@ Csm::csmString GetPath(CFURLRef url)
         float clearColorR = 0.0f;
         float clearColorG = 0.0f;
         float clearColorB = 0.0f;
-
-        AppDelegate *appDelegate = (AppDelegate *) [[UIApplication sharedApplication] delegate];
-        SceneDelegate* sceneDelegate = [appDelegate getActiveSceneDelegate];
-        ViewController* view = [sceneDelegate viewController];
 
         [self SwitchRenderingTarget:useRenderTarget];
         [self SetRenderTargetClearColor:clearColorR g:clearColorG b:clearColorB];

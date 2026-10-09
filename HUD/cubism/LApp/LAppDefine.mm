@@ -27,11 +27,11 @@ namespace LAppDefine {
     const csmFloat32 ViewLogicalMaxBottom = -2.0f;
     const csmFloat32 ViewLogicalMaxTop = 2.0f;
 
-    // 相対パス
+    // 相対パス（[TrollAgent bridge] 改非 const：运行时由 bridge 设为模型根绝对路径）
 #if !TARGET_OS_MACCATALYST
-    const csmChar* ResourcesPath = "Res/Resources/";
+    csmChar* ResourcesPath = "Res/Resources/";
 #else
-    const csmChar* ResourcesPath = "Resources/";
+    csmChar* ResourcesPath = "Resources/";
 #endif
 
     // モデルの後ろにある背景の画像ファイル
