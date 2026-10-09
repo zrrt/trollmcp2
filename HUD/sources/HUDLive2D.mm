@@ -78,6 +78,7 @@ typedef int (*cb_shutdown_fn)(void);
     if ([layer isKindOfClass:[CAMetalLayer class]]) {
         CAMetalLayer *ml = (CAMetalLayer*)layer;
         if (!ml.device) ml.device = MTLCreateSystemDefaultDevice();
+        [self _log:@"[HUDLive2D] CAMetalLayer device %@ (isKind MetalLayerHost=%d)", ml.device, [layer isKindOfClass:[CAMetalLayer class]]];
         CGFloat scale = [UIScreen mainScreen].scale;
         ml.drawableSize = CGSizeMake((CGFloat)width * scale, (CGFloat)height * scale);
         ml.opaque = NO;
@@ -126,7 +127,7 @@ typedef int (*cb_shutdown_fn)(void);
     va_end(ap);
     // [TrollAgent fix] NSFileHandle 追加在 completeAndRunAsPlugin 后被沙盒掐断（hudapp.log 只留 HUDApp 首行），
     // 改用 writeToFile atomically 覆盖（与 HUDApp 相同，验证可写），写独立状态文件 hudl2d.log —— 读最后一行即可定位激活到哪一步。
-    [msg writeToFile:@"/var/mobile/Library/Caches/hudl2d.log" atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    [msg writeToFile:@"/var/mobile/Library/Caches/hudl2d_step.log" atomically:YES encoding:NSUTF8StringEncoding error:nil];
 }
 
 @end
