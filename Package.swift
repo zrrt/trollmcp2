@@ -108,6 +108,11 @@ let package = Package(
             linkerSettings: [
                 .linkedLibrary("z"),
                 .linkedFramework("NetworkExtension"),
+                // Live2D 预览：主 App 自身必须链 Metal/MetalKit/QuartzCore（静态库 target 的
+                // linkerSettings 不传递，主 App 不链 Metal 时 MTLCreateSystemDefaultDevice 返回 nil / CopyAll 崩）
+                .linkedFramework("Metal"),
+                .linkedFramework("MetalKit"),
+                .linkedFramework("QuartzCore"),
                 // v4.5.2：桌面悬浮 HUD 单可执行双模式（TrollSpeed 正解）——链接 libHUD.a
                 //（HUD/sources 编出的 ObjC++ 悬浮核心）+ 私有 framework tbd（HUD/libraries）。
                 // build-ipa.sh 在 swift build 前先编 libHUD.a → hud-stage/lib/libHUD.a。
