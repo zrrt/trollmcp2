@@ -104,7 +104,17 @@ typedef int (*cb_shutdown_fn)(void);
         if (!ml.device) ml.device = MTLCreateSystemDefaultDevice();
         [self logLine:@"MTLCreateSystemDefaultDevice %@", ml.device ? @"OK" : @"nil"];
         if (!ml.device) {
-            [self setError:@"MTLCreateSystemDefaultDevice 返回 nil（主 App 无 GPU？）"];
+            // 兜底：枚举所有 Metal 设备（主 App 身份可能不同于 HUD，CopyAll 可能有）
+            NSArray<id<MTLDevice>> *devs = MTLCopyAllDevices();
+            [self logLine:@"MTLCopyAllDevices count=%lu", (unsigned long)devs.count];
+            if (devs.count > 0) {
+                ml.device = devs.firstObject;
+                [self logLine:@"CopyAll 兜底 device=%@ name=%@", ml.device, ml.device.name];
+            }
+        }
+        if (!ml.device) {
+            [self setError:@"MTLCreateSystemDefaultDevice 返回 nil（主 App 无 GPU？CopyAll 也空）"];
+            [self logLine:@"FAIL: default nil + CopyAll empty"];
             return NO;
         }
         CGFloat scale = UIScreen.mainScreen.scale;
