@@ -15,14 +15,15 @@ struct Live2DHostRepresentable: UIViewRepresentable {
         let v = L2DHostView()
         let p = Live2DPreview()
         preview = p
-        if p.prepare() {
-            if p.start(in: v) {
-                status = "渲染激活：Hiyori 已加载"
-            } else {
-                status = "启动渲染失败：\(p.lastError ?? "未知")"
+        // 初始化（dlopen / Cubism init / 模型加载）可能耗时，放后台线程避免卡 UI，主线程更新状态
+        DispatchQueue.global(qos: .userInitiated).async {
+            let started = p.prepare() && p.start(in: v)
+            let msg = started
+                ? "渲染激活：Hiyori 已加载"
+                : "失败：\(p.lastError ?? "未知")"
+            DispatchQueue.main.async {
+                self.status = msg
             }
-        } else {
-            status = "准备失败：\(p.lastError ?? "未知")"
         }
         return v
     }
