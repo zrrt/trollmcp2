@@ -33,7 +33,8 @@ jobs:
           # fix3ch: v9——nodecli.c 加 C 层诊断(ndiag)、r2main.c -v/-h 加 fflush——强制再重编
           # fix3cn: v15——v14 缓存在 jq 编译步骤加入前生成(缓存内无 jq), AI 调用 jq 报 Command not found;
           #         bump 强制全量重编一次, 新缓存含 jq 1.7.1。与 native-wheels 的 dulwich 解包衔接同轮出包。
-          key: native-tools-v15
+          # v6.0.x: v16——加 gputest(沙盒 GPU 验证) 后 bump 强制全量重编, 新缓存含 gputest。
+          key: native-tools-v16
           save-always: false
 
       - name: Build lua 5.4 (iOS arm64)
@@ -220,6 +221,25 @@ jobs:
             echo ">>> jq built ($(du -h jq | cut -f1))"
           else
             echo "!!! jq build failed" >&2
+            exit 1
+          fi
+
+      # v6.0.x: gputest 最小验证——测"沙盒 mobile 身份进程能否拿 Metal GPU"（Live2D 方案 A 前置）。
+      # 编译 iOS arm64，链接 Metal/Foundation；build-ipa 打包到 App 根、签普通沙盒 entitlement
+      # （故意不含 no-sandbox/platform-application/jetsam）。主 App 启动时以 persona 0 拉起。
+      - name: Build gputest (iOS arm64, sandbox GPU probe)
+        if: steps.tools-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p native-tools-out
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          xcrun -sdk iphoneos clang -arch arm64 -isysroot "$SDK" -mios-version-min=15.0 \
+            -fobjc-arc -o "$GITHUB_WORKSPACE/native-tools-out/gputest" \
+            "$GITHUB_WORKSPACE/Support/gputest.m" -framework Metal -framework Foundation 2>&1 | tail -8
+          if [ -f "$GITHUB_WORKSPACE/native-tools-out/gputest" ]; then
+            chmod +x "$GITHUB_WORKSPACE/native-tools-out/gputest"
+            echo ">>> gputest built ($(du -h "$GITHUB_WORKSPACE/native-tools-out/gputest" | cut -f1))"
+          else
+            echo "!!! gputest build failed" >&2
             exit 1
           fi
 

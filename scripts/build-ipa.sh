@@ -173,6 +173,21 @@ if [ -d "Resources/bin" ]; then
     fi
 fi
 
+# v6.0.x: gputest 打包（Live2D 方案 A 前置验证）——放到 App 根（不进 bin/，bin/ 会签 no-sandbox），
+# 签普通沙盒 entitlement（故意不含 no-sandbox/platform-application/jetsam）。
+# 目的：让 gputest 以"标准沙盒 + mobile 身份"运行，实测沙盒进程能否拿 Metal GPU。
+# 若沙盒能拿 GPU → 方案 A（沙盒渲染 helper + 帧传 HUD）可行；不能 → 退方案 C（预渲染 PNG）。
+if [ -f "native-tools-out/gputest" ]; then
+    cp "native-tools-out/gputest" "$APP/gputest"
+    chmod +x "$APP/gputest"
+    if command -v ldid >/dev/null 2>&1; then
+        ldid -S"Support/sandbox-entitlements.plist" "$APP/gputest" 2>/dev/null || true
+    elif command -v codesign >/dev/null 2>&1; then
+        codesign -s - -f --entitlements "Support/sandbox-entitlements.plist" "$APP/gputest" 2>/dev/null || true
+    fi
+    echo ">>> gputest bundled to App root + signed sandbox (no no-sandbox)"
+fi
+
 # v4.5.2：桌面悬浮 HUD 已改为【单可执行双模式】——HUD ObjC 核心编成 libHUD.a 直接链接进主可执行
 #（见上方 build-hud.sh + Package.swift），不再打进独立 TrollAgentHUD 二进制（假签名被 AMFI 106/109 拒，
 # 已废弃）。主可执行被 TrollStore 有效签名，-hud 复用有效签名 → 悬浮进程 AMFI 放行。

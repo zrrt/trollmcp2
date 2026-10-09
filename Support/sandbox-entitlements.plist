@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- gputest 专用：普通沙盒 entitlement，故意不含 no-sandbox/platform-application/jetsam。
+	     目的：让 gputest 以"标准沙盒 + mobile 身份"运行，实测沙盒进程能否拿到 Metal GPU。 -->
+	<key>application-identifier</key>
+	<string>TROLLTROLL.com.trollagent.app</string>
+	<key>com.apple.developer.team-identifier</key>
+	<string>TROLLTROLL</string>
+</dict>
+</plist>

@@ -54,3 +54,22 @@
 
 ### 待解
 - TheBall 悬浮球进程 uid 未确证(装 TheBall 到手机 ps 可测)；但 mobile + accessibility 全局窗口确定性成立(已从 TheBall 逆向确认机制)
+
+## [2026-10-09] Live2D 方案 A —— HUD dlopen 接入完成（可真机测）
+
+**里程碑**：CI 绿（3691921），tipa 157MB，HUD 真正进包（之前 soft-fail 静默丢）。
+
+- HUD 侧 dlopen 接入：新建 `HUD/sources/HUDLive2D.mm/.h`
+  - dlopen CubismDL.dylib（HUD.app 内）+ dlsym cb_init/load_model/attach_layer/start_render_loop
+  - activateWithLayer：设 CAMetalLayer device+drawableSize+opaque+像素格式 → cb_init(bundlePath) → cb_load_model("Hiyori") → cb_attach_layer → 启动渲染循环
+  - 失败静默降级回 PNG
+- HUDRootViewController viewDidLoad 后：建 MetalLayerHost(layerClass=CAMetalLayer) → 激活 Live2D → 成功隐藏 PNG _girlView，失败移除 host
+- Makefile：+sources/HUDLive2D.mm + Metal/MetalKit framework（MTLCreateSystemDefaultDevice 需 Metal 库）
+- workflow：HUD build 从 soft-fail 改**硬失败**（`::error::`+exit 1），确保 HUD 进包不静默丢
+
+**真机验证项**：
+1. 桌面悬浮是否出现 Hiyori（Live2D 渲染，非 PNG girl/rabit）
+2. 是否启动崩溃（dylib 隔离应已规避）
+3. hudapp.log 应见 `[HUDLive2D] dlopen OK` / `cb_init OK` / `cb_load_model OK` / `render loop started`
+
+**待办**：Live2D 交互（拖动/点击动作/吸附扒墙）映射到 bridge 的 cb_start_motion；PNG girl/rabit 双轨与角色选择是否保留待定
