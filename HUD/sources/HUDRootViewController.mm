@@ -8,9 +8,19 @@
 
 #import "HUDRootViewController.h"
 #import "HUDMainWindow.h"
+#import "HUDLive2D.h"
 #import <string.h>
 #import <QuartzCore/QuartzCore.h>
 #import <mach/mach.h>
+#import <MetalKit/MetalKit.h>
+#import <QuartzCore/CAMetalLayer.h>
+
+// Live2D 渲染宿主：layerClass = CAMetalLayer（Cubism Metal 渲染目标）
+@interface MetalLayerHost : UIView
+@end
+@implementation MetalLayerHost
++ (Class)layerClass { return [CAMetalLayer class]; }
+@end
 
 // v6.0.7：SpringBoardServices 是私有 framework（Xcode SDK 无头文件），直接 extern "C" 声明原型（.mm 是 C++，
 // 不加 extern "C" 会按 C++ 链接找不到 tbd 里的 C 符号），符号由 HUD/libraries/SpringBoardServices.framework/SpringBoardServices.tbd 链接提供
@@ -185,6 +195,24 @@ extern "C" const char *g_hud_char;
 
     // v6.0.8：待机自动切换表情（空闲时随机眨眼/挥手/歪头等）
     [self _scheduleAutoMood];
+
+    // [TrollAgent bridge] Live2D（方案 A）：窗口建立后 dlopen CubismDL + 渲染 Hiyori。
+    // 激活成功则隐藏 PNG _girlView，用 Metal 渲染宿主显示；失败静默降级回 PNG。
+    @autoreleasepool {
+        HUDLive2D *l2d = [HUDLive2D shared];
+        if ([l2d loadLibrary]) {
+            UIView *metalHost = [[MetalLayerHost alloc] initWithFrame:_girlView.frame];
+            metalHost.backgroundColor = [UIColor clearColor];
+            [self.view addSubview:metalHost];
+            if ([l2d activateWithLayer:metalHost.layer
+                                 width:(int)metalHost.bounds.size.width
+                                height:(int)metalHost.bounds.size.height]) {
+                _girlView.hidden = YES;
+            } else {
+                [metalHost removeFromSuperview];
+            }
+        }
+    }
 
     // 拖动 + 点击
     UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(_pan:)];
