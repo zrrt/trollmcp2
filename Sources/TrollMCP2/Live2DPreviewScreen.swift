@@ -16,7 +16,7 @@ struct Live2DHostRepresentable: UIViewRepresentable {
         let p = Live2DPreview()
         preview = p
         if p.prepare() {
-            if p.startInView(v) {
+            if p.start(in: v) {
                 status = "渲染激活：Hiyori 已加载"
             } else {
                 status = "启动渲染失败：\(p.lastError ?? "未知")"
@@ -59,7 +59,7 @@ struct Live2DPreviewScreen: View {
                 .frame(maxWidth: 160)
 
                 Button("播放") {
-                    preview?.playMotion(motionGroup, no: motionNo, priority: 1)
+                    preview?.playMotion(motionGroup, no: Int32(motionNo), priority: Int32(1))
                 }
                 .disabled(preview == nil)
                 .buttonStyle(.borderedProminent)
