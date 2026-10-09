@@ -440,7 +440,9 @@ jobs:
               echo "WARN: HUD make ok but no app found (.theos/obj/debug missing)"
             fi
           else
-            echo "WARN: HUD build FAILED (soft) — desktop HUD not bundled this build"
+            # [TrollAgent bridge] HUD 是核心功能——硬失败（确保 HUD 进包，不静默丢）
+            echo "::error::HUD build FAILED (must fix — HUD 必须打包进 tipa)"
+            exit 1
           fi
 
       - name: Build sqlite_wipe (iOS arm64 root tool)

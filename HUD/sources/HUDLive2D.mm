@@ -8,6 +8,7 @@
 #import "HUDLive2D.h"
 #import <dlfcn.h>
 #import <QuartzCore/CAMetalLayer.h>
+#import <Metal/Metal.h>
 #import <UIKit/UIKit.h>
 
 // 与 HUD/cubism/Bridge/cubism_bridge.h 对齐的 C 接口（HUD 侧只声明，不链接 dylib 符号——运行时 dlsym）
