@@ -7,6 +7,9 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <sys/wait.h>
+#include <poll.h>
+#include <signal.h>
+#include <string.h>
 
 /*
  * posix_spawnattr_setpersona_np 等是 iOS 私有 API：运行时在 libspawn 里存在，
@@ -82,9 +85,23 @@ int troll_launch_capture(const char *path, const char *const *argv, char *outbuf
         return rc;
     }
     close(pipefd[1]);  // 父进程关闭写端
-    size_t n = read(pipefd[0], outbuf, buflen - 1);
-    if (n < 0) n = 0;
-    outbuf[n] = '\0';
+
+    // poll 超时（8 秒）防止 gputest 沙盒进程 hang 导致 read 永久阻塞——
+    // 若 gputest exec 后既不写管道也不退出，read 会卡死，gputest.out 永远不落盘。
+    // 超时则强杀 + 记 "READ TIMEOUT"，保证调用方一定能拿到结果。
+    struct pollfd pfd = { .fd = pipefd[0], .events = POLLIN };
+    int pr = poll(&pfd, 1, 8000);
+    size_t n = 0;
+    if (pr > 0 && (pfd.revents & POLLIN)) {
+        n = read(pipefd[0], outbuf, buflen - 1);
+        if (n < 0) n = 0;
+        outbuf[n] = '\0';
+    } else if (pr == 0) {
+        kill(pid, SIGKILL);
+        snprintf(outbuf, buflen, "READ TIMEOUT (gputest hung, killed pid=%d)\n", pid);
+    } else {
+        snprintf(outbuf, buflen, "POLL ERR pr=%d revents=%d\n", pr, pfd.revents);
+    }
     close(pipefd[0]);
     int st = 0;
     waitpid(pid, &st, 0);
