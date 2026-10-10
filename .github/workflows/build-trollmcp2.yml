@@ -33,8 +33,8 @@ jobs:
           # fix3ch: v9——nodecli.c 加 C 层诊断(ndiag)、r2main.c -v/-h 加 fflush——强制再重编
           # fix3cn: v15——v14 缓存在 jq 编译步骤加入前生成(缓存内无 jq), AI 调用 jq 报 Command not found;
           #         bump 强制全量重编一次, 新缓存含 jq 1.7.1。与 native-wheels 的 dulwich 解包衔接同轮出包。
-          # v6.0.x: v18——gputest 加 BOOT/printf 输出 + CLaunch 重定向 后 bump 强制重编。
-          key: native-tools-v18
+          # v6.0.x: v19——CLaunch 改管道捕获(troll_launch_capture) 后 bump 强制重编。
+          key: native-tools-v19
           save-always: false
 
       - name: Build lua 5.4 (iOS arm64)

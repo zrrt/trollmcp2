@@ -21,11 +21,11 @@ extern "C" {
 int troll_launch_hud(const char *path, const char *const *argv, int persona_override);
 
 /*
- * v6.0.x: 带 stdout/stderr 重定向的 spawn（不设 persona，继承调用方 mobile 身份）。
- * 用于 gputest 沙盒 GPU 诊断：子进程输出重定向到 outfile（主 App no-sandbox 可读），
- * 无论子进程是否崩溃，只要 exec 起来且 printf 过就能捕获。
+ * v6.0.x: 管道捕获式 spawn（不设 persona，继承调用方 mobile 身份）。
+ * 用于 gputest 沙盒 GPU 诊断：子进程 stdout+stderr dup2 到管道，主 App 读管道 + waitpid。
+ * 不受子进程沙盒写文件限制，崩溃也能捕获已 printf 的输出。
  */
-int troll_launch_redirect(const char *path, const char *const *argv, const char *outfile, pid_t *out_pid);
+int troll_launch_capture(const char *path, const char *const *argv, char *outbuf, size_t buflen, int *exit_code);
 
 #ifdef __cplusplus
 }

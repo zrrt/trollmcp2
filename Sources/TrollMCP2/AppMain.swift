@@ -7,8 +7,8 @@ import SwiftUI
 @_silgen_name("HUDMainStart") func HUDMainStart()
 @_silgen_name("HUDExit") func HUDExit()
 @_silgen_name("HUDCheck") func HUDCheck() -> Int32
-@_silgen_name("troll_launch_redirect")
-func _troll_launch_redirect(_ path: UnsafePointer<CChar>, _ argv: UnsafePointer<UnsafeMutablePointer<CChar>?>, _ outfile: UnsafePointer<CChar>, _ out_pid: UnsafeMutablePointer<pid_t>?) -> Int32
+@_silgen_name("troll_launch_capture")
+func _troll_launch_capture(_ path: UnsafePointer<CChar>, _ argv: UnsafePointer<UnsafeMutablePointer<CChar>?>, _ outbuf: UnsafeMutablePointer<CChar>, _ buflen: Int, _ exit_code: UnsafeMutablePointer<Int32>?) -> Int32
 
 @main
 struct TrollAgentApp {
@@ -70,24 +70,26 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             }
         }
         // v6.0.x: Live2D 方案 A 前置验证——启动后以 mobile 身份(继承)拉起沙盒 gputest 测 GPU。
-        // 用 troll_launch_redirect：gputest stdout+stderr 重定向到主 App 可写文件，
-        // 无论 gputest 是否崩溃，只要 exec 起来且 printf 过就能捕获（BOOT/MTL 结果/EXIT）。
+        // 用 troll_launch_capture（管道捕获）：子进程 stdout+stderr dup2 到管道，主 App 读管道 + waitpid。
+        // 不受子进程沙盒写文件限制（沙盒连 /var/mobile/Documents 都打不开，addopen 重定向会失败），
+        // 崩溃也能捕获已 printf 的输出（BOOT/MTL 结果/EXIT）+ 退出码。
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 1) {
             let gp = Bundle.main.bundlePath + "/gputest"
             if FileManager.default.fileExists(atPath: gp) {
                 var argv: [UnsafeMutablePointer<CChar>?] = [strdup(gp), nil]
-                let out = "/var/mobile/Documents/gputest.out"
-                let rc = out.withCString { csOut in
-                    gp.withCString { csGp in
-                        argv.withUnsafeBufferPointer { buf -> Int32 in
-                            guard let base = buf.baseAddress else { return -99 }
-                            return _troll_launch_redirect(csGp, base, csOut, nil)
-                        }
-                    }
+                let outbuf = UnsafeMutablePointer<CChar>.allocate(capacity: 8192)
+                outbuf.initialize(repeating: 0, count: 8192)
+                defer { outbuf.deallocate() }
+                var ec: Int32 = -999
+                let rc = argv.withUnsafeBufferPointer { buf -> Int32 in
+                    guard let base = buf.baseAddress else { return -99 }
+                    return gp.withCString { cs in _troll_launch_capture(cs, base, outbuf, 8192, &ec) }
                 }
-                // 记录 spawn 结果到全局日志（主 App no-sandbox 可写），确认 gputest 是否真被拉起
-                try? ("gputest redirect spawn rc=\(rc)\n").data(using: .utf8)?
-                    .write(to: URL(fileURLWithPath: "/var/mobile/Documents/gputest.spawn.log"))
+                // 主 App no-sandbox 可写全局路径，记录捕获的输出 + 退出码
+                let outStr = String(cString: outbuf)
+                let log = "gputest capture rc=\(rc) exit=\(ec)\n--- stdout/stderr ---\n\(outStr)\n--- end ---\n"
+                try? log.data(using: .utf8)?
+                    .write(to: URL(fileURLWithPath: "/var/mobile/Documents/gputest.out"))
             }
         }
         // v4.3.39：启动静默检查更新——后台跑，不打扰；发现新版点亮设置页"检查更新"红点

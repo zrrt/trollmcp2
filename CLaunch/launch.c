@@ -53,22 +53,43 @@ int troll_launch_hud(const char *path, const char *const *argv, int persona_over
 }
 
 /*
- * v6.0.x: 带 stdout/stderr 重定向的 spawn——用于 gputest 沙盒 GPU 诊断。
- * 不设 persona（继承调用方 mobile 身份），子进程 stdout+stderr 重定向到 outfile，
- * 由主 App(no-sandbox) 可读。无论子进程是否崩溃，只要 exec 起来且 printf 过就能捕获。
+ * v6.0.x: 管道捕获式 spawn——gputest 沙盒 GPU 诊断（决定性方案）。
+ * 不设 persona（继承调用方 mobile 身份）。子进程 stdout+stderr dup2 到管道写端，
+ * 主 App 从管道读端读取（管道在主 App 侧，不受子进程沙盒写文件限制），再 waitpid 取退出码。
+ * 无论子进程崩不崩、能否写文件，只要 exec 起来且 printf 过，输出都能被捕获。
+ * outbuf: 主 App 提供的缓冲区；buflen: 缓冲大小；exit_code: 子进程退出码(或 spawn rc)。
  */
-int troll_launch_redirect(const char *path, const char *const *argv, const char *outfile, pid_t *out_pid) {
-    if (!path || !argv || !outfile) return -1;
+int troll_launch_capture(const char *path, const char *const *argv, char *outbuf, size_t buflen, int *exit_code) {
+    if (!path || !argv || !outbuf || !buflen) return -1;
+    int pipefd[2];
+    if (pipe(pipefd) != 0) return -1;
     posix_spawnattr_t attr = NULL;
     posix_spawn_file_actions_t fa = NULL;
-    if (posix_spawnattr_init(&attr) != 0) return -1;
-    if (posix_spawn_file_actions_init(&fa) != 0) { posix_spawnattr_destroy(&attr); return -1; }
-    posix_spawn_file_actions_addopen(&fa, STDOUT_FILENO, outfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    posix_spawn_file_actions_addopen(&fa, STDERR_FILENO, outfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    posix_spawnattr_init(&attr);
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_adddup2(&fa, pipefd[1], STDOUT_FILENO);
+    posix_spawn_file_actions_adddup2(&fa, pipefd[1], STDERR_FILENO);
     pid_t pid = 0;
     int rc = posix_spawn(&pid, path, &fa, &attr, (char *const *)argv, NULL);
-    if (out_pid) *out_pid = pid;
     posix_spawn_file_actions_destroy(&fa);
     posix_spawnattr_destroy(&attr);
+    if (rc != 0) {
+        close(pipefd[0]); close(pipefd[1]);
+        outbuf[0] = '\0';
+        if (exit_code) *exit_code = rc;
+        return rc;
+    }
+    close(pipefd[1]);  // 父进程关闭写端
+    size_t n = read(pipefd[0], outbuf, buflen - 1);
+    if (n < 0) n = 0;
+    outbuf[n] = '\0';
+    close(pipefd[0]);
+    int st = 0;
+    waitpid(pid, &st, 0);
+    if (exit_code) {
+        if (WIFEXITED(st))      *exit_code = WEXITSTATUS(st);
+        else if (WIFSIGNALED(st)) *exit_code = 128 + WTERMSIG(st);
+        else                    *exit_code = -1;
+    }
     return rc;
 }
