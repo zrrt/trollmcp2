@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <dlfcn.h>
 #include <stdio.h>
+#include <fcntl.h>
 
 /*
  * posix_spawnattr_setpersona_np 等是 iOS 私有 API：运行时在 libspawn 里存在，
@@ -47,6 +48,27 @@ int troll_launch_hud(const char *path, const char *const *argv, int persona_over
 
     pid_t pid = 0;
     int rc = posix_spawn(&pid, path, NULL, &attr, (char *const *)argv, NULL);
+    posix_spawnattr_destroy(&attr);
+    return rc;
+}
+
+/*
+ * v6.0.x: 带 stdout/stderr 重定向的 spawn——用于 gputest 沙盒 GPU 诊断。
+ * 不设 persona（继承调用方 mobile 身份），子进程 stdout+stderr 重定向到 outfile，
+ * 由主 App(no-sandbox) 可读。无论子进程是否崩溃，只要 exec 起来且 printf 过就能捕获。
+ */
+int troll_launch_redirect(const char *path, const char *const *argv, const char *outfile, pid_t *out_pid) {
+    if (!path || !argv || !outfile) return -1;
+    posix_spawnattr_t attr = NULL;
+    posix_spawn_file_actions_t fa = NULL;
+    if (posix_spawnattr_init(&attr) != 0) return -1;
+    if (posix_spawn_file_actions_init(&fa) != 0) { posix_spawnattr_destroy(&attr); return -1; }
+    posix_spawn_file_actions_addopen(&fa, STDOUT_FILENO, outfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    posix_spawn_file_actions_addopen(&fa, STDERR_FILENO, outfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    pid_t pid = 0;
+    int rc = posix_spawn(&pid, path, &fa, &attr, (char *const *)argv, NULL);
+    if (out_pid) *out_pid = pid;
+    posix_spawn_file_actions_destroy(&fa);
     posix_spawnattr_destroy(&attr);
     return rc;
 }

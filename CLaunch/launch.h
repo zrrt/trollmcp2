@@ -2,6 +2,7 @@
 #define CLaunch_launch_h
 
 #include <stdint.h>
+#include <sys/types.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,6 +19,13 @@ extern "C" {
  * 返回 posix_spawn 的返回值（0 = 成功拉起，子进程已脱离父进程常驻）。
  */
 int troll_launch_hud(const char *path, const char *const *argv, int persona_override);
+
+/*
+ * v6.0.x: 带 stdout/stderr 重定向的 spawn（不设 persona，继承调用方 mobile 身份）。
+ * 用于 gputest 沙盒 GPU 诊断：子进程输出重定向到 outfile（主 App no-sandbox 可读），
+ * 无论子进程是否崩溃，只要 exec 起来且 printf 过就能捕获。
+ */
+int troll_launch_redirect(const char *path, const char *const *argv, const char *outfile, pid_t *out_pid);
 
 #ifdef __cplusplus
 }

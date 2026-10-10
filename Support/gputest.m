@@ -12,6 +12,9 @@ static void logline(FILE *f, const char *fmt, ...) {
 }
 
 int main(int argc, char **argv) {
+    // 启动标记立即写 stderr——由主 App posix_spawn file_actions 重定向捕获，确认 gputest 是否真的 exec 起来
+    fprintf(stderr, "GPUTEST BOOT argv0=%s\n", argc ? argv[0] : "?"); fflush(stderr);
+
     // 日志写到多个候选路径（沙盒进程写 /tmp/全局 Documents 可能被拒，App 容器最可靠）
     FILE *f = NULL;
     const char *paths[] = { "/var/mobile/Documents/gputest.log", "/tmp/gputest.log", NULL };
@@ -19,22 +22,28 @@ int main(int argc, char **argv) {
     NSString *homeDoc = [home stringByAppendingPathComponent:@"Documents/gputest.log"];
     f = fopen(homeDoc.UTF8String, "w");
     for (int i = 0; !f && paths[i]; i++) f = fopen(paths[i], "w");
-    if (!f) return 2;
-    logline(f, "gputest v2 home=%s uid=%d euid=%d gid=%d egid=%d argv0=%s",
-            home.UTF8String, getuid(), geteuid(), getgid(), getegid(), argc ? argv[0] : "?");
+    if (!f) f = fopen("/dev/null", "w");              // 全失败也不崩，结果走 stdout/stderr 重定向
+    if (f) {
+        logline(f, "gputest v3 home=%s uid=%d euid=%d gid=%d egid=%d argv0=%s",
+                home.UTF8String, getuid(), geteuid(), getgid(), getegid(), argc ? argv[0] : "?");
+    }
 
     id<MTLDevice> def = MTLCreateSystemDefaultDevice();
-    logline(f, "MTLCreateSystemDefaultDevice = %@", def ? @"OK" : @"nil");
-    if (def) logline(f, "default name = %s", def.name.UTF8String);
+    NSString *defS = def ? [NSString stringWithFormat:@"OK name=%@", def.name] : @"nil";
+    printf("MTLCreateSystemDefaultDevice = %s\n", defS.UTF8String); fflush(stdout);
+    if (f) logline(f, "MTLCreateSystemDefaultDevice = %@", def ? def.name : @"nil");
 
     NSArray<id<MTLDevice>> *devs = MTLCopyAllDevices();
-    logline(f, "MTLCopyAllDevices count = %lu", (unsigned long)devs.count);
-    if (devs.count) logline(f, "copyall[0] name = %s", devs[0].name.UTF8String);
+    printf("MTLCopyAllDevices count = %lu\n", (unsigned long)devs.count); fflush(stdout);
+    if (devs.count) printf("copyall[0] name = %s\n", devs[0].name.UTF8String);
+    if (f) logline(f, "MTLCopyAllDevices count = %lu", (unsigned long)devs.count);
 
     // 尝试创建一个 command queue / 最小 Metal 对象，确认不是空壳
     id<MTLCommandQueue> cq = def ? [def newCommandQueue] : nil;
-    logline(f, "newCommandQueue = %@", cq ? @"OK" : @"nil");
+    printf("newCommandQueue = %@\n", cq ? @"OK" : @"nil"); fflush(stdout);
+    if (f) logline(f, "newCommandQueue = %@", cq ? @"OK" : @"nil");
 
-    fclose(f);
+    if (f) fclose(f);
+    printf("GPUTEST EXIT code=%d\n", (def != nil) ? 0 : 1); fflush(stdout);
     return (def != nil) ? 0 : 1;
 }
