@@ -128,7 +128,7 @@ extern "C" const char *g_hud_char;
         UIImage *wallV = [UIImage imageNamed:[NSString stringWithFormat:@"%@_wall_v", prefix]];
         if (wallV) _wallImageV = _trimTransparentPadding(wallV);   // v6.0.8：竖直扒墙（左/右边缘）
         // v6.0.8：加载更多站立表情/动作帧（待机自动切换 + 点击轮流展示）
-        NSArray *moodNames = @[@"blink", @"wave", @"tilt", @"giggle", @"heart", @"surprise", @"angry", @"jump"];
+        NSArray *moodNames = @[@"blink", @"wave", @"tilt", @"giggle", @"heart", @"surprise", @"angry", @"jump", @"squat", @"kneel", @"sit", @"side", @"hands", @"cross", @"lift"];
         NSMutableArray *mood = [NSMutableArray array];
         for (NSString *mn in moodNames) {
             UIImage *m = [UIImage imageNamed:[NSString stringWithFormat:@"%@_%@", prefix, mn]];
