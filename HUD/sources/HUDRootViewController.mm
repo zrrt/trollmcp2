@@ -105,6 +105,7 @@ extern "C" const char *g_hud_char;
     BOOL _isDragging;
     CGPoint _dragOffset;
     int _emojiTimer;      // 点击表情显示计时
+    NSUInteger _moodSeqIndex;  // v6.0.9：待机有序循环当前帧序号（不再随机挑帧）
 }
 
 + (BOOL)passthroughMode { return _passthrough; }
@@ -127,8 +128,14 @@ extern "C" const char *g_hud_char;
         if (wall) _wallImage = _trimTransparentPadding(wall);   // v6.0.8：水平扒墙（顶/底边缘）
         UIImage *wallV = [UIImage imageNamed:[NSString stringWithFormat:@"%@_wall_v", prefix]];
         if (wallV) _wallImageV = _trimTransparentPadding(wallV);   // v6.0.8：竖直扒墙（左/右边缘）
-        // v6.0.8：加载更多站立表情/动作帧（待机自动切换 + 点击轮流展示）
-        NSArray *moodNames = @[@"blink", @"wave", @"tilt", @"giggle", @"heart", @"surprise", @"angry", @"jump", @"squat", @"kneel", @"sit", @"side", @"hands", @"cross", @"lift"];
+        // v6.0.9：待机动作改为【有序循环】（用户要求：睁眼idle放第一 → 眯眼微笑帧穿插在睁眼后面 → 下蹲/坐姿 → 回睁眼，循环），不再随机挑帧。
+        // 顺序即播放顺序：睁眼段(站立睁眼表情) → 眯眼段(闭眼微笑/弯月眼) → 蹲坐段(蹲/跪/坐/趴姿势)，播完回 idle 再从头循环。
+        NSArray *moodNames = @[
+            @"tilt", @"heart", @"surprise", @"angry", @"jump",      // 睁眼段
+            @"blink", @"giggle", @"wave",                           // 眯眼段
+            @"squat", @"kneel", @"sit", @"side", @"hands", @"cross", @"lift",
+            @"wave_sit", @"kneel_up", @"side_sit", @"squat_hold", @"prone", @"chin_sit"   // 蹲坐段
+        ];
         NSMutableArray *mood = [NSMutableArray array];
         for (NSString *mn in moodNames) {
             UIImage *m = [UIImage imageNamed:[NSString stringWithFormat:@"%@_%@", prefix, mn]];
@@ -208,7 +215,7 @@ extern "C" const char *g_hud_char;
     [_girlView.layer addAnimation:anim forKey:@"hudFloat"];
 }
 
-// v6.0.8：待机自动切换表情——空闲时随机从 _moodFrames 挑一个显示约 1.2s，然后回 idle，再排下一次。
+// v6.0.9：待机自动切换表情——空闲时按 _moodFrames【顺序循环】取一帧显示约 1.2s（睁眼→眯眼→蹲坐→回睁眼），然后回 idle，再排下一次。
 // 只在"待机态 + 未拖拽 + 未扒墙 + 未锁屏"时切换，不打断用户正在看的表情/扒墙/拖拽。
 - (void)_scheduleAutoMood {
     if (!_moodFrames.count || _moodShowing) return;
@@ -216,7 +223,8 @@ extern "C" const char *g_hud_char;
         if (self->_autoMoodPaused || self->_isDragging || self->_moodShowing) { [self _scheduleAutoMood]; return; }
         if (self->_girlView.image == self->_wallImage || self->_girlView.image == self->_wallImageV) { [self _scheduleAutoMood]; return; }
         if (self->_girlView.image != self->_idleFrames.firstObject) { [self _scheduleAutoMood]; return; }
-        NSUInteger idx = arc4random_uniform((uint32_t)self->_moodFrames.count);
+        NSUInteger idx = self->_moodSeqIndex % self->_moodFrames.count;
+        self->_moodSeqIndex = (self->_moodSeqIndex + 1) % self->_moodFrames.count;
         UIImage *m = self->_moodFrames[idx];
         if (!m) { [self _scheduleAutoMood]; return; }
         self->_moodShowing = YES;
