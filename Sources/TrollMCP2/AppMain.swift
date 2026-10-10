@@ -70,17 +70,18 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         // v6.0.x: Live2D 方案 A 前置验证——启动后以 mobile 身份(persona 0)拉起沙盒 gputest 测 GPU。
         // gputest 打包在 App 根、签普通沙盒 entitlement(无 no-sandbox/platform-application/jetsam)；
         // persona_override=0 → 不提权、继承主 App mobile uid → gputest 以标准沙盒身份运行。
-        // 结果写 /tmp/gputest.log 或 /var/mobile/Documents/gputest.log，AI 连真机 cat 判断沙盒能否拿 GPU。
+        // 结果写 App 容器 /Documents/gputest.log，AI 连真机 cat 判断沙盒能否拿 GPU。
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 1) {
             let gp = Bundle.main.bundlePath + "/gputest"
             if FileManager.default.fileExists(atPath: gp) {
                 var argv: [UnsafeMutablePointer<CChar>?] = [strdup(gp), nil]
-                _ = argv.withUnsafeBufferPointer { buf in
-                    guard let base = buf.baseAddress else { return }
-                    _ = gp.withCString { cs in
-                        _troll_launch_hud(cs, base, 0)  // persona 0 = 不提权, 继承 mobile uid, gputest 沙盒
-                    }
+                let rc = argv.withUnsafeBufferPointer { buf -> Int32 in
+                    guard let base = buf.baseAddress else { return -99 }
+                    return gp.withCString { cs in _troll_launch_hud(cs, base, 0) } // persona 0 = 不提权
                 }
+                // 记录 spawn 结果到全局日志（主 App no-sandbox 可写），确认 gputest 是否真被拉起
+                try? ("gputest spawn rc=\(rc)\n").data(using: .utf8)?
+                    .write(to: URL(fileURLWithPath: "/var/mobile/Documents/gputest.spawn.log"))
             }
         }
         // v4.3.39：启动静默检查更新——后台跑，不打扰；发现新版点亮设置页"检查更新"红点

@@ -12,11 +12,16 @@ static void logline(FILE *f, const char *fmt, ...) {
 }
 
 int main(int argc, char **argv) {
-    FILE *f = fopen("/tmp/gputest.log", "w");
-    if (!f) f = fopen("/var/mobile/Documents/gputest.log", "w");
+    // 日志写到多个候选路径（沙盒进程写 /tmp/全局 Documents 可能被拒，App 容器最可靠）
+    FILE *f = NULL;
+    const char *paths[] = { "/var/mobile/Documents/gputest.log", "/tmp/gputest.log", NULL };
+    NSString *home = NSHomeDirectory();               // 沙盒进程 = App 容器，100% 可写
+    NSString *homeDoc = [home stringByAppendingPathComponent:@"Documents/gputest.log"];
+    f = fopen(homeDoc.UTF8String, "w");
+    for (int i = 0; !f && paths[i]; i++) f = fopen(paths[i], "w");
     if (!f) return 2;
-    logline(f, "gputest v1 uid=%d euid=%d gid=%d egid=%d argv0=%s",
-            getuid(), geteuid(), getgid(), getegid(), argc ? argv[0] : "?");
+    logline(f, "gputest v2 home=%s uid=%d euid=%d gid=%d egid=%d argv0=%s",
+            home.UTF8String, getuid(), geteuid(), getgid(), getegid(), argc ? argv[0] : "?");
 
     id<MTLDevice> def = MTLCreateSystemDefaultDevice();
     logline(f, "MTLCreateSystemDefaultDevice = %@", def ? @"OK" : @"nil");
