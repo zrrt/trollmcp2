@@ -330,7 +330,11 @@ extern "C" const char *g_hud_char;
     CGFloat size = (CGFloat)g_hud_size;
     CGFloat aspect = (img.size.height > 0) ? (img.size.width / img.size.height) : 1.0;
     CGFloat w = size * aspect;
-    _girlView.bounds = CGRectMake(0, 0, w, size);
+    CGFloat h = size;
+    // v6.0.10：横向帧（趴着/横躺，裁剪后 aspect>1，如 rabit_prone）限制宽度≤size、高度按比例——
+    // 否则横向动作宽=size*aspect 会撑得过大（rabit_prone aspect1.45 → 217pt 宽）。
+    if (w > size) { w = size; h = w / aspect; }
+    _girlView.bounds = CGRectMake(0, 0, w, h);
     _girlView.center = center;   // 保持中心，切换时不跳
 }
 - (void)_tap:(UITapGestureRecognizer *)g {
