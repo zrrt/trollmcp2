@@ -5,6 +5,8 @@
 #include <dlfcn.h>
 #include <stdio.h>
 #include <fcntl.h>
+#include <stdlib.h>
+#include <sys/wait.h>
 
 /*
  * posix_spawnattr_setpersona_np 等是 iOS 私有 API：运行时在 libspawn 里存在，
