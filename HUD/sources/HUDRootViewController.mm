@@ -307,14 +307,18 @@ extern "C" const char *g_hud_char;
     if (minD == dL || minD == dR) wallImg = _wallImageV;   // 左/右：竖直墙沿图
     else                          wallImg = _wallImage;    // 顶/底：水平墙沿图
     if (!wallImg) return;
+    _girlView.image = wallImg;
+    // v6.0.9：趴墙缩小显示——角色以平时一半高度贴在边缘（原用全高 size 导致趴墙角色过大、girl 底部/左右趴墙不贴合）。
+    // 先设缩小尺寸，再按缩小后尺寸吸附，角色中心放屏幕边缘线、半身探出（企鹅趴墙探头效果）。
+    CGFloat wallH = (CGFloat)g_hud_size * 0.5;   // 趴墙缩放系数（可调：0.5=平时一半）
+    CGFloat wa = (wallImg.size.height > 0) ? (wallImg.size.width / wallImg.size.height) : 1.0;
+    _girlView.bounds = CGRectMake(0, 0, wallH * wa, wallH);
     // 吸附左缘→镜像面向左墙；右缘→正常面向右墙；上下→保持原方向
     if (minD == dL)      { c.x = _girlView.frame.size.width / 2; _girlView.transform = CGAffineTransformMakeScale(-1, 1); }
     else if (minD == dR) { c.x = v.width - _girlView.frame.size.width / 2; _girlView.transform = CGAffineTransformIdentity; }
     else if (minD == dT) { c.y = _girlView.frame.size.height / 2; _girlView.transform = CGAffineTransformIdentity; }
     else                 { c.y = v.height - _girlView.frame.size.height / 2; _girlView.transform = CGAffineTransformIdentity; }
     _girlView.center = c;
-    _girlView.image = wallImg;
-    [self _setFrameForImage:wallImg];
 }
 
 // 点击切表情：开心→思考→待机
